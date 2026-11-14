@@ -34,7 +34,20 @@ export function prepareHeadquartersPortal(entry){
   const left=model.getObjectByName('Door_Left_Pivot');
   const right=model.getObjectByName('Door_Right_Pivot');
   if(!left||!right)return null;
-  model.userData.portal={lamp:[.039,-.10,.39],inside:[.039,-.22,.245],outside:[.039,-.22,.47]};
+  // Compute the one true pioneer lane from the authored source GLB.
+  // The exterior point must clear the FRONT of the roof and both buttresses.
+  const shell=model.getObjectByName('SF_Final_Static_Body');
+  if(shell?.geometry&&!shell.geometry.boundingBox)shell.geometry.computeBoundingBox();
+  const ground=shell?.geometry?.boundingBox?.min.y??-.290;
+  const front=shell?.geometry?.boundingBox?.max.z??.400;
+  const midX=(left.position.x+right.position.x)/2;
+  const doorZ=(left.position.z+right.position.z)/2;
+  const foot=ground+.010;
+  model.userData.portal={
+   lamp:[midX,-.105,doorZ+.08],
+   inside:[midX,foot,doorZ-.09],
+   outside:[midX,foot,Math.max(front+.19,doorZ+.28)]
+  };
   const portal={root:model,hall:new THREE.Group(),leaves:[
    {leaf:left,baseX:left.position.x,side:-1,travel:.093},
    {leaf:right,baseX:right.position.x,side:1,travel:.093}
@@ -111,6 +124,25 @@ export function prepareHeadquartersPortal(entry){
  entry.headquartersPortal=portal;
  return portal;
 }
+/** Follow the real +Z door; go around the outside corner rather than
+ * drawing a chord through the left or right wing to a rear/side spawn.
+ * Only the visual actor is interpolated; simulation spawn remains untouched.
+ */
+export function finalHeadquartersExitRoute(root,worldTarget,fraction){
+ const lane=root?.userData?.portal;
+ if(!lane)return worldTarget.clone();
+ const outside=root.localToWorld(new THREE.Vector3(...lane.outside));
+ const t=clamp(fraction);
+ const destination=root.worldToLocal(worldTarget.clone());
+ if(destination.z>=.43)return outside.lerp(worldTarget,smooth(t));
+ const side=destination.x<0?-1:1;
+ const corner=root.localToWorld(new THREE.Vector3(side*.615,lane.outside[1],lane.outside[2]));
+ const rearSide=root.localToWorld(new THREE.Vector3(side*.615,lane.outside[1],Math.min(destination.z,.13)));
+ if(t<.39)return outside.lerp(corner,smooth(t/.39));
+ if(t<.78)return corner.lerp(rearSide,smooth((t-.39)/.39));
+ return rearSide.lerp(worldTarget,smooth((t-.78)/.22));
+}
+
 export function setHeadquartersDoorOpen(portal,amount){
  if(!portal)return;
  const t=smooth(amount);
@@ -356,7 +388,14 @@ export class SandforgeProductionGates {
      p=root.localToWorld(new THREE.Vector3(.18,y,z));
     }
     yaw=facing+(authored&&!gate.portal.mk2?Math.PI:0);
-   }else if((hq&&gate.portal.authored&&(gate.portal.leaves.length===4||gate.portal.final))||
+    }else if(hq&&gate.portal.final){
+     const t=clamp((fraction-clearFraction)/(1-clearFraction));
+     p=finalHeadquartersExitRoute(root,target,t);
+     const previous=finalHeadquartersExitRoute(root,target,Math.max(0,t-.004));
+     const next=finalHeadquartersExitRoute(root,target,Math.min(1,t+.004));
+     const tangent=next.sub(previous);
+     yaw=tangent.lengthSq()>.00001?Math.atan2(tangent.x,tangent.z):facing;
+    }else if((hq&&gate.portal.authored&&gate.portal.leaves.length===4)||
               (barracks&&gate.portal.mk2)){
     // MK2: cross the actual fence gate, then approach the ONE authoritative
     // exterior spawn without inventing a circular detour. The simulation
@@ -421,7 +460,7 @@ export class SandforgeProductionGates {
    // The shutter may still be animating while the vehicle is motionless.
    // Gate state does not imply physical wheel rotation.
    const actuallyRolling=infantry?moving&&speed>.25:rolloutWheelsShouldRoll(moving,speed);
-   actor.productionMotion={moving:actuallyRolling,hideHealth:fraction<clearFraction*.64,driveSpeed:speed,walkDistance:distance,angle:Math.PI/2-yaw,hullAngle:Math.PI/2-yaw};
+   actor.productionMotion={moving:actuallyRolling,hideHealth:hq||fraction<clearFraction*.64,driveSpeed:speed,walkDistance:distance,angle:Math.PI/2-yaw,hullAngle:Math.PI/2-yaw};
    // The one authoritative actor appears only after the door is open.
    actor.node.visible=age>=GATE_TIMING.warning+GATE_TIMING.opening;
   }
