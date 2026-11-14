@@ -6,10 +6,10 @@ import * as THREE from 'three';
  */
 export const STRATEGIC_GLB_MODELS=Object.freeze({
  headquarters:Object.freeze({
-  // MK2 is the preferred finished HQ with authored doors, perimeter and radar.
-  // The previous HQ3 remains available as an automatic loading fallback.
-  inactive:'/src/assets/reborn/buildings-3d/sandforge_feldkommando_mk2.glb',
-  active:'/src/assets/reborn/buildings-3d/sandforge_feldkommando_mk2.glb'
+  // The user's final Feldkommando: one authored GLB for live, construction and HUD.
+  // Only older fallback remains available until the binary asset is checked in.
+  inactive:'/src/assets/reborn/buildings-3d/sandforge_feldkommando_final.glb',
+  active:'/src/assets/reborn/buildings-3d/sandforge_feldkommando_final.glb'
  }),
  barracks:Object.freeze({
   inactive:'/src/assets/reborn/buildings-3d/sandforge_kaserne_geschlossen.glb',
