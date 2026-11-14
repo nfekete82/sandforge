@@ -12,6 +12,9 @@ const OWNED='sfMk2PolishOwned';
 export const MK2_FENCE_OUTSET=1.35; // Authored metres, never scene/game scale
 
 export function isFeldkommandoMk2(model){
+ // Final user's normalized Y-up building must not receive old MK2 Z-up hallway,
+ // roof or fence geometry. Its door and radar are already authored in the GLB.
+ if(model?.getObjectByName?.('SF_Feldkommando_Final'))return false;
  return Boolean(model?.getObjectByName?.('Door_Left_Pivot')&&
   model.getObjectByName('Door_Right_Pivot')&&
   model.getObjectByName('Fence_Gate_Left_Pivot')&&
