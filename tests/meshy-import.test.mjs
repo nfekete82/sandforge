@@ -20,7 +20,8 @@ test('Meshy model replacement is opt-in and cannot surprise existing saves',()=>
 });
 
 test('Do not silently freeze animated soldier / rocket infantry',()=>{
- assert.equal(meshyAsset('infantry',0,'?models=meshy'),null);
+ assert.equal(meshyAsset('infantry',0,'?models=meshy'),'/src/assets/meshy/infantry.glb');
+ assert.equal(meshyAsset('infantry',1,''),'/src/assets/meshy/infantry.glb');
  assert.equal(meshyAsset('rocket',0,'?models=meshy'),null);
  assert.equal(meshyAsset('infantry',0,'?models=meshy&meshyStaticSoldier=1'),
   '/src/assets/meshy/infantry.glb');
