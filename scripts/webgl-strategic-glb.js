@@ -9,8 +9,8 @@ export const STRATEGIC_GLB_MODELS=Object.freeze({
  headquarters:Object.freeze({
   // The user's final Feldkommando: one authored GLB for live, construction and HUD.
   // Only older fallback remains available until the binary asset is checked in.
-  inactive:'/src/assets/reborn/buildings-3d/sandforge_feldkommando_final.glb',
-  active:'/src/assets/reborn/buildings-3d/sandforge_feldkommando_final.glb'
+  inactive:'/src/assets/reborn/buildings-3d/sandforge_feldkommando_lowpoly_1geschoss.glb',
+  active:'/src/assets/reborn/buildings-3d/sandforge_feldkommando_lowpoly_1geschoss.glb'
  }),
  barracks:Object.freeze({
   inactive:'/src/assets/reborn/buildings-3d/sandforge_kaserne_geschlossen.glb',
