@@ -199,6 +199,30 @@ export function shouldTintFactionSurface(kind,type,materialName='',meshName='',m
  * cloning again, and the cached glTF template is never mutated. */
 export function tintFactionMaterials(root,owner,kind,type){
  if(!root||root.userData?.sandforgePreserveAuthoredMaterials)return 0;
+ // Low-poly HQ uses flat PBR swatches instead of any UV/world projection.
+ // Only its separate team cloth becomes blue/red; keep masonry, roof,
+ // windows, crates and material colors unmodified and model-locked.
+ if(type==='building'&&kind==='headquarters'&&root.getObjectByName('Gate_Left_Pivot')){
+  const teamColor=owner===0?'#397fa5':owner===1?'#ba5548':'#57733e';
+  let recolored=0;
+  for(const name of ['TeamBanner_Left','TeamBanner_Right','HQ_Flag']){
+   const banner=root.getObjectByName(name);
+   banner?.traverse(node=>{
+    if(!node.isMesh)return;
+    const tone=source=>{
+     if(!source?.isMeshStandardMaterial||!/^(green|green_dark)$/.test(source.name))return source;
+     const result=source.clone();
+     result.color.set(source.name==='green_dark'?
+      (owner===0?'#23516a':owner===1?'#71372c':'#304322'):teamColor);
+     result.userData={...source.userData,sandforgeLowpolyTeamCloth:true};
+     recolored++;return result;
+    };
+    node.material=Array.isArray(node.material)?node.material.map(tone):tone(node.material);
+   });
+  }
+  return recolored;
+ }
+
  // MK2 Kaserne and Feldkommando share the same real model and must take
  // precisely the same paint path. The old 'barracks' branch installed a
  // dark projected roofing shader on top of the MK2, hence the black roof.
