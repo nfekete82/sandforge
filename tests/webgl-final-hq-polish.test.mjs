@@ -6,7 +6,7 @@ import {createBuildingYard} from '../scripts/webgl-building-yard.js';
 import {polishFinalFeldkommando,finalHqCamouflageTexture,FINAL_HQ_CAMO_COLORS} from '../scripts/webgl-final-hq-finish.js';
 import {applyStrategicGlbFinish} from '../scripts/webgl-strategic-glb.js';
 
-test('uploaded camouflage is decoded from the user's original desert reference',()=>{
+test("uploaded camouflage is decoded from the user\'s original desert reference",()=>{
  const texture=finalHqCamouflageTexture();
  assert.equal(texture.image.width,48);
  assert.equal(texture.image.height,34);
