@@ -8,7 +8,7 @@ import {buildingFacingAngle} from '../scripts/webgl-scale.js';
 
 test('preferred headquarters is Final and HQ3 remains an emergency asset fallback',()=>{
  assert.equal(strategicGlbUrl('headquarters','active'),
-  '/src/assets/reborn/buildings-3d/sandforge_feldkommando_final.glb');
+  '/src/assets/reborn/buildings-3d/sandforge_feldkommando_lowpoly_1geschoss.glb');
  assert.equal(strategicGlbUrl('headquarters','inactive'),strategicGlbUrl('headquarters','active'));
  assert.equal(HQ3_FALLBACK_URL,'/src/assets/reborn/buildings-3d/sandforge_funkzentrale_hq3_game_ready.glb');
 });
