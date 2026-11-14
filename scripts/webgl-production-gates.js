@@ -29,6 +29,18 @@ export function prepareHeadquartersPortal(entry){
  if(entry?.headquartersPortal)return entry.headquartersPortal;
  const model=entry?.detail;
  if(!model)return null;
+ // Final normalized Y-up HQ: one real door and no extra fence gate.
+ if(model.getObjectByName('SF_Feldkommando_Final')){
+  const left=model.getObjectByName('Door_Left_Pivot');
+  const right=model.getObjectByName('Door_Right_Pivot');
+  if(!left||!right)return null;
+  model.userData.portal={lamp:[.039,-.10,.39],inside:[.039,-.22,.245],outside:[.039,-.22,.47]};
+  const portal={root:model,hall:new THREE.Group(),leaves:[
+   {leaf:left,baseX:left.position.x,side:-1,travel:.093},
+   {leaf:right,baseX:right.position.x,side:1,travel:.093}
+  ],materials:[],open:0,authored:true,final:true};
+  entry.headquartersPortal=portal;return portal;
+ }
  // MK2's two main doors and two fence gates expose real sliding GLB pivots.
  const mainL=model.getObjectByName('Door_Left_Pivot');
  const mainR=model.getObjectByName('Door_Right_Pivot');
@@ -344,7 +356,7 @@ export class SandforgeProductionGates {
      p=root.localToWorld(new THREE.Vector3(.18,y,z));
     }
     yaw=facing+(authored&&!gate.portal.mk2?Math.PI:0);
-   }else if((hq&&gate.portal.authored&&gate.portal.leaves.length===4)||
+   }else if((hq&&gate.portal.authored&&(gate.portal.leaves.length===4||gate.portal.final))||
               (barracks&&gate.portal.mk2)){
     // MK2: cross the actual fence gate, then approach the ONE authoritative
     // exterior spawn without inventing a circular detour. The simulation
