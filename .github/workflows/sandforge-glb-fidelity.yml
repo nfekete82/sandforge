@@ -41,7 +41,7 @@ jobs:
         env:
           SANDFORGE_BROWSER_CHANNEL: chromium
           SANDFORGE_TEST_PORT: '8201'
-        run: node tests/browser/node_modules/playwright/cli.js test --config=tests/browser/playwright.config.mjs webgl-glb-quality.spec.mjs
+        run: node tests/browser/node_modules/playwright/cli.js test --config=tests/browser/playwright.config.mjs webgl-glb-quality.spec.mjs webgl-final-hq-camo.spec.mjs
       - name: Save browser output
         if: always()
         uses: actions/upload-artifact@v4
