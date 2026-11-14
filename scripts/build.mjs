@@ -25,7 +25,7 @@ cpSync('webgl-preview.html','dist/webgl-preview.html');
 cpSync('glb-quality.html','dist/glb-quality.html');
 cpSync('building-gallery.html','dist/building-gallery.html');
 cpSync('art-gallery.html','dist/art-gallery.html');
-for(const module of ['webgl-stylized-pack','webgl-meshy-assets','webgl-art-gallery'])cpSync(`scripts/${module}.js`,`dist/${module}.js`);
+for(const module of ['webgl-stylized-pack','webgl-meshy-assets','webgl-lowpoly-soldier','webgl-art-gallery'])cpSync(`scripts/${module}.js`,`dist/${module}.js`);
 for(const module of ['webgl-building-design','webgl-hq3-reference','webgl-building-gallery','webgl-building-profiles','webgl-building-motion','webgl-building-bounds','webgl-barracks-silhouette'])cpSync(`scripts/${module}.js`,`dist/${module}.js`);
 cpSync('scripts/webgl-preview.js','dist/webgl-preview.js');
 cpSync('scripts/webgl-glb-quality.js','dist/webgl-glb-quality.js');
