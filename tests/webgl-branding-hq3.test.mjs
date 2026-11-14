@@ -13,13 +13,13 @@ test('Bastion title, pause and in-game logo all use the final paths',()=>{
  assert.match(html,/sf-bastion-bg-ready/);
  assert.match(html,/sf3d-main-stats/);
 });
-test('HQ3 Funkzentrale is the default, with matching construction-card portrait',()=>{
+test('final Feldkommando is the default, with matching construction-card portrait',()=>{
  const battlefield=read('scripts/webgl-battlefield.js');
  const portraits=read('scripts/webgl-portraits.js');
  const strategic=read('scripts/webgl-strategic-glb.js');
- assert.ok(battlefield.includes("kind==='headquarters'&&"));
+ assert.ok(battlefield.includes("if(type==='building'&&kind==='headquarters')"));
  assert.ok(battlefield.includes("return strategicGlbUrl('headquarters','active')"));
- assert.ok(portraits.includes("if(kind==='headquarters'&&!meshyAsset(kind,0)"));
+ assert.ok(portraits.includes("if(kind==='headquarters')"));
  assert.ok(portraits.includes('renderStrategicPortrait(kind,renderer)'));
  assert.ok(strategic.includes('sandforge_funkzentrale_hq3_game_ready.glb'));
  const glb=readFileSync('src/assets/reborn/buildings-3d/sandforge_funkzentrale_hq3_game_ready.glb');
