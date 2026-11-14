@@ -150,10 +150,16 @@ export function finalHeadquartersExitRoute(root,worldTarget,fraction){
  const outside=root.localToWorld(new THREE.Vector3(...lane.outside));
  const t=clamp(fraction);
  const destination=root.worldToLocal(worldTarget.clone());
- if(destination.z>=.43)return outside.lerp(worldTarget,smooth(t));
+ const lowPoly=Boolean(root?.getObjectByName?.('Gate_Left_Pivot'));
+ const frontClear=lowPoly?lane.outside[2]:.43;
+ if(destination.z>=frontClear)return outside.lerp(worldTarget,smooth(t));
  const side=destination.x<0?-1:1;
- const corner=root.localToWorld(new THREE.Vector3(side*.615,lane.outside[1],lane.outside[2]));
- const rearSide=root.localToWorld(new THREE.Vector3(side*.615,lane.outside[1],Math.min(destination.z,.13)));
+ // The new single-storey HQ measures 15m wide and nearly 11m deep.
+ // Clear its actual outer corners before traveling behind the shell.
+ const x=lowPoly?7.75:.615;
+ const corner=root.localToWorld(new THREE.Vector3(side*x,lane.outside[1],lane.outside[2]));
+ const rearSide=root.localToWorld(new THREE.Vector3(side*x,lane.outside[1],
+  Math.min(destination.z,lowPoly?-5.65:.13)));
  if(t<.39)return outside.lerp(corner,smooth(t/.39));
  if(t<.78)return corner.lerp(rearSide,smooth((t-.39)/.39));
  return rearSide.lerp(worldTarget,smooth((t-.78)/.22));
