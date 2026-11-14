@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 
-test('Feldkommando camouflage remains painted to the model when its world position changes',async({page})=>{
+test('single-storey low-poly HQ keeps flat material paint fixed when moving the building',async({page})=>{
  test.setTimeout(90000);
  const errors=[];
  page.on('pageerror',e=>errors.push(e.message));
@@ -9,29 +9,34 @@ test('Feldkommando camouflage remains painted to the model when its world positi
   const THREE=await import('three');
   const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
   const {applyStrategicGlbFinish}=await import('/webgl-strategic-glb.js');
-  const gltf=await new GLTFLoader().loadAsync(
-   '/src/assets/reborn/buildings-3d/sandforge_feldkommando_final.glb');
-  const group=gltf.scene;
+  const {scene:group}=await new GLTFLoader().loadAsync(
+   '/src/assets/reborn/buildings-3d/sandforge_feldkommando_lowpoly_1geschoss.glb');
   applyStrategicGlbFinish(group);
-  const body=group.getObjectByName('SF_Final_Static_Body');
-  if(!body?.material?.userData?.sandforgeFinalCamo)
-   throw Error('Final HQ camouflage material is missing');
+  const nodes=['Gate_Left_Pivot','Gate_Right_Pivot','Radar_Pivot',
+   'TeamBanner_Left','TeamBanner_Right'].map(name=>Boolean(group.getObjectByName(name)));
+  let textures=0,customCamo=0;
+  group.traverse(node=>{
+   if(!node.isMesh)return;
+   for(const material of Array.isArray(node.material)?node.material:[node.material]){
+    if(material?.map)textures++;
+    if(material?.userData?.sandforgeFinalCamo)customCamo++;
+   }
+  });
   const scene=new THREE.Scene();
   scene.background=new THREE.Color('#202020');
   scene.add(group);
   scene.add(new THREE.AmbientLight('#ffffff',2.2));
   const light=new THREE.DirectionalLight('#ffffff',2);
-  light.position.set(2,3,4);scene.add(light);scene.add(light.target);
-  const camera=new THREE.PerspectiveCamera(44,1,.05,100);
+  scene.add(light);scene.add(light.target);
+  const camera=new THREE.PerspectiveCamera(44,1,.05,150);
   const renderer=new THREE.WebGLRenderer({antialias:false,preserveDrawingBuffer:true});
   renderer.setPixelRatio(1);renderer.setSize(280,280,false);
   const buffer=new THREE.WebGLRenderTarget(280,280,{depthBuffer:true});
   const renderAt=x=>{
    group.position.set(x,0,0);
-   camera.position.set(x+1.42,.84,1.62);
-   camera.lookAt(x,0,0);
-   light.position.set(x+2,3,4);
-   light.target.position.set(x,0,0);
+   camera.position.set(x+20,13,21);
+   camera.lookAt(x,3,0);
+   light.position.set(x+2,11,8);light.target.position.set(x,2,0);
    group.updateMatrixWorld(true);
    renderer.setRenderTarget(buffer);renderer.render(scene,camera);
    const data=new Uint8Array(280*280*4);
@@ -49,14 +54,12 @@ test('Feldkommando camouflage remains painted to the model when its world positi
   }
   buffer.dispose();renderer.dispose();
   return {pixelDifference:subjects?difference/(subjects*3*255):1,subjects,
-   textureWidth:body.material.map?.image?.width||null,
-   shaderRevision:body.material.customProgramCacheKey()};
+   textures,customCamo,nodes};
  });
  expect(errors).toEqual([]);
+ expect(result.nodes.every(Boolean)).toBe(true);
  expect(result.subjects).toBeGreaterThan(1000);
- expect(result.textureWidth).toBeGreaterThan(1000);
- expect(result.shaderRevision).toContain('local-desert-v4');
- // A world-projected texture would visibly change even though the
- // camera/light follow the model. Model-local texture must remain identical.
+ expect(result.textures).toBe(0);
+ expect(result.customCamo).toBe(0);
  expect(result.pixelDifference).toBeLessThan(.025);
 });
