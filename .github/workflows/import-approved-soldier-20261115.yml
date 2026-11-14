@@ -1,0 +1,66 @@
+name: Import approved low-poly soldier (one-time)
+on:
+  push:
+    branches:
+      - feat/lowpoly-sandforge-soldier-20261115
+    paths:
+      - .github/workflows/import-approved-soldier-20261115.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SAND_FORGE_MESHY_URL: "https://assets.meshy.ai/uploads/converted/01a1dc72-444f-7700-8984-4a0fbf6b510a/01a1dc73-5067-713a-98be-9ced1004a88d/Meshy_AI__1114234507_image-to-3d-texture.glb?Expires=1794787200&Signature=OMiYJOJIN04T~aMhHZx3adc5RRGhn-TcmfIJRvYxV2AeGVl2rAB3kWYYaKOgJk8ZeNdK-9zYe7jrTVAfbTx1DEff7ZVzaPtafluPHYMmxNZgCpHO~6I7xQkRY551dTxWGuk0InW~3A8ncyL8wrbGPpnWR6zSCc5GZ0bBL112SmDuE8jbgbJVC3crQ~zM-y~weRenJKdQf7wp1KyExOduGsooQqaW~FqFlNsefd3qBSiN5OalOlj5uo-wsl9i40iM1-vpY-~X-HgZ~Qa5qXpzhMLNsRDD7TgNKQtd~PG83VLPU-ravNjxNpaZQ-Gh0PAW8Mj~4rcbHZ-nFXV4TLUCXQ__&Key-Pair-Id=K1VGYTHIYLM9UM"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Download approved model from user's Meshy export
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p src/assets/meshy
+          curl --fail --location --retry 3 --max-time 180 "$SAND_FORGE_MESHY_URL" --output src/assets/meshy/infantry.glb
+      - name: Verify 3D model is GLB2 and includes renderable geometry
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import assert from 'node:assert/strict';
+          const bytes=readFileSync('src/assets/meshy/infantry.glb');
+          assert.ok(bytes.length>10000&&bytes.length<100000000);
+          assert.equal(bytes.toString('ascii',0,4),'glTF');
+          assert.equal(bytes.readUInt32LE(4),2);
+          assert.equal(bytes.readUInt32LE(8),bytes.length);
+          const meta=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString('utf8'));
+          assert.ok(meta.meshes?.length>0&&meta.accessors?.length>0&&meta.nodes?.length>0);
+          console.log('Verified Meshy soldier:',bytes.length,'bytes /',meta.meshes.length,'meshes /',meta.animations?.length??0,'animation clips');
+          NODE
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Test soldier routing, GLB import and non-regression
+        run: node --test tests/webgl-lowpoly-soldier-20261115.test.mjs tests/meshy-import.test.mjs tests/stylized-pack.test.mjs
+      - name: Build Sandforge WebGL with real model
+        run: npm run build:3d
+      - name: Verify distribution ships the SAME GLB
+        run: |
+          cmp src/assets/meshy/infantry.glb dist/src/assets/meshy/infantry.glb
+          test -s dist/webgl-lowpoly-soldier.js
+      - name: Commit actual GLB to integration branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/assets/meshy/infantry.glb
+          if ! git diff --cached --quiet; then
+            git commit -m "asset(soldier): vendor approved Meshy low-poly infantry GLB"
+            git push origin HEAD:feat/lowpoly-sandforge-soldier-20261115
+          fi
