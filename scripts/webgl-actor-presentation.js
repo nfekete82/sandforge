@@ -37,11 +37,11 @@ const flashTex=muzzleTexture();
 const ownerColor=owner=>owner===0?'#68ddf5':'#ff8a69';
 const pulseSize=kind=>infantry.has(kind)?21:air.has(kind)?36:kind==='tank'?40:35;
 const barWidth=(kind,type)=>type==='building'
- ?Math.max(42,Math.min(68,(BUILDINGS[kind]?.width??115)*.30)):
+ ?kind==='headquarters'?52:Math.max(42,Math.min(68,(BUILDINGS[kind]?.width??115)*.30)):
  infantry.has(kind)?26:air.has(kind)?44:36;
 const barAltitude=(kind,type)=>type==='building'
  ?Math.max(65,Math.min(144,(BUILDINGS[kind]?.width??130)*.55)):
- infantry.has(kind)?62:air.has(kind)?49:56;
+ kind==='engineer'?40:infantry.has(kind)?62:air.has(kind)?49:56;
 
 function statusBar(scene,entity,type){
  const width=barWidth(entity.kind,type);
@@ -276,7 +276,7 @@ export class SandforgeActorPresentation {
   if(bar.root.visible)this.stats.visibleBars++;
   if(visible){
    bar.root.position.copy(entry.node.position);
-   bar.root.position.y+=entry.modelHeight?Math.max(bar.altitude,entry.modelHeight+5):bar.altitude;
+   bar.root.position.y+=entry.modelHeight?Math.max(bar.altitude,entry.modelHeight+(type==='building'&&entity.kind==='headquarters'?24:5)):bar.altitude;
    bar.root.quaternion.copy(this.camera.quaternion);
    bar.fill.scale.x=bar.width*pct;
    bar.fill.position.x=-(bar.width*(1-pct))/2;
