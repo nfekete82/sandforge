@@ -4,10 +4,10 @@ import {existsSync,readFileSync} from 'node:fs';
 import {stylizedAsset} from '../scripts/webgl-stylized-pack.js';
 import {strategicGlbUrl} from '../scripts/webgl-strategic-glb.js';
 
-test('the previous HQ3 Feldkommando is restored without altering branding',()=>{
+test('the final Feldkommando replaces HQ3 without altering branding',()=>{
  const battle=readFileSync('scripts/webgl-battlefield.js','utf8');
  const portraits=readFileSync('scripts/webgl-portraits.js','utf8');
- assert.ok(strategicGlbUrl('headquarters','active').endsWith('sandforge_feldkommando_mk2.glb'));
+ assert.ok(strategicGlbUrl('headquarters','active').endsWith('sandforge_feldkommando_final.glb'));
  assert.ok(battle.includes("return strategicGlbUrl('headquarters','active')"));
  assert.ok(!battle.includes('return SANDFORGE_DEFAULT_FELDKOMMANDO_URL'));
  assert.ok(!battle.includes('sandforgeMeshyHeadquarters=true'));
