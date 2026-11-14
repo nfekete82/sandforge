@@ -366,7 +366,13 @@ export class SandforgeBattlefield {
    }
   }
   if(entry.kind==='headquarters'){
-   // MK2 uses its own authored radar animation, not a procedural second dish.
+   // Native low-poly pivot rotates the authored rooftop dish, not an added dish.
+    const lowPolyRadar=entry.detail?.getObjectByName('Radar_Pivot');
+    if(lowPolyRadar){
+     entry.motion={kind:'headquarters',rotor:lowPolyRadar,mode:'lowpoly-radar'};
+     return;
+    }
+    // MK2 uses its own authored radar animation, not a procedural second dish.
    const mk2Radar=data.animations?.find(c=>c.name==='Radar_Scan');
    if(mk2Radar?.tracks?.length&&entry.detail?.getObjectByName('Radar_Dish_Pivot')){
     const mixer=new THREE.AnimationMixer(entry.detail),action=mixer.clipAction(mk2Radar);
@@ -556,7 +562,7 @@ export class SandforgeBattlefield {
      entry.modelFootprint,entry.modelHeight);
     if(type==='unit')attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
     if(type==='building'&&entry.kind==='headquarters'){
-     if(model.getObjectByName('SF_Feldkommando_Final'))
+     if(model.getObjectByName('SF_Feldkommando_Final')||model.getObjectByName('Gate_Left_Pivot'))
       hideMk2DuplicateFence(entry.yard);
      else polishFeldkommandoMk2(model,entry.yard);
     }
