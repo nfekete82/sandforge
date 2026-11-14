@@ -379,13 +379,13 @@ export function unitIcon(kind,renderer){
 // into a consistent wide tile without clipping its silhouette.
 const buildingIconCache=new Map();
 async function rasterizeBuildingIcon(kind,renderer){
- // Match the actual placed HQ3 Funkzentrale instead of displaying the
+ // Match the actual placed low-poly Feldkommando instead of displaying the
  // older stylized headquarters on the construction tile. Meshy remains
  // explicitly opt-in; the stylized HQ is available via ?hq=stylized.
  if(kind==='headquarters'){
   if(!renderer)return buildingIconUrl(kind);
   try{return await renderStrategicPortrait(kind,renderer);}
-  catch(error){console.warn('HQ3 building thumbnail fallback',error);}
+  catch(error){console.warn('Feldkommando thumbnail fallback',error);}
  }
  if(renderer&&(meshyAsset(kind,0)||stylizedAsset(kind,0))){
   try{return await renderStylizedPortrait(kind,renderer);}
