@@ -57,6 +57,10 @@ export class SandforgeConstructionPresentation{
  update(entry,base){
   const spec=BUILDINGS[base.kind],active=base.buildRemaining>0;
   if(!active){
+   // Instanced roof vents are excluded from triangle-reveal construction;
+   // restore them when the completed authored building becomes live.
+   const completeRoof=entry.detail?.getObjectByName('SF_Final_Roof_Grilles');
+   if(completeRoof)completeRoof.visible=true;
    if(entry.construction)this.finish(entry);
    return;
   }
@@ -67,9 +71,13 @@ export class SandforgeConstructionPresentation{
   const healthAltitude=entry.presentation?.bar?.altitude??
    Math.max(65,Math.min(144,(spec.width??130)*.55));
   const healthY=entry.modelHeight?
-   Math.max(healthAltitude,entry.modelHeight+5):healthAltitude;
+   Math.max(healthAltitude,entry.modelHeight+(base.kind==='headquarters'?24:5)):healthAltitude;
   state.label.position.y=Math.max(state.height+65,healthY+45);
   const progress=THREE.MathUtils.clamp(1-base.buildRemaining/spec.buildTime,0,1);
+  // The low-profile grille group is an instanced visual decoration, not
+  // part of the height-sorted source mesh: reveal only after the roof rises.
+  const roofDetails=entry.detail?.getObjectByName('SF_Final_Roof_Grilles');
+  if(roofDetails)roofDetails.visible=progress>=.88;
   state.frame.visible=true;
   // No generic concrete foundation slab during Kaserne construction.
   state.slab.visible=base.kind!=='barracks'&&progress>=.015;
