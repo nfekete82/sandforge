@@ -106,14 +106,14 @@ test('MK2 barracks keeps one fence and changes only its own supply arrangement',
  assert.equal(arrangeMk2BarracksSupplies(yard),false);
 });
 
-test('same MK2 source path drives construction, finished Kaserne and preview',()=>{
+test('the historical MK2 conversion remains available but active Kaserne uses its own GLB',()=>{
  const battle=readFileSync('scripts/webgl-battlefield.js','utf8');
  const gallery=readFileSync('scripts/webgl-building-gallery.js','utf8');
  const gates=readFileSync('scripts/webgl-production-gates.js','utf8');
  const simulation=readFileSync('src/reborn/simulation.ts','utf8');
- assert.match(battle,/kind==='barracks'[\s\S]*?return strategicGlbUrl\('headquarters','active'\)/);
+ assert.match(battle,/kind==='barracks'[\s\S]*?return strategicGlbUrl\('barracks','active'\)/);
  assert.match(battle,/deriveMk2Barracks\(model,\{deferPolish:true\}\)/);
- assert.match(gallery,/deriveMk2Barracks\(model,\{deferPolish:true\}\)/);
+ assert.match(gallery,/kind==='barracks'\?strategicGlbUrl\('barracks','active'\)/);
  assert.match(gates,/barracks&&gate\.portal\.mk2/);
  assert.match(simulation,/stagedMk2Barracks/);
  assert.ok(!battle.includes("previewSource=this.asset(kind,0,'building')"),'actual preview source is recorded');
