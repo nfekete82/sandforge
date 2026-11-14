@@ -216,7 +216,7 @@ export function tintFactionMaterials(root,owner,kind,type){
    if(!source?.isMeshStandardMaterial)return source;
    // These coatings already use the exact HQ3 albedo. Capture updates team
    // markers separately; never multiply the facade texture by its old paint.
-   if(type==='building'&&source.userData?.sandforgeBuildingDesign)return source;
+   if(type==='building'&&(source.userData?.sandforgeBuildingDesign||source.userData?.sandforgeFinalCamo))return source;
    // MK2-derived Kaserne shares the *finished* HQ's native Desert-002 and
    // near-black roof materials. Do not run the generic barracks 98.5%-opaque
    // camo shader over those final finishes. This also keeps the HQ reference.
