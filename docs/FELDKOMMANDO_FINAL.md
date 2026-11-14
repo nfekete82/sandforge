@@ -32,3 +32,33 @@ The binary is *not* in this text-only GitHub PR until the developer adds it with
 **QA limitations:** Rigging/GLB structure and GLB rendering in an independent software preview were checked; a real in-game Chromium playtest, all four rotations, pioneer emergence, shadows, HUD render, final CI and FPS profiling still require verification with the binary in the checked-out repo. Do not claim release-ready before those pass.
 
 Legacy MK2 source is not deleted because the current barracks and tests still rely on some historical geometry; the runtime headquarters route chooses only this final path when installed.
+
+## 14 November follow-up: user's actual desert camouflage and screenshot fixes
+
+The field command source **remains** the single canonical animated GLB checked in
+at `src/assets/reborn/buildings-3d/sandforge_feldkommando_final.glb`.
+Do **not** replace the rigged binary with the unrigged source upload.
+
+- `scripts/webgl-final-hq-finish.js` embeds a palette-indexed, reduced copy
+  of the user's attached beige/brown desert-camouflage reference (48×34,
+  eight original image colours). A triplanar fragment shader composites
+  the supplied pattern with the original authored texture while preserving
+  blue insignia and shadows. Game, build preview, 3D portrait, and gallery
+  all call `applyStrategicGlbFinish` to use this shared finish.
+- Completes the existing rotating dish with two thin feed support struts
+  and a feedhorn, parented to `Radar_Dish_Pivot`. No second dish is added.
+- The user screenshot's two tall black posts came from
+  `createBuildingYard()` > `addSiteDecor()` > `securityLamp()`,
+  not the build-placement guide. The final HQ skips those lamps only.
+  The barracks and other yard props remain unchanged.
+- The final HQ placement preview keeps the real material colours rather
+  than the earlier half-opacity aqua/green tint. The ordinary placement
+  validity ring stays available.
+- A selected pioneer hides its ground selection circle only while
+  `productionMotion` stages its exit through the HQ door. The selection
+  ring returns when the staged rollout ends.
+- `tests/webgl-final-hq-polish.test.mjs` checks camouflage pixels,
+  correct scope of lamp removal, radar feed, idempotency, shader injection
+  and production selection ring.
+
+No simulation, collisions, build costs or save serialization changed.
