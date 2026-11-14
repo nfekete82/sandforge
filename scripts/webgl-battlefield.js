@@ -218,20 +218,14 @@ export class SandforgeBattlefield {
  }
  asset(kind,owner,type){
   const prefix='/src/assets/reborn/';
-  // The Meshy replacement is opt-in and only activates after installation.
+  // The authored final HQ is the single active field command, regardless of
+  // old Meshy/stylized URL flags. Barracks stays a separate production model.
+  if(type==='building'&&kind==='headquarters')
+   return strategicGlbUrl('headquarters','active');
+  if(type==='building'&&kind==='barracks')
+   return strategicGlbUrl('barracks','active');
   const replacement=meshyAsset(kind,owner);
   if(replacement)return replacement;
-  // HQ3 is the author's completed Feldkommando with real baked camouflage,
-  // doors and satellite. The low-poly stylized HQ is an explicit opt-in only.
-  // Returning the same strategic GLB for both factions preserves team coloring,
-  // construction, doorway and repair behavior handled further downstream.
-  if(type==='building'&&kind==='headquarters'&&
-     new URLSearchParams(location.search).get('hq')!=='stylized')
-   return strategicGlbUrl('headquarters','active');
-  // Kaserne is an architectural sister of the MK2 HQ. Opt out by URL.
-  if(type==='building'&&kind==='barracks'&&
-     new URLSearchParams(location.search).get('barracks')!=='original')
-   return strategicGlbUrl('headquarters','active');
   if(new URLSearchParams(location.search).get('art')!=='legacy'){
    const authored=stylizedAsset(kind,owner);
    if(authored)return authored;
@@ -561,7 +555,11 @@ export class SandforgeBattlefield {
     applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,
      entry.modelFootprint,entry.modelHeight);
     if(type==='unit')attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
-    if(type==='building'&&entry.kind==='headquarters')polishFeldkommandoMk2(model,entry.yard);
+    if(type==='building'&&entry.kind==='headquarters'){
+     if(model.getObjectByName('SF_Feldkommando_Final'))
+      hideMk2DuplicateFence(entry.yard);
+     else polishFeldkommandoMk2(model,entry.yard);
+    }
     if(mk2Barracks){
      finishMk2Barracks(model,entry.yard);
      // With the fence removed, measure the actual building doorway,
