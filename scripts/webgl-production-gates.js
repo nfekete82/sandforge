@@ -29,6 +29,22 @@ export function prepareHeadquartersPortal(entry){
  if(entry?.headquartersPortal)return entry.headquartersPortal;
  const model=entry?.detail;
  if(!model)return null;
+ // One-storey low-poly HQ has real HINGED wooden leaves, not sliding shutters.
+ // All points are in GLB local metres. The +Z entrance is the only pioneer exit.
+ if(model.getObjectByName('Gate_Left_Pivot')&&model.getObjectByName('Gate_Right_Pivot')){
+  const left=model.getObjectByName('Gate_Left_Pivot');
+  const right=model.getObjectByName('Gate_Right_Pivot');
+  model.userData.portal={
+   lamp:[.70,3.48,4.67],
+   inside:[.70,.34,4.12],
+   outside:[.70,.35,5.90]
+  };
+  const portal={root:model,hall:new THREE.Group(),leaves:[
+   {leaf:left,baseRotation:left.rotation.y,angle:-Math.PI/2},
+   {leaf:right,baseRotation:right.rotation.y,angle:Math.PI/2}
+  ],materials:[],open:0,authored:true,final:true,hinged:true};
+  entry.headquartersPortal=portal;return portal;
+ }
  // Final normalized Y-up HQ: one real door and no extra fence gate.
  if(model.getObjectByName('SF_Feldkommando_Final')){
   const left=model.getObjectByName('Door_Left_Pivot');
@@ -147,8 +163,10 @@ export function setHeadquartersDoorOpen(portal,amount){
  if(!portal)return;
  const t=smooth(amount);
  portal.open=t;
- for(const {leaf,baseX,side,travel} of portal.leaves)
-  leaf.position.x=baseX+side*(travel??portal.travel??1.29)*t;
+ for(const part of portal.leaves){
+  if(portal.hinged)part.leaf.rotation.y=part.baseRotation+part.angle*t;
+  else part.leaf.position.x=part.baseX+part.side*(part.travel??portal.travel??1.29)*t;
+ }
 }
 export function disposeHeadquartersPortal(entry){
  const portal=entry?.headquartersPortal;
