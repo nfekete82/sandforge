@@ -23,13 +23,15 @@ export class SandforgeConstructionPresentation{
   slab.position.y=2.5;frame.add(slab);
   const columns=[];
   const height=Math.min(154,Math.max(58,spec.width*.56));
-  for(const x of [-1,1])for(const z of [-1,1]){
+  // The final HQ rises from its authored mesh; omit the four generic poles.
+  if(base.kind!=='headquarters')for(const x of [-1,1])for(const z of [-1,1]){
    const post=new THREE.Mesh(new THREE.BoxGeometry(4,height,4),steel);
    post.position.set(x*width*.43,height*.5,z*depth*.42);
    frame.add(post);columns.push(post);
   }
   const rails=[];
-  for(const t of [0.37,0.68]){
+  // Also omit the disconnected generic beam outlines on that HQ only.
+  if(base.kind!=='headquarters')for(const t of [0.37,0.68]){
    const beamA=new THREE.Mesh(new THREE.BoxGeometry(width*.88,4,4),steel);
    beamA.position.set(0,height*t,-depth*.42);
    const beamB=beamA.clone();beamB.position.z=depth*.42;
