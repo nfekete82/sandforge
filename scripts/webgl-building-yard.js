@@ -306,9 +306,12 @@ function addSiteDecor(root,kind,width){
  }
  // Place masts near the side fencing, never along the open front door/spawn.
  const lampHeight=Math.min(60,Math.max(43,width*.29));
- securityLamp(g,-width*.56,width*.20,lampHeight);
- if(large&&kind!=='airfield'&&kind!=='barracks')
-  securityLamp(g,width*.53,-width*.40,lampHeight);
+ // The final HQ's own rooftop lamps make these tall black poles redundant.
+ if(kind!=='headquarters'){
+  securityLamp(g,-width*.56,width*.20,lampHeight);
+  if(large&&kind!=='airfield'&&kind!=='barracks')
+   securityLamp(g,width*.53,-width*.40,lampHeight);
+ }
  if(kind==='headquarters'||kind==='research'||kind==='silo'){
   // A small technical crate station reads like base infrastructure.
   const service=new THREE.Group();
