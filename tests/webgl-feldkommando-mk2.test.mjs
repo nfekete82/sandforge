@@ -6,9 +6,9 @@ import {strategicGlbUrl,HQ3_FALLBACK_URL} from '../scripts/webgl-strategic-glb.j
 import {prepareHeadquartersPortal,setHeadquartersDoorOpen,disposeHeadquartersPortal,SandforgeProductionGates,GATE_TIMING} from '../scripts/webgl-production-gates.js';
 import {buildingFacingAngle} from '../scripts/webgl-scale.js';
 
-test('preferred headquarters is MK2 and the proven HQ3 still exists as fallback',()=>{
+test('preferred headquarters is Final and HQ3 remains an emergency asset fallback',()=>{
  assert.equal(strategicGlbUrl('headquarters','active'),
-  '/src/assets/reborn/buildings-3d/sandforge_feldkommando_mk2.glb');
+  '/src/assets/reborn/buildings-3d/sandforge_feldkommando_final.glb');
  assert.equal(strategicGlbUrl('headquarters','inactive'),strategicGlbUrl('headquarters','active'));
  assert.equal(HQ3_FALLBACK_URL,'/src/assets/reborn/buildings-3d/sandforge_funkzentrale_hq3_game_ready.glb');
 });
