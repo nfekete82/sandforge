@@ -580,7 +580,10 @@ export class SandforgeBattlefield {
       );
      }
     }
-    if(type==='building'&&['headquarters','barracks'].includes(entry.kind))
+    // The low-poly HQ already has embedded wall standards and a roof flag.
+    // Adding the old extra-large procedurally hung standards duplicates them.
+    if(type==='building'&&['headquarters','barracks'].includes(entry.kind)&&
+       !(entry.kind==='headquarters'&&model.getObjectByName('TeamBanner_Left')))
      ensureFactionWallBanners(entry,entry.owner);
     entry.visualBaseY=model.position.y;entry.visualBaseZ=model.position.z;
     if(type==='building'){
