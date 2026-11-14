@@ -122,7 +122,7 @@ function normalizeModel(model,kind){
 async function populate(entry){
  const {kind}=entry;lightCell(entry);
  let file=kind==='bastion'?'/src/assets/reborn/buildings-3d/sandforge_bastion_mk2_offline.glb':
-  kind==='barracks'?strategicGlbUrl('headquarters','active'):
+  kind==='barracks'?strategicGlbUrl('barracks','active'):
   strategicGlbUrl(kind,'inactive')??'/src/assets/reborn/buildings-3d/'+kind+'-0.glb';
  if(['interceptor','wall'].includes(kind)){
   entry.detail=createStrategicBuilding(kind,0);tintFactionMaterials(entry.detail,0,kind,'building');
@@ -182,7 +182,7 @@ async function populate(entry){
  entry.renderSize=size.toArray();entry.areaSize=area.toArray();
  const dimensions=a=>a.map(n=>n.toFixed(1)).join(' × ');
  entry.card.querySelector('.dimensions').textContent='Render B × H × T: '+dimensions(entry.renderSize)+' · Areal: '+dimensions(entry.areaSize);
- entry.card.querySelector('.profile').textContent=kind==='headquarters'?(file===HQ3_FALLBACK_URL?'HQ3 · Rückfallmodell':'Feldkommando MK2 · eigene Schiebetüren, Radar und Zaun'):biome==='desert'?'HQ3 · Albedo / Normal / PBR · '+BUILDING_DESIGN_REVISION:BIOME_STYLES[biome].label+' · bestehendes Biomprofil';
+ entry.card.querySelector('.profile').textContent=kind==='headquarters'?(file===HQ3_FALLBACK_URL?'HQ3 · Rückfallmodell':'Feldkommando Final · ein Ausgang · Schiebetür und Radar'):biome==='desert'?'HQ3 · Albedo / Normal / PBR · '+BUILDING_DESIGN_REVISION:BIOME_STYLES[biome].label+' · bestehendes Biomprofil';
  entry.card.querySelector('.source').textContent=['interceptor','wall'].includes(kind)?'Prozedurales Original aus dem Spiel':file.split('/').pop();
  const soldier=await getModel('/src/assets/reborn/prototype/infantry-0.glb');
  const person=cloneSkeleton(soldier.scene),bounds=new THREE.Box3().setFromObject(person),s=bounds.getSize(new THREE.Vector3());
