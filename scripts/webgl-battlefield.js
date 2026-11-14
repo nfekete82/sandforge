@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {stylizedAsset,isStylizedAsset,stylizedProfile} from './webgl-stylized-pack.js';
 import {meshyAsset,isMeshyAsset,meshyModelYaw} from './webgl-meshy-assets.js';
+import {prepareLowpolySoldier} from './webgl-lowpoly-soldier.js';
 import {shouldPreserveAuthoredGLB,protectAuthoredGlbMaterials,recordGlbAsset} from './webgl-glb-quality.js';
 import {SandforgeProductionGates} from '/webgl-production-gates.js';
 import {polishFeldkommandoMk2,hideMk2DuplicateFence,disposeFeldkommandoMk2Polish,isFeldkommandoMk2} from '/webgl-feldkommando-mk2-polish.js';
@@ -481,6 +482,8 @@ export class SandforgeBattlefield {
      !entry.mk2Fallback&&deriveMk2Barracks(model,{deferPolish:true});
     if(mk2Barracks){entry.mk2Barracks=true;this.game.barracksMk2Enabled=true;}
     if(isMeshyAsset(task.url)&&!entry.meshyFallback)model.rotation.y+=meshyModelYaw(entry.kind);
+    if(type==='unit'&&entry.kind==='infantry'&&isMeshyAsset(task.url)&&!entry.meshyFallback)
+     prepareLowpolySoldier(model,entry.owner);
     const authoredStyle=stylizedProfile(model);
     if(authoredStyle)model.userData={...model.userData,...authoredStyle};
     const actualUrl=entry.resolvedAssetUrl??task.url;
