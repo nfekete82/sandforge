@@ -3,22 +3,24 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {createBuildingYard} from '../scripts/webgl-building-yard.js';
-import {polishFinalFeldkommando,finalHqCamouflageTexture,FINAL_HQ_CAMO_COLORS} from '../scripts/webgl-final-hq-finish.js';
+import {polishFinalFeldkommando,finalHqCamouflageTexture,FINAL_HQ_CAMO_COLORS,FINAL_HQ_PATTERN_WIDTH,FINAL_HQ_PATTERN_HEIGHT} from '../scripts/webgl-final-hq-finish.js';
 import {applyStrategicGlbFinish} from '../scripts/webgl-strategic-glb.js';
 import {prepareHeadquartersPortal,finalHeadquartersExitRoute} from '../scripts/webgl-production-gates.js';
 import {addFinalHeadquartersRoofDetails} from '../scripts/webgl-final-hq-roof.js';
 
 test("uploaded camouflage is decoded from the user\'s original desert reference",()=>{
  const texture=finalHqCamouflageTexture();
- assert.equal(texture.image.width,48);
- assert.equal(texture.image.height,34);
- assert.equal(texture.image.data.length,48*34*4);
+ assert.equal(texture.image.width,112);
+ assert.equal(FINAL_HQ_PATTERN_WIDTH,112);
+ assert.equal(texture.image.height,80);
+ assert.equal(FINAL_HQ_PATTERN_HEIGHT,80);
+ assert.equal(texture.image.data.length,112*80*4);
  assert.equal(texture.wrapS,THREE.MirroredRepeatWrapping);
- assert.equal(FINAL_HQ_CAMO_COLORS.length,8);
+ assert.equal(FINAL_HQ_CAMO_COLORS.length,16);
  const sample=new Set();
  for(let p=0;p<texture.image.data.length;p+=4)
   sample.add((texture.image.data[p]<<16)|(texture.image.data[p+1]<<8)|texture.image.data[p+2]);
- assert.equal(sample.size,8);
+ assert.equal(sample.size,16);
  for(const color of FINAL_HQ_CAMO_COLORS)assert.ok(sample.has(color));
 });
 test('HQ alone loses both tall security poles while keeping yard details',()=>{
@@ -46,6 +48,20 @@ test('one GLB, added radar feed and one desert shader for gameplay, preview and 
  body.material.onBeforeCompile(shader,{});
  assert.ok(shader.uniforms.sfFinalCamoTex?.value);
  assert.match(shader.fragmentShader,/sfPaint/);
+ // The texture must be anchored to the GLB's ORIGINAL vertices, never
+ // the changing placement ghost/world transform.
+ assert.match(shader.vertexShader,/sfFinalLocal=transformed;sfFinalLocalNormal=normalize\(normal\)/);
+ assert.doesNotMatch(shader.vertexShader,/modelMatrix|sfFinalWorld/);
+ assert.doesNotMatch(shader.fragmentShader,/sfFinalWorld|modelMatrix/);
+ assert.match(shader.fragmentShader,/texture2D\(sfFinalCamoTex,\(sfFinalLocal.zy/);
+ assert.match(shader.fragmentShader,/texture2D\(sfFinalCamoTex,\(sfFinalLocal.xy/);
+ assert.match(shader.fragmentShader,/texture2D\(sfFinalCamoTex,\(sfFinalLocal.xz/);
+ const original=Array.from(body.geometry.getAttribute('position').array);
+ model.position.set(150,0,-280);model.rotation.y=Math.PI/2;
+ model.updateMatrixWorld(true);
+ assert.deepEqual(Array.from(body.geometry.getAttribute('position').array),original);
+ assert.strictEqual(shader.uniforms.sfFinalCamoTex.value,finalHqCamouflageTexture());
+ assert.equal(body.material.userData.sandforgePreserveHQDesertTextures,true);
  assert.equal(polishFinalFeldkommando(model),false,'idempotent, no duplicated dish');
 });
 test('preview and live pioneer suppress only the spurious markers',()=>{
