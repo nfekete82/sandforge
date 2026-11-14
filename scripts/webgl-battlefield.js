@@ -828,7 +828,7 @@ export class SandforgeBattlefield {
    // The barracks preview must use the *exact* original dark fence and
    // equipment paint of the finished barracks. Translucent/dithered fences
    // looked like a second wire perimeter and distorted the silhouette.
-   if(kind!=='barracks')tint(yard,false,.34);
+   if(kind!=='barracks'&&kind!=='headquarters')tint(yard,false,.34);
    group.add(yard);group.userData.previewYard=yard;
   }
   const service=kind==='airfield'?createAirfieldServiceYard():
@@ -890,7 +890,7 @@ export class SandforgeBattlefield {
    // Kaserne: no ghost material at all! Show the IDENTICAL finished model
    // with its own roof, facade and decals. The red/green ground ring and
    // build hint communicate placement validity without X-ray artefacts.
-   if(kind!=='barracks')tint(model,false,.50);
+   if(kind!=='barracks'&&kind!=='headquarters')tint(model,false,.50);
    model.visible=true; // final authored shape and its actual entrances
    group.remove(placeholder);disposeOwnedMeshes(placeholder);
    guides.visible=false;
@@ -1572,6 +1572,8 @@ export class SandforgeBattlefield {
    // above the terrain; service-platform rings remain on the lift.
    ring.position.copy(this.units.get(id)?.node.position??this.entityPosition(unit));
    ring.position.y+=3-unitRenderAltitude(unit.kind,unit.flightHeight??1);
+   // No floating selection halo during the animated HQ pioneer exit.
+   ring.visible=!(unit.kind==='engineer'&&this.units.get(id)?.productionMotion);
   }
  }
  // Selection is the source of truth for the production catalogue.
