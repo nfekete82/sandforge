@@ -24,6 +24,7 @@ import {SandforgeGroundTracks} from '/webgl-ground-tracks.js';
 import {Soundscape} from '/src/reborn/audio.js';
 import {fineSandPattern} from '/src/reborn/fine-sand.js';
 import {cinematicSandSample,addDesertWashStones} from '/webgl-desert-art.js';
+import {createDesertVillages} from '/webgl-desert-village.js';
 import {installMatchResultOverlay} from '/webgl-match-result.js';
 import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry} from '/webgl-rock-materials.js';
 
@@ -222,7 +223,7 @@ function buildTerrain(){
  const normalMap=biome==='desert'?sandMicroNormalTexture():null;
  if(spacious&&normalMap)normalMap.repeat.set(2.2,2.2);
  const material=new THREE.MeshStandardMaterial({
-  color:biome==='desert'?(spacious?'#fff0db':'#f5eadb'):biomeStyle.terrain,
+  color:biome==='desert'?(spacious?'#f6ead9':'#f5eadb'):biomeStyle.terrain,
   map:texture,normalMap,normalScale:new THREE.Vector2(spacious?.77:.45,spacious?.77:.45),
   vertexColors:true,roughness:.99,metalness:0
  });
@@ -241,7 +242,7 @@ function buildTerrain(){
    if(terrain.battlefield){
     // The historical artwork contains painted dune lighting. Keep its fine
     // grain and palette, but let actual 3D normals describe the new relief.
-    context.globalAlpha=.27;context.fillStyle='#e0b57c';
+    context.globalAlpha=.22;context.fillStyle='#d7bd99';
     context.fillRect(0,0,canvas.width,canvas.height);context.globalAlpha=1;
    }
    const sand=new THREE.CanvasTexture(canvas);
@@ -261,8 +262,9 @@ function buildTerrain(){
  }
  const chunks=4,segments=56,patch=size/chunks;
  // Reuse palette objects across 50k baked vertices: no per-frame cost.
- const sandGold=new THREE.Color('#e8b47b'),sandLight=new THREE.Color('#f3cf9d'),
-  sandstone=new THREE.Color('#a97952'),riverSediment=new THREE.Color('#b79470');
+ // Pale sun-bleached ochre and beige rather than orange desert clay.
+ const sandGold=new THREE.Color('#d9bb92'),sandLight=new THREE.Color('#ebd4b1'),
+  sandstone=new THREE.Color('#ad9679'),riverSediment=new THREE.Color('#bda78a');
  const vertexColor=new THREE.Color();
  const biomeGroundBase=new THREE.Color(biomeStyle.groundBase);
  const biomeGroundLight=new THREE.Color(biomeStyle.groundLight);
@@ -334,8 +336,8 @@ function buildTerrain(){
  * skirts fill the complete solid hull: no blocked ground under empty air. */
 function addBattlefieldRocks(material){
  const vertices=[],colors=[],uv=[];
- const baseColor=new THREE.Color(biome==='desert'?'#c9ae8b':biomeStyle.rocks[0]);
- const dark=new THREE.Color(biome==='desert'?'#80664f':biomeStyle.rocks[1]);
+ const baseColor=new THREE.Color(biome==='desert'?'#c6b091':biomeStyle.rocks[0]);
+ const dark=new THREE.Color(biome==='desert'?'#806c57':biomeStyle.rocks[1]);
  for(const [id,mesa] of terrain.mesas.entries()){
   const poly=mesa.outline,cx=poly.reduce((n,p)=>n+p.x,0)/poly.length,cz=poly.reduce((n,p)=>n+p.y,0)/poly.length;
   const peak=mesa.columns.reduce((n,c)=>n+c.height,0)/mesa.columns.length*(terrain.battlefield.profile==='rocky'?1.55:1.05);
@@ -497,13 +499,13 @@ function sandRoads(){
   const edge=Math.sin(Math.PI*x/31)**1.7*Math.sin(Math.PI*y/127)**1.25;
   const noise=.8+.2*Math.sin(y*.73+x*1.91);
   const k=(y*32+x)*4;
-  pixels.data[k]=89;pixels.data[k+1]=69;pixels.data[k+2]=47;
+  pixels.data[k]=126;pixels.data[k+1]=103;pixels.data[k+2]=75;
   pixels.data[k+3]=Math.round(172*edge*noise);
  }
  ctx.putImageData(pixels,0,0);
  const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
  const material=new THREE.MeshBasicMaterial({
-  map:texture,transparent:true,opacity:.62,depthWrite:false,
+  map:texture,transparent:true,opacity:.50,depthWrite:false,
   polygonOffset:true,polygonOffsetFactor:-1,side:THREE.DoubleSide
  });
  const geometry=new THREE.PlaneGeometry(1,1);
@@ -924,6 +926,10 @@ const biomeVegetation=addBiomeVegetation({THREE,scene,world,terrain,game,heightA
 // One visual-only instanced draw call; no gameplay pathing or collision edits.
 const washStones=spacious&&biome==='desert'?addDesertWashStones({scene,world,size,seed,heightAt,
  sites:terrain.sites,lowQuality:query.get('lite')==='1'}):null;
+// Static, clickable-through abandoned hamlets and compacted village lanes.
+// Their placement is deterministic per map seed and never alters World.
+const villageArt=spacious&&biome==='desert'?createDesertVillages({scene,world,terrain,
+ pos,heightAt,seed,lowQuality:query.get('lite')==='1'}):null;
 const battlefield=new SandforgeBattlefield({
  game,world,terrain,scene,renderer,camera,controls,loader,groundMeshes,heightAt,pos,biome,
  lite:query.get('lite')==='1'
