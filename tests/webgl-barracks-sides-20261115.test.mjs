@@ -71,3 +71,20 @@ test('sand/khaki finish corrects the original painted barracks hull, keeps PBR t
  assert.doesNotMatch(shader.fragmentShader,/sfDesertWorld/);
  disposeBarracksSides(root);
 });
+
+test('Kasernen building ghost retains live validity material while the neutral desert shader is installed',()=>{
+ const {root}=fixture();
+ const mesh=root.getObjectByName('Atlas_CeramicHull_4');
+ const original=mesh.material;
+ const preview=original.clone();
+ preview.userData={sandforgePreviewMaterial:true,
+  sandforgePreviewValidColor:preview.color.clone(),
+  sandforgePreviewInvalidColor:new THREE.Color('#f1786d')};
+ mesh.material=preview;
+ finishBarracksDesertPalette(root);
+ assert.equal(mesh.material,preview,'the ghost owns this material; keep the pointer used by placement validity');
+ const valid=preview.userData.sandforgePreviewValidColor.clone();
+ preview.color.copy(preview.userData.sandforgePreviewInvalidColor);
+ assert.notEqual(preview.color.getHex(),valid.getHex(),'invalid ghost still updates its color');
+ assert.equal(original.userData.sandforgeBarracksPalette,undefined,'cached source remains untouched');
+});
