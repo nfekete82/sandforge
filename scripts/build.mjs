@@ -48,6 +48,8 @@ cpSync('scripts/webgl-strategic-glb.js','dist/webgl-strategic-glb.js');
 cpSync('scripts/webgl-final-hq-finish.js','dist/webgl-final-hq-finish.js');
 cpSync('scripts/webgl-final-hq-pattern.js','dist/webgl-final-hq-pattern.js');
 cpSync('scripts/webgl-final-hq-roof.js','dist/webgl-final-hq-roof.js');
+// Deterministic model-locked low-poly desert camo, roof and stone textures.
+cpSync('scripts/webgl-lowpoly-hq-finish.js','dist/webgl-lowpoly-hq-finish.js');
 cpSync('scripts/webgl-rocket-infantry.js','dist/webgl-rocket-infantry.js');
 cpSync('scripts/webgl-strategic-effects.js','dist/webgl-strategic-effects.js');
 cpSync('scripts/webgl-double-click-select.js','dist/webgl-double-click-select.js');
