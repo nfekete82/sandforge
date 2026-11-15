@@ -1,4 +1,5 @@
 name: Kommandozentrale and unarmed pioneer acceptance
+# Re-run after narrowing engineer exclusion in acquire() (TS2367).
 on:
   push:
     branches: [feat/command-center-unarmed-engineer-wrench-20261115]
