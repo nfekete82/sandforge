@@ -84,9 +84,18 @@ export class SandforgeProductionGates {
    // loads, rather than letting it materialize outside the closed door.
    const eligible=Boolean(base&&['factory','barracks'].includes(base.kind)&&
     unit&&unit.hp>0&&entry?.node.visible&&actor);
-   const ready=eligible&&this.prepare(entry)&&!this.active.has(base.id);
+   // Factory production is already supported for tanks, Humvees (rover)
+   // and rocket trucks (artillery). A single physical garage has ONE door:
+   // serialize their visual departures instead of letting the second unit
+   // materialize outside when the first rollout exceeds 5.5 seconds.
+   const busy=eligible&&this.active.has(base.id);
+   const ready=eligible&&!busy&&this.prepare(entry);
    if(!ready){
-    if(eligible&&game.stageWebGLProduction===true&&age>=0&&age<5.5){
+    // The 5.5-second bound applies only to a BROKEN / unloaded gate. Never
+    // expire a valid vehicle queued behind another live garage departure.
+    // The held unit keeps its original paid rally order and legal spawn.
+    if(eligible&&game.stageWebGLProduction===true&&age>=0&&
+       (busy||age<5.5)){
      game.extendProductionDeparture?.(event.unitId,game.time+.2);
      actor.node.visible=false;
      continue;
