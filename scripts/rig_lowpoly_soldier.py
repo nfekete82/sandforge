@@ -145,7 +145,7 @@ for v in body.data.vertices:
 body.parent=rig
 armod=body.modifiers.new(name='SandforgeRigDeform',type='ARMATURE')
 armod.object=rig
-# Purpose-built lightweight rifle, separate mesh and material but skinned to hand.
+# Purpose-built lightweight rifle, skinned to the chest for stable RTS movement.
 # The texture/geometry of the original character is not regenerated.
 weapon_parts=[]
 gun_dark=bpy.data.materials.new('SF_Gun_Charcoal')
@@ -172,7 +172,7 @@ cube('Rifle_Magazine',(-width*.03,-depth*.60,basez-.055*height),(.045*height,.05
 cube('Rifle_Grip',(-width*.03,-depth*.44,basez-.044*height),(.029*height,.032*height,.071*height),gun_metal)
 cube('Rifle_Sight',(-width*.03,-depth*.57,basez+.045*height),(.027*height,.065*height,.022*height),gun_metal)
 for ob in weapon_parts:
-    vg=ob.vertex_groups.new(name='Hand.R')
+    vg=ob.vertex_groups.new(name='Chest')
     vg.add(list(range(len(ob.data.vertices))),1.,'REPLACE')
     ob.parent=rig
     mod=ob.modifiers.new('WeaponSkin',type='ARMATURE')
@@ -181,6 +181,13 @@ for ob in weapon_parts:
 muzzle=bpy.data.objects.new('WeaponMuzzle',None)
 bpy.context.collection.objects.link(muzzle)
 muzzle.location=(-width*.03,-depth*1.11,basez)
+# Bind the marker to the same chest bone as the rifle; in Three.js it follows
+# all actor rotation and upper-body recoil without sliding across the model.
+muzzle_world=muzzle.matrix_world.copy()
+muzzle.parent=rig
+muzzle.parent_type='BONE'
+muzzle.parent_bone='Chest'
+muzzle.matrix_world=muzzle_world
 # To avoid one model becoming many different gameplay hitboxes, muzzle and rifle
 # are visual only; Sandforge's authoritative collision and damage are unchanged.
 muzzle['sandforgeVisualOnly']=True
