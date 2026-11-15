@@ -5,7 +5,7 @@ import {createStrategicBuilding,isStrategicBuilding} from './webgl-strategic-bui
 import {createRocketInfantry,attachRocketLauncherToInfantry} from './webgl-rocket-infantry.js';
 import {createResearchArtwork,RESEARCH_ARTWORK_KINDS} from './webgl-research-artworks.js';
 import {tintFactionMaterials} from './webgl-faction-accents.js';
-import {finishBarracksSides} from './webgl-barracks-shell.js';
+import {finishBarracksSides,finishBarracksDesertPalette} from './webgl-barracks-shell.js';
 
 /** Sprite-sheet portrait extraction shared by the WebGL HUD.
  * The classic game crops one idle frame rather than scaling down the entire
@@ -340,6 +340,9 @@ async function rasterizeBuildingIcon(kind,renderer){
   try{
    const data=await new GLTFLoader().loadAsync('/src/assets/reborn/buildings-3d/barracks-0.glb');
    finishBarracksSides(data.scene);
+   // Use the same finished desert paint and ownership tint as gameplay.
+   tintFactionMaterials(data.scene,0,'barracks','building');
+   finishBarracksDesertPalette(data.scene);
    return renderModelPortrait(data.scene,renderer);
   }catch(error){console.warn('Barracks 3D portrait fallback:',error);}
  }

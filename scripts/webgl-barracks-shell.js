@@ -63,6 +63,79 @@ export function finishBarracksSides(model){
  return group;
 }
 
+
+/** Regrade the orange/bronze albedo of the original 11-November Kasernen GLB.
+ * Existing PBR maps, scratches, normal maps, geometry and doors stay intact.
+ * Install AFTER faction/ghost material cloning so the final shader survives.
+ * Local geometry coordinates keep camouflage fixed while moving the ghost.
+ */
+export const BARRACKS_PALETTE_REVISION='barracks-sand-khaki-v1-20261115';
+const paletteSkip=/airlock|blastdoor|door|fan|vent|grille|window|glass|beacon|flag|signal|identification|hinge|antenna|radio|ladder|safety|pipe|bolt|interior|recess|grate|equipment|engine|service|track|wheel|tube|louvre/i;
+const palettePaint=/ceramic|armoured|armor|armour|hull|roof|facade|wall|cladding|panel|camo|camouflage|sandstone|plaster|concrete|atlasupgrade_barracks_/i;
+export function finishBarracksDesertPalette(model){
+ if(!model)return 0;
+ const root=model.getObjectByName('Atlas_barracks')??model;
+ const owned=new Map();let painted=0;
+ root.traverse(mesh=>{
+  if(!mesh.isMesh)return;
+  const convert=source=>{
+   if(!source?.isMeshStandardMaterial)return source;
+   const role=(mesh.name+' '+source.name).toLowerCase();
+   if(paletteSkip.test(role)||!palettePaint.test(role))return source;
+   if(source.userData?.sandforgeBarracksPalette===BARRACKS_PALETTE_REVISION)return source;
+   if(owned.has(source))return owned.get(source);
+   // Preserve the live ghost material reference: validity updates keep
+   // tinting this exact object red/green as the placement cursor moves.
+   // GLB template materials are unowned and still require their own clone.
+   const instanceOwned=source.userData?.sandforgePreviewMaterial||
+    source.userData?.sandforgeFactionTint||
+    source.userData?.sandforgeBarracksSideMaterial||
+    source.userData?.sandforgeBuildingFill;
+   const material=instanceOwned?source:source.clone();
+   const steel=/atlasupgrade_barracks_steel|armoured|armour/.test(role);
+   const coverage=steel?.68:.94;
+   // Prevent the old warm emissive texture from tinting the neutral paint.
+   material.emissiveMap=null;
+   material.emissive.set('#665f4f');
+   material.emissiveIntensity=.10;
+   material.roughness=Math.max(material.roughness,.78);
+   material.userData={...material.userData,
+    sandforgeBarracksPalette:BARRACKS_PALETTE_REVISION,
+    sandforgeColorMapCamo:true};
+   // Override the generic world-coordinate camouflage shader for this GLB.
+   // The original texture's dark seams are retained in sfLum and sfMask.
+   material.onBeforeCompile=function(shader){
+    const varying='varying vec3 sfBarracksLocal;';
+    shader.vertexShader=shader.vertexShader.replace('#include <common>',
+     '#include <common>\n'+varying);
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',
+     '#include <begin_vertex>\nsfBarracksLocal=transformed;');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>',
+     '#include <common>\n'+varying);
+    const paint=[
+     '#include <color_fragment>',
+     'float sfLum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));',
+     'float sfWarm=smoothstep(.015,.11,diffuseColor.r-diffuseColor.b);',
+     'float sfPatch=sin(sfBarracksLocal.x*5.8+sin(sfBarracksLocal.z*3.6)*.7)',
+     ' +cos(sfBarracksLocal.z*5.1-sfBarracksLocal.y*3.2);',
+     'float sfKhaki=smoothstep(-.5,.9,sfPatch);',
+     'vec3 sfSand=mix(vec3(.83,.77,.63),vec3(.66,.67,.54),sfKhaki*.42);',
+     'float sfGrain=clamp(.37+sqrt(max(sfLum,0.0))*1.04,.36,1.12);',
+     'float sfMask=smoothstep(.075,.19,sfLum)*mix(.28,1.0,sfWarm);',
+     'diffuseColor.rgb=mix(diffuseColor.rgb,sfSand*sfGrain,sfMask*'+coverage.toFixed(2)+');'
+    ].join('\n');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',paint);
+   };
+   material.customProgramCacheKey=()=>BARRACKS_PALETTE_REVISION+(steel?'-steel':'-paint');
+   material.needsUpdate=true;
+   owned.set(source,material);painted++;
+   return material;
+  };
+  mesh.material=Array.isArray(mesh.material)?mesh.material.map(convert):convert(mesh.material);
+ });
+ return painted;
+}
+
 export function disposeBarracksSides(model){
  const group=model?.getObjectByName('SandforgeBarracksSideCladding');
  if(!group)return;

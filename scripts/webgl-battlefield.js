@@ -29,7 +29,7 @@ import {sameKindVisibleUnits} from '/webgl-double-click-select.js';
 import {tracerWindow} from '/webgl-hit-response.js';
 import {applyFactionAccents} from '/webgl-faction-accents.js';
 import {attachTeamMarkings,detachTeamMarkings} from '/webgl-team-markings.js';
-import {finishBarracksSides,disposeBarracksSides} from '/webgl-barracks-shell.js';
+import {finishBarracksSides,finishBarracksDesertPalette,disposeBarracksSides} from '/webgl-barracks-shell.js';
 import {SandforgeConstructionPresentation} from '/webgl-construction.js';
 import {createBastionCaptureBar,updateBastionCaptureBar} from '/webgl-bastion-capture.js';
 import {snapToPlayableEdge,worldToMinimap} from '/webgl-map-edges.js';
@@ -410,6 +410,7 @@ export class SandforgeBattlefield {
     entry.modelFootprint=Math.max(dims.x,dims.z)*visualScale;
     applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,
      entry.modelFootprint,entry.modelHeight);
+    if(type==='building'&&entry.kind==='barracks')finishBarracksDesertPalette(model);
     if(type==='unit')attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
     entry.visualBaseY=model.position.y;entry.visualBaseZ=model.position.z;
     if(type==='building'){
@@ -661,6 +662,7 @@ export class SandforgeBattlefield {
    if(kind==='airfield')hideOldAirfieldHangar({detail:model});
    if(kind==='barracks')finishBarracksSides(model);
    tint(model,false,.50);
+   if(kind==='barracks')finishBarracksDesertPalette(model);
    model.visible=true; // final authored shape and its actual entrances
    group.remove(placeholder);disposeOwnedMeshes(placeholder);
    group.userData.previewPlaceholder=null;group.userData.previewDetail=model;
@@ -681,6 +683,7 @@ export class SandforgeBattlefield {
    }
    if(preview.userData.previewDetail){
     disposeBarracksSides(preview.userData.previewDetail);
+    disposeTaggedMaterials(preview.userData.previewDetail,'sandforgeBarracksPalette');
     disposeTaggedMaterials(preview.userData.previewDetail,'sandforgePreviewMaterial');
    }
    if(preview.userData.previewFrontMarker)
@@ -881,6 +884,7 @@ export class SandforgeBattlefield {
     disposeAirfieldServiceYard(e);disposeFactoryServiceYard(e);
     if(e.placeholder){disposeOwnedMeshes(e.placeholder);e.placeholder=null;}
     if(e.detail){disposeBarracksSides(e.detail);
+     disposeTaggedMaterials(e.detail,'sandforgeBarracksPalette');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingFill');}
     if(e.motion?.mixer){
      e.motion.mixer.stopAllAction();
