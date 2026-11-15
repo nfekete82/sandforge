@@ -96,8 +96,9 @@ test('code is case-insensitive; wrong letters, spaces and pause reopening reset 
  f.get('sf3d-pause-resume').click();
  f.openPause();
  f.press('d');
- assert.equal(f.game.credits[0],1500,'partial code must not survive pause/reopen');
- f.type('id dq d');assert.equal(f.game.credits[0],1500,'spaces break the sequence');
+ assert.equal(f.game.credits[0],1_000_000_000,'already-active test mode keeps infinite credits');
+ assert.equal(f.get('sf3d-pause-status').textContent,'','partial code must not survive pause/reopen');
+ f.type('id dq d');assert.equal(f.get('sf3d-pause-status').textContent,'','spaces break the sequence');
  f.type('iddqd');assert.equal(f.game.credits[0],1_000_000_000);
 });
 
