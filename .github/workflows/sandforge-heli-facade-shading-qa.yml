@@ -1,0 +1,42 @@
+name: Sandforge helicopter markings and facade shading QA
+on:
+  push:
+    branches: [fix/heli-flush-markings-building-shading-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-heli-facades-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  surface-shading:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - run: node --test tests/webgl-team-markings-20261111.test.mjs tests/webgl-building-shading-20261115.test.mjs
+      - run: npm ci --prefix tests/browser --no-audit --no-fund
+      - run: |
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Compile real helicopter and building GLBs with WebGL2
+        env:
+          ATLAS_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-helicopter-building-shading-20261115.spec.mjs --config=playwright.config.mjs
+      - name: Retain browser diagnostics if any surface regression fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-heli-surface-qa
+          path: tests/browser/artifacts/
+          retention-days: 7

@@ -53,9 +53,92 @@ function turretLocalBounds(turret){
  });
  return bounds.isEmpty()?null:bounds;
 }
+
+/** The authored Mi-8/17-style transport has real cargo-shell geometry
+ * (Airframe_Weathered desert camouflage PBR) with baked PBR textures.
+ * Put narrow team stripes IN that surface using the model's local vertices.
+ * A billboard placed beside the helicopter drifts visibly away from its
+ * curved fuselage, especially while yawing or when the GLB is normalized.
+ *
+ * This adds no planes, poles, colliders, ray targets or draw calls. It also
+ * leaves the 3D-authored roundels, door glass and both rotor pivots untouched.
+ * Model-local coordinates are the authored meters, before actor scaling.
+ */
+export const HELICOPTER_STRIPES_REVISION='heli-flush-stripes-v1-20261115';
+export function paintHelicopterSideStripes(model,owner){
+ if(!model||(owner!==0&&owner!==1))return 0;
+ const upgraded=new Map();
+ let count=0;
+ model.traverse(mesh=>{
+  if(!mesh.isMesh||!/^Airframe_.*desert[ _-]+camouflage/i.test(mesh.name))return;
+  const decorate=source=>{
+   if(!source?.isMeshStandardMaterial)return source;
+   if(source.userData?.sandforgeHelicopterStripes===HELICOPTER_STRIPES_REVISION){
+    if(source.userData.sandforgeHelicopterStripeOwner!==owner){
+     source.userData.sandforgeHelicopterStripeOwner=owner;
+     source.needsUpdate=true;
+    }
+    return source;
+   }
+   if(upgraded.has(source))return upgraded.get(source);
+   // The faction tint already owns its material. Never change cached GLB
+   // textures; stand-alone models receive their own material clone.
+   const material=source.userData?.sandforgeFactionTint?source:source.clone();
+   if(material!==source)
+    material.userData={...material.userData,sandforgeHelicopterOwnedPaint:true};
+   material.userData={...material.userData,
+    sandforgeHelicopterStripes:HELICOPTER_STRIPES_REVISION,
+    sandforgeHelicopterStripeOwner:owner};
+   const priorCompile=material.onBeforeCompile;
+   const priorProgramKey=material.customProgramCacheKey.bind(material);
+   material.onBeforeCompile=function(shader,renderer){
+    priorCompile?.call(this,shader,renderer);
+    const mark='varying vec3 sfHeliLocal;';
+    shader.vertexShader=shader.vertexShader.replace('#include <common>',
+     '#include <common>\n'+mark);
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',
+     '#include <begin_vertex>\nsfHeliLocal=transformed;');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>',
+     '#include <common>\n'+mark);
+    const color=new THREE.Color(TEAM_MARKING_COLORS[this.userData.sandforgeHelicopterStripeOwner]);
+    const lines=[
+     '#include <color_fragment>',
+     // Fuselage surfaces x=±1.25...1.4, y≈1.4...2.5, nose toward +Z.
+     // Lower side band intentionally sits BELOW the window/roundel row.
+     'float sfSide=smoothstep(1.18,1.31,abs(sfHeliLocal.x));',
+     'float sfCargo=smoothstep(-2.45,-2.08,sfHeliLocal.z)',
+     ' *(1.0-smoothstep(1.02,1.43,sfHeliLocal.z));',
+     'float sfBlueBand=1.0-smoothstep(.045,.088,abs(sfHeliLocal.y-1.58));',
+     'float sfFineBand=1.0-smoothstep(.027,.058,abs(sfHeliLocal.y-1.79));',
+     'float sfStripe=clamp(sfSide*sfCargo*max(sfBlueBand,sfFineBand*.75),0.0,1.0);',
+     'diffuseColor.rgb=mix(diffuseColor.rgb,vec3('+
+      color.r.toFixed(5)+','+color.g.toFixed(5)+','+color.b.toFixed(5)+'),sfStripe*.94);'
+    ].join('\n');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',lines);
+   };
+   material.customProgramCacheKey=()=>priorProgramKey()+'|'+HELICOPTER_STRIPES_REVISION+
+    '|'+material.userData.sandforgeHelicopterStripeOwner;
+   material.needsUpdate=true;
+   upgraded.set(source,material);
+   count++;
+   return material;
+  };
+  mesh.material=Array.isArray(mesh.material)?
+   mesh.material.map(decorate):decorate(mesh.material);
+ });
+ return count;
+}
+
 /** Attach once when created/model size changes; never allocate each RAF. */
 export function attachTeamMarkings(entry,owner,kind,footprint=90,height=44){
  if(!entry?.node||!kinds.has(kind)||(owner!==0&&owner!==1))return null;
+ if(kind==='scout'){
+  // The helicopter already has real blue/red roundels in its original GLB.
+  // Remove its old free-standing wing/flag planes even on a reloaded actor.
+  detachTeamMarkings(entry);
+  paintHelicopterSideStripes(entry.detail,owner);
+  return null;
+ }
  const h=Math.max(16,Number.isFinite(height)?height:44);
  const w=Math.max(20,Number.isFinite(footprint)?footprint:90);
  const turret=['tank','artillery'].includes(kind)?

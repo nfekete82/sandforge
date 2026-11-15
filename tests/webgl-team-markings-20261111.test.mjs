@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {readFileSync} from 'node:fs';
-import {TEAM_MARKING_COLORS,attachTeamMarkings,detachTeamMarkings}
+import {TEAM_MARKING_COLORS,HELICOPTER_STRIPES_REVISION,attachTeamMarkings,detachTeamMarkings}
  from '../scripts/webgl-team-markings.js';
 test('all infantry roles wear blue/red armbands and a chest patch',()=>{
  assert.equal(TEAM_MARKING_COLORS[0],'#198fe0');
@@ -17,9 +17,9 @@ test('all infantry roles wear blue/red armbands and a chest patch',()=>{
   detachTeamMarkings(entry);assert.equal(entry.node.children.length,0);
  }
 });
-test('tanks get actual flags; Humvees and helicopters get high contrast markings',()=>{
+test('tanks have turret flags, Humvees have door marks and bombers keep their wing marks',()=>{
  for(const [kind,tag] of [['tank','TeamArmourFlag'],['artillery','TeamArmourFlag'],
-  ['rover','TeamDoor_1'],['scout','TeamAircraftWing_1'],['bomber','TeamAircraftWing_-1']]){
+  ['rover','TeamDoor_1'],['bomber','TeamAircraftWing_-1']]){
   const entry={node:new THREE.Group()};
   assert.ok(attachTeamMarkings(entry,0,kind,125,50).getObjectByName(tag),kind);
   assert.equal(attachTeamMarkings(entry,1,kind,125,50).userData.owner,1);
@@ -57,4 +57,40 @@ test('badges are cosmetic, never interactive and kept outside persistent game st
  assert.ok(readFileSync('scripts/webgl-battlefield.js','utf8').includes('detachTeamMarkings(e)'));
  assert.ok(readFileSync('scripts/build.mjs','utf8').includes('webgl-team-markings.js'));
  assert.equal(attachTeamMarkings(entry,0,'headquarters'),null);
+});
+
+
+test('transport helicopter paints thin blue/red stripes directly into the authored fuselage, without floating aircraft flags',()=>{
+ const actor=new THREE.Group(),model=new THREE.Group(),map=new THREE.Texture(),normalMap=new THREE.Texture();
+ const original=new THREE.MeshStandardMaterial({name:'Weathered desert camouflage PBR',map,normalMap});
+ const fuselage=new THREE.Mesh(new THREE.BoxGeometry(2.8,3,7),original);
+ fuselage.name='Airframe_Weathered_desert_camouflage_PBR';model.add(fuselage);actor.add(model);
+ const entry={node:actor,detail:model};
+ // Old free-standing patches must also disappear on an existing actor.
+ const legacy=new THREE.Group();legacy.userData.teamMarkings=true;actor.add(legacy);entry.teamMarkings=legacy;
+ assert.equal(attachTeamMarkings(entry,0,'scout',140,61),null);
+ assert.equal(entry.teamMarkings,null);
+ assert.equal(actor.children.length,1,'no new floating geometry around helicopter');
+ assert.equal(fuselage.material.userData.sandforgeHelicopterStripes,HELICOPTER_STRIPES_REVISION);
+ assert.equal(fuselage.material.userData.sandforgeHelicopterStripeOwner,0);
+ assert.equal(fuselage.material.map,map);
+ assert.equal(fuselage.material.normalMap,normalMap);
+ assert.equal(original.userData.sandforgeHelicopterStripes,undefined,'shared GLB material must remain pristine');
+ const paint=fuselage.material,shader={
+  vertexShader:'#include <common>\n#include <begin_vertex>',
+  fragmentShader:'#include <common>\n#include <color_fragment>'
+ };
+ paint.onBeforeCompile(shader,{});
+ assert.match(shader.vertexShader,/sfHeliLocal=transformed/);
+ assert.match(shader.fragmentShader,/sfSide.*sfHeliLocal\.x/);
+ assert.match(shader.fragmentShader,/sfCargo.*sfHeliLocal\.z/);
+ assert.match(shader.fragmentShader,/sfBlueBand/);
+ assert.match(shader.fragmentShader,/diffuseColor\.rgb=mix/);
+ const keyBlue=paint.customProgramCacheKey();
+ assert.equal(attachTeamMarkings(entry,0,'scout'),null,'repeated updates do not clone materials or add sprites');
+ assert.equal(fuselage.material,paint);
+ assert.equal(attachTeamMarkings(entry,1,'scout'),null,'red uses same body paint with new owner');
+ assert.notEqual(paint.customProgramCacheKey(),keyBlue);
+ assert.equal(paint.userData.sandforgeHelicopterStripeOwner,1);
+ assert.equal(actor.children.length,1);
 });
