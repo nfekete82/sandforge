@@ -1,0 +1,43 @@
+name: Sandforge sequential factory vehicle rollout QA
+on:
+  push:
+    branches: [fix/factory-rover-artillery-rollout-queue-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-vehicle-rollout-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  production-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - run: node --test tests/webgl-production-gates.test.mjs tests/webgl-wheel-motion.test.mjs
+      - run: npm ci --prefix tests/browser --no-audit --no-fund
+      - run: |
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Actual factory gate + GLB vehicle rollout
+        env:
+          ATLAS_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          SANDFORGE_SKIP_FACTORY_SCREENSHOTS: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-factory-queued-rollouts-lite-20261115.spec.mjs --config=playwright.config.mjs
+      - name: Save browser diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-factory-rollout-qa
+          path: tests/browser/artifacts/
+          retention-days: 7

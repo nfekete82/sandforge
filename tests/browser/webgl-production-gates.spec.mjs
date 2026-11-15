@@ -1,5 +1,8 @@
 import {test,expect} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
+// Software-WebGL CI tests actual gate poses; screenshots are optional because
+// repeated full-frame GPU readbacks can exceed the 240s test budget.
+const captureScreenshots=process.env.SANDFORGE_SKIP_FACTORY_SCREENSHOTS!=='1';
 
 test('real factory GLBs: production, four rotations, two factions, pause, orders and destruction',async({page})=>{
  test.setTimeout(240000);
@@ -66,8 +69,8 @@ test('real factory GLBs: production, four rotations, two factions, pause, orders
    if(stage==='closed')expect(pose.visible).toBe(false);
    if(stage==='clear')expect(Math.hypot(...pose.position.map((n,i)=>n-pose.actual[i]))).toBeLessThan(.001);
    if(stage==='closed-again')expect(pose.active).toBe(0);
-   if(owner===0&&facing===0)await page.screenshot({path:`artifacts/production-gates/${stage}.png`});
-   if(stage==='drive')await page.screenshot({path:`artifacts/production-gates/drive-faction-${owner}-facing-${facing}.png`});
+   if(captureScreenshots&&owner===0&&facing===0)await page.screenshot({path:`artifacts/production-gates/${stage}.png`});
+   if(captureScreenshots&&stage==='drive')await page.screenshot({path:`artifacts/production-gates/drive-faction-${owner}-facing-${facing}.png`});
   }
  }
  for(const kind of ['rover','artillery']){
@@ -89,7 +92,7 @@ test('real factory GLBs: production, four rotations, two factions, pause, orders
   });
   expect(bounds.active).toBe(1);
   expect(bounds.top).toBeLessThanOrEqual(bounds.lintel+1);
-  await page.screenshot({path:`artifacts/production-gates/${kind}-drive.png`});
+  if(captureScreenshots)await page.screenshot({path:`artifacts/production-gates/${kind}-drive.png`});
   await page.evaluate(()=>{const w=__sandforgeWebGL;w.game.time=gateFixture.event.at+12;w.battlefield.sync(true);});
  }
  // A subsequent real production can start on the same gate. Pausing, command

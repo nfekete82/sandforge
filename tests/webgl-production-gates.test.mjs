@@ -177,3 +177,73 @@ test('factory interior is a valid visual drive route, not a normal public path',
  f.tick(2);assert.equal(f.controller.active.size,1);
  f.controller.dispose();
 });
+
+
+test('Humvee and rocket truck queue behind a tank until the shared factory door is free, even past 5.5s',()=>{
+ const f=fixture();
+ f.game.stageWebGLProduction=true;
+ const holds=new Map(),cancelled=[];
+ f.game.extendProductionDeparture=(id,until)=>holds.set(id,Math.max(holds.get(id)??0,until));
+ f.game.cancelProductionDeparture=id=>cancelled.push(id);
+ const follow=[
+  {id:3,kind:'rover',hp:295,x:610,y:580},
+  {id:4,kind:'artillery',hp:340,x:605,y:575}
+ ];
+ const actors=new Map();
+ for(const u of follow){
+  const unit={...f.unit,...u,orders:[{kind:'move',x:950,y:800}]};
+  const actor={node:new THREE.Group()};
+  f.game.units.push(unit);f.controller.battlefield.units.set(u.id,actor);
+  f.game.productionReleases.push({...f.event,unitId:u.id,kind:u.kind,at:10});
+  actors.set(u.id,actor);
+ }
+ const step=age=>{
+  f.game.time=10+age;
+  // Same as battlefield.sync(): all existing actors stand at their legal
+  // authoritative spawn before the cosmetic gate pass is applied.
+  f.actor.node.visible=true;
+  f.actor.node.position.copy(f.controller.battlefield.entityPosition(f.unit));
+  for(const unit of f.game.units.slice(1)){
+   const actor=actors.get(unit.id);
+   actor.node.visible=true;
+   actor.node.position.copy(f.controller.battlefield.entityPosition(unit));
+  }
+  f.controller.update(true,1);
+ };
+ step(0);
+ assert.equal(f.controller.active.get(1)?.event.unitId,2,'tank opens the shared door first');
+ const tankState=f.controller.active.get(1);
+ const tankDone=GATE_TIMING.warning+GATE_TIMING.opening+tankState.duration+GATE_TIMING.closing+.2;
+ step(tankDone);
+ assert.equal(f.controller.active.size,0,'first tank rollout has finished');
+ assert.equal(f.game.productionReleases.length,3,'real unit release events remain unchanged');
+ assert.ok(tankDone>5.5,'exercise the old timeout');
+ assert.ok(holds.get(3)>10+tankDone,'Humvee remains staged after 5.5 seconds');
+ assert.ok(holds.get(4)>10+tankDone,'rocket truck remains staged after 5.5 seconds');
+ assert.equal(actors.get(3).node.visible,false);
+ assert.equal(actors.get(4).node.visible,false);
+ const roverStart=tankDone+.05;
+ step(roverStart);
+ assert.equal(f.controller.active.get(1)?.event.unitId,3,'Humvee starts through the same door');
+ assert.equal(actors.get(4).node.visible,false,'rocket truck remains queued');
+ const roverState=f.controller.active.get(1);
+ step(roverStart+1.3);
+ assert.ok(f.entry.gate.door.position.y>0,'real factory shutter opens for Humvee');
+ assert.ok(actors.get(3).productionMotion);
+ const roverDone=roverStart+GATE_TIMING.warning+GATE_TIMING.opening+roverState.duration+GATE_TIMING.closing+.2;
+ step(roverDone);
+ assert.equal(f.controller.active.size,0,'Humvee departure completed');
+ const rocketStart=roverDone+.05;
+ step(rocketStart);
+ assert.equal(f.controller.active.get(1)?.event.unitId,4,'rocket truck starts through the same factory door');
+ const rocketState=f.controller.active.get(1);
+ step(rocketStart+1.3);
+ assert.ok(f.entry.gate.door.position.y>0,'factory shutter reopens for rocket truck');
+ assert.ok(actors.get(4).productionMotion);
+ step(rocketStart+GATE_TIMING.warning+GATE_TIMING.opening+rocketState.duration+GATE_TIMING.closing+.2);
+ assert.equal(f.controller.active.size,0);
+ assert.equal(actors.get(4).node.visible,true);
+ assert.ok(cancelled.includes(2)&&cancelled.includes(3)&&cancelled.includes(4),'holds are released on departure');
+ assert.deepEqual(f.game.units.map(u=>u.kind),['tank','rover','artillery']);
+ f.controller.dispose();
+});
