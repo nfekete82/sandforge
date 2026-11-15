@@ -31,5 +31,9 @@ jobs:
           test -s dist/webgl-bastion-visual.js
           grep -q removeBastionFrontShield dist/webgl-battlefield.js
           test -s dist/src/assets/reborn/buildings-3d/bastion-0.glb
-      - name: Run end-to-end system integration smoke
-        run: npm run test:webgl-integration
+      - name: Run WebGL simulation and 3D integration regressions
+        run: |
+          node --test tests/sandforge-spacious-desert.test.mjs \\
+            tests/sandforge-bastion-navigation.test.mjs \\
+            tests/reborn-combat-index.test.mjs \\
+            tests/sandforge-webgl-entry.test.mjs
