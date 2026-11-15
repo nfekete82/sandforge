@@ -1,0 +1,43 @@
+name: Kommandozentrale and unarmed pioneer acceptance
+on:
+  push:
+    branches: [feat/command-center-unarmed-engineer-wrench-20261115]
+    paths: [.github/workflows/accept-unarmed-engineer-20261115.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Build canonical November 11 game
+        run: npm run build:3d
+      - name: Assert title, no pioneer damage, no fire even with old orders, repair, and wrench
+        run: |
+          node --test tests/reborn-engineer-unarmed-command-center-20261115.test.mjs \
+            tests/reborn-support.test.mjs \
+            tests/sandforge-engineer-squad-escort.test.mjs \
+            tests/sandforge-engineer-sequential-orders.test.mjs \
+            tests/webgl-engineer-reliable-input-20261109.test.mjs \
+            tests/webgl-global-production-20261111.test.mjs
+      - name: Verify shipped wrench and no legacy name in runtime source
+        shell: bash
+        run: |
+          test -s dist/webgl-engineer-wrench.js
+          ! grep -Rin 'Feldkommando' src/reborn/catalog.ts scripts/webgl-battlefield.js scripts/animation/atlas-buildings.js scripts/animation/refined-headquarters.js
+      - name: Install browser test dependencies
+        run: npm --prefix tests/browser ci
+      - name: Install Chromium
+        run: cd tests/browser && npx playwright install --with-deps chromium
+      - name: Render original GLB, check skeleton hand wrench for both teams
+        env:
+          SANDFORGE_BROWSER_CHANNEL: chromium
+          SANDFORGE_TEST_PORT: '8206'
+        run: node tests/browser/node_modules/playwright/cli.js test --config=tests/browser/playwright.config.mjs webgl-engineer-wrench-20261115.spec.mjs
