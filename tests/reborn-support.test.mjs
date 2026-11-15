@@ -41,12 +41,14 @@ test('support: idle medics prioritize relative health, heal other medics and nev
  Object.assign(other,{x:2100,y:2100});const before={x:m.x,y:m.y},hp=other.hp;advance(g,1);assert.deepEqual({x:m.x,y:m.y},before);near(other.hp,hp);
 });
 
-test('support: worker repairs only buildings after arrival, once at 12 HP/s, for free; incoming attacks interrupt work',()=>{
+test('support: unarmed worker repairs buildings continuously even while being attacked',()=>{
  const g=peaceful(),p=site(g,'barracks'),w=workerAt(g,p),b=g.build(0,'barracks',p,[w.id]);advance(g,12.1);assert.equal(b.buildRemaining,0);
  b.hp=400;Object.assign(w,g.world.nearest({x:b.x+b.radius+200,y:b.y},g.obstacles()));g.stop([w.id]);
  const credits=g.credits[0];assert.equal(g.command([w.id],point(b,'repair')),1);advance(g,.5);assert.equal(b.hp,400);advance(g,2);assert.ok(b.hp>400);
  const hp=b.hp;advance(g,1);near(b.hp,hp+12);assert.equal(g.credits[0],credits);
- w.lastAttacker=99999;w.defendUntil=g.time+2;const interrupted=b.hp;advance(g,1);near(b.hp,interrupted);advance(g,2);assert.ok(b.hp>interrupted);
+ w.lastAttacker=99999;w.defendUntil=g.time+2;const stillRepairing=b.hp;
+ advance(g,1);near(b.hp,stillRepairing+12);
+ advance(g,2);assert.ok(b.hp>stillRepairing);
  advance(g,40);assert.equal(b.hp,800);assert.equal(g.command([w.id],point(g.units[0],'heal')),0);
 });
 
@@ -86,7 +88,7 @@ test('support: pending heal, repair, construction, hold and paid queues survive 
  const legacy=Simulation.load(old),credits=legacy.credits[0];legacy.cancel(old.bases[0].id);assert.equal(legacy.credits[0],credits+150);
 });
 
-for(const kind of ['medic','engineer'])test(`support: ${kind} does not proactively attack or chase, but defends and obeys explicit attack`,()=>{
+for(const kind of ['medic'])test(`support: ${kind} does not proactively attack or chase, but defends and obeys explicit attack`,()=>{
  const g=peaceful(),u=g.spawn(0,{x:1900,y:2100},kind),enemy=g.spawn(1,{x:1980,y:2100});enemy.cooldown=100;g.updateVision();advance(g,1);
  assert.equal(enemy.hp,100);near(u.x,1900);enemy.cooldown=0;g.step();assert.equal(u.lastAttacker,enemy.id);g.step();assert.equal(enemy.hp,96);
  Object.assign(enemy,{x:2150,y:2100});advance(g,1);near(u.x,1900);
@@ -100,7 +102,7 @@ test('support: healing takes priority over pistol defence, and equal simulated t
  }
 });
 
-for(const kind of ['medic','engineer'])test(`support: ${kind} also identifies and returns direct turret fire`,()=>{
+for(const kind of ['medic'])test(`support: ${kind} also identifies and returns direct turret fire`,()=>{
  const g=peaceful(),u=g.spawn(0,{x:1900,y:2100},kind),tower={...g.bases[1],id:1020,x:1980,y:2100,kind:'turret',radius:30,hp:650,queue:[],queueTypes:[],cooldown:0};
  g.bases.push(tower);g.updateVision();for(let i=0;i<25&&u.lastAttacker!==tower.id;i++)g.step();assert.equal(u.lastAttacker,tower.id);near(u.hp,UNITS[kind].hp-6);g.step();near(tower.hp,646);
 });
