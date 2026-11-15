@@ -88,9 +88,9 @@ test('support: pending heal, repair, construction, hold and paid queues survive 
 
 for(const kind of ['medic','engineer'])test(`support: ${kind} does not proactively attack or chase, but defends and obeys explicit attack`,()=>{
  const g=peaceful(),u=g.spawn(0,{x:1900,y:2100},kind),enemy=g.spawn(1,{x:1980,y:2100});enemy.cooldown=100;g.updateVision();advance(g,1);
- assert.equal(enemy.hp,100);near(u.x,1900);enemy.cooldown=0;g.step();assert.equal(u.lastAttacker,enemy.id);g.step();assert.equal(enemy.hp,96);
+ assert.equal(enemy.hp,100);near(u.x,1900);enemy.cooldown=0;g.step();assert.equal(u.lastAttacker,enemy.id);g.step();assert.equal(enemy.hp,kind==='engineer'?92:96);
  Object.assign(enemy,{x:2150,y:2100});advance(g,1);near(u.x,1900);
- g.command([u.id],point(enemy,'attack'));advance(g,2);assert.ok(u.x>1900);assert.ok(enemy.hp<96);
+ g.command([u.id],point(enemy,'attack'));advance(g,2);assert.ok(u.x>1900);assert.ok(enemy.hp<(kind==='engineer'?92:96));
 });
 
 test('support: healing takes priority over pistol defence, and equal simulated time has equal healing at .05/.1 ticks',()=>{
@@ -102,7 +102,7 @@ test('support: healing takes priority over pistol defence, and equal simulated t
 
 for(const kind of ['medic','engineer'])test(`support: ${kind} also identifies and returns direct turret fire`,()=>{
  const g=peaceful(),u=g.spawn(0,{x:1900,y:2100},kind),tower={...g.bases[1],id:1020,x:1980,y:2100,kind:'turret',radius:30,hp:650,queue:[],queueTypes:[],cooldown:0};
- g.bases.push(tower);g.updateVision();for(let i=0;i<25&&u.lastAttacker!==tower.id;i++)g.step();assert.equal(u.lastAttacker,tower.id);near(u.hp,UNITS[kind].hp-6);g.step();near(tower.hp,646);
+ g.bases.push(tower);g.updateVision();for(let i=0;i<25&&u.lastAttacker!==tower.id;i++)g.step();assert.equal(u.lastAttacker,tower.id);near(u.hp,UNITS[kind].hp-6);g.step();near(tower.hp,kind==='engineer'?642:646);
 });
 
 test('support: engineers share an 18 HP/s area budget between wounded ground vehicles and aircraft',()=>{

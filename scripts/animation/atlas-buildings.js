@@ -2,7 +2,7 @@ import * as T from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {refineTurret} from './turret-finish.js';
 
-export const buildingNames={headquarters:'Feldkommando',bastion:'Bastion',barracks:'Kaserne',factory:'Fahrzeugfabrik',airfield:'Flugfeld',generator:'Energiekern',turret:'Geschützturm'};
+export const buildingNames={headquarters:'Kommandozentrale',bastion:'Bastion',barracks:'Kaserne',factory:'Fahrzeugfabrik',airfield:'Flugfeld',generator:'Energiekern',turret:'Geschützturm'};
 
 /** Original geometry, using the approved infantry's ceramic / bronze / enamel palette. */
 export function buildAtlasBuilding(kind,team=0){
