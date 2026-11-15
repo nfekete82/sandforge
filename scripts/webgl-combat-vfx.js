@@ -6,6 +6,7 @@ import {addWreckRecord,advanceWreckRecords,wreckSink,WRECK_CAP,
  isAircraftWreck} from '/webgl-wreck-lifecycle.js';
 import {guidedRocketAimY,aircraftAimOffsetY,adoptAircraftForCrash,disposeAircraftCrash} from '/webgl-aircraft-effects.js';
 import {vehicleDustEligible,vehicleDustTail,VEHICLE_DUST_CAP,VEHICLE_DUST_CAP_LITE} from '/webgl-vehicle-dust.js';
+import {ORDNANCE_TRAIL_SEGMENTS,ORDNANCE_VISUALS,ordnanceVisualKind,ordnanceVisualProfile,appendOrdnanceTrail} from '/webgl-ordnance-profile.js';
 
 const vehicleKinds=new Set(['tank','rover','artillery']);
 const trackedKinds=new Set(['tank','artillery']);
@@ -240,7 +241,43 @@ export class SandforgeCombatEffects {
   this.bombBodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   this.bombBodies.count=0;this.bombBodies.frustumCulled=false;
   scene.add(this.bombBodies);
+  // Bounded 3D afterglow for real flying ordnance. One instanced draw call
+  // creates a luminous yellow-white streak behind tanks and rocket trucks.
+  // The old charcoal smoke particles remain, but no permanent trail meshes
+  // or unbounded geometry can accumulate after long RTS battles.
+  this.rocketStreaks=new THREE.InstancedMesh(
+   new THREE.CylinderGeometry(1,1,1,6),
+   new THREE.MeshBasicMaterial({color:'#ffe5b0',transparent:true,opacity:.53,
+    blending:THREE.AdditiveBlending,depthWrite:false,depthTest:true,toneMapped:false}),
+   rocketLimit*(ORDNANCE_TRAIL_SEGMENTS-1));
+  this.rocketStreaks.name='visual-3d-guided-rocket-trails';
+  this.rocketStreaks.userData={visualOnly:true,nonPlayable:true,projectile:true};
+  this.rocketStreaks.raycast=()=>{};
+  this.rocketStreaks.castShadow=false;this.rocketStreaks.frustumCulled=false;
+  this.rocketStreaks.count=0;
+  this.rocketStreaks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(this.rocketStreaks);
+  // A recognizable bomb silhouette: ogive nose and cross-shaped tail fins.
+  // Each is a capped GPU instance pool, tied to the authoritative bomb.
+  const bombMetal=new THREE.MeshStandardMaterial({
+   color:'#4a5150',metalness:.55,roughness:.52,flatShading:true
+  });
+  const bombParts=[
+   ['bomb-noses',new THREE.ConeGeometry(4.3,7,12)],
+   ['bomb-tail-fins-a',new THREE.BoxGeometry(13,3,1.25)],
+   ['bomb-tail-fins-b',new THREE.BoxGeometry(1.25,3,13)]
+  ];
+  [this.bombNoses,this.bombFinsA,this.bombFinsB]=bombParts.map(([name,geometry])=>{
+   const mesh=new THREE.InstancedMesh(geometry,bombMetal,this.bombBodies.instanceMatrix.count);
+   mesh.name='visual-3d-'+name;
+   mesh.userData={visualOnly:true,nonPlayable:true,projectile:true};
+   mesh.raycast=()=>{};mesh.castShadow=false;
+   mesh.count=0;mesh.frustumCulled=false;
+   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+   scene.add(mesh);return mesh;
+  });
   this.rocketOrigins=new Map();this.rocketTrailAt=new Map();
+  this.rocketHistory=new Map();this.bombTrailAt=new Map();this.ordnanceKinds=new Map();
   this.statsRocket={launched:0,visible:0};
   this.wreckCount=0;this.emitters=[];this.seenBlasts=new Set();this.seenShots=new WeakSet();
   this.lastUnits=new Map();
@@ -315,27 +352,30 @@ export class SandforgeCombatEffects {
     (this.rand()-.5)*28,(this.rand()-.5)*28,17+this.rand()*35);
   }
  }
- blastAt(x,z,strong=true){
+ blastAt(x,z,strong=true,weaponKind='default'){
   if(!this.game.canSee(0,{x,y:z}))return;
   this.stats.blasts++;
+  const impactScale=strong?(ORDNANCE_VISUALS[weaponKind]??ORDNANCE_VISUALS.default).impactScale:1;
   // A single precise terrain sample is sufficient for a 25-unit visual
   // particle burst. Previously a bombing run triggered 50+ expensive
   // procedural terrain samples synchronously on the impact frame.
   const impactGround=this.heightAt(x,z);
-  const size=strong?115:65;
+  const size=(strong?115:65)*impactScale;
   // Real blast stages: short hot core, outward dirt ring, dark buoyant
   // combustion clouds, and thrown fragments. Everything is pooled,
   // visual-only and disappears; it cannot grow per simulated minute.
   // Cache the impact's ground height: the shockwave must not re-sample
   // procedural terrain every animation frame during a bomber carpet strike.
-  this.shocks.push({x,z,y:impactGround+3,life:.49,ttl:.49,max:strong?110:59});
+  this.shocks.push({x,z,y:impactGround+3,life:.49,ttl:.49,max:(strong?110:59)*impactScale});
   if(this.shocks.length>this.shockwave.instanceMatrix.count)this.shocks.shift();
   this.placeScorch(x,z,size);
   // First 120 ms: bright ignition front. Subsequent frames are dust,
   // airborne fragments and rolling dark combustion smoke.
-  this.particle(this.flash,x,z,impactGround+(strong?31:21),
-   strong?96:58,.12,0,0,0);
-  const fires=strong?11:6,smokes=strong?16:9,dust=strong?15:8;
+  this.particle(this.flash,x,z,impactGround+(strong?31:21)*impactScale,
+   (strong?96:58)*impactScale,weaponKind==='bomb'?.15:.12,0,0,0);
+  const fires=strong?(weaponKind==='bomb'?14:11):6,
+   smokes=strong?(weaponKind==='bomb'?19:16):9,
+   dust=strong?(weaponKind==='bomb'?19:15):8;
   for(let i=0;i<fires;i++){
    const a=this.rand()*Math.PI*2,r=Math.sqrt(this.rand())*(strong?25:13);
    const fx=x+Math.cos(a)*r,fz=z+Math.sin(a)*r;
@@ -631,7 +671,9 @@ export class SandforgeCombatEffects {
    if(this.seenBlasts.has(key))continue;
    this.seenBlasts.add(key);
    if(this.seenBlasts.size>1500)this.seenBlasts.clear();
-   this.blastAt(blast.x,blast.y,true);
+   const weaponKind=this.ordnanceKinds.get(blast.id)??'default';
+   this.blastAt(blast.x,blast.y,true,weaponKind);
+   this.ordnanceKinds.delete(blast.id);
   }
   for(const shot of this.game.shots){
    if(this.seenShots.has(shot))continue;
