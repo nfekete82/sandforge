@@ -9,7 +9,7 @@ test('real tank GLB mounts compact flag on rotating turret and real barracks GLB
  const result=await page.evaluate(async()=>{
   const THREE=await import('three');
   const {attachTeamMarkings,detachTeamMarkings}=await import('/webgl-team-markings.js');
-  const {finishBarracksSides,disposeBarracksSides}=await import('/webgl-barracks-shell.js');
+  const {finishBarracksSides,finishBarracksDesertPalette,disposeBarracksSides}=await import('/webgl-barracks-shell.js');
   const {prepareBarracksPortal,disposeBarracksPortal}=await import('/webgl-barracks-portal.js');
   const {buildingIcon}=await import('/webgl-portraits.js');
   const sf=window.__sandforgeWebGL,bf=sf.battlefield;
@@ -28,6 +28,8 @@ test('real tank GLB mounts compact flag on rotating turret and real barracks GLB
   if(turret)turret.rotation.y+=.65;
   const after=flag?.getWorldPosition(new THREE.Vector3()).clone();
   const finish=finishBarracksSides(barracks);
+  const paletteCount=finishBarracksDesertPalette(barracks);
+  const painted=finish.children.filter(m=>m.material?.userData?.sandforgeBarracksPalette);
   const sides=[-1,1].map(side=>finish.getObjectByName('BarracksSolidSideWall_'+side));
   const portalEntry={detail:barracks};
   const portal=prepareBarracksPortal(portalEntry,{localClippingEnabled:false});
@@ -36,6 +38,7 @@ test('real tank GLB mounts compact flag on rotating turret and real barracks GLB
   // An actual WebGL draw, not just checking module source text.
   sf.renderer.render(sf.scene,sf.camera);
   const wallIcon=await buildingIcon('wall',sf.renderer);
+  const barracksIcon=await buildingIcon('barracks',sf.renderer);
   const out={
    mounted:root?.parent===turret,hasFlag:!!flag&&!!pole,
    flagSize:flag?.scale.x,flagHeight:flag?.scale.y,
@@ -44,6 +47,9 @@ test('real tank GLB mounts compact flag on rotating turret and real barracks GLB
    sides:sides.every(Boolean),panelCount:finish.children.filter(c=>c.name.startsWith('BarracksCamoSidePanel_')).length,
    hasDoor:!!oldDoor,hasPortal:!!portal,hasClippedUpgrade:!!clippedUpgrade?.material?.clippingPlanes,
    wallIconReady:wallIcon.startsWith('data:image/png;base64,'),
+   barracksIconReady:barracksIcon.startsWith('data:image/png;base64,'),
+   paletteCount,paintedSidePanels:painted.length,
+   localPaintShader:painted[0]?.material?.onBeforeCompile?.toString().includes('sfBarracksLocal'),
    shaderPrograms:sf.renderer.info.programs?.length??0
   };
   detachTeamMarkings(entry);disposeBarracksPortal(portalEntry);disposeBarracksSides(barracks);
@@ -62,6 +68,10 @@ test('real tank GLB mounts compact flag on rotating turret and real barracks GLB
  expect(result.hasPortal).toBe(true);
  expect(result.hasClippedUpgrade).toBe(true);
  expect(result.wallIconReady).toBe(true);
+ expect(result.barracksIconReady).toBe(true);
+ expect(result.paletteCount).toBeGreaterThan(2);
+ expect(result.paintedSidePanels).toBeGreaterThan(2);
+ expect(result.localPaintShader).toBe(true);
  expect(result.shaderPrograms).toBeGreaterThan(0);
  expect(errors).toEqual([]);
 });
