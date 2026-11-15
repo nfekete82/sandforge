@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 
-test('single-storey low-poly HQ keeps flat material paint fixed when moving the building',async({page})=>{
+test('single-storey low-poly HQ keeps desert camouflage textures fixed when moving the building',async({page})=>{
  test.setTimeout(90000);
  const errors=[];
  page.on('pageerror',e=>errors.push(e.message));
@@ -14,11 +14,15 @@ test('single-storey low-poly HQ keeps flat material paint fixed when moving the 
   applyStrategicGlbFinish(group);
   const nodes=['Gate_Left_Pivot','Gate_Right_Pivot','Radar_Pivot',
    'TeamBanner_Left','TeamBanner_Right'].map(name=>Boolean(group.getObjectByName(name)));
-  let textures=0,customCamo=0;
+  let textures=0,customCamo=0,atlas=0,missingUV=0;
   group.traverse(node=>{
    if(!node.isMesh)return;
    for(const material of Array.isArray(node.material)?node.material:[node.material]){
-    if(material?.map)textures++;
+    if(material?.map){
+     textures++;
+     if(material.map.name?.startsWith('SF_HQ_'))atlas++;
+     if(!node.geometry.getAttribute('uv'))missingUV++;
+    }
     if(material?.userData?.sandforgeFinalCamo)customCamo++;
    }
   });
@@ -54,12 +58,14 @@ test('single-storey low-poly HQ keeps flat material paint fixed when moving the 
   }
   buffer.dispose();renderer.dispose();
   return {pixelDifference:subjects?difference/(subjects*3*255):1,subjects,
-   textures,customCamo,nodes};
+   textures,customCamo,atlas,missingUV,nodes};
  });
  expect(errors).toEqual([]);
  expect(result.nodes.every(Boolean)).toBe(true);
  expect(result.subjects).toBeGreaterThan(1000);
- expect(result.textures).toBe(0);
+ expect(result.textures).toBeGreaterThan(7);
+ expect(result.atlas).toBeGreaterThan(7);
+ expect(result.missingUV).toBe(0);
  expect(result.customCamo).toBe(0);
  expect(result.pixelDifference).toBeLessThan(.025);
 });
