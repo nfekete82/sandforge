@@ -125,3 +125,22 @@ test('wrench and pistol are wired to WebGL, while model and simulator IDs remain
  assert.match(build,/webgl-engineer-tools\.js/);
  assert.doesNotMatch(battlefield,/Feldkommando/);
 });
+
+
+test('despawning one placeholder cannot dispose shared wrench geometry used by other pioneers',async()=>{
+ const {disposeOwnedMeshes}=await import('../scripts/webgl-resource-lifecycle.js');
+ const root=new THREE.Group();
+ const own=new THREE.Mesh(new THREE.BoxGeometry(),new THREE.MeshBasicMaterial());
+ root.add(own);
+ const tool=new THREE.Mesh(new THREE.BoxGeometry(),new THREE.MeshStandardMaterial());
+ tool.userData.sandforgeSharedToolMesh=true;
+ root.add(tool);
+ let ownDisposals=0,toolDisposals=0;
+ own.geometry.dispose=()=>ownDisposals++;
+ tool.geometry.dispose=()=>toolDisposals++;
+ tool.material.dispose=()=>toolDisposals++;
+ const count=disposeOwnedMeshes(root);
+ assert.equal(count.geometries,1);
+ assert.equal(ownDisposals,1);
+ assert.equal(toolDisposals,0,'still-active pioneers must keep their shared tool GPU assets');
+});
