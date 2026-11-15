@@ -57,6 +57,15 @@ test('sand palette is pale ochre/beige, gated to desert, not the old saturated o
  assert.match(preview,/sandGold=new THREE\.Color\('#d9bb92'\)/);
  assert.match(preview,/sandLight=new THREE\.Color\('#ebd4b1'\)/);
  assert.match(preview,/riverSediment=new THREE\.Color\('#bda78a'\)/);
+ assert.match(preview,/const subtleSandLift=new THREE\.Color\('#f5e7d1'\)/);
+ assert.match(preview,/if\(biome==='desert'\)vertexColor\.lerp\(subtleSandLift,\.10\)/);
+ assert.equal(preview.includes("renderer.toneMappingExposure=biome==='desert'?(spacious?.96:1.00)"),true,
+  'do not alter exposure, which would also brighten buildings');
+ const baseSand=new THREE.Color('#d9bb92'),target=new THREE.Color('#f5e7d1');
+ const subtle=baseSand.clone().lerp(target,.10);
+ const lift=(subtle.r+subtle.g+subtle.b)-(baseSand.r+baseSand.g+baseSand.b);
+ assert.ok(lift>0&&lift<.13,'small terrain brightness step, not a wholesale recolor');
+
  assert.doesNotMatch(preview,/#e8b47b/);
  assert.match(preview,/spacious&&biome==='desert'\?createDesertVillages/);
  assert.match(build,/cpSync\('scripts\/webgl-desert-village\.js','dist\/webgl-desert-village\.js'\)/);
