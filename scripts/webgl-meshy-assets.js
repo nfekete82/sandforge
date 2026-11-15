@@ -18,7 +18,7 @@ export function meshyEnabled(query=typeof location==='undefined'?'':location.sea
 }
 export function meshyAsset(kind,owner=0,query=typeof location==='undefined'?'':location.search){
  // The user-approved low-poly infantry is the normal soldier, not a preview flag.
- if(kind==='infantry')return '/src/assets/meshy/infantry.glb';
+ if(kind==='infantry')return '/src/assets/meshy/infantry-animated.glb';
  if(!meshyEnabled(query)||!MESHY_ASSET_KINDS.includes(kind))return null;
  const params=new URLSearchParams(query);
  // Preserve the real rigged soldier and Rocket Infantry until user-supplied
