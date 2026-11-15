@@ -30,4 +30,47 @@ jobs:
               bounds:(m?.primitives||[]).map(p=>{const a=gltf.accessors?.[p.attributes?.POSITION];return a?[a.min,a.max]:null;})};
             console.log('NODE',JSON.stringify(props));
           }
+          const binStart=28+f.readUInt32LE(12);
+          const getAccessor=id=>{
+           const a=gltf.accessors[id],view=gltf.bufferViews[a.bufferView];
+           const n=a.type==='VEC3'?3:1;
+           const bytes=a.componentType===5126||a.componentType===5125?4:a.componentType===5123?2:1;
+           const stride=view.byteStride??bytes*n;
+           const base=binStart+view.byteOffset+(a.byteOffset||0);
+           const read=(idx,axis=0)=>{
+            const at=base+idx*stride+axis*bytes;
+            if(a.componentType===5126)return f.readFloatLE(at);
+            if(a.componentType===5125)return f.readUInt32LE(at);
+            if(a.componentType===5123)return f.readUInt16LE(at);
+            return f.readUInt8(at);
+           };
+           return {a,read};
+          };
+          const steel=gltf.meshes[48];
+          for(const primitive of steel.primitives){
+           const v=getAccessor(primitive.attributes.POSITION);
+           const ind=primitive.indices!==undefined?getAccessor(primitive.indices):null;
+           const tris=(ind?.a.count??v.a.count)/3;
+           const getIdx=i=>ind?ind.read(i):i;
+           const parent=Array.from({length:v.a.count},(_,i)=>i);
+           const find=i=>parent[i]===i?i:(parent[i]=find(parent[i]));
+           const union=(i,j)=>{i=find(i);j=find(j);if(i!==j)parent[j]=i};
+           for(let t=0;t<tris;t++){const i=getIdx(t*3);union(i,getIdx(t*3+1));union(i,getIdx(t*3+2))}
+           const groups=new Map();
+           for(let t=0;t<tris;t++){
+            const i=getIdx(t*3),key=find(i);
+            let b=groups.get(key);
+            if(!b){b={count:0,min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};groups.set(key,b)}
+            b.count++;
+            for(let j=0;j<3;j++){
+             const idx=getIdx(t*3+j);
+             for(let axis=0;axis<3;axis++){
+              const val=v.read(idx,axis);
+              b.min[axis]=Math.min(b.min[axis],val);
+              b.max[axis]=Math.max(b.max[axis],val);
+             }
+            }
+           }
+           console.log('STEEL_COMPONENTS',JSON.stringify({tris,components:[...groups.values()].sort((a,b)=>b.count-a.count)}));
+          }
           NODE
