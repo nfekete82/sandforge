@@ -3,55 +3,100 @@ import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 import * as THREE from 'three';
 import {Simulation} from '../dist/src/reborn/simulation.js';
-import {planDesertVillages,createDesertVillages,DESERT_VILLAGE_ART_REVISION}
+import {planDesertVillages,createDesertVillages,DESERT_VILLAGE_ART_REVISION,DESERT_VILLAGE_MODELS}
  from '../scripts/webgl-desert-village.js';
 
-for(const seed of [2988452066,3610769721])test('4-Bastion map '+seed+': at least one visible ghost village, deterministic and clear of bastions',()=>{
- const game=Simulation.campaign(seed,23),world=game.world,terrain=world.generated;
- const params={world,terrain,seed,lowQuality:false};
- const villages=planDesertVillages(params);
- assert.ok(villages.length>=1,'at least one hamlet on the actual user map seed');
- assert.deepEqual(villages,planDesertVillages(params),'same layout for identical seed and terrain');
- for(const v of villages){
-  assert.ok(v.x>=250&&v.y>=250&&v.x<=world.size-250&&v.y<=world.size-250);
-  assert.ok(v.houses.length>=5);
-  for(const site of terrain.sites)
-   assert.ok(Math.hypot(site.x-v.x,site.y-v.y)>=290,
-    'visual settlement must stay away from strategic bastions and HQ spawn');
-  for(const h of v.houses){
-   const c={x:h.x,y:h.y},index=world.index(c);
-   assert.ok(index>=0&&!world.blocked[index]);
-   assert.ok(world.walkable(c));
-   assert.ok(Number.isFinite(h.angle)&&h.width>24&&h.height>=19);
+const makeAuthoredMock=url=>{
+ const scene=new THREE.Group();
+ const wall=new THREE.Mesh(new THREE.BoxGeometry(8,8,7),
+  new THREE.MeshStandardMaterial({name:'sun-bleached-plaster',color:'#c5aa87'}));
+ const roof=new THREE.Mesh(new THREE.ConeGeometry(6,3,4),
+  new THREE.MeshStandardMaterial({name:'roof-tile',color:'#a08f76'}));
+ roof.position.y=7;
+ scene.add(wall,roof);
+ scene.name=url;
+ return {scene};
+};
+
+for(const seed of [2988452066,3610769721])
+ test('4-Bastion map '+seed+': small authored ruin hamlets away from bases and obstacles',async()=>{
+  const game=Simulation.campaign(seed,23),world=game.world,terrain=world.generated;
+  const params={world,terrain,seed,lowQuality:false};
+  const villages=planDesertVillages(params);
+  assert.ok(villages.length>=1,'at least one small hamlet on actual user map seed');
+  assert.ok(villages.length<=2,'avoid unnatural dense rows of artificial settlements');
+  assert.deepEqual(villages,planDesertVillages(params),'stable layout for saved campaigns');
+  for(const v of villages){
+   assert.ok(v.x>=270&&v.y>=270&&v.x<=world.size-270&&v.y<=world.size-270);
+   assert.ok(v.houses.length>=4&&v.houses.length<=5);
+   for(const site of terrain.sites)
+    assert.ok(Math.hypot(site.x-v.x,site.y-v.y)>=330,
+     'scenic settlement stays clear of territory and HQ sites');
+   for(const h of v.houses){
+    const c={x:h.x,y:h.y},index=world.index(c);
+    assert.ok(index>=0&&!world.blocked[index]);
+    assert.ok(world.walkable(c));
+    assert.ok(Number.isFinite(h.angle)&&h.width>=40);
+    assert.ok(h.variant===0||h.variant===1,'only real authored ruin variants');
+   }
   }
- }
- assert.deepEqual(planDesertVillages({...params,lowQuality:true}),
-  planDesertVillages({...params,lowQuality:true}));
- const scene=new THREE.Scene(),half=world.size*.5;
- const art=createDesertVillages({
-  ...params,scene,
-  heightAt:(x,z)=>world.terrainHeight(x,z),
-  pos:(x,z,y=world.terrainHeight(x,z))=>new THREE.Vector3(x-half,y,z-half)
+  const scene=new THREE.Scene(),half=world.size*.5;
+  const art=await createDesertVillages({
+   ...params,scene,
+   heightAt:(x,z)=>world.terrainHeight(x,z),
+   pos:(x,z,y=world.terrainHeight(x,z))=>new THREE.Vector3(x-half,y,z-half),
+   loadModel:async url=>makeAuthoredMock(url),
+   weatherModel:scene=>scene.traverse(mesh=>{if(mesh.isMesh)mesh.userData.weatheredRuin=true;})
+  });
+  assert.equal(art.villages.length,villages.length);
+  assert.equal(art.meshes.length,4,'two parts per glTF, two variant sources');
+  assert.equal(art.drawCalls,art.meshes.length+1);
+  assert.ok(art.drawCalls<=8,'one batched draw per original ruin part');
+  assert.ok(art.roads?.isMesh);
+  assert.equal(art.roads.userData.groundConforming,true);
+  assert.equal(art.roads.userData.softRuts,true);
+  assert.equal(art.roads.userData.revision,DESERT_VILLAGE_ART_REVISION);
+  assert.equal(art.roads.raycast.toString(),'()=>{}');
+  assert.ok(art.roads.geometry.getAttribute('position').count>100);
+  assert.equal(art.roads.geometry.getAttribute('color').itemSize,4,
+   'faded RGBA ruts, never opaque rectangular road plates');
+  let maxAlpha=0;
+  const colors=art.roads.geometry.getAttribute('color');
+  for(let i=0;i<colors.count;i++)maxAlpha=Math.max(maxAlpha,colors.getW(i));
+  assert.ok(maxAlpha<=.26&&maxAlpha>.10,'path is subtle and fades into the sand');
+  assert.ok(art.roads.material.opacity<=.65);
+  assert.ok(art.meshes.every(m=>m.isInstancedMesh&&m.count>0));
+  assert.ok(art.meshes.every(m=>m.userData.authoredRuin===true&&m.userData.nonPlayable===true));
+  assert.ok(art.meshes.every(m=>m.userData.source.endsWith('ruin-house.gltf')||
+   m.userData.source.endsWith('ruin-depot.gltf')));
+  assert.ok(art.meshes.every(m=>m.raycast.toString()==='()=>{}'));
+  assert.equal(scene.children.filter(x=>x.userData?.desertVillage).length,art.drawCalls);
+  assert.ok(game.territories.every(x=>x.owner===-1||x.owner===0||x.owner===1));
+  // GLTF scene owns original geometry/material; rendering instances reuse them.
+  art.roads.geometry.dispose();art.roads.material.dispose();
  });
- assert.equal(art.villages.length,villages.length);
- assert.equal(art.drawCalls,5);
- assert.equal(art.meshes.length,4);
- assert.ok(art.roads?.isMesh);
- assert.equal(art.roads.userData.groundConforming,true);
- assert.equal(art.roads.userData.revision,DESERT_VILLAGE_ART_REVISION);
- assert.equal(art.roads.raycast.toString(),'()=>{}');
- assert.ok(art.roads.geometry.getAttribute('position').count>100);
- assert.ok(art.meshes.every(m=>m.isInstancedMesh&&m.count>0));
- assert.ok(art.meshes.every(m=>m.userData.nonPlayable===true&&m.raycast.toString()==='()=>{}'));
- assert.ok(scene.children.filter(x=>x.userData?.desertVillage).length===5);
- // Sampling the same triangle-interpolated map surface must never alter
- // the authoritative 20-Hz battlefield or its bastion owners.
- assert.ok(game.territories.every(x=>x.owner===-1||x.owner===0||x.owner===1));
- for(const mesh of art.meshes){mesh.geometry.dispose();mesh.material.dispose();}
- art.roads.geometry.dispose();art.roads.material.dispose();
+
+test('original textured ruin GLTFs replace all new procedural house boxes',()=>{
+ const code=readFileSync('scripts/webgl-desert-village.js','utf8');
+ assert.deepEqual(DESERT_VILLAGE_MODELS,[
+  '/src/assets/reborn/canyon-3d/ruin-house.gltf',
+  '/src/assets/reborn/canyon-3d/ruin-depot.gltf'
+ ]);
+ for(const asset of DESERT_VILLAGE_MODELS){
+  assert.ok(existsSync('.'+asset),'the referenced GLTF is already shipped with Sandforge');
+  const gltf=JSON.parse(readFileSync('.'+asset,'utf8'));
+  assert.ok(gltf.meshes?.length>=1);
+  assert.ok(gltf.materials?.length>=5,'real masonry, roof, glass and rubble materials');
+ }
+ assert.doesNotMatch(code,/new THREE\.BoxGeometry/,'no more primitive box houses');
+ assert.doesNotMatch(code,/new THREE\.PlaneGeometry/,'no new floating road slabs');
+ const preview=readFileSync('scripts/webgl-preview.js','utf8');
+ assert.match(preview,/loadModel:async url=>\{await ruinStrataLoad;return tryModel\(url\);\}/);
+ assert.match(preview,/weatherModel:weatherRuinMeshes/);
+ assert.doesNotMatch(readFileSync('src/reborn/simulation.ts','utf8'),/createDesertVillages/);
 });
 
-test('sand palette is pale ochre/beige, gated to desert, not the old saturated orange',()=>{
+test('sun-bleached desert is only slightly lighter, existing gameplay buildings untouched',()=>{
  const preview=readFileSync('scripts/webgl-preview.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
  assert.match(preview,/sandGold=new THREE\.Color\('#d9bb92'\)/);
@@ -59,16 +104,9 @@ test('sand palette is pale ochre/beige, gated to desert, not the old saturated o
  assert.match(preview,/riverSediment=new THREE\.Color\('#bda78a'\)/);
  assert.match(preview,/const subtleSandLift=new THREE\.Color\('#f5e7d1'\)/);
  assert.match(preview,/if\(biome==='desert'\)vertexColor\.lerp\(subtleSandLift,\.10\)/);
- assert.equal(preview.includes("renderer.toneMappingExposure=biome==='desert'?(spacious?.96:1.00)"),true,
-  'do not alter exposure, which would also brighten buildings');
- const baseSand=new THREE.Color('#d9bb92'),target=new THREE.Color('#f5e7d1');
- const subtle=baseSand.clone().lerp(target,.10);
- const lift=(subtle.r+subtle.g+subtle.b)-(baseSand.r+baseSand.g+baseSand.b);
- assert.ok(lift>0&&lift<.13,'small terrain brightness step, not a wholesale recolor');
-
- assert.doesNotMatch(preview,/#e8b47b/);
+ assert.ok(preview.includes("renderer.toneMappingExposure=biome==='desert'?(spacious?.96:1.00)"),
+  'do not change renderer exposure / building brightness');
  assert.match(preview,/spacious&&biome==='desert'\?createDesertVillages/);
  assert.match(build,/cpSync\('scripts\/webgl-desert-village\.js','dist\/webgl-desert-village\.js'\)/);
  assert.ok(existsSync('dist/webgl-desert-village.js'));
- assert.doesNotMatch(readFileSync('src/reborn/simulation.ts','utf8'),/createDesertVillages/);
 });
