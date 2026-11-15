@@ -951,7 +951,7 @@ export class Simulation {
     const safe=(p:Point)=>project(p)<=progress-32&&this.units.every(enemy=>enemy.hp<=0||enemy.carrier||enemy.owner===u.owner||!this.canSee(u.owner,enemy)||distance(p,enemy)>Math.min(unitSpec(enemy).range+12,distance(u,enemy)+2));
     const medic=u.kind==='medic',workKind=medic?'heal':'repair';
     const patient=fighter?undefined:this.spatial.query(u,115).filter(v=>v.id!==u.id&&this.supportEligible(u,v,workKind)&&project(v)<=progress+35).sort((a,b)=>a.hp/unitSpec(a).hp-b.hp/unitSpec(b).hp||a.id-b.id)[0];
-    const canWork=u.defendUntil<=this.time||medic;
+    const canWork=true; // Unarmed pioneers remain repair-capable while under fire.
     if(!patient&&canWork&&!fighter){if(medic)this.healNearby(u,dt);else this.repairNearby(u,dt);}
     if(medic&&!patient&&u.defendUntil>this.time&&this.acquire(u))return false;
     let destination=rear;
@@ -1576,6 +1576,10 @@ export class Simulation {
       if(this.transports.boarding(u,dt))continue;
       if(this.escort(u,dt)||this.support(u,dt)){delete u.burst;continue;}
       const order=u.orders[0];
+      // Old saves or external AI may contain obsolete pioneer combat orders.
+      if(u.kind==='engineer'&&order&&(order.kind==='attack'||order.kind==='attackMove')){
+        order.kind='move';delete order.target;
+      }
       // Idle tanks must not inherit their previous acceleration after an old
       // order has ended. A new departure should visibly aim and pivot first.
       if(u.kind==='tank'&&!order&&!u.pursuitOrigin)u.driveSpeed=0;
@@ -1636,7 +1640,7 @@ export class Simulation {
         if(u.kind==='tank'&&'orders' in enemy&&unitSpec(enemy).group==='Infanterie')delete u.burst;
         else{
           const rounds=u.kind==='infantry'||u.kind==='heavy'||u.kind==='scout'||u.kind==='rover'?3:1;
-          const weapon:Weapon=u.kind==='infantry'||u.kind==='scout'||u.kind==='rover'?'rifle':u.kind==='heavy'?'heavy':u.kind==='medic'||u.kind==='engineer'?'pistol':'cannon';
+          const weapon:Weapon=u.kind==='infantry'||u.kind==='scout'||u.kind==='rover'?'rifle':u.kind==='heavy'?'heavy':u.kind==='medic'?'pistol':'cannon';
           if(u.burst?.target!==enemy.id)delete u.burst;
           if(!u.burst&&u.cooldown<=1e-8){u.cooldown=spec.cooldown/getVeterancyModifiers(u).fireRate;u.burst={target:enemy.id,remaining:rounds,at:this.time,index:0};}
           while(u.burst&&u.burst.at<=this.time+1e-8&&enemy.hp>0){
@@ -1809,7 +1813,7 @@ export class Simulation {
     for(const b of this.bases){
       if(b.hp<=0)continue;
       if(b.buildRemaining>0){
-        const workers=this.units.filter(u=>u.hp>0&&u.owner===b.owner&&u.kind==='engineer'&&u.workingTarget===b.id&&u.orders[0]?.kind==='build'&&u.defendUntil<=this.time&&distance(u,b)<=b.radius+55);
+        const workers=this.units.filter(u=>u.hp>0&&u.owner===b.owner&&u.kind==='engineer'&&u.workingTarget===b.id&&u.orders[0]?.kind==='build'&&distance(u,b)<=b.radius+55);
         b.constructionActive=workers.length>0;
         const rates=workers.map(u=>getVeterancyModifiers(u).buildRate),total=rates.reduce((n,v)=>n+v,0);
         const work=Math.min(b.buildRemaining,dt*Math.min(1.5,total));
