@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {KEYSTONE_HQ_URL,prepareKeystoneHQ,updateKeystoneHQLOD} from '../scripts/webgl-keystone-hq.js';
 
 test('keystone preview points to an ignored local GLB, not a committed game asset',()=>{
@@ -21,4 +22,12 @@ test('keystone LODs never render simultaneously',()=>{
 
 test('missing Keystone LOD0 fails loudly',()=>{
  assert.throws(()=>prepareKeystoneHQ({userData:{},getObjectByName:()=>null}),/LOD0/);
+});
+
+test('keystone flag survives menu navigation and map reload, but stays opt-in',()=>{
+ const menu=readFileSync(new URL('../scripts/webgl-title-menu.js',import.meta.url),'utf8');
+ const preview=readFileSync(new URL('../scripts/webgl-preview.js',import.meta.url),'utf8');
+ assert.match(menu,/if\(query\.get\('keystone'\)==='1'\)params\.set\('keystone','1'\)/);
+ assert.match(menu,/const suffix=query\.get\('keystone'\)==='1'\?'\?keystone=1':''/);
+ assert.match(preview,/if\(query\.get\('keystone'\)==='1'\)q\.set\('keystone','1'\)/);
 });
