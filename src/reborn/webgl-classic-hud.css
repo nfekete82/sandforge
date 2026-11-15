@@ -2201,6 +2201,14 @@
 }
 
 
+/* A low defensive wall should read as a smaller structure than the command
+ * buildings. The 82% scale affects only its picture, never the card or cost. */
+#sf-classic-root[data-tab="buildings"] #sf-actions
+ button.catalog-card[data-build="wall"] .sf-card-image img{
+ transform:scale(.82)!important;
+ transform-origin:center center!important;
+}
+
 /* Final WebGL catalogue state: unaffordable and tech-locked cards are muted,
  * gently defocused, never blue/selected. The actual title/cost stay sharp. */
 #sf-classic-root #sf-actions button.catalog-card[data-build]:disabled,

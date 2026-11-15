@@ -22,7 +22,7 @@ jobs:
           node-version: '22'
       - run: npm ci --no-audit --no-fund
       - run: npm run build:3d
-      - run: node --test tests/webgl-team-markings-20261111.test.mjs tests/webgl-barracks-sides-20261115.test.mjs tests/webgl-barracks-portal.test.mjs tests/webgl-barracks-proportions.test.mjs
+      - run: node --test tests/webgl-team-markings-20261111.test.mjs tests/webgl-barracks-sides-20261115.test.mjs tests/webgl-barracks-portal.test.mjs tests/webgl-barracks-proportions.test.mjs tests/webgl-wall-finish-20261115.test.mjs
   chromium:
     name: Chromium WebGL2 / actual GLB QA
     needs: build-and-node

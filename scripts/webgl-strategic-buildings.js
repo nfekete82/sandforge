@@ -70,10 +70,17 @@ const siloDesertCamo=(()=>{
 function createDefensiveWall(owner){
  const root=new THREE.Group();root.name='Strategic_wall';
  root.userData={visualOnly:true,defensiveWall:true};
- const concrete=new THREE.MeshStandardMaterial({color:'#b7ab8a',roughness:.94,metalness:.08,
-  map:materialGrain,bumpMap:materialGrain,bumpScale:.28});
- const cap=new THREE.MeshStandardMaterial({color:'#827b67',roughness:.81,metalness:.26,
-  map:materialGrain});
+ // Textured sand/khaki/olive camouflage on the actual concrete faces, not
+ // a flat overlay. Reuse the existing deterministic Sandforge PBR albedo;
+ // the very same model is drawn in-game, for the ghost and the HUD tile.
+ const concrete=new THREE.MeshStandardMaterial({
+  name:'Sandforge defensive wall | desert camouflage',
+  color:'#fff7e7',roughness:.9,metalness:.04,
+  map:siloDesertCamo,bumpMap:materialGrain,bumpScale:.24
+ });
+ concrete.userData={sandforgeWallCamouflage:true};
+ const cap=new THREE.MeshStandardMaterial({color:'#817960',roughness:.84,metalness:.19,
+  map:materialGrain,bumpMap:materialGrain,bumpScale:.1});
  const stripe=new THREE.MeshStandardMaterial({color:owner===0?'#3179a2':'#b35f4a',
   roughness:.6,metalness:.25});
  const add=(w,h,d,x,y,z,mat,name)=>{
