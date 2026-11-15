@@ -1955,8 +1955,13 @@ export class Simulation {
     }
     this.aiClock+=dt;
     const fullPlan=this.time>=RULES.aiOpeningDelay||this.needsHeadquarters(1);
+    // Start genuinely paid modern economy as soon as its HQ is operational,
+    // instead of making the opponent appear idle until second 25.
+    const modernOpening=this.world.mapVersion>=23&&this.time>=3&&!this.needsHeadquarters(1);
+    const legacyEarlyOpening=this.tactical.earlyEconomyMode==='barracks-first'&&
+      this.world.mapVersion===11&&this.time>=2;
     const earlyPaidEconomy=this.tactical.mode==='director'&&
-      this.tactical.earlyEconomyMode==='barracks-first'&&this.world.mapVersion===11&&this.time>=2;
+      (modernOpening||legacyEarlyOpening);
     if(this.aiClock>=RULES.aiInterval&&(fullPlan||earlyPaidEconomy)){
       this.aiClock=0;
       if(fullPlan)this.think();else this.tactical.openingEconomy();
