@@ -176,18 +176,23 @@ function sandTexture(){
  const c=document.createElement('canvas');c.width=c.height=256;
  const ctx=c.getContext('2d'),pixels=ctx.createImageData(256,256),r=rnd(seed^0x192cb110);
  for(let i=0;i<256*256;i++){
-  const grain=r(),v=208+grain*42,off=i*4;
-  pixels.data[off]=v+7;pixels.data[off+1]=v+3;pixels.data[off+2]=v-4;pixels.data[off+3]=255;
+  // Matte warm fine-grain texture: avoid clipped white pixels that produce
+  // scattered blown-out highlights on the 3D desert.
+  const grain=r(),v=211+grain*18,off=i*4;
+  pixels.data[off]=v+9;pixels.data[off+1]=v+1;
+  pixels.data[off+2]=v-13;pixels.data[off+3]=255;
  }
  ctx.putImageData(pixels,0,0);
- for(let i=0;i<450;i++){
-  const x=r()*256,y=r()*256,rad=.25+r()*1.6;
-  ctx.fillStyle=r()>.50?'rgba(79,57,34,.17)':'rgba(255,242,201,.28)';
+ // Only subdued warm shadow grains. Previously half the spots were painted
+ // near-white and the streak strokes added more cream-coloured highlights.
+ for(let i=0;i<260;i++){
+  const x=r()*256,y=r()*256,rad=.25+r()*1.3;
+  ctx.fillStyle='rgba(108,83,52,.065)';
   ctx.beginPath();ctx.ellipse(x,y,rad,rad*.65,0,0,Math.PI*2);ctx.fill();
  }
- for(let i=0;i<36;i++){
+ for(let i=0;i<24;i++){
   const x=r()*256,y=r()*256;
-  ctx.strokeStyle='rgba(255,240,210,.12)';ctx.lineWidth=.5+r();
+  ctx.strokeStyle='rgba(125,96,62,.045)';ctx.lineWidth=.4+r()*.6;
   ctx.beginPath();ctx.moveTo(x,y);ctx.bezierCurveTo(x+20,y-3,x+44,y+2,x+75,y-2);ctx.stroke();
  }
  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
@@ -225,15 +230,18 @@ function buildTerrain(){
  // pale desert reference sand; visual PBR normals only, never terrain height.
  if(spacious&&biome==='desert'&&normalMap)normalMap.repeat.set(6.5,6.5);
  const material=new THREE.MeshStandardMaterial({
-  color:biome==='desert'?(spacious?'#f6ead9':'#f5eadb'):biomeStyle.terrain,
+  color:biome==='desert'?(spacious?'#f2e1c7':'#f5eadb'):biomeStyle.terrain,
   map:texture,normalMap,normalScale:new THREE.Vector2(spacious?.77:.45,spacious?.77:.45),
   vertexColors:true,roughness:.99,metalness:0
  });
- // The buildings-3d/desert-basecolor.png is a *model material atlas*,
- // with hazard stripes, blue and red panels! Tiling it over the world caused
- // the obvious checkerboard terrain. Reuse the original Sandforge 2K sand
- // artwork, edge-blended with the SAME fineSandPattern as the Canvas RTS.
- if(biome==='desert'){
+ // The old 2K sand-ripples-v2 artwork contains broad PAINTED bright patches.
+ // Putting those over an independently lit 3D heightfield produces the
+ // irregular white/cream stains visible on modern desert maps. Modern maps
+ // keep the neutral warm-grain texture above and use actual terrain normals
+ // for the dunes. Preserve the historical artwork on old (non-battlefield)
+ // saved maps so their visual appearance remains backward compatible.
+ // The buildings-3d/desert-basecolor.png is a building-only material atlas.
+ if(biome==='desert'&&!terrain.battlefield){
  const source=new Image();
  source.onload=()=>{
   try{
@@ -267,9 +275,9 @@ function buildTerrain(){
  // Pale sun-bleached ochre and beige rather than orange desert clay.
  const sandGold=new THREE.Color('#d9bb92'),sandLight=new THREE.Color('#ebd4b1'),
   sandstone=new THREE.Color('#ad9679'),riverSediment=new THREE.Color('#bda78a');
- // Blend only desert terrain toward the reference's pale sand-gold (20%).
- // Never change building models, rocks, village roads, or scene exposure.
- const subtleSandLift=new THREE.Color('#f5e7d1');
+ // Gentle warm golden beige, NOT a nearly white cream tint. Applied to the
+ // terrain's vertex colours only; game buildings and props are untouched.
+ const subtleSandLift=new THREE.Color('#ead2a6');
  const vertexColor=new THREE.Color();
  const biomeGroundBase=new THREE.Color(biomeStyle.groundBase);
  const biomeGroundLight=new THREE.Color(biomeStyle.groundLight);
@@ -308,7 +316,7 @@ function buildTerrain(){
    }
    // Warm pale dune sand only. Building GLBs and everything else
    // have their own materials and therefore retain exactly their old look.
-   if(biome==='desert')vertexColor.lerp(subtleSandLift,.20);
+   if(biome==='desert')vertexColor.lerp(subtleSandLift,.12);
    colors[n]=vertexColor.r;colors[n+1]=vertexColor.g;colors[n+2]=vertexColor.b;
    uv[k*2]=x/(spacious?2200:1500);uv[k*2+1]=z/(spacious?2200:1500);
    // Sample normals from the continuous field, not triangle tessellation:
