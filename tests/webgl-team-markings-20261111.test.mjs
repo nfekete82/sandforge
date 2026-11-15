@@ -4,18 +4,44 @@ import * as THREE from 'three';
 import {readFileSync} from 'node:fs';
 import {TEAM_MARKING_COLORS,HELICOPTER_STRIPES_REVISION,attachTeamMarkings,detachTeamMarkings}
  from '../scripts/webgl-team-markings.js';
-test('all infantry roles wear blue/red armbands and a chest patch',()=>{
+test('all infantry roles have no floating flag/armband planes; actual PBR uniform stays untouched',()=>{
  assert.equal(TEAM_MARKING_COLORS[0],'#198fe0');
  assert.equal(TEAM_MARKING_COLORS[1],'#e34e43');
  for(const owner of [0,1])for(const kind of ['infantry','heavy','medic','rocket','engineer']){
-  const entry={node:new THREE.Group()};
-  const root=attachTeamMarkings(entry,owner,kind,32,40);
-  for(const name of ['TeamArmband_Left','TeamArmband_Right','TeamChestPatch'])
-   assert.ok(root.getObjectByName(name),kind+':'+name);
-  assert.equal(attachTeamMarkings(entry,owner,kind,32,40),root,'reuse until model changes');
-  assert.equal(root.children.every(x=>x.userData.teamMarking),true);
-  detachTeamMarkings(entry);assert.equal(entry.node.children.length,0);
+  const node=new THREE.Group(),detail=new THREE.Group();
+  const realUniform=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),
+   new THREE.MeshStandardMaterial({name:'Atlas faction enamel',
+    color:owner===0?'#205b98':'#a7312a'}));
+  realUniform.name='Atlas_Pauldron';
+  detail.add(realUniform);node.add(detail);
+  const entry={node,detail};
+  const old=new THREE.Group();
+  old.name='SandforgeTeamUniformAndFlags';
+  old.userData.teamMarkings=true;
+  old.add(new THREE.Mesh(new THREE.PlaneGeometry(1,1)));
+  node.add(old);entry.teamMarkings=old;
+  const sourceMat=realUniform.material,sourceColor=sourceMat.color.getHex();
+  assert.equal(attachTeamMarkings(entry,owner,kind,32,40),null,kind);
+  assert.equal(entry.teamMarkings,null,kind+' old flags detached');
+  assert.equal(old.parent,null,kind+' visual flags are gone');
+  assert.equal(node.children.length,1,kind+' no new flag group created');
+  assert.equal(realUniform.material,sourceMat,kind+' keeps original skinned-team material');
+  assert.equal(sourceMat.color.getHex(),sourceColor);
+  assert.equal(attachTeamMarkings(entry,owner,kind,32,40),null);
+  assert.equal(node.children.length,1,'no extra geometry after repeated updates');
  }
+});
+test('authored soldier model keeps its genuine blue/red shoulder, chest and helmet paint',()=>{
+ const design=readFileSync('scripts/animation/detailed-infantry.js','utf8');
+ for(const part of ['Pectoral','PackStripe','HelmetStripe','Pauldron','ForearmPlate']){
+  assert.match(design,new RegExp("['\"]"+part+"['\"].*m\\.team"),
+   part+' remains painted into animated soldier model');
+ }
+ // No changes to cached glTFs, model skeletons or gameplay team ownership.
+ const logic=readFileSync('scripts/webgl-team-markings.js','utf8');
+ assert.match(logic,/if\(infantryKinds\.has\(kind\)\)\{[\s\S]*?detachTeamMarkings\(entry\);[\s\S]*?return null;/);
+ assert.doesNotMatch(logic,/patch\(group,'TeamArmband_/);
+ assert.doesNotMatch(logic,/patch\(group,'TeamChestPatch'/);
 });
 test('tanks have turret flags, Humvees have door marks and bombers keep their wing marks',()=>{
  for(const [kind,tag] of [['tank','TeamArmourFlag'],['artillery','TeamArmourFlag'],
