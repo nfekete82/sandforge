@@ -1,0 +1,33 @@
+name: Inspect legacy bastion mesh for safe removal
+on:
+  push:
+    branches: [fix/bastion-clean-base-perf-20261115]
+    paths: [.github/workflows/audit-legacy-bastion-visual.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Analyze November 11 Bastion GLB hierarchy and draw calls
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const p='src/assets/reborn/buildings-3d/bastion-0.glb';
+          const f=readFileSync(p);
+          const gltf=JSON.parse(f.subarray(20,20+f.readUInt32LE(12)).toString('utf8'));
+          console.log('GLTF:',JSON.stringify({bytes:f.length,meshes:gltf.meshes?.length,nodes:gltf.nodes?.length,scenes:gltf.scenes?.length,skins:gltf.skins?.length,animations:gltf.animations?.map(x=>x.name),materials:gltf.materials?.length}));
+          const parents=new Map();
+          gltf.nodes.forEach((n,i)=>(n.children||[]).forEach(c=>parents.set(c,i)));
+          for(let i=0;i<gltf.nodes.length;i++){
+            const n=gltf.nodes[i];const m=gltf.meshes?.[n.mesh];
+            const props={id:i,name:n.name||null,parent:parents.get(i),parentName:gltf.nodes[parents.get(i)]?.name,mesh:n.mesh,meshName:m?.name,
+              translate:n.translation,scale:n.scale,rotate:n.rotation,materials:(m?.primitives||[]).map(p=>gltf.materials?.[p.material]?.name),
+              bounds:(m?.primitives||[]).map(p=>{const a=gltf.accessors?.[p.attributes?.POSITION];return a?[a.min,a.max]:null;})};
+            console.log('NODE',JSON.stringify(props));
+          }
+          NODE
