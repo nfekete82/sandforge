@@ -199,8 +199,15 @@ test('Humvee and rocket truck queue behind a tank until the shared factory door 
  }
  const step=age=>{
   f.game.time=10+age;
+  // Same as battlefield.sync(): all existing actors stand at their legal
+  // authoritative spawn before the cosmetic gate pass is applied.
   f.actor.node.visible=true;
-  for(const actor of actors.values())actor.node.visible=true;
+  f.actor.node.position.copy(f.controller.battlefield.entityPosition(f.unit));
+  for(const unit of f.game.units.slice(1)){
+   const actor=actors.get(unit.id);
+   actor.node.visible=true;
+   actor.node.position.copy(f.controller.battlefield.entityPosition(unit));
+  }
   f.controller.update(true,1);
  };
  step(0);
