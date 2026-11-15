@@ -71,6 +71,8 @@
   if(options.fog===false)params.set('fog','0');
   if(!resume&&!legacy)params.set('terrain',terrain);
   if(!legacy)params.set('biome',validBiome(biome));
+  // Keep the optional local vendor-HQ comparison enabled across New Game and Continue.
+  if(query.get('keystone')==='1')params.set('keystone','1');
   location.assign(gameRoute()+'?'+params);
  };
  function continueSave(){
@@ -146,7 +148,8 @@
   if(returnToGame)changePause(true);
  }
  function goMain(){
-  location.assign(gameRoute());
+  const suffix=query.get('keystone')==='1'?'?keystone=1':'';
+  location.assign(gameRoute()+suffix);
  }
  $('sf3d-new').addEventListener('click',()=>{
   const source=$('bastions');
