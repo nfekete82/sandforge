@@ -158,7 +158,8 @@ async function populate(entry){
    entry.radarMixer=new THREE.AnimationMixer(entry.detail);
    entry.radarMixer.clipAction(scan).play();
   }else{
-   entry.rotor=centerAuthoredRadarPivot(entry.detail.getObjectByName('RADAR_DISH_PIVOT'));
+   entry.rotor=entry.detail.getObjectByName('Radar_Pivot')??
+    centerAuthoredRadarPivot(entry.detail.getObjectByName('RADAR_DISH_PIVOT'));
    ensureHeadquartersSatelliteMount(entry.rotor);
   }
  }else if(kind==='research')entry.rotor=entry.variantDetail?.getObjectByName('radar_assembly_PIVOT');
