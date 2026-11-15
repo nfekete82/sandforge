@@ -1240,7 +1240,7 @@ export class Simulation {
     // A plain move is a strict order. Idle combat units and attack-move squads
     // can respond within sight, starting their approach before weapon range.
     // Engineers on guard duty stay near their work instead of abandoning repairs.
-    const support=u.kind==='engineer'||u.kind==='medic'||u.kind==='scout'||(u.kind==='rover'&&!!u.transport?.cargo.length);
+    const support=u.kind==='medic'||u.kind==='scout'||(u.kind==='rover'&&!!u.transport?.cargo.length);
     const proactive=!u.hold&&order?.kind!=='move'&&!support;
     const range=this.range(u);
     const engageRadius=proactive?Math.max(range,Math.min(this.sight(u),range+120)):range;
