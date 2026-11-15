@@ -96,13 +96,12 @@ test('REAL game: two selected pioneers do not block each other at a single site'
  const second=g.spawn(0,location,'engineer');
  const hq=g.bases.find(b=>b.owner===0&&b.kind==='headquarters');
  const first=placeSite(g,'barracks',hq,[pioneer,second]);
- assert.equal(first.workers.length,2,'both explicitly selected pioneers must work together');
- assert.ok(first.workers.every(u=>u.orders[0]?.target===first.base.id));
- const before=first.base.buildRemaining;
+ assert.equal(first.workers.length,1,'never send two builders to one entrance');
+ assert.equal(first.workers[0].orders[0].target,first.base.id);
+ const idle=[pioneer,second].find(u=>u.id!==first.workers[0].id);
+ assert.deepEqual(idle.orders,[],'second pioneer stays free for another job');
  for(let n=0;n<100&&g.status==='playing';n++)g.step(.05);
- assert.ok(first.base.buildRemaining<before,'cooperative crew advances construction');
- assert.ok(first.workers.every(u=>u.orders[0]?.target===first.base.id),
-  'scheduler must not steal a deliberately shared crew');
+ assert.deepEqual(idle.orders,[],'automatic scheduler may not crowd a staffed site');
 });
 
 test('REAL game: idle engineer automatically seeks a DIFFERENT unattended site',()=>{
@@ -136,11 +135,12 @@ test('REAL game: two construction sites get one pioneer each and advance indepen
  const hq=g.bases.find(b=>b.owner===0&&b.kind==='headquarters');
  const second=g.spawn(0,g.world.nearest({x:pioneer.x+100,y:pioneer.y+70},
   g.obstacles())??{x:pioneer.x+100,y:pioneer.y+70},'engineer');
- const one=placeSite(g,'barracks',hq,[pioneer]);
+ const one=placeSite(g,'barracks',hq,[pioneer,second]);
  assert.equal(one.workers.length,1);
- assert.equal(second.orders.length,0);
- const two=placeSite(g,'generator',hq,[second]);
- assert.deepEqual(two.workers.map(u=>u.id),[second.id]);
+ const unassigned=[pioneer,second].find(u=>u.id!==one.workers[0].id);
+ assert.equal(unassigned.orders.length,0);
+ const two=placeSite(g,'generator',hq,[pioneer,second]);
+ assert.deepEqual(two.workers.map(u=>u.id),[unassigned.id]);
  assert.equal(two.append,false,'second site starts immediately');
  const ids=[pioneer,second].map(u=>u.orders[0]?.target).sort();
  assert.deepEqual(ids,[one.base.id,two.base.id].sort());

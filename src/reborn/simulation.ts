@@ -44,9 +44,6 @@ export interface Burst {target:number;remaining:number;at:number;index:number}
 export interface WorkEffect {kind:'heal'|'repair'|'build'|'board';target:number;source:number;sources:number[];at:number;amount:number}
 export const HEAL_RADIUS=70;
 export const REPAIR_RADIUS=90;
-// The pathfinding snap/clearance can stop a pioneer a few units outside the
-// nominal construction circle. Keep working and accounting ranges in sync.
-const BUILDER_SITE_REACH_TOLERANCE=8;
 export const REPAIR_RATE=18;
 export interface Unit extends Point {
   id:number; owner:Faction; kind:UnitKind; xp?:number; hp:number; orders:Order[]; path:Point[];
@@ -534,23 +531,45 @@ export class Simulation {
   resetSquadProfile():void{this.squadUnitMs=0;this.squadCollisionMs=0;}
   private fogClock=0; private visionCache=new VisionCache(); private spatial=new SpatialIndex();
   private nextCooperativeBuilderAt=0;
-  /** Assign idle pioneers only to UNSTAFFED foundations. An explicitly
-   * selected construction crew stays together and builds at additive speed.
-   * Manual repair, move, combat and queued orders are never stolen.
+  /** One working pioneer per construction site avoids shared approach-point
+   * collisions. Idle engineers automatically seek a DIFFERENT, unattended
+   * foundation; with no other construction they stay available.
+   * If a saved game or previous version double-assigns a site, transfer
+   * surplus workers to unattended sites while leaving one active builder.
+   * Manual move, combat, repair and explicitly queued orders remain intact.
    */
   private assignIdlePioneersToConstruction():void {
     const sites=this.bases.filter(b=>b.owner===0&&b.hp>0&&b.buildRemaining>0);
     if(!sites.length)return;
     const workers=this.units.filter(u=>u.owner===0&&u.kind==='engineer'&&
       u.hp>0&&!u.carrier);
+    if(!workers.length)return;
     const count=new Map(sites.map(b=>[b.id,0]));
     for(const u of workers){
       const o=u.orders[0];
       if(o?.kind==='build'&&count.has(o.target!))
         count.set(o.target!,count.get(o.target!)!+1);
     }
+    const activeOn=(u:Unit)=>u.orders[0]?.kind==='build'&&
+      count.has(u.orders[0].target!)?u.orders[0].target:null;
     const available=workers.filter(u=>!u.hold&&
       !(u.defendUntil>this.time)&&u.orders.length===0&&u.workingTarget==null);
+    // Redistribute any old double-assignments only if a second actual site
+    // exists, without interrupting the sole pioneer on the first.
+    for(const u of workers){
+      if(!sites.some(b=>count.get(b.id)===0))break;
+      const target=activeOn(u);
+      if(target==null||count.get(target)!<=1||u.orders.length!==1||
+         u.workingTarget!=null||u.hold)continue;
+      const unattended=sites.filter(b=>count.get(b.id)===0)
+       .sort((a,b)=>distance(u,a)-distance(u,b)||a.id-b.id);
+      for(const b of unattended){
+        if(!this.command([u.id],{kind:'build',x:b.x,y:b.y,target:b.id}))continue;
+        count.set(target,count.get(target)!-1);
+        count.set(b.id,1);
+        break;
+      }
+    }
     for(const u of available){
       const unattended=sites.filter(b=>count.get(b.id)===0)
        .sort((a,b)=>distance(u,a)-distance(u,b)||a.id-b.id);
@@ -572,7 +591,7 @@ export class Simulation {
     for(const owner of [0,1] as const){
       const territory=layout.headquarters[owner];
       const t=this.territories[territory],site=mapVersion>=23?battlefieldStart(t.point,this.world.size):mapVersion>=2?{x:t.point.x+(owner===0?-260:260),y:t.point.y+(owner===0?165:-165)}:mapVersion===1?{x:t.point.x-165,y:t.point.y+45}:t.point,p=this.world.clearSite(site,RULES.headquarters.radius)!;
-      this.startRegions.push({center:{...p},radius:mapVersion>=27?850:Math.min(600,this.world.size/6)});
+      this.startRegions.push({center:{...p},radius:Math.min(600,this.world.size/6)});
       if(!bootstrap)this.bases.push({id:1000+owner,owner,kind:'headquarters',...p,hp:RULES.headquarters.hp,territory,queue:[],queueTypes:[],production:0,buildRemaining:0,cooldown:0,rally:null,radius:RULES.headquarters.radius});
       if(mapVersion===0)t.point=this.world.nearest({x:p.x+165,y:p.y-45},this.obstacles())!;
       const sign=mapVersion>=2&&owner===1?-1:1;
@@ -893,10 +912,7 @@ export class Simulation {
       }
     }
     for(let i=0;i<16;i++){
-      // Spread engineers around the perimeter instead of stacking all
-      // crew members on one path endpoint (also applies to vehicle repairs).
-      const preferred=angle+(u.kind==='engineer'?(u.id%5-2)*Math.PI/10:0);
-      const turn=preferred+(i%2?1:-1)*Math.ceil(i/2)*Math.PI/8;
+      const turn=angle+(i%2?1:-1)*Math.ceil(i/2)*Math.PI/8;
       const p=this.world.nearest({x:target.x+Math.cos(turn)*radius,y:target.y+Math.sin(turn)*radius},obstacles,[],u);
       if(!p||distance(p,target)>range||!this.world.line(p,target))continue;
       if(requireReachable&&distance(u,target)>range){
@@ -1007,9 +1023,7 @@ export class Simulation {
     if(!target)return false;
     // A recently attacked worker pauses construction/repair to defend itself.
     if(u.kind==='engineer'&&u.defendUntil>this.time)return false;
-    const range='queue' in target?target.radius+55+
-      (u.kind==='engineer'?BUILDER_SITE_REACH_TOLERANCE:0):
-      u.kind==='engineer'?REPAIR_RADIUS:this.healRadius(u);
+    const range='queue' in target?target.radius+55:u.kind==='engineer'?REPAIR_RADIUS:this.healRadius(u);
     if(distance(u,target)>range||!this.world.line(u,target)){
       if(explicit&&!u.hold){if(u.repath<=0)u.path=[];const buildings=this.obstacles();const p=order?.approach&&this.world.walkable(order.approach,[...buildings,...infantryStructureColliders(buildings),...this.bastionColliders()])?order.approach:this.supportApproach(u,target);if(p)this.move(u,p,dt);}
       return true;
@@ -1782,10 +1796,10 @@ export class Simulation {
     for(const b of this.bases){
       if(b.hp<=0)continue;
       if(b.buildRemaining>0){
-        const workers=this.units.filter(u=>u.hp>0&&u.owner===b.owner&&u.kind==='engineer'&&u.workingTarget===b.id&&u.orders[0]?.kind==='build'&&u.defendUntil<=this.time&&distance(u,b)<=b.radius+55+BUILDER_SITE_REACH_TOLERANCE);
+        const workers=this.units.filter(u=>u.hp>0&&u.owner===b.owner&&u.kind==='engineer'&&u.workingTarget===b.id&&u.orders[0]?.kind==='build'&&u.defendUntil<=this.time&&distance(u,b)<=b.radius+55);
         b.constructionActive=workers.length>0;
         const rates=workers.map(u=>getVeterancyModifiers(u).buildRate),total=rates.reduce((n,v)=>n+v,0);
-        const work=Math.min(b.buildRemaining,dt*total);
+        const work=Math.min(b.buildRemaining,dt*Math.min(1.5,total));
         if(work>0)workers.forEach((u,i)=>{const share=rates[i]/total;gainUnitXp(u,work*share*XP_RULES.build,'build');if(b.buildRemaining-work<1e-8)gainUnitXp(u,XP_RULES.completion*share,'completion');});
         if(work>0)this.work('build',workers[0].id,b.id,work);
         b.buildRemaining=Math.max(0,b.buildRemaining-work);if(b.buildRemaining<1e-8)b.buildRemaining=0;
@@ -1927,7 +1941,7 @@ export class Simulation {
     const researchFor=(u:{owner:Faction;kind?:UnitKind})=>
       researchModifiers(research[u.owner],u.kind??'infantry');
     const burst=(b:Burst|undefined,rounds:number)=>b===undefined||(b!==null&&Number.isInteger(b.target)&&Number.isInteger(b.remaining)&&b.remaining>0&&b.remaining<=rounds&&b.remaining+b.index===rounds&&Number.isInteger(b.index)&&b.index>=0&&b.index<4&&finite(b.at)&&b.at>=s.time-.11&&b.at<=s.time+.11);
-    if(!s||s.version!==2||((s.mapVersion??0)>=23&&(!isTerrainProfile(s.terrainProfile)||![1,2].includes(s.generatorVersion as number)))||((s.mapVersion??0)<23&&(s.terrainProfile!==undefined||s.generatorVersion!==undefined))||(s.bootstrapVersion!==undefined&&s.bootstrapVersion!==1)||(s.weatherVersion!==undefined&&s.weatherVersion!==1)||(s.productionVersion!==undefined&&s.productionVersion!==1)||(s.mapVersion!==undefined&&![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30].includes(s.mapVersion))||!TacticalAI.valid(s.ai,s.time,point,mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows)||!finite(s.seed)||!finite(s.time)||s.time<0||!finite(s.incomeClock)||s.incomeClock<0||s.incomeClock>=10||
+    if(!s||s.version!==2||((s.mapVersion??0)>=23&&(!isTerrainProfile(s.terrainProfile)||![1,2].includes(s.generatorVersion as number)))||((s.mapVersion??0)<23&&(s.terrainProfile!==undefined||s.generatorVersion!==undefined))||(s.bootstrapVersion!==undefined&&s.bootstrapVersion!==1)||(s.weatherVersion!==undefined&&s.weatherVersion!==1)||(s.productionVersion!==undefined&&s.productionVersion!==1)||(s.mapVersion!==undefined&&![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26].includes(s.mapVersion))||!TacticalAI.valid(s.ai,s.time,point,mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows)||!finite(s.seed)||!finite(s.time)||s.time<0||!finite(s.incomeClock)||s.incomeClock<0||s.incomeClock>=10||
       (s.strategicMissiles!==undefined&&(!Array.isArray(s.strategicMissiles)||
         s.strategicMissiles.length>12||
         s.strategicMissiles.some(m=>!validStrategicMissile(m,mapWorldSize(s.mapVersion??0),s.time))))||
