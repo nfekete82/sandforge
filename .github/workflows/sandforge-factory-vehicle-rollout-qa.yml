@@ -30,6 +30,7 @@ jobs:
         env:
           ATLAS_BROWSER_CHANNEL: chromium
           LIBGL_ALWAYS_SOFTWARE: '1'
+          SANDFORGE_SKIP_FACTORY_SCREENSHOTS: '1'
         run: |
           cd tests/browser
           npx playwright test webgl-production-gates.spec.mjs --config=playwright.config.mjs
