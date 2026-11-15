@@ -1,0 +1,48 @@
+name: Sandforge AI opening, pause and sparse villages QA
+on:
+  push:
+    branches: [fix/early-ai-hamlet-spacing-and-pause-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-ai-opening-hamlet-pause-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  opening-and-villages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - name: HQ + paid economy, 4 seeded maps, ruin clearance and pause diagnostics
+        run: |
+          node --test \
+            tests/webgl-ai-early-and-sparse-villages-20261115.test.mjs \
+            tests/sandforge-ai-neutral-expansion-20261115.test.mjs \
+            tests/webgl-desert-villages-palette-20261115.test.mjs \
+            tests/sandforge-ai-home-defense-20261111.test.mjs
+      - run: npm ci --prefix tests/browser --no-audit --no-fund
+      - run: |
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Real 4-bastion game starts unpaused and marks deliberate pause
+        env:
+          ATLAS_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-modern-ai-start-and-pause-20261115.spec.mjs --config=playwright.config.mjs
+      - name: Browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai-opening-pause-qa
+          path: tests/browser/artifacts/
+          retention-days: 7

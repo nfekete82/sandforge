@@ -155,6 +155,8 @@ const models=new Map(),ruinMeshes=[];
 // never appear accepted while an unannounced preview-level pause blocks ticks.
 game.paused=false;
 let groundMeshes=[],running=query.get('pause')!=='1',accumulator=0,elapsed=0;
+let pauseSource=query.get('pause')==='1'?'URL-Parameter pause=1':'';
+let pauseFromKeyboard=false;
 // Distinguish a deliberate pause or an ended battle from an animation stall.
 // Previously all three looked identical: stationary soldiers on screen.
 const simulationBanner=document.createElement('div');
@@ -167,7 +169,7 @@ const matchResultOverlay=installMatchResultOverlay(document);
 function updateSimulationBanner(){
  matchResultOverlay.render(game.status);
  const reason=game.status!=='playing'?'':!running?
-  'SIMULATION PAUSIERT · ▶ zum Fortsetzen':
+  'SIMULATION PAUSIERT'+(pauseSource?' ('+pauseSource+')':'')+' · ▶ zum Fortsetzen':
   game.paused?'SIMULATION INTERN PAUSIERT':'';
  simulationBanner.hidden=!reason;
  if(reason&&simulationBanner.textContent!==reason)simulationBanner.textContent=reason;
@@ -778,8 +780,14 @@ async function addRuins(){
  }
  return ruinMeshes.length;
 }
-$('simulation').onclick=()=>{
- running=!running;$('simulation').textContent=running?'Simulation pausieren':'Simulation starten';
+$('simulation').onclick=event=>{
+ running=!running;
+ // Native keyboard activation of a focused button emits detail=0. A
+ // pointer click carries detail>=1. This also handles Playwright/keyboard
+ // focus without relying on the order of button and window key handlers.
+ if(!running)pauseSource=pauseFromKeyboard||event?.detail===0?'Leertaste':'Pause-Schaltfläche';
+ pauseFromKeyboard=false;
+ $('simulation').textContent=running?'Simulation pausieren':'Simulation starten';
  if(!running)sound.pause();
  $('simulation').setAttribute('aria-pressed',String(running));
  updateSimulationBanner();
@@ -869,7 +877,7 @@ addEventListener('keydown',event=>{
  }
  if(event.code==='KeyQ'){event.preventDefault();spin(-Math.PI/8);}
  if(event.code==='KeyE'){event.preventDefault();spin(Math.PI/8);}
- if(event.code==='Space'){event.preventDefault();$('simulation').click();}
+ if(event.code==='Space'){event.preventDefault();pauseFromKeyboard=true;$('simulation').click();}
 });
 addEventListener('keyup',event=>panKeys.delete(event.code));
 addEventListener('blur',()=>panKeys.clear());

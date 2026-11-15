@@ -26,15 +26,15 @@ const allowed=(world,p)=>{
  return i>=0&&!world.blocked[i]&&(!world.walkable||world.walkable(p));
 };
 
-/** Reduce the previous rigid 7-house grid to 3-5 irregular ruins per hamlet.
+/** Spread just three authored ruins across a believable, sparse hamlet.
  * Keep native base/territory clearance and preserve the authoritative map.
  */
 export function planDesertVillages({world,terrain,seed=world?.seed??0,lowQuality=false}){
  if(!world?.size||!world?.index||!terrain?.sites)return [];
  const random=rng(seed),target=lowQuality?1:2,chosen=[];
  const fixed=[...terrain.sites,...(terrain.ruins??[])];
- const margin=270,plots=[
-  [-67,-94],[71,-51],[-82,17],[61,91],[-43,129]
+ const margin=360,plots=[
+  [-195,-160],[170,-112],[-80,205]
  ];
  for(let attempt=0;attempt<600&&chosen.length<target;attempt++){
   const x=margin+random()*(world.size-margin*2);
@@ -44,25 +44,26 @@ export function planDesertVillages({world,terrain,seed=world?.seed??0,lowQuality
   if(!allowed(world,center)||
    fixed.some(point=>distance(point,center)<330)||
    chosen.some(point=>distance(point,center)<650))continue;
-  const count=lowQuality?3:4+Math.floor(random()*2);
+  const count=lowQuality?2:3;
   const houses=[];
   for(let i=0;i<count;i++){
-   const [dx,dz]=plots[i],point=at(center,dx+(random()-.5)*22,dz+(random()-.5)*22);
+   const [dx,dz]=plots[i],point=at(center,dx+(random()-.5)*42,dz+(random()-.5)*42);
    if(!allowed(world,point)||
-    fixed.some(f=>distance(f,point)<145)||
+    fixed.some(f=>distance(f,point)<200)||
+    houses.some(h=>distance(h,point)<225)||
     (world.terrainSlope?.(point.x,point.y)??0)>.19)break;
    houses.push({
     x:point.x,y:point.y,
     angle:angle+(random()-.5)*.48,
-    width:40+random()*13,
-    height:24+random()*7,
-    variant:(i===2||i===4)?1:0,
+    width:76+random()*20,
+    height:39+random()*9,
+    variant:i===2?1:0,
     damage:random()>.42,
     tint:Math.floor(random()*3)
    });
   }
   if(houses.length!==count)continue;
-  chosen.push({...center,houses,roadLength:270});
+  chosen.push({...center,houses,roadLength:460});
  }
  return chosen;
 }
