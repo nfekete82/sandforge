@@ -46,6 +46,7 @@ cpSync('scripts/webgl-barracks-shell.js','dist/webgl-barracks-shell.js');
 cpSync('scripts/webgl-environment.js','dist/webgl-environment.js');
 cpSync('scripts/webgl-atmosphere-3d.js','dist/webgl-atmosphere-3d.js');
 cpSync('scripts/webgl-combat-vfx.js','dist/webgl-combat-vfx.js');
+cpSync('scripts/webgl-ordnance-profile.js','dist/webgl-ordnance-profile.js');
 cpSync('scripts/webgl-hit-response.js','dist/webgl-hit-response.js');
 cpSync('scripts/webgl-wreck-lifecycle.js','dist/webgl-wreck-lifecycle.js');
 cpSync('scripts/webgl-aircraft-effects.js','dist/webgl-aircraft-effects.js');
