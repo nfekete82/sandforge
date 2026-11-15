@@ -1,0 +1,20 @@
+name: Diagnose actual Sandforge 4-bastion expansion seeds
+on:
+  push:
+    branches: [diag/ai-expansion-seeds-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - name: Record AI production / orders / territory capture at actual seeds
+        run: node tests/diag-ai-expansion-seeds-20261115.mjs
