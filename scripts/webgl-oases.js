@@ -124,7 +124,9 @@ export class DesertOases {
     const list=i%7===0?shrubs:o.type!=='dry'&&rad<.57?reeds:grasses;
     list.push({...p,oasisId:o.id,rotation:r()*6.283,scale:.55+r()*.80,tint:.78+r()*.3});
    }
-   for(let i=0;i<16;i++){
+   // Less scattered rock clutter around each oasis on large desert maps.
+   const stoneCount=this.game.world.mapVersion>=23?4:16;
+   for(let i=0;i<stoneCount;i++){
     const p=oasisPoint(o,r()*6.283,o.radius*(.5+r()*.56));
     stones.push({...p,oasisId:o.id,rotation:r()*6.283,scale:1.4+r()*3.5,tint:.8+r()*.3});
    }
