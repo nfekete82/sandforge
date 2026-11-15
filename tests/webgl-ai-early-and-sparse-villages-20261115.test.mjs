@@ -49,7 +49,7 @@ test('pause is explicitly user-driven and its UI states the reason, not a myster
  assert.match(preview,/game\.paused=false/);
  assert.match(preview,/running=query\.get\('pause'\)!=='1'/);
  assert.match(preview,/pauseSource=query\.get\('pause'\)==='1'\?'URL-Parameter pause=1'/);
- assert.match(preview,/pauseFromKeyboard\?'Leertaste':'Pause-Schaltfläche'/);
+ assert.match(preview,/pauseFromKeyboard\|\|event\?\.detail===0\?'Leertaste':'Pause-Schaltfläche'/);
  assert.match(preview,/pauseFromKeyboard=true;\$\('simulation'\)\.click\(\)/);
  assert.doesNotMatch(readFileSync('src/reborn/tactical-ai.ts','utf8'),/\.paused=true/);
 });
