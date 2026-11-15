@@ -581,15 +581,31 @@ export class SandforgeCombatEffects {
    (missile.type==='antiArmor'?43:52));
  }
  updateRockets(active=true,subTick=0){
-  const live=new Set();
-  const up=new THREE.Vector3(0,1,0);
-  let count=0;
+  const live=new Set(),up=new THREE.Vector3(0,1,0);
+  let count=0,streakCount=0;
   for(const missile of this.game.missiles){
    if(missile.type==='bomb')continue;
    live.add(missile.id);
+   const sourceKind=this.game.unitById?.get(missile.source)?.kind??
+    this.battlefield?.units?.get(missile.source)?.kind;
+   const kind=ordnanceVisualKind(missile,sourceKind);
+   const profile=ordnanceVisualProfile(missile,sourceKind);
    if(!this.rocketOrigins.has(missile.id)){
-    this.rocketOrigins.set(missile.id,this.rocketLaunchWorld(missile));
+    const origin=this.rocketLaunchWorld(missile);
+    this.rocketOrigins.set(missile.id,origin);
+    this.ordnanceKinds.set(missile.id,kind);
     this.statsRocket.launched++;
+    // Short, source-specific muzzle blast at the real authored barrel.
+    if(active&&this.game.canSee(0,missile.from)){
+     const x=origin.x+this.world.size*.5,z=origin.z+this.world.size*.5;
+     this.particle(this.flash,x,z,origin.y,profile.muzzleFlash,.14);
+     const backblast=kind==='artillery'?4:kind==='tank'?2:1;
+     for(let n=0;n<backblast;n++){
+      this.particle(this.smoke,x+(this.rand()-.5)*7,z+(this.rand()-.5)*7,
+       origin.y,profile.smokeSize*(1.15+this.rand()*.6),.42+this.rand()*.38,
+       (this.rand()-.5)*26,(this.rand()-.5)*26,4+this.rand()*8);
+     }
+    }
    }
    const duration=Math.max(.01,missile.impactAt-missile.at);
    const progress=clamp((this.game.time+(active?subTick:0)-missile.at)/duration,0,.999);
@@ -608,7 +624,7 @@ export class SandforgeCombatEffects {
     Math.hypot(missile.to.x-missile.from.x,missile.to.y-missile.from.y)*.14));
    const point=origin.clone().addScaledVector(displacement,progress);
    point.y+=Math.sin(progress*Math.PI)*arc;
-   // Only render where the projectile itself is currently visible.
+   // Never reveal unseen enemy fire, even through its glowing wake.
    const x=point.x+this.world.size*.5,z=point.z+this.world.size*.5;
    if(!this.game.canSee(0,{x,y:z}))continue;
    if(count>=this.rockets.instanceMatrix.count)break;
@@ -617,35 +633,58 @@ export class SandforgeCombatEffects {
    heading.normalize();
    dummy.position.copy(point);
    dummy.quaternion.setFromUnitVectors(up,heading);
-   dummy.scale.set(1,1,1);dummy.updateMatrix();
+   dummy.scale.setScalar(profile.body);dummy.updateMatrix();
    this.rockets.setMatrixAt(count,dummy.matrix);
-   dummy.position.copy(point).addScaledVector(heading,11);
+   dummy.position.copy(point).addScaledVector(heading,11*profile.body);
    dummy.updateMatrix();this.rocketNoses.setMatrixAt(count,dummy.matrix);
-   dummy.position.copy(point).addScaledVector(heading,-14);
+   dummy.position.copy(point).addScaledVector(heading,-14*profile.body);
    dummy.quaternion.setFromUnitVectors(up,heading.clone().negate());
-   dummy.updateMatrix();this.rocketExhaust.setMatrixAt(count,dummy.matrix);
+   dummy.scale.setScalar(profile.exhaust);dummy.updateMatrix();
+   this.rocketExhaust.setMatrixAt(count,dummy.matrix);
    count++;
-   if(active&&this.game.time-(this.rocketTrailAt.get(missile.id)??-1)>.075){
+   let history=this.rocketHistory.get(missile.id);
+   if(active)history=appendOrdnanceTrail(history,point);
+   if(history)this.rocketHistory.set(missile.id,history);
+   // Actual 3D geometry of the fading bright trail, pooled per frame.
+   if(history)for(let k=0;k<history.length-1;k++){
+    if(streakCount>=this.rocketStreaks.instanceMatrix.count)break;
+    const a=history[k],b=history[k+1];
+    const delta=b.clone().sub(a),span=delta.length();
+    if(span<.01)continue;
+    dummy.position.copy(a).add(b).multiplyScalar(.5);
+    dummy.quaternion.setFromUnitVectors(up,delta.normalize());
+    dummy.scale.set(.88*profile.streak,span,.88*profile.streak);
+    dummy.updateMatrix();
+    this.rocketStreaks.setMatrixAt(streakCount++,dummy.matrix);
+   }
+   if(active&&this.game.time-(this.rocketTrailAt.get(missile.id)??-1)>profile.smokeRate){
     this.rocketTrailAt.set(missile.id,this.game.time);
-    const tail=point.clone().addScaledVector(heading,-14);
+    const tail=point.clone().addScaledVector(heading,-14*profile.body);
     this.particle(this.smoke,tail.x+this.world.size*.5,
-     tail.z+this.world.size*.5,tail.y,10+this.rand()*6,.65+this.rand()*.45,
-     (this.rand()-.5)*8,(this.rand()-.5)*8,4+this.rand()*7);
+     tail.z+this.world.size*.5,tail.y,profile.smokeSize+this.rand()*6,
+     .66+this.rand()*.40,(this.rand()-.5)*8,(this.rand()-.5)*8,4+this.rand()*7);
    }
   }
   for(const mesh of [this.rockets,this.rocketNoses,this.rocketExhaust]){
    mesh.count=count;
    if(count)mesh.instanceMatrix.needsUpdate=true;
   }
+  this.rocketStreaks.count=streakCount;
+  if(streakCount)this.rocketStreaks.instanceMatrix.needsUpdate=true;
   this.stats.rockets=count;this.statsRocket.visible=count;
   for(const id of this.rocketOrigins.keys())if(!live.has(id)){
-   this.rocketOrigins.delete(id);this.rocketTrailAt.delete(id);
+   this.rocketOrigins.delete(id);
+   this.rocketTrailAt.delete(id);
+   this.rocketHistory.delete(id);
   }
  }
  updateFallingBombs(active=true,subTick=0){
   let count=0;
+  const live=new Set(),up=new THREE.Vector3(0,1,0);
   for(const missile of this.game.missiles){
    if(missile.type!=='bomb')continue;
+   live.add(missile.id);
+   if(!this.ordnanceKinds.has(missile.id))this.ordnanceKinds.set(missile.id,'bomb');
    const duration=Math.max(.01,missile.impactAt-missile.at);
    const progress=clamp((this.game.time+(active?subTick:0)-missile.at)/duration,0,.999);
    const x=missile.from.x+(missile.to.x-missile.from.x)*progress;
@@ -656,14 +695,31 @@ export class SandforgeCombatEffects {
     this.heightAt(missile.from.x,missile.from.y)+170);
    const to=this.pos(missile.to.x,missile.to.y,
     this.heightAt(missile.to.x,missile.to.y)+8);
-   dummy.position.copy(from).lerp(to,progress);
+   const point=from.clone().lerp(to,progress);
    const fall=to.clone().sub(from).normalize();
-   dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),fall);
+   dummy.position.copy(point);
+   dummy.quaternion.setFromUnitVectors(up,fall);
    dummy.scale.setScalar(1);dummy.updateMatrix();
-   this.bombBodies.setMatrixAt(count++,dummy.matrix);
+   this.bombBodies.setMatrixAt(count,dummy.matrix);
+   dummy.position.copy(point).addScaledVector(fall,11);
+   dummy.updateMatrix();this.bombNoses.setMatrixAt(count,dummy.matrix);
+   dummy.position.copy(point).addScaledVector(fall,-8);
+   dummy.updateMatrix();
+   this.bombFinsA.setMatrixAt(count,dummy.matrix);
+   this.bombFinsB.setMatrixAt(count,dummy.matrix);
+   count++;
+   if(active&&this.game.time-(this.bombTrailAt.get(missile.id)??-1)>.10){
+    this.bombTrailAt.set(missile.id,this.game.time);
+    // Falling bombs have a subtle slipstream, not a rocket motor flame.
+    this.particle(this.smoke,x,z,point.y+9,ORDNANCE_VISUALS.bomb.smokeSize,
+     .30+this.rand()*.22,(this.rand()-.5)*3,(this.rand()-.5)*3,4);
+   }
   }
-  this.bombBodies.count=count;
-  if(count)this.bombBodies.instanceMatrix.needsUpdate=true;
+  for(const mesh of [this.bombBodies,this.bombNoses,this.bombFinsA,this.bombFinsB]){
+   mesh.count=count;
+   if(count)mesh.instanceMatrix.needsUpdate=true;
+  }
+  for(const id of this.bombTrailAt.keys())if(!live.has(id))this.bombTrailAt.delete(id);
  }
  pollSimulation(){
   for(const blast of this.game.blasts){
