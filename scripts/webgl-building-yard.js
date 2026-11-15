@@ -54,7 +54,7 @@ function rifle(parent,x,z){
  * enters the simulation's collision, terrain, build validation or save format. */
 export const YARD_DECOR_KINDS=Object.freeze([
  'headquarters','barracks','factory','research','silo','interceptor',
- 'airfield','generator'
+ 'generator'
 ]);
 const fencedSites=new Set([
  'headquarters','barracks','factory','research','silo','interceptor'
@@ -223,6 +223,10 @@ function addSiteDecor(root,kind,width){
  return g;
 }
 
+// Airfield has its own service yard with a true runway, apron and hangar.
+// The generic crate cache was positioned at (+width*.55,-width*.2), which
+// falls DIRECTLY on that runway and left visible boxes in the landing lane.
+// Do not generate generic supply crates/lamp posts for the airfield at all.
 export function createBuildingYard(kind,width=160){
  if(!YARD_DECOR_KINDS.includes(kind))return null;
  const root=new THREE.Group();
