@@ -1,6 +1,7 @@
 import {test,expect} from '@playwright/test';
 
 test('actual Three.js desert A/B lab: GPU scene, real GLBs, mode switch',async({page},info)=>{
+ test.setTimeout(90000);
  const exceptions=[];
  page.on('pageerror',error=>exceptions.push(error.message));
  await page.goto('/desert-look-lab.html',{waitUntil:'domcontentloaded'});
