@@ -137,7 +137,7 @@ export class SandforgeActorPresentation {
    const detail=entry.detail??entry.placeholder;
    if(detail){
     const wasFallback=detail===entry.placeholder;
-    const authoredDeath=detail.userData?.sandforgeStylized&&entry.animation?.death;
+    const authoredDeath=(detail.userData?.sandforgeStylized||detail.userData?.sandforgeLowpolySoldier)&&entry.animation?.death;
     let deathMixer=null;
     if(entry.animation?.mixer){
      entry.animation.mixer.stopAllAction();
@@ -339,7 +339,7 @@ export class SandforgeActorPresentation {
    const building=working&&entity.orders?.[0]?.kind==='build';
    const desired=hurt&&clips.hit?clips.hit:
     shooting&&clips.attack?clips.attack:
-    moving?(entry.detail?.userData?.sandforgeStylized&&infantry.has(entity.kind)?clips.run:clips.walk):
+    moving?((entry.detail?.userData?.sandforgeStylized||entry.detail?.userData?.sandforgeLowpolySoldier)&&infantry.has(entity.kind)?clips.run??clips.walk:clips.walk):
     working?(building?clips.build??clips.repair:clips.repair??clips.build)??clips.idle:clips.idle;
    const retrigger=shooting&&state.shotTrigger!==(state.lastClipTrigger??-1);
    if(desired&&typeof entry.playAnimation==='function')
