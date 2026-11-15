@@ -4,7 +4,8 @@ import * as THREE from 'three';
  * One shared procedural emblem texture per team. Render-only; no save changes.
  */
 export const TEAM_MARKING_COLORS=Object.freeze({0:'#198fe0',1:'#e34e43'});
-const kinds=new Set(['infantry','medic','engineer','heavy','rocket','tank','rover','artillery','scout','bomber']);
+const infantryKinds=new Set(['infantry','medic','engineer','heavy','rocket']);
+const kinds=new Set([...infantryKinds,'tank','rover','artillery','scout','bomber']);
 const materials=new Map();
 const quad=new THREE.PlaneGeometry(1,1);
 const poleGeo=new THREE.CylinderGeometry(1,1,1,7);
@@ -132,6 +133,15 @@ export function paintHelicopterSideStripes(model,owner){
 /** Attach once when created/model size changes; never allocate each RAF. */
 export function attachTeamMarkings(entry,owner,kind,footprint=90,height=44){
  if(!entry?.node||!kinds.has(kind)||(owner!==0&&owner!==1))return null;
+ if(infantryKinds.has(kind)){
+  // The Atlas soldier GLB already has genuine blue/red armor, shoulder and
+  // helmet paint following its skinned skeleton. The additional world-space
+  // arm/chest planes looked like tiny floating flags while soldiers moved.
+  // Remove these visual-only patches on all five infantry roles, including
+  // legacy actors when their GLB finishes streaming; keep original PBR.
+  detachTeamMarkings(entry);
+  return null;
+ }
  if(kind==='scout'){
   // The helicopter already has real blue/red roundels in its original GLB.
   // Remove its old free-standing wing/flag planes even on a reloaded actor.
@@ -152,13 +162,7 @@ export function attachTeamMarkings(entry,owner,kind,footprint=90,height=44){
  const group=new THREE.Group();
  group.name='SandforgeTeamUniformAndFlags';
  group.userData={signature,owner,kind,visualOnly:true,nonPlayable:true,teamMarkings:true};
- if(['infantry','medic','engineer','heavy','rocket'].includes(kind)){
-  const shoulder=Math.min(13,h*.23);
-  for(const side of [-1,1])
-   patch(group,'TeamArmband_'+(side<0?'Left':'Right'),owner,
-    side*shoulder,h*.60,0,Math.max(5,h*.16),Math.max(4,h*.11),0,side*Math.PI/2);
-  patch(group,'TeamChestPatch',owner,0,h*.66,h*.18,Math.max(6,h*.20),Math.max(5,h*.14));
- }else if(kind==='tank'||kind==='artillery'){
+ if(kind==='tank'||kind==='artillery'){
   if(turret&&bounds){
    // Native GLB coordinates, as children of the actual rotating turret.
    // Both the short mast and cloth follow hull translation, Y-up scaling
