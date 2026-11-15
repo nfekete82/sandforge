@@ -6,11 +6,11 @@ test('November 11 Bastion keeps the circular dish and ring without the rectangul
  page.on('pageerror',error=>failures.push(String(error)));
  await page.goto('/webgl-preview.html?bastions=4&seed=2074&play=1&perf=1',
   {waitUntil:'domcontentloaded'});
- await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded===true,{timeout:95000});
+ await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded===true,null,{timeout:95000});
  await page.waitForFunction(()=>{
   const b=window.__sandforgeWebGL?.battlefield;
   return b&&[...b.bastions.values()].some(entry=>entry.detail?.getObjectByName('RadarDish'));
- },{timeout:95000});
+ },null,{timeout:95000});
  const state=await page.evaluate(()=>{
   const {battlefield,renderer,performance:watch}=window.__sandforgeWebGL;
   return [...battlefield.bastions.values()].filter(entry=>entry.detail).map(entry=>{
