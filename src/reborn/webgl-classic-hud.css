@@ -2467,22 +2467,3 @@
   min-width:96px!important;max-width:96px!important;
  }
 }
-
-/* Wall uses the SAME card geometry as other buildings: only the picture
- * is scaled to 75% and centered, never the whole card or its price footer. */
-#sf-classic-root #sf-actions button.catalog-card[data-build="wall"]{
- min-height:128px!important;height:128px!important;align-self:stretch!important;
-}
-#sf-classic-root #sf-actions button.catalog-card[data-build="wall"] .sf-card-image{
- min-height:0!important;max-height:none!important;
- display:flex!important;align-items:center!important;justify-content:center!important;
- flex:1 1 auto!important;
-}
-#sf-classic-root #sf-actions button.catalog-card[data-build="wall"] .sf-card-image img{
- display:block!important;height:75%!important;width:75%!important;
- margin:auto!important;padding:0!important;object-fit:contain!important;
- object-position:center center!important;
-}
-#sf-classic-root #sf-actions button.catalog-card[data-build="wall"] .card-meta{
- min-height:42px!important;height:42px!important;
-}

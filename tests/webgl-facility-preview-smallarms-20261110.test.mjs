@@ -40,9 +40,9 @@ test('single hangar and shorter runway preserve aligned landing positions',()=>{
  const runway=airport.getObjectByName('AirfieldExtendedRunway');
  const hangar=airport.getObjectByName('HangarBayFloor_0');
  assert.ok(runway&&hangar);
- assert.ok(runway.geometry.parameters.depth>=hangar.geometry.parameters.depth*2.1);
- assert.ok(airport.scale.z*(runway.position.z+runway.geometry.parameters.depth/2)>195);
- assert.ok(runway.geometry.parameters.depth*airport.scale.z>=330&&runway.geometry.parameters.depth*airport.scale.z<=360,
+ assert.ok(runway.geometry.parameters.depth>=hangar.geometry.parameters.depth*2.5);
+ assert.ok(airport.scale.z*(runway.position.z+runway.geometry.parameters.depth/2)>300);
+ assert.ok(runway.geometry.parameters.depth*airport.scale.z>=470&&runway.geometry.parameters.depth*airport.scale.z<=510,
   'runway must be long enough for the bomber but fit the actual map');
  assert.equal(airport.getObjectByName('AirfieldCrossTaxiLane'),undefined,
   'remove the old short cross runway');
@@ -51,41 +51,42 @@ test('single hangar and shorter runway preserve aligned landing positions',()=>{
  const tower=airport.getObjectByName('AirfieldLeftControlTowerShaft');
  const fuel=airport.getObjectByName('AirfieldFuelServiceContainer');
  assert.ok(tower&&fuel);
- assert.ok(tower.position.x<-210&&fuel.position.x<-210,
+ assert.ok(tower.position.x<-250&&fuel.position.x<-250,
   'tower and gas infrastructure must be outside the left hangar, not by the right entrance');
  assert.ok(airport.getObjectByName('AirfieldLeftControlTowerGlazing'));
  assert.ok(!airport.getObjectByName('AirfieldRightControlTowerShaft'));
 
  const base={x:2000,y:2000,facing:0};
- assert.ok(airfieldPoint(base,'approach').y>2150);
+ assert.ok(airfieldPoint(base,'approach').y>2250);
  assert.ok(airfieldPoint(base,'touchdown').y>2100);
  assert.ok(serviceFootprintContains({kind:'airfield',facing:0,x:1200,y:1400},
-  {x:1305,y:1590}),'runway right-click extends to shortened end');
+  {x:1330,y:1718}),'runway right-click extends to shortened end');
  assert.ok(airport.getObjectByName('HangarRoofSpine_0'));
  assert.equal(airport.getObjectByName('HangarAngledRoofPlate_1'),undefined);
- assert.ok(serviceFootprintContains({kind:'airfield',facing:0,x:1200,y:1400},{x:1305,y:1550}));
+ assert.ok(serviceFootprintContains({kind:'airfield',facing:0,x:1200,y:1400},{x:1330,y:1740}));
  disposeAirfieldServiceYard({airfieldServiceYard:airport});
 });
 
-test('factory keeps one compact open service platform with no garage',()=>{
+test('factory restores original main building with ONE compact side garage',()=>{
  const factory=createFactoryServiceYard(),deck=factory.getObjectByName('VehicleLiftPlatform_0');
- assert.ok(deck);
- assert.equal(factory.getObjectByName('FactoryRepairGarageRoof_0'),undefined);
- assert.equal(factory.getObjectByName('FactorySideWorkshopWallLeft'),undefined);
+ const roof=factory.getObjectByName('FactoryRepairGarageRoof_0');
+ const left=factory.getObjectByName('FactorySideWorkshopWallLeft');
+ assert.ok(deck&&roof&&left);
  assert.ok(deck.position.x > 140,'repair bay sits right of main factory');
- assert.ok(deck.geometry.parameters.width<95,'single outdoor lift is small');
- assert.ok(factory.getObjectByName('FactoryVehicleRepairApron').geometry.parameters.width<120);
+ assert.ok(roof.geometry.parameters.width<145,'side garage stays compact');
+ assert.ok(roof.geometry.parameters.depth<140,'no extended front double garages');
  assert.equal(factory.getObjectByName('VehicleLiftPlatform_1'),undefined);
  assert.equal(factory.getObjectByName('FactoryServiceWing'),undefined);
  assert.ok(factory.getObjectByName('VehicleDriveOnRamp_0'));
  const entry={factoryServiceYard:factory};
  const vehicle={id:901,hp:700,factoryService:{baseId:1,bay:0,phase:'parking'}};
  updateFactoryServiceYard(entry,{id:1},[vehicle],1);
- assert.equal(factory.userData.bay0.indicator.visible,true);
- assert.equal(factory.getObjectByName('FactoryServiceDoorLeft_0'),undefined);
+ const opened=factory.userData.bay0.doorOpen;
+ assert.ok(opened>.85);
+ assert.ok(factory.getObjectByName('FactoryServiceDoorLeft_0').position.y>30);
  vehicle.factoryService.phase='repair';
  updateFactoryServiceYard(entry,{id:1},[vehicle],1.2);
- assert.equal(factory.userData.bay0.icon.visible,true);
+ assert.ok(factory.userData.bay0.doorOpen<opened);
  assert.equal(deck.position.y+deck.geometry.parameters.height/2,9.5);
  disposeFactoryServiceYard({factoryServiceYard:factory});
 });
@@ -258,8 +259,8 @@ test('actual HUD factory selection cannot prevent later building card clicks',()
 
 test('ACTUAL REGRESSION: after factory/airfield preview, next building selection never crashes on map.dispose',()=>{
  for(const site of [createFactoryServiceYard(),createAirfieldServiceYard()]){
-  const original=site.getObjectByName(site.name==='FactoryOpenRepairPlatform'
-   ?'VehicleLiftPlatform_0':'AirfieldExtendedRunway');
+  const original=site.getObjectByName(site.name==='FactoryCompactSideRepairShop'
+   ?'FactoryRepairGarageRoof_0':'AirfieldExtendedRunway');
   assert.ok(original?.material?.map?.isTexture,'real service material owns DataTexture');
   const ownedTexture=original.material.userData.sandforgeServiceTexture;
   assert.ok(ownedTexture?.isTexture);
@@ -282,7 +283,7 @@ test('ACTUAL REGRESSION: after factory/airfield preview, next building selection
   assert.doesNotThrow(()=>disposeServicePaint(view));
   preview.dispose();mesh.geometry.dispose();
   obsolete.dispose();legacyPreview.geometry.dispose();
-  if(site.name==='FactoryOpenRepairPlatform')
+  if(site.name==='FactoryCompactSideRepairShop')
    disposeFactoryServiceYard({factoryServiceYard:site});
   else disposeAirfieldServiceYard({airfieldServiceYard:site});
  }

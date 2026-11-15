@@ -26,13 +26,13 @@ export interface BuildingSpec {name:string;cost:number;buildTime:number;hp:numbe
 export const BUILDINGS:Record<BuildingKind,BuildingSpec>={
  headquarters:{...RULES.headquarters,name:'Feldkommando',cost:300,buildTime:20,width:225,income:10,description:'Hauptquartier der Blauen Legion. Bildet Pioniere aus. Errichte Kaserne, Fahrzeugfabrik und Flugfeld für weitere Einheiten.'},
  barracks:{name:'Kaserne',cost:200,buildTime:12,hp:800,sight:300,radius:53,width:158,income:0,description:'Bildet Infanterie, Sanitäter, schwere Infanterie und Raketenwerfer-Soldaten aus.'},
- factory:{name:'Fahrzeugfabrik',cost:350,buildTime:18,hp:1100,sight:310,radius:70,width:200,income:0,description:'Fahrzeugfabrik mit einer kleinen offenen Reparaturplattform neben dem Hauptgebäude. Produziert Humvees, Kampfpanzer und Raketenwerfer. Reparatur per Einheit für Credits.'},
+ factory:{name:'Fahrzeugfabrik',cost:350,buildTime:18,hp:1100,sight:310,radius:70,width:200,income:0,description:'Große Fahrzeugfabrik mit zwei Außenwerkstattplätzen. Produziert Humvees, Kampfpanzer und Raketenwerfer. Reparatur per Einheit für Credits.'},
  airfield:{name:'Flugfeld',cost:450,buildTime:22,hp:1200,sight:410,radius:91,width:218,income:0,description:'Kleines Feldflugfeld: ein Hangar links, kurze Landebahn direkt rechts und ein kleiner Tower. Bomber und Transporthelikopter können dort landen und für Credits reparieren.'},
  generator:{name:'Energiekern',cost:150,buildTime:9,hp:500,sight:230,radius:38,width:112,income:10,description:'Versorgt die Basis und liefert zusätzliche 10 Credits alle 10 Sekunden.'},
- wall:{name:'Sperrmauer',cost:60,buildTime:8,hp:750,sight:80,radius:24,width:108,income:0,description:'Massive, drehbare Betonsperre. Blockiert Infanterie und Fahrzeuge. Gegen Raketen und Panzerbeschuss zerstörbar.'},
+ wall:{name:'Sperrmauer',cost:120,buildTime:8,hp:750,sight:80,radius:24,width:108,income:0,description:'Massive, drehbare Betonsperre. Blockiert Infanterie und Fahrzeuge. Gegen Raketen und Panzerbeschuss zerstörbar.'},
  turret:{name:'Geschützturm',cost:175,buildTime:10,hp:650,sight:RULES.turret.sight,radius:30,width:72,income:0,description:`Automatische Fernverteidigung. ${RULES.turret.range} M Reichweite, ${RULES.turret.sight} M Sicht, ${RULES.turret.damage} Schaden.`},
  research:{name:'Forschungszentrum',cost:950,buildTime:48,hp:950,sight:350,radius:46,width:145,income:0,description:'Kompaktes Forschungszentrum mit Sand-Oliv-Tarnung, Radar, Sensoranlage und Dachtechnik. Erforscht neun Technologien in 35–90 Sekunden.'},
- silo:{name:'Langstrecken-Raketensilo',cost:5000,buildTime:100,hp:1900,sight:360,radius:75,width:185,income:0,description:'Strategische Rakete: 10 Minuten Ladezeit, 25 Sekunden Angriffswarnung und großer Einschlag. Maximal ein Silo pro Fraktion.'},
+ silo:{name:'Langstrecken-Raketensilo',cost:5000,buildTime:100,hp:1900,sight:360,radius:91,width:265,income:0,description:'Strategische Rakete: 10 Minuten Ladezeit, 25 Sekunden Angriffswarnung und großer Einschlag. Maximal ein Silo pro Fraktion.'},
  interceptor:{name:'Raketenabwehr',cost:2500,buildTime:62,hp:1150,sight:420,radius:56,width:172,income:0,description:'Fängt strategische Langstreckenraketen im Umkreis von 920 M ab. Drei Abwehrraketen, danach für 650 Credits nachladen.'},
 };
 export const unitSpec=(u:{kind?:UnitKind}):UnitSpec=>UNITS[u.kind??'infantry'];

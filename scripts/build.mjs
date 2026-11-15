@@ -32,9 +32,7 @@ cpSync('scripts/webgl-map-edges.js','dist/webgl-map-edges.js');
 cpSync('scripts/webgl-title-menu.js','dist/webgl-title-menu.js');
 cpSync('scripts/webgl-battlefield.js','dist/webgl-battlefield.js');
 cpSync('scripts/webgl-builder-input.js','dist/webgl-builder-input.js');
-cpSync('scripts/webgl-wall-line.js','dist/webgl-wall-line.js');
 cpSync('scripts/webgl-strategic-buildings.js','dist/webgl-strategic-buildings.js');
-cpSync('scripts/webgl-strategic-glb.js','dist/webgl-strategic-glb.js');
 cpSync('scripts/webgl-rocket-infantry.js','dist/webgl-rocket-infantry.js');
 cpSync('scripts/webgl-strategic-effects.js','dist/webgl-strategic-effects.js');
 cpSync('scripts/webgl-double-click-select.js','dist/webgl-double-click-select.js');
@@ -71,7 +69,6 @@ cpSync('scripts/webgl-transport-controls.js','dist/webgl-transport-controls.js')
 cpSync('scripts/webgl-resource-lifecycle.js','dist/webgl-resource-lifecycle.js');
 cpSync('scripts/webgl-bastion-lifecycle.js','dist/webgl-bastion-lifecycle.js');
 cpSync('scripts/webgl-construction.js','dist/webgl-construction.js');
-cpSync('scripts/webgl-construction-assembly.js','dist/webgl-construction-assembly.js');
 cpSync('scripts/webgl-construction-recovery.js','dist/webgl-construction-recovery.js');
 cpSync('scripts/webgl-production-gates.js','dist/webgl-production-gates.js');
 cpSync('scripts/webgl-wheel-motion.js','dist/webgl-wheel-motion.js');
