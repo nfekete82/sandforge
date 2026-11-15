@@ -384,9 +384,10 @@ export class SandforgeBattlefield {
      model.position.set(-box0.getCenter(new THREE.Vector3()).x*scale,
       -box0.min.y*scale,-box0.getCenter(new THREE.Vector3()).z*scale);
     }
-    if(type==='building')this.lightBuildingMeshes(model);
-    if(type==='building'&&entry.kind==='barracks')finishBarracksSides(model);
-    else model.traverse(o=>{
+    if(type==='building'){
+     this.lightBuildingMeshes(model);
+     if(entry.kind==='barracks')finishBarracksSides(model);
+    }else model.traverse(o=>{
      if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}
     });
     // Visual normalization is independent of collision/pathfinding. Re-ground
