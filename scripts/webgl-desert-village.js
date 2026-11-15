@@ -1,177 +1,200 @@
 import * as THREE from 'three';
 import {renderGroundHeightSampler} from './webgl-environment.js';
 
-/** Fixed-seed abandoned hamlets on the playable desert. These are purely
- * visual: no writes to World.blocked, collision, buildError or the save file.
- * One batched road and four bounded instanced meshes keep draw calls stable.
+/** Scenic hamlets made entirely from the EXISTING authored canyon ruin GLTFs.
+ * Never build houses from boxes and never use dark road plates. Both ruin GLTFs
+ * are shared with the established terrain.ruins pipeline and receive its real
+ * weathered plaster/stone textures. Decorative, seeded, and never collidable.
  */
-export const DESERT_VILLAGE_ART_REVISION='abandoned-adobe-v1-20261115';
-const mix=(a,b,t)=>a+(b-a)*t;
-const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-const seeded=seed=>{
- let state=(seed^0x73c9a515)>>>0;
- return ()=>{
-  state=(Math.imul(state,1664525)+1013904223)>>>0;
-  return state/4294967296;
- };
+export const DESERT_VILLAGE_ART_REVISION='authored-ruins-soft-tracks-v2-20261115';
+export const DESERT_VILLAGE_MODELS=Object.freeze([
+ '/src/assets/reborn/canyon-3d/ruin-house.gltf',
+ '/src/assets/reborn/canyon-3d/ruin-depot.gltf'
+]);
+const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const rng=seed=>{
+ let s=(seed^0x73c9a515)>>>0;
+ return ()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/4294967296;};
 };
-const sidePoint=(v,x,z)=>{
- const cos=Math.cos(v.angle),sin=Math.sin(v.angle);
- return {x:v.x+x*cos+z*sin,y:v.y-x*sin+z*cos};
+const at=(v,x,z)=>{
+ const c=Math.cos(v.angle),s=Math.sin(v.angle);
+ return {x:v.x+x*c+z*s,y:v.y-x*s+z*c};
 };
-const safe=(world,p)=>{
- const index=world.index(p);
- return index>=0&&!world.blocked[index]&&(!world.walkable||world.walkable(p));
+const allowed=(world,p)=>{
+ const i=world.index(p);
+ return i>=0&&!world.blocked[i]&&(!world.walkable||world.walkable(p));
 };
-/** Testable, bounded village placement: no critical spawn or bastion overlap. */
+
+/** Reduce the previous rigid 7-house grid to 3-5 irregular ruins per hamlet.
+ * Keep native base/territory clearance and preserve the authoritative map.
+ */
 export function planDesertVillages({world,terrain,seed=world?.seed??0,lowQuality=false}){
  if(!world?.size||!world?.index||!terrain?.sites)return [];
- const random=seeded(seed),target=lowQuality?2:3,villages=[];
- const blocked=[...terrain.sites,...(terrain.ruins??[])];
- const margin=250;
- for(let attempt=0;attempt<480&&villages.length<target;attempt++){
-  const x=margin+random()*(world.size-2*margin);
-  const y=margin+random()*(world.size-2*margin);
-  const angle=(Math.floor(random()*4)*Math.PI/2)+(random()-.5)*.24;
+ const random=rng(seed),target=lowQuality?1:2,chosen=[];
+ const fixed=[...terrain.sites,...(terrain.ruins??[])];
+ const margin=270,plots=[
+  [-67,-94],[71,-51],[-82,17],[61,91],[-43,129]
+ ];
+ for(let attempt=0;attempt<600&&chosen.length<target;attempt++){
+  const x=margin+random()*(world.size-margin*2);
+  const y=margin+random()*(world.size-margin*2);
+  const angle=Math.floor(random()*4)*Math.PI/2+(random()-.5)*.45;
   const center={x,y,angle};
-  if(!safe(world,center))continue;
-  if(blocked.some(p=>dist(p,center)<290))continue;
-  if(villages.some(p=>dist(p,center)<600))continue;
-  const locations=[
-   [0,-100],[0,0],[0,100],
-   [-75,-95],[-75,0],[-75,95],
-   [75,-95],[75,0],[75,95]
-  ].map(([dx,dz])=>sidePoint(center,dx,dz));
-  if(locations.some(p=>!safe(world,p)||
-      blocked.some(s=>dist(s,p)<130)||
-      (world.terrainSlope?.(p.x,p.y)??0)>.21))continue;
-  const count=lowQuality?4:5+Math.floor(random()*3);
+  if(!allowed(world,center)||
+   fixed.some(point=>distance(point,center)<330)||
+   chosen.some(point=>distance(point,center)<650))continue;
+  const count=lowQuality?3:4+Math.floor(random()*2);
   const houses=[];
-  const plots=[[-73,-100],[74,-92],[-69,-16],[71,3],[-76,87],[75,102],[-73,142]];
-  for(let j=0;j<count;j++){
-   const [cx,cz]=plots[j],w=26+random()*13,depth=25+random()*12;
-   const location=sidePoint(center,cx+(random()-.5)*8,cz+(random()-.5)*8);
-   houses.push({x:location.x,y:location.y,angle:angle+(random()-.5)*.22,
-    width:w,depth,height:19+random()*13,damaged:random()>.37,
-    tint:Math.floor(random()*3)});
+  for(let i=0;i<count;i++){
+   const [dx,dz]=plots[i],point=at(center,dx+(random()-.5)*22,dz+(random()-.5)*22);
+   if(!allowed(world,point)||
+    fixed.some(f=>distance(f,point)<145)||
+    (world.terrainSlope?.(point.x,point.y)??0)>.19)break;
+   houses.push({
+    x:point.x,y:point.y,
+    angle:angle+(random()-.5)*.48,
+    width:40+random()*13,
+    height:24+random()*7,
+    variant:(i===2||i===4)?1:0,
+    damage:random()>.42,
+    tint:Math.floor(random()*3)
+   });
   }
-  villages.push({...center,houses,roadLength:300});
+  if(houses.length!==count)continue;
+  chosen.push({...center,houses,roadLength:270});
  }
- return villages;
+ return chosen;
 }
-function roadGeometry(villages,world,pos,heightAt){
- const actualHeight=renderGroundHeightSampler(heightAt,world.size);
+
+/** Tiny pairs of wind-worn tire ruts on the underlying landscape. RGBA vertex
+ * colors fade the path at both ends and both edges; NO broad rectangular
+ * asphalt, concrete or floating translucent overlay. One draw call.
+ */
+function makeTracks(villages,world,pos,heightAt){
+ const sample=renderGroundHeightSampler(heightAt,world.size);
  const positions=[],colors=[],indices=[];
- const lanes=[-1,-.78,-.58,-.43,-.18,.18,.43,.58,.78,1];
- const palette=['#d5c2a0','#c8b18d','#af9874','#c7b08d','#dcc49f',
-  '#dcc49f','#c7b08d','#af9874','#c8b18d','#d5c2a0'].map(s=>new THREE.Color(s));
+ const colorsOf=[
+  new THREE.Color('#b9a38a'),
+  new THREE.Color('#aa987f')
+ ];
+ const lanes=[
+  {offset:0,halfWidth:12.5,alpha:.085,color:0},
+  {offset:-13,halfWidth:2.4,alpha:.26,color:1},
+  {offset:13,halfWidth:2.4,alpha:.26,color:1}
+ ];
  for(const v of villages){
-  const start=positions.length/3,steps=42;
-  for(let j=0;j<=steps;j++){
-   const t=j/steps,z=(t-.5)*v.roadLength;
-   const centerX=Math.sin(t*Math.PI*1.65+v.angle)*7;
-   // An old compacted road gradually fades back into open sand at both ends.
-   const taper=.1+.9*Math.pow(Math.sin(Math.PI*t),.43);
-   for(let k=0;k<lanes.length;k++){
-    const worldPoint=sidePoint(v,centerX+lanes[k]*21*taper,z);
-    const point=pos(worldPoint.x,worldPoint.y,actualHeight(worldPoint.x,worldPoint.y)+.36);
-    positions.push(point.x,point.y,point.z);
-    const shade=.97+.025*Math.sin(t*57+k*5+v.x*.003);
-    const color=palette[k];
-    colors.push(color.r*shade,color.g*shade,color.b*shade);
-    if(j<steps&&k<lanes.length-1){
-     const a=start+j*lanes.length+k,b=a+lanes.length;
-     indices.push(a,a+1,b,a+1,b+1,b);
+  const steps=46,columns=4;
+  for(const lane of lanes){
+   const start=positions.length/3;
+   for(let j=0;j<=steps;j++){
+    const t=j/steps,z=(t-.5)*v.roadLength;
+    const wobble=Math.sin(t*8.3+v.x*.002)*4.2+Math.sin(t*17.1+v.y*.001)*1.4;
+    const taper=Math.pow(Math.sin(Math.PI*t),.7);
+    for(let k=0;k<columns;k++){
+     const cross=[-1,-.48,.48,1][k];
+     const p=at(v,wobble+lane.offset+cross*lane.halfWidth,z);
+     const point=pos(p.x,p.y,sample(p.x,p.y)+.30);
+     positions.push(point.x,point.y,point.z);
+     const c=colorsOf[lane.color];
+     // Reflect path irregularity without unbounded randomness or z-fighting.
+     const fade=taper*(k===0||k===columns-1?0:.78);
+     colors.push(c.r,c.g,c.b,fade*lane.alpha);
+     if(j<steps&&k<columns-1){
+      const a=start+j*columns+k,b=a+columns;
+      indices.push(a,a+1,b,a+1,b+1,b);
+     }
     }
    }
   }
  }
- const geo=new THREE.BufferGeometry();
- geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
- geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
- geo.setIndex(indices);
- geo.computeVertexNormals();geo.computeBoundingSphere();
- geo.userData={villageRoad:true,groundConforming:true};
- return geo;
+ const geometry=new THREE.BufferGeometry();
+ geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+ geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,4));
+ geometry.setIndex(indices);geometry.computeBoundingSphere();
+ geometry.userData={groundConforming:true,softRuts:true};
+ return geometry;
 }
-function instanced(scene,name,material,max){
- const mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),material,max);
- mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
- mesh.frustumCulled=false;mesh.castShadow=false;mesh.receiveShadow=true;
- mesh.raycast=()=>{};
- mesh.name=name;
- mesh.userData={visualOnly:true,nonPlayable:true,desertVillage:true,revision:DESERT_VILLAGE_ART_REVISION};
- scene.add(mesh);return mesh;
-}
-export function createDesertVillages({scene,world,terrain,pos,heightAt,seed=world?.seed??0,lowQuality=false}){
+
+/** Efficient GLB instancing: one renderer draw per authored ruin mesh,
+ * regardless of whether a village has 3 or 5 buildings. Each instance keeps
+ * the prototype's actual roof, doorway, weathered masonry, and rubble.
+ * World.bases, blocked cells and traffic paths are NOT modified.
+ */
+export async function createDesertVillages({
+ scene,world,terrain,pos,heightAt,seed=world?.seed??0,lowQuality=false,
+ loadModel,weatherModel
+}){
  const villages=planDesertVillages({world,terrain,seed,lowQuality});
  if(!villages.length)return {villages:[],meshes:[],roads:null,drawCalls:0};
- const walls=instanced(scene,'visual-abandoned-adobe-walls',
-  new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.98,metalness:0}),250);
- const roofs=instanced(scene,'visual-abandoned-adobe-roof-fragments',
-  new THREE.MeshStandardMaterial({color:'#ab9274',roughness:1,metalness:0}),60);
- const windows=instanced(scene,'visual-abandoned-adobe-window-recesses',
-  new THREE.MeshStandardMaterial({color:'#675a4b',roughness:1,metalness:0}),80);
- const rubble=instanced(scene,'visual-abandoned-adobe-rubble',
-  new THREE.MeshStandardMaterial({color:'#ad9477',roughness:1,metalness:0,flatShading:true}),130);
- const batches=[walls,roofs,windows,rubble],indices=[0,0,0,0];
- const dummy=new THREE.Object3D(),random=seeded(seed^0x517ab04e),half=world.size*.5;
- const palette=['#d6bb97','#c3ac90','#e2c9a8'].map(s=>new THREE.Color(s));
- const add=(batch,x,z,y,dx,dy,dz,angle,tint=0)=>{
-  const mesh=batches[batch],n=indices[batch]++;
-  if(n>=mesh.instanceMatrix.count){indices[batch]--;return;}
-  dummy.position.set(x-half,y,z-half);
-  dummy.rotation.set(0,angle,0);
-  dummy.scale.set(dx,dy,dz);dummy.updateMatrix();
-  mesh.setMatrixAt(n,dummy.matrix);
-  if(batch===0)mesh.setColorAt(n,palette[tint%palette.length]);
- };
- for(const village of villages)for(const house of village.houses){
-  const {x,z,y:locY}= {x:house.x,z:house.y,y:heightAt(house.x,house.y)};
-  const w=house.width,depth=house.depth,h=house.height,a=house.angle;
-  const relative=(lx,lz)=>{
-   const c=Math.cos(a),s=Math.sin(a);
-   return [x+lx*c+lz*s,z-lx*s+lz*c];
-  };
-  const section=(batch,lx,lz,ly,dx,dy,dz,tint=house.tint)=>{
-   const [px,pz]=relative(lx,lz);
-   add(batch,px,pz,locY+ly,dx,dy,dz,a,tint);
-  };
-  const wall=2.5,door=10,gap=(w-door)/2;
-  // Intact back and side walls, but a real empty doorway on the road side.
-  section(0,0,-depth/2,h/2,w,h,wall);
-  section(0,-w/2+wall/2,0,h/2,wall,h,depth);
-  section(0,w/2-wall/2,0,h/2,wall,h*(house.damaged?.64:1),depth);
-  section(0,-w/2+gap/2,depth/2,h/2,gap,h,wall);
-  section(0,w/2-gap/2,depth/2,h/2,gap,h,wall);
-  section(0,0,depth/2,h-2.7,door+1,5.4,wall);
-  // Partial collapsed roof gives readable, derelict silhouettes from above.
-  section(1,-w*.22,-depth*.12,h+.45,w*.53,.95,depth*.80);
-  if(!house.damaged)section(1,w*.24,-depth*.35,h+.45,w*.36,.95,depth*.24);
-  // Dark recessed openings and irregular corners, never a solid toy block.
-  section(2,-w/2-.09,-depth*.22,h*.60,.16,5.5,7);
-  section(2,w/2+.09,depth*.12,h*.55,.16,6,8);
-  section(2,0,-depth/2-.08,h*.63,6,7,.13);
-  for(let k=0;k<(lowQuality?2:4);k++){
-   const d=(random()*Math.PI*2),distance=17+random()*8;
-   const [px,pz]=relative(Math.cos(d)*distance,Math.sin(d)*distance);
-   const scale=1.2+random()*3.2;
-   add(3,px,pz,heightAt(px,pz)+scale*.28,scale*1.8,scale*.56,scale*1.3,a+random()*.7);
+ if(typeof loadModel!=='function')throw Error('Desert village requires authored GLTF model loader');
+ const gltfs=await Promise.all(DESERT_VILLAGE_MODELS.map(url=>loadModel(url)));
+ const templates=gltfs.map((data,variant)=>{
+  const source=data.scene.clone(true);
+  weatherModel?.(source);
+  source.updateMatrixWorld(true);
+  const bounds=new THREE.Box3().setFromObject(source);
+  const extent=bounds.getSize(new THREE.Vector3());
+  const center=bounds.getCenter(new THREE.Vector3());
+  const anchor=new THREE.Matrix4().makeTranslation(-center.x,-bounds.min.y,-center.z);
+  const submeshes=[];
+  source.traverse(part=>{
+   if(!part.isMesh||!part.geometry)return;
+   submeshes.push({
+    geometry:part.geometry,
+    material:part.material,
+    local:new THREE.Matrix4().multiplyMatrices(anchor,part.matrixWorld)
+   });
+  });
+  if(!submeshes.length)throw Error('Ruin GLTF '+variant+' has no renderable geometry');
+  return {submeshes,height:extent.y,width:Math.max(.001,extent.x,extent.z)};
+ });
+ const houses=villages.flatMap(v=>v.houses);
+ const meshes=[];
+ const origin=new THREE.Vector3(),quaternion=new THREE.Quaternion();
+ const scale=new THREE.Vector3(),worldMatrix=new THREE.Matrix4(),transformed=new THREE.Matrix4();
+ for(let type=0;type<templates.length;type++){
+  const template=templates[type],entries=houses.filter(h=>h.variant===type);
+  if(!entries.length)continue;
+  for(let index=0;index<template.submeshes.length;index++){
+   const part=template.submeshes[index];
+   const material=part.material;
+   const mesh=new THREE.InstancedMesh(part.geometry,material,entries.length);
+   mesh.name='visual-authored-abandoned-'+(type===0?'house':'depot')+'-'+index;
+   mesh.userData={
+    visualOnly:true,nonPlayable:true,desertVillage:true,authoredRuin:true,
+    source:DESERT_VILLAGE_MODELS[type],revision:DESERT_VILLAGE_ART_REVISION
+   };
+   mesh.castShadow=false;mesh.receiveShadow=true;
+   mesh.raycast=()=>{};mesh.frustumCulled=false;
+   mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+   for(let j=0;j<entries.length;j++){
+    const house=entries[j],base=pos(house.x,house.y,heightAt(house.x,house.y)-1.3);
+    origin.copy(base);
+    quaternion.setFromAxisAngle(THREE.Object3D.DEFAULT_UP,house.angle);
+    // Scale the ORIGINAL irregular roof+stonework proportionally. Do not
+    // substitute flat boxes or crush doors/roofs into different proportions.
+    const factor=Math.min(house.width/template.width,house.height/Math.max(1,template.height));
+    scale.setScalar(factor);
+    worldMatrix.compose(origin,quaternion,scale);
+    transformed.multiplyMatrices(worldMatrix,part.local);
+    mesh.setMatrixAt(j,transformed);
+   }
+   mesh.instanceMatrix.needsUpdate=true;
+   mesh.computeBoundingSphere();
+   scene.add(mesh);meshes.push(mesh);
   }
  }
- for(let i=0;i<batches.length;i++){
-  batches[i].count=indices[i];
-  batches[i].instanceMatrix.needsUpdate=true;
-  if(batches[i].instanceColor)batches[i].instanceColor.needsUpdate=true;
- }
- const road=new THREE.Mesh(roadGeometry(villages,world,pos,heightAt),
-  new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,
-   transparent:true,opacity:.76,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,
-   side:THREE.DoubleSide}));
- road.name='visual-abandoned-village-roads';
- road.userData={visualOnly:true,nonPlayable:true,desertVillage:true,
-  groundConforming:true,revision:DESERT_VILLAGE_ART_REVISION};
- road.receiveShadow=true;road.raycast=()=>{};
+ const road=new THREE.Mesh(makeTracks(villages,world,pos,heightAt),
+  new THREE.MeshBasicMaterial({
+   vertexColors:true,transparent:true,opacity:.64,depthWrite:false,
+   polygonOffset:true,polygonOffsetFactor:-1,side:THREE.DoubleSide
+  }));
+ road.name='visual-worn-sand-village-tracks';
+ road.userData={
+  visualOnly:true,nonPlayable:true,desertVillage:true,softRuts:true,
+  groundConforming:true,revision:DESERT_VILLAGE_ART_REVISION
+ };
+ road.castShadow=false;road.receiveShadow=false;road.raycast=()=>{};
  scene.add(road);
- return {villages,meshes:batches,roads:road,drawCalls:batches.length+1};
+ return {villages,meshes,roads:road,drawCalls:meshes.length+1};
 }
