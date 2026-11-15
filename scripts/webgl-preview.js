@@ -932,10 +932,14 @@ const biomeVegetation=addBiomeVegetation({THREE,scene,world,terrain,game,heightA
 // One visual-only instanced draw call; no gameplay pathing or collision edits.
 const washStones=spacious&&biome==='desert'?addDesertWashStones({scene,world,size,seed,heightAt,
  sites:terrain.sites,lowQuality:query.get('lite')==='1'}):null;
-// Static, clickable-through abandoned hamlets and compacted village lanes.
-// Their placement is deterministic per map seed and never alters World.
+// Desert hamlets now share the SAME two textured authored canyon ruin GLTFs
+// as the original Sandforge ruins. No procedural box houses or opaque roads.
+// Load asynchronously so terrain and units remain responsive at game start.
 const villageArt=spacious&&biome==='desert'?createDesertVillages({scene,world,terrain,
- pos,heightAt,seed,lowQuality:query.get('lite')==='1'}):null;
+ pos,heightAt,seed,lowQuality:query.get('lite')==='1',
+ loadModel:async url=>{await ruinStrataLoad;return tryModel(url);},
+ weatherModel:weatherRuinMeshes
+}).catch(error=>{console.warn('Scenic abandoned hamlet unavailable:',error);return null;}):null;
 const battlefield=new SandforgeBattlefield({
  game,world,terrain,scene,renderer,camera,controls,loader,groundMeshes,heightAt,pos,biome,
  lite:query.get('lite')==='1'
