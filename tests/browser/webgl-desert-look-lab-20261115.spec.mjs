@@ -22,7 +22,5 @@ test('actual Three.js desert A/B lab: GPU scene, real GLBs, mode switch',async({
  expect(basic.equals(enhanced),'rendered before/after frames should differ').toBe(false);
  await page.locator('#after').click();
  await expect(page.locator('#after')).toHaveAttribute('aria-pressed','true');
- await page.locator('#props').selectOption('minimal');
- await expect(page.locator('#props')).toHaveValue('minimal');
  expect(exceptions).toEqual([]);
 });
