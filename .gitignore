@@ -18,5 +18,8 @@ docs/.animation-video/
 docs/detailed-models/.video/
 .sandforge-bomber-backup/
 
+# The optional third-party Keystone HQ stays on the developer's computer.
+src/assets/reborn/local-keystone/
+
 # Generated headless AI arena reports
 ai-arena-results/
