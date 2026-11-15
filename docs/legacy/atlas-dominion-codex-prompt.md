@@ -1,4 +1,4 @@
-<!-- Historic Atlas Dominion prompt, kept for project provenance; NOT the active Sandforge brief. -->
+<!-- Historical Atlas Dominion brief; not valid for modern Sandforge implementation. -->
 
 # Auftrag an Codex: ATLAS DOMINION — kompletter Grafik-Overhaul
 

@@ -1,11 +1,11 @@
 FROM node:22-alpine AS build
 WORKDIR /app
-COPY package*.json tsconfig.json index.html animation-lab.html model-preview.html model-3d.html ./
+COPY package*.json tsconfig.json index.html animation-lab.html model-preview.html model-3d.html webgl-preview.html ./
 COPY src ./src
 COPY legacy ./legacy
-COPY scripts/build.mjs ./scripts/build.mjs
-COPY scripts/animation/model-viewer.js ./scripts/animation/model-viewer.js
-RUN npm install --no-audit --no-fund && npm run build
+# Copy every runtime WebGL module; selective copies omitted dynamic imports.
+COPY scripts ./scripts
+RUN npm ci --no-audit --no-fund && SANDFORGE_RENDERER=webgl npm run build
 
 FROM node:22-alpine
 WORKDIR /app
