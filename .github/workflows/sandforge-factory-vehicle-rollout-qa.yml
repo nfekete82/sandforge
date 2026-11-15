@@ -33,7 +33,7 @@ jobs:
           SANDFORGE_SKIP_FACTORY_SCREENSHOTS: '1'
         run: |
           cd tests/browser
-          npx playwright test webgl-production-gates.spec.mjs --config=playwright.config.mjs
+          npx playwright test webgl-factory-queued-rollouts-lite-20261115.spec.mjs --config=playwright.config.mjs
       - name: Save browser diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
