@@ -3,8 +3,8 @@
  * the generic soldier camo pass intentionally overwrites foreign textures.
  * This model does not yet contain authored skeletal animation clips.
  */
-export const SAND_FORGE_LOWPOLY_SOLDIER='/src/assets/meshy/infantry.glb';
-export const LOWPOLY_SOLDIER_REVISION='lowpoly-rifleman-20261115';
+export const SAND_FORGE_LOWPOLY_SOLDIER='/src/assets/meshy/infantry-animated.glb';
+export const LOWPOLY_SOLDIER_REVISION='lowpoly-rigged-rifleman-20261115';
 
 export function prepareLowpolySoldier(model,owner){
  if(!model)return false;
@@ -24,7 +24,7 @@ export function prepareLowpolySoldier(model,owner){
    const oldKey=material.customProgramCacheKey.bind(material);
    material.onBeforeCompile=function(shader,renderer){
     oldCompile?.call(this,shader,renderer);
-    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
 float sfBlueBand = smoothstep(.13,.31,diffuseColor.b-diffuseColor.r)
  * smoothstep(.065,.19,diffuseColor.b-diffuseColor.g)
  * smoothstep(.13,.29,diffuseColor.b);
