@@ -29,6 +29,7 @@ import {sameKindVisibleUnits} from '/webgl-double-click-select.js';
 import {tracerWindow} from '/webgl-hit-response.js';
 import {applyFactionAccents} from '/webgl-faction-accents.js';
 import {attachTeamMarkings,detachTeamMarkings} from '/webgl-team-markings.js';
+import {finishBarracksSides,disposeBarracksSides} from '/webgl-barracks-shell.js';
 import {SandforgeConstructionPresentation} from '/webgl-construction.js';
 import {createBastionCaptureBar,updateBastionCaptureBar} from '/webgl-bastion-capture.js';
 import {snapToPlayableEdge,worldToMinimap} from '/webgl-map-edges.js';
@@ -384,6 +385,7 @@ export class SandforgeBattlefield {
       -box0.min.y*scale,-box0.getCenter(new THREE.Vector3()).z*scale);
     }
     if(type==='building')this.lightBuildingMeshes(model);
+    if(type==='building'&&entry.kind==='barracks')finishBarracksSides(model);
     else model.traverse(o=>{
      if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}
     });
@@ -652,6 +654,7 @@ export class SandforgeBattlefield {
       -bounds.min.y*scale,-bounds.getCenter(new THREE.Vector3()).z*scale);
    }
    if(kind==='airfield')hideOldAirfieldHangar({detail:model});
+   if(kind==='barracks')finishBarracksSides(model);
    tint(model,false,.50);
    model.visible=true; // final authored shape and its actual entrances
    group.remove(placeholder);disposeOwnedMeshes(placeholder);
@@ -671,8 +674,10 @@ export class SandforgeBattlefield {
     disposeServicePaint(preview.userData.previewService);
     disposeOwnedMeshes(preview.userData.previewService);
    }
-   if(preview.userData.previewDetail)
+   if(preview.userData.previewDetail){
+    disposeBarracksSides(preview.userData.previewDetail);
     disposeTaggedMaterials(preview.userData.previewDetail,'sandforgePreviewMaterial');
+   }
    if(preview.userData.previewFrontMarker)
     disposeOwnedMeshes(preview.userData.previewFrontMarker);
    // Clones deliberately have no service-texture ownership metadata.
@@ -870,7 +875,8 @@ export class SandforgeBattlefield {
     if(e.yard){disposeBuildingYard(e.yard);e.yard=null;}
     disposeAirfieldServiceYard(e);disposeFactoryServiceYard(e);
     if(e.placeholder){disposeOwnedMeshes(e.placeholder);e.placeholder=null;}
-    if(e.detail)disposeTaggedMaterials(e.detail,'sandforgeBuildingFill');
+    if(e.detail){disposeBarracksSides(e.detail);
+     disposeTaggedMaterials(e.detail,'sandforgeBuildingFill');}
     if(e.motion?.mixer){
      e.motion.mixer.stopAllAction();
      if(e.detail)e.motion.mixer.uncacheRoot(e.detail);

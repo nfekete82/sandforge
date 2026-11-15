@@ -7,7 +7,7 @@ export const TEAM_MARKING_COLORS=Object.freeze({0:'#198fe0',1:'#e34e43'});
 const kinds=new Set(['infantry','medic','engineer','heavy','rocket','tank','rover','artillery','scout','bomber']);
 const materials=new Map();
 const quad=new THREE.PlaneGeometry(1,1);
-const poleGeo=new THREE.CylinderGeometry(.72,.72,1,7);
+const poleGeo=new THREE.CylinderGeometry(1,1,1,7);
 const poleMat=new THREE.MeshBasicMaterial({color:'#7e725f'});
 function mat(owner){
  if(materials.has(owner))return materials.get(owner);
@@ -34,13 +34,37 @@ function patch(group,name,owner,x,y,z,w,h,rx=0,ry=0){
  mesh.raycast=()=>{};mesh.userData={visualOnly:true,teamMarking:true,nonPlayable:true};
  group.add(mesh);
 }
+// All calculations below happen once when the imported model is attached,
+// not inside the frame loop. Geometry bounds are measured in turret-local
+// coordinates, including nested mesh transforms, for both original GLBs
+// and procedural fallbacks.
+function turretLocalBounds(turret){
+ if(!turret)return null;
+ turret.updateWorldMatrix(true,true);
+ const inverse=turret.matrixWorld.clone().invert();
+ const bounds=new THREE.Box3(),part=new THREE.Box3(),transform=new THREE.Matrix4();
+ turret.traverse(node=>{
+  if(!node.isMesh||!node.geometry)return;
+  if(!node.geometry.boundingBox)node.geometry.computeBoundingBox();
+  if(!node.geometry.boundingBox)return;
+  transform.multiplyMatrices(inverse,node.matrixWorld);
+  part.copy(node.geometry.boundingBox).applyMatrix4(transform);
+  bounds.union(part);
+ });
+ return bounds.isEmpty()?null:bounds;
+}
 /** Attach once when created/model size changes; never allocate each RAF. */
 export function attachTeamMarkings(entry,owner,kind,footprint=90,height=44){
  if(!entry?.node||!kinds.has(kind)||(owner!==0&&owner!==1))return null;
  const h=Math.max(16,Number.isFinite(height)?height:44);
  const w=Math.max(20,Number.isFinite(footprint)?footprint:90);
+ const turret=['tank','artillery'].includes(kind)?
+  (entry.detail??entry.placeholder)?.getObjectByName('Tank_Turret'):null;
+ const bounds=turretLocalBounds(turret);
+ const parent=turret??entry.node;
  const signature=[owner,kind,Math.round(h),Math.round(w)].join(':');
- if(entry.teamMarkings?.userData.signature===signature)return entry.teamMarkings;
+ if(entry.teamMarkings?.userData.signature===signature&&
+    entry.teamMarkings.parent===parent)return entry.teamMarkings;
  detachTeamMarkings(entry);
  const group=new THREE.Group();
  group.name='SandforgeTeamUniformAndFlags';
@@ -52,13 +76,40 @@ export function attachTeamMarkings(entry,owner,kind,footprint=90,height=44){
     side*shoulder,h*.60,0,Math.max(5,h*.16),Math.max(4,h*.11),0,side*Math.PI/2);
   patch(group,'TeamChestPatch',owner,0,h*.66,h*.18,Math.max(6,h*.20),Math.max(5,h*.14));
  }else if(kind==='tank'||kind==='artillery'){
-  const x=-w*.29,z=-w*.18;
-  const pole=new THREE.Mesh(poleGeo,poleMat);
-  pole.name='TeamFlagpole';pole.position.set(x,h*.86+7,z);
-  pole.scale.set(1,15,1);pole.castShadow=false;pole.receiveShadow=false;
-  pole.raycast=()=>{};pole.userData={visualOnly:true,teamMarking:true,nonPlayable:true};group.add(pole);
-  patch(group,'TeamArmourFlag',owner,x+10,h*.86+12,z,Math.max(20,w*.21),12);
-  patch(group,'TeamTurretRoofMark',owner,w*.1,h*.88,0,w*.27,Math.max(12,w*.13),-Math.PI/2);
+  if(turret&&bounds){
+   // Native GLB coordinates, as children of the actual rotating turret.
+   // Both the short mast and cloth follow hull translation, Y-up scaling
+   // and the independently aimed turret. No guessed actor-height offset.
+   const spanX=bounds.max.x-bounds.min.x;
+   const spanZ=bounds.max.z-bounds.min.z;
+   const mastHeight=Math.max(.22,Math.min(8,spanX*.25));
+   const x=bounds.min.x+spanX*.20;
+   const z=bounds.min.z+spanZ*.24;
+   const baseY=bounds.max.y-Math.max(.025,spanX*.035);
+   const pole=new THREE.Mesh(poleGeo,poleMat);
+   pole.name='TeamFlagpole';
+   pole.position.set(x,baseY+mastHeight*.5,z);
+   pole.scale.set(Math.max(.012,spanX*.013),mastHeight,Math.max(.012,spanX*.013));
+   pole.castShadow=false;pole.receiveShadow=false;
+   pole.raycast=()=>{};
+   pole.userData={visualOnly:true,teamMarking:true,nonPlayable:true};
+   group.add(pole);
+   const flagW=Math.max(.25,Math.min(10,spanX*.31));
+   const flagH=mastHeight*.49;
+   patch(group,'TeamArmourFlag',owner,x+flagW*.5,baseY+mastHeight*.75,
+    z,flagW,flagH);
+   // Compact insignia on the moving turret roof; no floating second flag.
+   patch(group,'TeamTurretRoofMark',owner,
+    bounds.min.x+spanX*.64,bounds.max.y+Math.max(.012,spanX*.012),
+    bounds.min.z+spanZ*.60,spanX*.25,Math.max(.16,spanZ*.23),-Math.PI/2);
+  }else{
+   // Defensive fallback when an unrecognised third-party model has no rig:
+   // a small hull badge, never a large flag hanging in mid-air.
+   patch(group,'TeamArmourFlag',owner,-w*.24,h*.54,-w*.20,
+    Math.min(13,w*.16),Math.min(7,h*.15));
+   patch(group,'TeamTurretRoofMark',owner,w*.10,h*.60,0,w*.20,
+    Math.max(7,w*.13),-Math.PI/2);
+  }
  }else if(kind==='rover'){
   patch(group,'TeamHumveeRoof',owner,0,h*.77,-w*.09,w*.34,w*.24,-Math.PI/2);
   for(const side of [-1,1])
@@ -69,7 +120,7 @@ export function attachTeamMarkings(entry,owner,kind,footprint=90,height=44){
     Math.max(14,w*.23),Math.max(11,w*.15),-Math.PI/2);
   patch(group,'TeamAircraftTail',owner,0,h*.6,-w*.23,w*.16,Math.max(9,h*.23),-Math.PI/2);
  }
- entry.node.add(group);entry.teamMarkings=group;return group;
+ parent.add(group);entry.teamMarkings=group;return group;
 }
 export function detachTeamMarkings(entry){
  if(!entry?.teamMarkings)return;
