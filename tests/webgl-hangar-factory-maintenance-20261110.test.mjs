@@ -150,7 +150,7 @@ test('Three.js service yards create, animate and dispose with no DOM or WebGL co
  assert.equal(airEntry.airfieldServiceYard,null);
 
  const factory=createFactoryServiceYard();
- assert.ok(factory.getObjectByName('FactoryOpenAirRepairPlatform'));
+ assert.equal(factory.name,'FactoryOpenAirRepairPlatform');
  assert.ok(factory.getObjectByName('VehicleRepairBaySurface_0'));
  assert.equal(factory.getObjectByName('VehicleRepairBaySurface_1'),undefined);
  const truck={id:81,hp:100,factoryService:{baseId:901,bay:0,phase:'repair'}};
