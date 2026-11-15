@@ -407,14 +407,16 @@ function addBattlefieldRocks(material){
  geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
  geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));geometry.computeVertexNormals();geometry.computeBoundingSphere();
- // Do not project sandy dune artwork onto vertical cliffs. Use the
- // existing authored sandstone stratum atlas with world-space UV mapping.
+ // The modern desert cliffs and loose stones now use precisely the SAME
+ // pre-baked sandstone albedo/normal/roughness maps and golden-beige palette.
+ // Previously cliffs loaded an unrelated gray-dark atlas over that palette.
  const rockMaps=sharedStoneMaps(query.get('lite')==='1');
  const mat=new THREE.MeshStandardMaterial({color:'#ffffff',vertexColors:true,
-  roughness:.96,roughnessMap:rockMaps.roughnessMap,
-  normalMap:rockMaps.normalMap,normalScale:new THREE.Vector2(.34,.34),
+  map:biome==='desert'?rockMaps.map:null,
+  roughness:.98,roughnessMap:rockMaps.roughnessMap,
+  normalMap:rockMaps.normalMap,normalScale:new THREE.Vector2(.38,.38),
   metalness:0,side:THREE.DoubleSide,flatShading:true});
- new THREE.TextureLoader().load('/src/assets/reborn/sandstone-strata-v1.png',map=>{
+ if(biome!=='desert')new THREE.TextureLoader().load('/src/assets/reborn/sandstone-strata-v1.png',map=>{
   map.wrapS=map.wrapT=THREE.RepeatWrapping;map.colorSpace=THREE.SRGBColorSpace;
   map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
   mat.map=map;mat.needsUpdate=true;
@@ -432,7 +434,7 @@ function instancedStone(){
  // three draw calls; never create a material for each stone.
  const materials=(biome==='desert'?(spacious?
   desertStyle.looseStones:['#bfa889','#a18c73','#d3bca0']):biomeStyle.rocks)
-  .map(color=>stoneMaterial(color,{lowQuality:query.get('lite')==='1'}));
+  .map(color=>stoneMaterial(color,{lowQuality:query.get('lite')==='1',normalScale:biome==='desert'?.42:.58}));
  const dummy=new THREE.Object3D(),groups=materials.map(mat=>new THREE.InstancedMesh(geometry,mat,1750));
  const contactGeometry=new THREE.PlaneGeometry(1,1);contactGeometry.rotateX(-Math.PI/2);
  const contacts=new THREE.InstancedMesh(contactGeometry,groundContactMaterial(),5250);
