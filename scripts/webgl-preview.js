@@ -772,6 +772,7 @@ $('home').onclick=()=>{
 $('load').onclick=()=>{
  const text=$('seed').value.trim();
  const q=new URLSearchParams({bastions:$('bastions').value,seed:String(text===''?randomMapSeed():Number(text)>>>0),terrain:terrain.battlefield?.profile??'random',biome});
+ if(query.get('keystone')==='1')q.set('keystone','1');
  location.href=(window.Sandforge3DMenu?.gameRoute?.()??'/webgl-preview.html')+'?'+q;
 };
 // Camera navigation is independent of the simulation. WASD and cursor keys
