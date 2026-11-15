@@ -16,7 +16,7 @@ jobs:
         shell: bash
         run: |
           echo '### User-facing strings'
-          rg -n -i 'feldkommando|kommandozentrale|pionier' src scripts tests | head -n 75 || true
+          grep -RInE -i 'feldkommando|kommandozentrale' src scripts tests --include='*.ts' --include='*.js' --include='*.mjs' --include='*.html' | head -n 100 || true
           echo '### Engineer GLB skeleton hierarchy'
           node --input-type=module <<'NODE'
           import {readFileSync} from 'node:fs';
