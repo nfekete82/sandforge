@@ -32,6 +32,7 @@ for(const module of ['webgl-oases','webgl-oasis-generation','webgl-oasis-materia
 cpSync('scripts/webgl-map-edges.js','dist/webgl-map-edges.js');
 cpSync('scripts/webgl-title-menu.js','dist/webgl-title-menu.js');
 cpSync('scripts/webgl-battlefield.js','dist/webgl-battlefield.js');
+cpSync('scripts/webgl-keystone-hq.js','dist/webgl-keystone-hq.js');
 cpSync('scripts/webgl-builder-input.js','dist/webgl-builder-input.js');
 cpSync('scripts/webgl-strategic-buildings.js','dist/webgl-strategic-buildings.js');
 cpSync('scripts/webgl-rocket-infantry.js','dist/webgl-rocket-infantry.js');
