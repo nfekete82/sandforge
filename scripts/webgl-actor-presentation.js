@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {disposeRocketLauncher} from '/webgl-rocket-infantry.js';
+import {updateEngineerTools} from '/webgl-engineer-tools.js';
 import {UNITS,BUILDINGS} from '/src/reborn/catalog.js';
 import {healthFraction,healthColor} from '/webgl-health.js';
 import {turretMuzzleOffset} from '/webgl-scale.js';
@@ -342,6 +343,8 @@ export class SandforgeActorPresentation {
   }
   const body=entry.detail??entry.placeholder;
   if(!body)return;
+  if(entity.kind==='engineer')
+   updateEngineerTools(entry.engineerTools,entity.workingTarget!=null&&!entity.moving,this.game.time);
   const base=entry.visualBaseY??body.position.y;
   if(!Number.isFinite(entry.visualBaseY))entry.visualBaseY=base;
   if(!Number.isFinite(entry.visualBaseZ))entry.visualBaseZ=body.position.z;
