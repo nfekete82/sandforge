@@ -36,6 +36,8 @@ jobs:
           const json=JSON.parse(f.subarray(20,20+f.readUInt32LE(12)).toString('utf8'));
           assert.ok(json.skins?.length>0,'no glTF skin');
           assert.ok(json.nodes?.some(n=>n.skin!=null),'no skinned mesh node');
+          assert.ok(json.skins[0].joints.length>=18,'incomplete rig');
+          assert.ok(json.nodes.some(n=>n.name==='WeaponMuzzle'),'missing animated muzzle marker');
           const actions=new Set((json.animations||[]).map(a=>a.name));
           for(const a of ['Idle','Walk','Run','Attack','Hit','Death'])
             assert.ok(actions.has(a),'missing animation '+a+'; got '+[...actions]);
