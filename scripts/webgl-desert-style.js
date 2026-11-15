@@ -13,6 +13,10 @@ export const DESERT_SCENIC_STYLE=Object.freeze({
  drySediment:'#bda78a',
  warmLift:'#ead2a6',
  warmLiftStrength:.12,
+ // The authored photograph supplies most of the pigment; retain only a light
+ // neutral vertex shade to preserve terrain height transitions.
+ authoredSandVertex:'#f2e7d5',
+ authoredSandVertexBlend:.64,
  mesa:'#c6b091',
  mesaShade:'#806c57',
  looseStones:Object.freeze(['#ccb091','#9e8267','#e1c19c']),
