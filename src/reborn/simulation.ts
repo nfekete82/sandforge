@@ -863,7 +863,13 @@ export class Simulation {
          ?[...buildings,...infantryStructureColliders(buildings),...towers]
          :[...buildings,...vehicleStructureColliders(buildings),...this.vehicleDecorObstacles(),...towers];
        const target=spec.flying?{x:clamp(p.x,8,this.world.size-8),y:clamp(p.y,8,this.world.size-8)}:this.world.nearest(p,obstacles,[],u,Math.max(0,spec.radius-10));if(!target)return;
-      const next:Order={...order,...target,...(playerMarch&&u.owner===0&&!spec.flying?{march:playerMarch}:mixed&&front.includes(u)?{march:(armoredFront.length?members.filter(v=>!unitSpec(v).flying):front).map(v=>v.id)}:{}),...(formation?{formation,...(support.includes(u)?{kind:order.kind==='attack'?'attackMove':order.kind,target:undefined}:{})}:{})};u.hold=false;u.supportPaused=false;u.workingTarget=null;
+      const next:Order={...order,...target,...(playerMarch&&u.owner===0&&!spec.flying?{march:playerMarch}:mixed&&front.includes(u)?{march:(armoredFront.length?members.filter(v=>!unitSpec(v).flying):front).map(v=>v.id)}:{}),...(formation?{formation,...(support.includes(u)?{kind:order.kind==='attack'?'attackMove':order.kind,target:undefined}:{})}:{})};
+      // Pioneers can accompany an attacking squad but may NEVER be given
+      // an attack/attack-move instruction, including from production rallies.
+      if(u.kind==='engineer'&&(next.kind==='attack'||next.kind==='attackMove')){
+        next.kind='move';delete next.target;
+      }
+      u.hold=false;u.supportPaused=false;u.workingTarget=null;
       if(append){if(u.orders.length<32)u.orders.push(next);else return;}
       else {this.transports.cancel(u);delete u.burst;u.orders=formation&&u.orders[0]?.kind==='heal'?[u.orders[0],next]:[next];u.path=[];u.repath=0;u.combatTarget=null;u.pursuitOrigin=null;
         if(u.kind==='tank'&&!u.moving)u.driveSpeed=0;}
@@ -1021,8 +1027,8 @@ export class Simulation {
         a.hp/('orders' in a?unitSpec(a).hp:buildingSpec(a).hp)-b.hp/('orders' in b?unitSpec(b).hp:buildingSpec(b).hp)||a.id-b.id)[0];
     }
     if(!target)return false;
-    // A recently attacked worker pauses construction/repair to defend itself.
-    if(u.kind==='engineer'&&u.defendUntil>this.time)return false;
+    // Unarmed pioneers do not retaliate. Their repair job may continue even
+    // while under fire; squad danger/retreat remains governed by normal AI.
     const range='queue' in target?target.radius+55:u.kind==='engineer'?REPAIR_RADIUS:this.healRadius(u);
     if(distance(u,target)>range||!this.world.line(u,target)){
       if(explicit&&!u.hold){if(u.repath<=0)u.path=[];const buildings=this.obstacles();const p=order?.approach&&this.world.walkable(order.approach,[...buildings,...infantryStructureColliders(buildings),...this.bastionColliders()])?order.approach:this.supportApproach(u,target);if(p)this.move(u,p,dt);}
@@ -1228,6 +1234,8 @@ export class Simulation {
     return id==null?undefined:this.unitById.get(id)??this.bases.find(b=>b.id===id);
   }
   private acquire(u:Unit):Unit|Base|undefined {
+    // Authoritative disarm: no automatic target, explicit attack or return fire.
+    if(u.kind==='engineer'){u.combatTarget=null;return undefined;}
     const order=u.orders[0],spec=unitSpec(u);
     // A plain move is a strict order. Idle combat units and attack-move squads
     // can respond within sight, starting their approach before weapon range.
@@ -1549,6 +1557,11 @@ export class Simulation {
     const squadMoveAt=this.profileSquadWork?performance.now():0;
     for(const u of this.units){
       if(u.hp<=0||u.carrier)continue;u.previousX=u.x;u.previousY=u.y;u.cooldown-=dt;u.repath-=dt;u.hit=Math.max(0,u.hit-dt);u.fire=Math.max(0,u.fire-dt);u.moving=false;
+      // Old saves can still contain a firing/burst state from when the
+      // engineer carried a pistol. Discard it before the combat phase.
+      if(u.kind==='engineer'){
+        u.fire=0;u.combatTarget=null;delete u.burst;
+      }
       // The single real unit remains at its legal exterior spawn while the
       // visual garage rollout catches up. Once finished, ordinary pathfinding
       // drives it from exactly this position to its existing rally order.
