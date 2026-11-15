@@ -50,6 +50,8 @@ test('the shipped model is a valid GLB2 with meshes, not just a path',()=>{
  const gltf=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString('utf8'));
  assert.ok(gltf.meshes?.length>0);
  assert.ok(gltf.skins?.length>0,'requires actual skeleton');
+ assert.ok(gltf.skins[0].joints.length>=18,'requires complete humanoid rig');
+ assert.ok(gltf.nodes?.some(n=>n.name==='WeaponMuzzle'),'gun muzzle marker missing');
  const clips=new Set(gltf.animations?.map(a=>a.name));
  for(const name of ['Idle','Walk','Run','Attack','Hit','Death'])
   assert.ok(clips.has(name),'missing playable clip '+name);
