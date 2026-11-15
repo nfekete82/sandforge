@@ -41,7 +41,7 @@ test('authored desert texture stays intact; red faction gets only a local shader
 });
 
 test('the shipped model is a valid GLB2 with meshes, not just a path',()=>{
- const path='src/assets/meshy/infantry.glb';
+ const path='src/assets/meshy/infantry-animated.glb';
  assert.ok(existsSync(path),'the model binary must be installed into GitHub');
  const bytes=readFileSync(path);
  assert.equal(bytes.subarray(0,4).toString('ascii'),'glTF');
@@ -49,6 +49,10 @@ test('the shipped model is a valid GLB2 with meshes, not just a path',()=>{
  assert.equal(bytes.readUInt32LE(8),bytes.length);
  const gltf=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString('utf8'));
  assert.ok(gltf.meshes?.length>0);
+ assert.ok(gltf.skins?.length>0,'requires actual skeleton');
+ const clips=new Set(gltf.animations?.map(a=>a.name));
+ for(const name of ['Idle','Walk','Run','Attack','Hit','Death'])
+  assert.ok(clips.has(name),'missing playable clip '+name);
  assert.ok(gltf.accessors?.length>0);
  assert.ok(bytes.length>10000);
 });
