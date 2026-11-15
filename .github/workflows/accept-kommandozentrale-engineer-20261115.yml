@@ -1,4 +1,5 @@
 name: Kommandozentrale engineer wrench and self-defence acceptance
+# Final run includes shared GPU wrench resource lifecycle regression.
 # Rerun for separate medic vs. pioneer pistol power assertions.
 on:
   push:
