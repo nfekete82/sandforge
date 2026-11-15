@@ -85,10 +85,14 @@ export function createAirfieldServiceYard(){
  }
  for(let z=-154;z<=232;z+=42)
   box(group,'AirfieldRunwayCenterDash',3,.12,27,12,2.80,z,markings);
- for(const x of [-56,80]){
-  box(group,'AirfieldRunwayEdgeLine',2,.12,416,x,2.80,35,markings);
+ // Runway lights are flush insets OUTSIDE the usable asphalt, not tall
+ // yellow cuboids across the aircraft's landing path. The old lamp positions
+ // (-56,80) sit on the runway edges (-58.5,82.5), and their 2m height
+ // makes them look like stray obstacles at tactical camera distance.
+ for(const [lineX,lampX] of [[-56,-69],[80,93]]){
+  box(group,'AirfieldRunwayEdgeLine',2,.12,416,lineX,2.80,35,markings);
   for(let z=-164;z<=236;z+=42)
-   box(group,'AirfieldRunwayLamp',5,2,8,x,4.0,z,yellow);
+   box(group,'AirfieldRunwayLamp',3,.28,6,lampX,2.80,z,yellow);
  }
  // Clear runway thresholds and staggered military landing-zone stripes.
  for(const z of [-161,-150,-139])for(const x of [-32,-13,37,56])
