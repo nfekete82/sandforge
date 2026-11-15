@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {stoneMaterial,weatheredStoneGeometry} from './webgl-rock-materials.js';
+import {DESERT_SCENIC_STYLE as desertStyle} from './webgl-desert-style.js';
 
 // Only visual treatment: maps, save games, pathing and the 20 Hz terrain
 // heightfield remain completely untouched by this module.
@@ -48,9 +49,9 @@ export function cinematicSandSample({x,z,size,seed,profile='mixed',slope=0,heigh
 export function addDesertWashStones({scene,world,size,seed,heightAt,sites=[],lowQuality=false}){
  if(!world?.generated?.battlefield)return null;
  const target=lowQuality?140:480;
- const palette=['#c8a47a','#917454','#d7b48b','#7f674d'];
+ const palette=desertStyle.riverPebbles;
  const geometry=weatheredStoneGeometry(lowQuality);
- const material=stoneMaterial('#ead5b9',{lowQuality,normalScale:.75});
+ const material=stoneMaterial(desertStyle.riverPebbleBase,{lowQuality,normalScale:.75});
  const mesh=new THREE.InstancedMesh(geometry,material,target);
  mesh.name='visual-desert-dry-wash-pebbles';
  mesh.userData={visualOnly:true,nonPlayable:true,dryWash:true};

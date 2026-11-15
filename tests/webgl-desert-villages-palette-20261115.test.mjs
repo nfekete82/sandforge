@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 import * as THREE from 'three';
+import {DESERT_SCENIC_STYLE as desertStyle} from '../scripts/webgl-desert-style.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {planDesertVillages,createDesertVillages,DESERT_VILLAGE_ART_REVISION,DESERT_VILLAGE_MODELS}
  from '../scripts/webgl-desert-village.js';
@@ -99,11 +100,16 @@ test('original textured ruin GLTFs replace all new procedural house boxes',()=>{
 test('sun-bleached desert is only slightly lighter, existing gameplay buildings untouched',()=>{
  const preview=readFileSync('scripts/webgl-preview.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
- assert.match(preview,/sandGold=new THREE\.Color\('#d9bb92'\)/);
- assert.match(preview,/sandLight=new THREE\.Color\('#ebd4b1'\)/);
- assert.match(preview,/riverSediment=new THREE\.Color\('#bda78a'\)/);
- assert.match(preview,/const subtleSandLift=new THREE\.Color\('#ead2a6'\)/);
- assert.match(preview,/if\(biome==='desert'\)vertexColor\.lerp\(subtleSandLift,\.12\)/);
+ assert.match(preview,/sandGold=new THREE\.Color\(desertStyle\.duneBase\)/);
+ assert.equal(desertStyle.duneBase,'#d9bb92');
+ assert.match(preview,/sandLight=new THREE\.Color\(desertStyle\.duneHighlight\)/);
+ assert.equal(desertStyle.duneHighlight,'#ebd4b1');
+ assert.match(preview,/riverSediment=new THREE\.Color\(desertStyle\.drySediment\)/);
+ assert.equal(desertStyle.drySediment,'#bda78a');
+ assert.match(preview,/const subtleSandLift=new THREE\.Color\(desertStyle\.warmLift\)/);
+ assert.equal(desertStyle.warmLift,'#ead2a6');
+ assert.match(preview,/if\(biome==='desert'\)vertexColor\.lerp\(subtleSandLift,desertStyle\.warmLiftStrength\)/);
+ assert.equal(desertStyle.warmLiftStrength,.12);
  assert.match(preview,/if\(spacious&&biome==='desert'&&normalMap\)normalMap\.repeat\.set\(6\.5,6\.5\)/);
  assert.ok(preview.includes("renderer.toneMappingExposure=biome==='desert'?(spacious?.96:1.00)"),
   'do not change renderer exposure / building brightness');

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {stoneMaterial,weatheredStoneGeometry} from './webgl-rock-materials.js';
+import {DESERT_SCENIC_STYLE as desertStyle} from './webgl-desert-style.js';
 // Browser production serves this file from /dist, alongside compiled /src.
 // The Node geometry tests import its source directly from /scripts, where
 // absolute browser import paths are invalid. Resolve the *same* compiled
@@ -182,7 +183,7 @@ export class DesertArtPass {
   this.scene.add(mesh);this.items.push(mesh);
  }
  addDebris(){
-  const dust=stoneMaterial(this.biome==='snow'?'#a1abb4':this.biome==='jungle'?'#6f7662':'#b69a7c',
+  const dust=stoneMaterial(this.biome==='snow'?'#a1abb4':this.biome==='jungle'?'#6f7662':desertStyle.sceneDebris,
    {lowQuality:this.lowQuality});
   const geometry=weatheredStoneGeometry(this.lowQuality);
   const spacious=this.world.mapVersion>=19;
@@ -222,8 +223,8 @@ export class DesertArtPass {
   if(!count)return;
   const geometry=weatheredStoneGeometry(this.lowQuality);
   const materials=[
-   stoneMaterial(this.biome==='snow'?'#c7d0d7':this.biome==='jungle'?'#94947e':'#debe98',{lowQuality:this.lowQuality}),
-   stoneMaterial(this.biome==='snow'?'#83919d':this.biome==='jungle'?'#5d6656':'#aa8e70',{lowQuality:this.lowQuality})
+   stoneMaterial(this.biome==='snow'?'#c7d0d7':this.biome==='jungle'?'#94947e':desertStyle.rubbleLight,{lowQuality:this.lowQuality}),
+   stoneMaterial(this.biome==='snow'?'#83919d':this.biome==='jungle'?'#5d6656':desertStyle.rubbleDark,{lowQuality:this.lowQuality})
   ];
   const meshes=materials.map(material=>new THREE.InstancedMesh(geometry,material,count));
   const counters=[0,0],dummy=new THREE.Object3D();

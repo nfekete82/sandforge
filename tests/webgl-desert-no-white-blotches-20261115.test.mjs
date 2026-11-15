@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
+import {DESERT_SCENIC_STYLE as desertStyle} from '../scripts/webgl-desert-style.js';
 
 const src=readFileSync('scripts/webgl-preview.js','utf8');
 
@@ -33,9 +34,12 @@ test('warm sand-grain source never emits near-white pixels',()=>{
 });
 
 test('terrain alone is warm beige, while buildings, PBR sky, terrain heights and original villages are unchanged',()=>{
- assert.match(src,/color:biome==='desert'\?\(spacious\?'#f2e1c7':'#f5eadb'\):biomeStyle\.terrain/);
- assert.match(src,/const subtleSandLift=new THREE\.Color\('#ead2a6'\)/);
- assert.match(src,/if\(biome==='desert'\)vertexColor\.lerp\(subtleSandLift,\.12\)/);
+ assert.match(src,/color:biome==='desert'\?\(spacious\?desertStyle\.terrainMaterial:'\#f5eadb'\):biomeStyle\.terrain/);
+ assert.equal(desertStyle.terrainMaterial,'#f2e1c7');
+ assert.match(src,/const subtleSandLift=new THREE\.Color\(desertStyle\.warmLift\)/);
+ assert.equal(desertStyle.warmLift,'#ead2a6');
+ assert.match(src,/if\(biome==='desert'\)vertexColor\.lerp\(subtleSandLift,desertStyle\.warmLiftStrength\)/);
+ assert.equal(desertStyle.warmLiftStrength,.12);
  const tint=new THREE.Color('#ead2a6'),old=new THREE.Color('#d9bb92');
  const mixed=old.clone().lerp(tint,.12);
  assert.ok(mixed.r>mixed.g&&mixed.g>mixed.b,'warm gold, not pale white');
@@ -45,5 +49,5 @@ test('terrain alone is warm beige, while buildings, PBR sky, terrain heights and
  assert.match(src,/if\(spacious&&biome==='desert'&&normalMap\)normalMap\.repeat\.set\(6\.5,6\.5\)/);
  assert.match(src,/spacious&&biome==='desert'\?createDesertVillages/);
  assert.match(src,/const mesh=new THREE\.Mesh\(geometry,material\);\s*mesh\.receiveShadow=true;mesh\.userData\.terrain=true;/);
- assert.doesNotMatch(readFileSync('src/reborn/simulation.ts','utf8'),/subtleSandLift|sandTexture|f2e1c7/);
+ assert.doesNotMatch(readFileSync('src/reborn/simulation.ts','utf8'),/subtleSandLift|sandTexture|DESERT_SCENIC_STYLE/);
 });

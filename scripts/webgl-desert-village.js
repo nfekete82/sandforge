@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {renderGroundHeightSampler} from './webgl-environment.js';
+import {DESERT_SCENIC_STYLE as desertStyle} from './webgl-desert-style.js';
 
 /** Scenic hamlets made entirely from the EXISTING authored canyon ruin GLTFs.
  * Never build houses from boxes and never use dark road plates. Both ruin GLTFs
@@ -74,8 +75,8 @@ function makeTracks(villages,world,pos,heightAt){
  const sample=renderGroundHeightSampler(heightAt,world.size);
  const positions=[],colors=[],indices=[];
  const colorsOf=[
-  new THREE.Color('#b9a38a'),
-  new THREE.Color('#aa987f')
+  new THREE.Color(desertStyle.roadDust),
+  new THREE.Color(desertStyle.roadRuts)
  ];
  const lanes=[
   {offset:0,halfWidth:12.5,alpha:.085,color:0},

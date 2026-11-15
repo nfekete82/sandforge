@@ -24,6 +24,7 @@ import {SandforgeGroundTracks} from '/webgl-ground-tracks.js';
 import {Soundscape} from '/src/reborn/audio.js';
 import {fineSandPattern} from '/src/reborn/fine-sand.js';
 import {cinematicSandSample,addDesertWashStones} from '/webgl-desert-art.js';
+import {DESERT_SCENIC_STYLE as desertStyle} from '/webgl-desert-style.js';
 import {createDesertVillages} from '/webgl-desert-village.js';
 import {installMatchResultOverlay} from '/webgl-match-result.js';
 import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry} from '/webgl-rock-materials.js';
@@ -230,7 +231,7 @@ function buildTerrain(){
  // pale desert reference sand; visual PBR normals only, never terrain height.
  if(spacious&&biome==='desert'&&normalMap)normalMap.repeat.set(6.5,6.5);
  const material=new THREE.MeshStandardMaterial({
-  color:biome==='desert'?(spacious?'#f2e1c7':'#f5eadb'):biomeStyle.terrain,
+  color:biome==='desert'?(spacious?desertStyle.terrainMaterial:'#f5eadb'):biomeStyle.terrain,
   map:texture,normalMap,normalScale:new THREE.Vector2(spacious?.77:.45,spacious?.77:.45),
   vertexColors:true,roughness:.99,metalness:0
  });
@@ -273,11 +274,11 @@ function buildTerrain(){
  const chunks=4,segments=56,patch=size/chunks;
  // Reuse palette objects across 50k baked vertices: no per-frame cost.
  // Pale sun-bleached ochre and beige rather than orange desert clay.
- const sandGold=new THREE.Color('#d9bb92'),sandLight=new THREE.Color('#ebd4b1'),
-  sandstone=new THREE.Color('#ad9679'),riverSediment=new THREE.Color('#bda78a');
+ const sandGold=new THREE.Color(desertStyle.duneBase),sandLight=new THREE.Color(desertStyle.duneHighlight),
+  sandstone=new THREE.Color(desertStyle.wornStone),riverSediment=new THREE.Color(desertStyle.drySediment);
  // Gentle warm golden beige, NOT a nearly white cream tint. Applied to the
  // terrain's vertex colours only; game buildings and props are untouched.
- const subtleSandLift=new THREE.Color('#ead2a6');
+ const subtleSandLift=new THREE.Color(desertStyle.warmLift);
  const vertexColor=new THREE.Color();
  const biomeGroundBase=new THREE.Color(biomeStyle.groundBase);
  const biomeGroundLight=new THREE.Color(biomeStyle.groundLight);
@@ -316,7 +317,7 @@ function buildTerrain(){
    }
    // Warm pale dune sand only. Building GLBs and everything else
    // have their own materials and therefore retain exactly their old look.
-   if(biome==='desert')vertexColor.lerp(subtleSandLift,.12);
+   if(biome==='desert')vertexColor.lerp(subtleSandLift,desertStyle.warmLiftStrength);
    colors[n]=vertexColor.r;colors[n+1]=vertexColor.g;colors[n+2]=vertexColor.b;
    uv[k*2]=x/(spacious?2200:1500);uv[k*2+1]=z/(spacious?2200:1500);
    // Sample normals from the continuous field, not triangle tessellation:
@@ -352,8 +353,8 @@ function buildTerrain(){
  * skirts fill the complete solid hull: no blocked ground under empty air. */
 function addBattlefieldRocks(material){
  const vertices=[],colors=[],uv=[];
- const baseColor=new THREE.Color(biome==='desert'?'#c6b091':biomeStyle.rocks[0]);
- const dark=new THREE.Color(biome==='desert'?'#806c57':biomeStyle.rocks[1]);
+ const baseColor=new THREE.Color(biome==='desert'?desertStyle.mesa:biomeStyle.rocks[0]);
+ const dark=new THREE.Color(biome==='desert'?desertStyle.mesaShade:biomeStyle.rocks[1]);
  for(const [id,mesa] of terrain.mesas.entries()){
   const poly=mesa.outline,cx=poly.reduce((n,p)=>n+p.x,0)/poly.length,cz=poly.reduce((n,p)=>n+p.y,0)/poly.length;
   const peak=mesa.columns.reduce((n,c)=>n+c.height,0)/mesa.columns.length*(terrain.battlefield.profile==='rocky'?1.55:1.05);
@@ -414,7 +415,7 @@ function instancedStone(){
  // riverbed, ruins and oasis rocks. Three instanced palette groups remain
  // three draw calls; never create a material for each stone.
  const materials=(biome==='desert'?(spacious?
-  ['#ccb091','#9e8267','#e1c19c']:['#bfa889','#a18c73','#d3bca0']):biomeStyle.rocks)
+  desertStyle.looseStones:['#bfa889','#a18c73','#d3bca0']):biomeStyle.rocks)
   .map(color=>stoneMaterial(color,{lowQuality:query.get('lite')==='1'}));
  const dummy=new THREE.Object3D(),groups=materials.map(mat=>new THREE.InstancedMesh(geometry,mat,1750));
  const contactGeometry=new THREE.PlaneGeometry(1,1);contactGeometry.rotateX(-Math.PI/2);
@@ -648,6 +649,8 @@ function weatherRuinMeshes(node){
     const detail=naturalStone?(ruinStrata??ruinGrit):ruinGrit;
     value.map=detail;value.bumpMap=detail;
     value.bumpScale=naturalStone?.17:.09;
+    if(biome==='desert'&&value.color)
+     value.color.lerp(new THREE.Color(desertStyle.ruinedPlaster),desertStyle.ruinBlend);
     value.roughness=1;value.metalness=0;value.needsUpdate=true;
    }
    return value;
@@ -678,8 +681,8 @@ function addBuriedRuinRoad(anchor,ruin,index){
    rotation:rotation+.04});
  }
  for(const [parts,color,opacity,name] of [
-  [spot,'#968676',.46,'BuriedRuinRoad'],
-  [drift,'#ba8d57',.90,'WindblownRoadSand']
+  [spot,biome==='desert'?desertStyle.buriedRoad:'#968676',.46,'BuriedRuinRoad'],
+  [drift,biome==='desert'?desertStyle.blownRoadDust:'#ba8d57',.90,'WindblownRoadSand']
  ]){
   const material=new THREE.MeshStandardMaterial({
    color,roughness:1,metalness:0,transparent:true,
