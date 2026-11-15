@@ -29,7 +29,7 @@ test('desert cliffs use same physical sandstone albedo/roughness/normal as bould
  assert.match(section,/normalMap:rockMaps\.normalMap/);
  assert.match(section,/roughnessMap:rockMaps\.roughnessMap/);
  assert.match(section,/if\(biome!=='desert'\)new THREE\.TextureLoader\(\)\.load/);
- assert.match(section,/normalScale:biome==='desert'\?\.42:\.58/);
+ assert.match(code,/normalScale:biome==='desert'\?\.42:\.58/);
  const maps=sharedStoneMaps(false);
  assert.strictEqual(maps,sharedStoneMaps(false));
  const loose=stoneMaterial(style.looseStones[0],{normalScale:.42});
