@@ -337,9 +337,13 @@ export class SandforgeActorPresentation {
    const hurt=(state.hurtTime??0)>0;
    const working=entity.kind==='engineer'&&!moving&&entity.workingTarget!=null;
    const building=working&&entity.orders?.[0]?.kind==='build';
+   const sprint=entry.detail?.userData?.sandforgeLowpolySoldier&&
+     (entity.orders?.[0]?.kind==='attack'||entity.orders?.[0]?.kind==='attack-move');
    const desired=hurt&&clips.hit?clips.hit:
     shooting&&clips.attack?clips.attack:
-    moving?((entry.detail?.userData?.sandforgeStylized||entry.detail?.userData?.sandforgeLowpolySoldier)&&infantry.has(entity.kind)?clips.run??clips.walk:clips.walk):
+    moving?(entry.detail?.userData?.sandforgeLowpolySoldier?
+      (sprint?clips.run??clips.walk:clips.walk):
+      entry.detail?.userData?.sandforgeStylized&&infantry.has(entity.kind)?clips.run:clips.walk):
     working?(building?clips.build??clips.repair:clips.repair??clips.build)??clips.idle:clips.idle;
    const retrigger=shooting&&state.shotTrigger!==(state.lastClipTrigger??-1);
    if(desired&&typeof entry.playAnimation==='function')
@@ -360,7 +364,7 @@ export class SandforgeActorPresentation {
   if(!body)return;
   // Authored muzzle follows the skin's weapon bone or vehicle gun pivot.
   // Convert to actor space so orientation and scale are applied exactly once.
-  if(body.userData?.sandforgeStylized&&state.flash){
+  if((body.userData?.sandforgeStylized||body.userData?.sandforgeLowpolySoldier)&&state.flash){
    const muzzle=body.getObjectByName('WeaponMuzzle');
    if(muzzle){body.updateWorldMatrix(true,true);muzzle.getWorldPosition(state.flash.position);entry.node.worldToLocal(state.flash.position);}
   }
