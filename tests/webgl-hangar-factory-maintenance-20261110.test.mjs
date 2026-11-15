@@ -130,7 +130,7 @@ test('3D maintenance assets are wired into build and battlefield lifecycle',()=>
    'createFactoryServiceYard','updateFactoryServiceYard','disposeFactoryServiceYard',
    'hangar-repair','factory-repair','hangar-auto','factory-auto'])assert.ok(battlefield.includes(phrase),phrase);
  for(const phrase of ['HangarDoorLeft_','AirfieldExtendedRunway','HangarCamoArch_'])assert.ok(airfield.includes(phrase));
- for(const phrase of ['FactoryVehicleRepairApron','HydraulicVehicleLiftRail_','FactorySideWorkshopWallLeft'])assert.ok(factory.includes(phrase));
+ for(const phrase of ['FactoryVehicleRepairApron','HydraulicVehicleLiftRail_','VehicleLiftPlatform_0'])assert.ok(factory.includes(phrase));
 });
 
 test('Three.js service yards create, animate and dispose with no DOM or WebGL context',()=>{
@@ -150,7 +150,7 @@ test('Three.js service yards create, animate and dispose with no DOM or WebGL co
  assert.equal(airEntry.airfieldServiceYard,null);
 
  const factory=createFactoryServiceYard();
- assert.ok(factory.getObjectByName('FactorySideWorkshopWallLeft'));
+ assert.equal(factory.name,'FactoryOpenAirRepairPlatform');
  assert.ok(factory.getObjectByName('VehicleRepairBaySurface_0'));
  assert.equal(factory.getObjectByName('VehicleRepairBaySurface_1'),undefined);
  const truck={id:81,hp:100,factoryService:{baseId:901,bay:0,phase:'repair'}};
@@ -379,8 +379,8 @@ test('factory and airfield use real PBR camouflage/data textures, roof details a
  assert.equal(material.map.colorSpace,'srgb');
  material.map.dispose();material.dispose();
  const yard=createFactoryServiceYard(),hangar=createAirfieldServiceYard();
- for(const name of ['FactoryCamoVerticalRib_0','FactorySideVentLouvre_0',
-   'FactoryRoofAirDuct_0','FactoryToolChest_0'])
+ for(const name of ['VehicleLiftPlatform_0','VehicleDriveOnRamp_0',
+   'FactoryRepairToolTray_0','FactoryPlatformEdgeMarker_0'])
   assert.ok(yard.getObjectByName(name),name);
  for(const name of ['HangarRoofVent_0','HangarDoorCorrugation_0_0',
    'HangarRearVent_0','AirfieldTouchdownRubber'])
@@ -388,7 +388,7 @@ test('factory and airfield use real PBR camouflage/data textures, roof details a
  for(const root of [yard,hangar]){
   let textureCount=0;
   root.traverse(mesh=>{if(mesh.isMesh&&mesh.material.map?.isDataTexture)textureCount++;});
-  assert.ok(textureCount>10,'camouflage and steel surfaces must be textured');
+  assert.ok(textureCount>=(root===yard?5:11),'service deck and metal use PBR textures');
  }
  disposeFactoryServiceYard({factoryServiceYard:yard});
  disposeAirfieldServiceYard({airfieldServiceYard:hangar});
