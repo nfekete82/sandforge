@@ -28,6 +28,7 @@ import {pointerGestureIntent,submitConstruction,nearestEngineer,POINTER_CLICK_SL
 import {sameKindVisibleUnits} from '/webgl-double-click-select.js';
 import {tracerWindow} from '/webgl-hit-response.js';
 import {applyFactionAccents} from '/webgl-faction-accents.js';
+import {finishBuildingFacadeShading} from '/webgl-building-shading.js';
 import {attachTeamMarkings,detachTeamMarkings} from '/webgl-team-markings.js';
 import {finishBarracksSides,finishBarracksDesertPalette,disposeBarracksSides} from '/webgl-barracks-shell.js';
 import {SandforgeConstructionPresentation} from '/webgl-construction.js';
@@ -411,6 +412,7 @@ export class SandforgeBattlefield {
     applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,
      entry.modelFootprint,entry.modelHeight);
     if(type==='building'&&entry.kind==='barracks')finishBarracksDesertPalette(model);
+    if(type==='building')finishBuildingFacadeShading(model);
     if(type==='unit')attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
     entry.visualBaseY=model.position.y;entry.visualBaseZ=model.position.z;
     if(type==='building'){
@@ -493,6 +495,7 @@ export class SandforgeBattlefield {
   const height=unit?(['infantry','medic','engineer','heavy','rocket'].includes(entity.kind)?43:55)*visualUnitScale(entity.kind):
    Math.max(65,footprint*.55);
   applyFactionAccents(entry,entity,type,footprint,height);
+  if(type==='building')finishBuildingFacadeShading(placeholder);
   if(unit)attachTeamMarkings(entry,entity.owner,entity.kind,footprint,height);
   if(type==='unit'&&['tank','artillery'].includes(entity.kind))this.installTankRig(entry,placeholder);
   this.scheduleDetail(entry,entity,type);return entry;
@@ -829,6 +832,7 @@ export class SandforgeBattlefield {
     // Authored model geometries are shared, but team-tinted materials are
     // actor-owned. Release only our owned PBR clones on death/despawn.
     if(e.detail){
+     disposeTaggedMaterials(e.detail,'sandforgeHelicopterOwnedPaint');
      disposeTaggedMaterials(e.detail,'sandforgeFactionTint');
      if(e.kind==='rocket')disposeRocketLauncher(e.detail);
     }
@@ -885,6 +889,7 @@ export class SandforgeBattlefield {
     if(e.placeholder){disposeOwnedMeshes(e.placeholder);e.placeholder=null;}
     if(e.detail){disposeBarracksSides(e.detail);
      disposeTaggedMaterials(e.detail,'sandforgeBarracksPalette');
+     disposeTaggedMaterials(e.detail,'sandforgeBuildingFacadeOwned');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingFill');}
     if(e.motion?.mixer){
      e.motion.mixer.stopAllAction();
