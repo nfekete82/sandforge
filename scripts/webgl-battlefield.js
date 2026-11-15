@@ -29,6 +29,7 @@ import {sameKindVisibleUnits} from '/webgl-double-click-select.js';
 import {tracerWindow} from '/webgl-hit-response.js';
 import {applyFactionAccents} from '/webgl-faction-accents.js';
 import {finishBuildingFacadeShading} from '/webgl-building-shading.js';
+import {KEYSTONE_HQ_URL,keystonePreviewEnabled,prepareKeystoneHQ,updateKeystoneHQLOD} from '/webgl-keystone-hq.js';
 import {attachTeamMarkings,detachTeamMarkings} from '/webgl-team-markings.js';
 import {finishBarracksSides,finishBarracksDesertPalette,disposeBarracksSides} from '/webgl-barracks-shell.js';
 import {SandforgeConstructionPresentation} from '/webgl-construction.js';
@@ -213,6 +214,7 @@ export class SandforgeBattlefield {
  }
  asset(kind,owner,type){
   const prefix='/src/assets/reborn/';
+  if(type==='building'&&kind==='headquarters'&&keystonePreviewEnabled())return KEYSTONE_HQ_URL;
   if(type==='building')return prefix+'buildings-3d/'+kind+'-'+owner+'.glb';
   // Rocket specialists share the fully animated Atlas infantry skeleton.
   // Keep the original prototype rig and clips, replace only its rifle mesh.
@@ -337,7 +339,7 @@ export class SandforgeBattlefield {
    }
   }
   if(entry.kind==='headquarters'){
-   const clip=data.animations?.find(c=>c.name==='RadarSpin');
+   const clip=data.animations?.find(c=>c.name===(entry.isKeystoneHQ?'idle_spin':'RadarSpin'));
    if(clip?.tracks?.length){
     const mixer=new THREE.AnimationMixer(entry.detail),action=mixer.clipAction(clip);
     action.setLoop(THREE.LoopRepeat,Infinity);action.play();
@@ -370,6 +372,8 @@ export class SandforgeBattlefield {
     const {entry,type}=task;
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
+    entry.isKeystoneHQ=type==='building'&&entry.kind==='headquarters'&&task.url===KEYSTONE_HQ_URL;
+    if(entry.isKeystoneHQ)prepareKeystoneHQ(model);
     if(type==='unit'&&entry.kind==='engineer')
      entry.engineerTools=equipEngineerTools(model);
     if(type==='unit'&&entry.kind==='rocket')
@@ -386,7 +390,8 @@ export class SandforgeBattlefield {
       -box0.min.y*scale,-box0.getCenter(new THREE.Vector3()).z*scale);
     }
     if(type==='building'){
-     this.lightBuildingMeshes(model);
+     if(!entry.isKeystoneHQ)this.lightBuildingMeshes(model);
+     else model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
      if(entry.kind==='barracks')finishBarracksSides(model);
     }else model.traverse(o=>{
      if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}
@@ -409,10 +414,11 @@ export class SandforgeBattlefield {
       (type==='unit'?visualUnitScale(entry.kind):1);
     entry.modelHeight=dims.y*visualScale;
     entry.modelFootprint=Math.max(dims.x,dims.z)*visualScale;
-    applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,
+    // Show original vendor PBR textures, not Sandforge's default camouflage pass.
+    if(!entry.isKeystoneHQ)applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,
      entry.modelFootprint,entry.modelHeight);
     if(type==='building'&&entry.kind==='barracks')finishBarracksDesertPalette(model);
-    if(type==='building')finishBuildingFacadeShading(model);
+    if(type==='building'&&!entry.isKeystoneHQ)finishBuildingFacadeShading(model);
     if(type==='unit')attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
     entry.visualBaseY=model.position.y;entry.visualBaseZ=model.position.z;
     if(type==='building'){
@@ -654,7 +660,9 @@ export class SandforgeBattlefield {
   if(isStrategicBuilding(kind))return; // detailed procedural fallback is already ghosted
   this.getModel(this.asset(kind,0,'building')).then(data=>{
    if(this.buildPreview!==group||this.buildKind!==kind)return;
-   const model=cloneSkeleton(data.scene),bounds=new THREE.Box3().setFromObject(model);
+   const model=cloneSkeleton(data.scene);
+   if(kind==='headquarters'&&keystonePreviewEnabled())prepareKeystoneHQ(model);
+   const bounds=new THREE.Box3().setFromObject(model);
    const size=bounds.getSize(new THREE.Vector3());
    if(size.y>0&&Math.max(size.x,size.z)>0){
     const scale=calibratedScale(kind,'building',size,spec.width);
@@ -843,7 +851,10 @@ export class SandforgeBattlefield {
    aliveBases.add(b.id);
    let entry=this.bases.get(b.id);
    if(!entry){entry=this.spawnNode(b,'building');this.bases.set(b.id,entry);this.grounding.attachBuilding(entry,b);}
-   if(entry.factionOwner!==b.owner)applyFactionAccents(entry,b,'building');
+   if(entry.factionOwner!==b.owner){
+    if(entry.isKeystoneHQ)entry.factionOwner=b.owner;
+    else applyFactionAccents(entry,b,'building');
+   }
    entry.node.position.copy(this.entityPosition(b));
    entry.node.visible=b.owner===0||this.game.canSee(0,b);
    entry.node.scale.y=1;
@@ -874,6 +885,8 @@ export class SandforgeBattlefield {
     }
     if(b.buildRemaining<=0)updateFactoryServiceYard(entry,b,this.game.units,this.game.time);
    }
+   if(entry.isKeystoneHQ&&entry.detail)
+    updateKeystoneHQLOD(entry.detail,entry.node.position.distanceTo(this.camera.position));
    this.animateBuildingMotion(entry,b,dt,active);
    if(b.buildRemaining<=0&&!this.announcedBuildings.has(b.id)){
     this.announcedBuildings.add(b.id);
