@@ -36,6 +36,7 @@ import {attackBlinkAlpha} from '/src/reborn/attack-alerts.js';
 import {UPGRADES,UPGRADE_KINDS,canResearchUpgrade,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
 import {createStrategicBuilding,isStrategicBuilding} from '/webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry,disposeRocketLauncher} from '/webgl-rocket-infantry.js';
+import {equipEngineerTools} from '/webgl-engineer-tools.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
 // exclusively by the original Simulation. 3D nodes are presentation only.
@@ -184,6 +185,12 @@ export class SandforgeBattlefield {
     make(new THREE.BoxGeometry(14,17,6),white,0,23,8.5);
     make(new THREE.BoxGeometry(3,11,1),cross,0,23,12);
     make(new THREE.BoxGeometry(10,3,1),cross,0,23,12.1);
+   }else if(kind==='engineer'){
+    make(new THREE.CapsuleGeometry(8,13,4,10),metal,0,22,0);
+    make(new THREE.SphereGeometry(9,10,8),dark,0,42,0);
+    const pistol=make(new THREE.BoxGeometry(4,4,16),dark,10,23,-7);
+    pistol.name='Sandforge_Engineer_Pistol_Fallback';
+    equipEngineerTools(group,{fallback:true});
    }else{
     make(new THREE.CapsuleGeometry(8,13,4,10),metal,0,22,0);
     make(new THREE.SphereGeometry(9,10,8),dark,0,42,0);
@@ -361,6 +368,8 @@ export class SandforgeBattlefield {
     const {entry,type}=task;
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
+    if(type==='unit'&&entry.kind==='engineer')
+     entry.engineerTools=equipEngineerTools(model);
     if(type==='unit'&&entry.kind==='rocket')
      attachRocketLauncherToInfantry(model,entry.owner);
     const box0=new THREE.Box3().setFromObject(model);
@@ -468,7 +477,8 @@ export class SandforgeBattlefield {
   if(type==='unit')placeholder.scale.setScalar(visualUnitScale(entity.kind));
   node.add(placeholder);node.position.copy(this.entityPosition(entity));
   this.scene.add(node);
-  const entry={node,placeholder,kind:entity.kind,owner:entity.owner,requested:false};
+  const entry={node,placeholder,kind:entity.kind,owner:entity.owner,requested:false,
+   ...(type==='unit'&&entity.kind==='engineer'?{engineerTools:equipEngineerTools(placeholder,{fallback:true})}:{})};
   const unit=type==='unit';
   const footprint=unit?(UNITS[entity.kind]?.width??44)*visualUnitScale(entity.kind):
    BUILDINGS[entity.kind]?.width??130;
@@ -1113,7 +1123,7 @@ export class SandforgeBattlefield {
   const cameraCenter={x:this.controls.target.x+this.world.size*.5,
    y:this.controls.target.z+this.world.size*.5};
   const worker=nearestEngineer(this.game.units,cameraCenter);
-  if(!worker){this.message('Kein Pionier verfügbar · im Feldkommando ausbilden');return null;}
+  if(!worker){this.message('Kein Pionier verfügbar · im Kommandozentrale ausbilden');return null;}
   this.selected=new Set([worker.id]);this.selectedBase=null;
   this.rallyMode=false;this.attackMode=false;
   this.drawInterface();
@@ -1248,7 +1258,7 @@ export class SandforgeBattlefield {
     this.panel.dataset.tab='buildings';
     if(!this.catalogContext().engineer){
      if(!this.selectEngineer()){
-      this.message('Kein Pionier verfügbar · im Feldkommando einen Pionier ausbilden');
+      this.message('Kein Pionier verfügbar · im Kommandozentrale einen Pionier ausbilden');
       this.drawInterface();return;
      }
     }
@@ -1268,7 +1278,7 @@ export class SandforgeBattlefield {
      const existing=this.game.bases.filter(b=>b.owner===0&&b.hp>0&&
       source.includes(b.kind));
      const complete=existing.some(b=>b.buildRemaining<=0);
-     this.message(complete?'Produktionswarteschlange voll oder Feldkommando fehlt':
+     this.message(complete?'Produktionswarteschlange voll oder Kommandozentrale fehlt':
       existing.length?'Produktionsgebäude noch im Bau':
       'Benötigt '+source.map(k=>BUILDINGS[k].name).join(' oder '));
      this.drawInterface();return;
@@ -1412,7 +1422,7 @@ export class SandforgeBattlefield {
     '</h2><div class="catalog-grid">'+
     cards(unitKinds.filter(k=>UNITS[k].producers.includes(kind)),'unit')+'</div></section>';
   }).join('');
-  const infantryRoster=roster([['headquarters','FELDKOMMANDO · PIONIERE'],
+  const infantryRoster=roster([['headquarters','KOMMANDOZENTRALE · PIONIERE'],
    ['barracks','KASERNE · INFANTERIE']]);
   const vehicleRoster=roster([['factory','FAHRZEUGFABRIK']]);
   const aircraftRoster=roster([['airfield','FLUGFELD']]);
@@ -1511,7 +1521,7 @@ export class SandforgeBattlefield {
     :g.credits[0]<spec.cost||!g.hasHeadquarters(0)&&kind!=='headquarters'||
       kind==='generator'&&generatorLimitReached||ownedUnique||interceptorLimit;
    const requirement=button.dataset.unit
-    ?(g.needsHeadquarters(0)?'Feldkommando erforderlich':
+    ?(g.needsHeadquarters(0)?'Kommandozentrale erforderlich':
        !validProductionSite?'Benötigt '+UNITS[kind].producers.map(k=>BUILDINGS[k].name).join(' oder '):
        !producer?'Warteschlange voll':
        g.credits[0]<spec.cost?'Zu wenig Credits':
