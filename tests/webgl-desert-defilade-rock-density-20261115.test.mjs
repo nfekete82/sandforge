@@ -12,10 +12,15 @@ const renderStub={capabilities:{getMaxAnisotropy:()=>8}};
 test('modern 4-bastion desert: 78% fewer decorative rocks; physical rocks unchanged',()=>{
  const preview=readFileSync('scripts/webgl-preview.js','utf8');
  const art=readFileSync('scripts/webgl-desert-art.js','utf8');
- assert.match(preview,/spacious&&biome==='desert'\?90:spacious\?420:1600/);
- assert.match(art,/const target=lowQuality\?35:105/);
- assert.equal(90+105,195);
- assert.ok((900-195)/900>.78);
+ assert.match(preview,/spacious&&biome==='desert'\?60:spacious\?420:1600/);
+ assert.match(art,/const target=lowQuality\?25:60/);
+ assert.equal(60+60,120);
+ assert.ok((900-120)/900>.86);
+ const env=readFileSync('scripts/webgl-environment.js','utf8');
+ const oasis=readFileSync('scripts/webgl-oases.js','utf8');
+ assert.match(env,/const debrisLimit=modernDesert?(this.lowQuality?22:40)/);
+ assert.match(env,/const rubblePerRuin=modernDesert?(this.lowQuality?2:3)/);
+ assert.match(oasis,/const stoneCount=this.game.world.mapVersion>=23?4:16/);
  assert.match(preview,/if\(terrain\.battlefield\)addBattlefieldRocks\(materials\[0\]\)/);
  for(const seed of [2988452066,3610769721]){
   const g=Simulation.campaign(seed,23);
