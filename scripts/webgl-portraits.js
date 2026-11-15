@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {KEYSTONE_HQ_URL,keystonePreviewEnabled,prepareKeystoneHQ} from '/webgl-keystone-hq.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
 import {createStrategicBuilding,isStrategicBuilding} from './webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry} from './webgl-rocket-infantry.js';
@@ -331,6 +332,13 @@ export function unitIcon(kind,renderer){
 // into a consistent wide tile without clipping its silhouette.
 const buildingIconCache=new Map();
 async function rasterizeBuildingIcon(kind,renderer){
+ if(kind==='headquarters'&&renderer&&keystonePreviewEnabled()){
+  try{
+   const data=await new GLTFLoader().loadAsync(KEYSTONE_HQ_URL);
+   prepareKeystoneHQ(data.scene);
+   return renderModelPortrait(data.scene,renderer);
+  }catch(error){console.warn('Keystone HQ portrait unavailable:',error);}
+ }
  if(isStrategicBuilding(kind)){
   if(!renderer)return buildingIconUrl(kind);
   try{return renderStrategicPortrait(kind,renderer);}
