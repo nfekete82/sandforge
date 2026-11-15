@@ -23,7 +23,7 @@ jobs:
         run: npm --prefix tests/browser install --no-audit --no-fund
       - name: Install Chromium
         run: cd tests/browser && npx playwright install --with-deps chromium
-      - name: Real WebGL loader, skeleton, faction tint and movement QA
+      - name: Real WebGL loader, skinned animation, faction tint and muzzle QA
         env:
           SANDFORGE_BROWSER_CHANNEL: chromium
           SANDFORGE_TEST_PORT: '8201'
