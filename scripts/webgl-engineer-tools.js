@@ -55,8 +55,10 @@ export function equipEngineerTools(model,{fallback=false}={}){
  wrench.userData.sandforgeRepairTool=true;
  const metal=new THREE.Mesh(steelGeometry,steelMaterial);
  metal.name='Repair_Wrench_Steel';
+ metal.userData.sandforgeSharedToolMesh=true;
  const grip=new THREE.Mesh(gripGeometry,gripMaterial);
  grip.name='Repair_Wrench_Grip';
+ grip.userData.sandforgeSharedToolMesh=true;
  grip.position.set(0,-.13,.018);
  wrench.add(metal,grip);
  if(fallback){
