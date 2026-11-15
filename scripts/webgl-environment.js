@@ -187,8 +187,12 @@ export class DesertArtPass {
    {lowQuality:this.lowQuality});
   const geometry=weatheredStoneGeometry(this.lowQuality);
   const spacious=this.world.mapVersion>=19;
-  const mesh=new THREE.InstancedMesh(geometry,dust,
-    spacious?(this.lowQuality?160:500):(this.lowQuality?240:850));
+  // Modern sand maps already have a dedicated stone scatter. Keep only a
+  // few environment stones as spatial accents; never cover the dunes.
+  const modernDesert=this.biome==='desert'&&this.world.mapVersion>=23;
+  const debrisLimit=modernDesert?(this.lowQuality?22:40):
+   spacious?(this.lowQuality?160:500):(this.lowQuality?240:850);
+  const mesh=new THREE.InstancedMesh(geometry,dust,debrisLimit);
   const dummy=new THREE.Object3D();
   let count=0;
   for(const d of this.details) {
@@ -218,7 +222,10 @@ export class DesertArtPass {
   // A broken concrete shell needs grounded masonry at its feet, not an
   // immaculate square base. Small fragments deliberately have no collider.
   const spacious=this.world.mapVersion>=19;
-  const rubblePerRuin=spacious?(this.lowQuality?5:13):(this.lowQuality?8:27);
+  const modernDesert=this.biome==='desert'&&this.world.mapVersion>=23;
+  // Just a few wall fragments at each ruin, not stone carpets everywhere.
+  const rubblePerRuin=modernDesert?(this.lowQuality?2:3):
+   spacious?(this.lowQuality?5:13):(this.lowQuality?8:27);
   const count=this.terrain.ruins.length*rubblePerRuin;
   if(!count)return;
   const geometry=weatheredStoneGeometry(this.lowQuality);
