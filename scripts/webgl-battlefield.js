@@ -22,6 +22,7 @@ import {factoryRepairPoint} from '/src/reborn/factory-maintenance.js';
 import {selectedMaintenanceKind,serviceFootprintContains,maintenanceClickAllowed} from '/webgl-maintenance-input.js';
 import {disposeOwnedMeshes,disposeTaggedMaterials} from '/webgl-resource-lifecycle.js';
 import {releaseBastionRevision} from '/webgl-bastion-lifecycle.js';
+import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
 import {selectedInfantryForTransport,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
 import {pointerGestureIntent,submitConstruction,nearestEngineer,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
 import {sameKindVisibleUnits} from '/webgl-double-click-select.js';
@@ -947,6 +948,9 @@ export class SandforgeBattlefield {
    const modelPath='/src/assets/reborn/buildings-3d/bastion-'+owner+'.glb';
    const data=await this.getModel(modelPath);
    if(version!==entry.version||!entry.node.parent)return;
+   // Trim the obsolete front shield once from the cached GLB template.
+   // All Bastions of this faction share the cleaned geometry.
+   removeBastionFrontShield(data.scene);
    const detail=cloneSkeleton(data.scene);
    const box=new THREE.Box3().setFromObject(detail),size=box.getSize(new THREE.Vector3());
    const factor=116/Math.max(.0001,size.x,size.z),center=box.getCenter(new THREE.Vector3());
