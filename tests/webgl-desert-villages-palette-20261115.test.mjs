@@ -28,8 +28,11 @@ for(const seed of [2988452066,3610769721])
   assert.ok(villages.length<=2,'avoid unnatural dense rows of artificial settlements');
   assert.deepEqual(villages,planDesertVillages(params),'stable layout for saved campaigns');
   for(const v of villages){
-   assert.ok(v.x>=270&&v.y>=270&&v.x<=world.size-270&&v.y<=world.size-270);
-   assert.ok(v.houses.length>=4&&v.houses.length<=5);
+   assert.ok(v.x>=360&&v.y>=360&&v.x<=world.size-360&&v.y<=world.size-360);
+   assert.equal(v.houses.length,3,'three distinct full-sized ruins, not clustered miniature homes');
+   for(let i=0;i<v.houses.length;i++)for(let j=i+1;j<v.houses.length;j++)
+    assert.ok(Math.hypot(v.houses[i].x-v.houses[j].x,v.houses[i].y-v.houses[j].y)>=225,
+     'no crowded little houses – 225m minimum building separation');
    for(const site of terrain.sites)
     assert.ok(Math.hypot(site.x-v.x,site.y-v.y)>=330,
      'scenic settlement stays clear of territory and HQ sites');
@@ -37,7 +40,7 @@ for(const seed of [2988452066,3610769721])
     const c={x:h.x,y:h.y},index=world.index(c);
     assert.ok(index>=0&&!world.blocked[index]);
     assert.ok(world.walkable(c));
-    assert.ok(Number.isFinite(h.angle)&&h.width>=40);
+    assert.ok(Number.isFinite(h.angle)&&h.width>=76&&h.height>=39);
     assert.ok(h.variant===0||h.variant===1,'only real authored ruin variants');
    }
   }
