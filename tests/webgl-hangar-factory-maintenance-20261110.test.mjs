@@ -7,6 +7,7 @@ import {factoryRepairPoint,FACTORY_REPAIR_HP_PER_CREDIT} from '../dist/src/rebor
 import {unitRenderAltitude} from '../scripts/webgl-scale.js';
 import {createAirfieldServiceYard,updateAirfieldServiceYard,disposeAirfieldServiceYard} from '../scripts/webgl-airfield-service.js';
 import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '../scripts/webgl-factory-service.js';
+import {createBuildingYard,YARD_DECOR_KINDS} from '../scripts/webgl-building-yard.js';
 import {serviceVisualGround,approachGroundHeight,AIRFIELD_HANGAR_FLOOR_HEIGHT,FACTORY_LIFT_HEIGHT} from '../scripts/webgl-service-grounding.js';
 import {selectedMaintenanceKind,serviceFootprintContains} from '../scripts/webgl-maintenance-input.js';
 
@@ -391,4 +392,29 @@ test('factory and airfield use real PBR camouflage/data textures, roof details a
  }
  disposeFactoryServiceYard({factoryServiceYard:yard});
  disposeAirfieldServiceYard({airfieldServiceYard:hangar});
+});
+
+test('WebGL airfield runway has no generic crates/lamp posts and has low-profile off-pavement edge lights',()=>{
+ assert.equal(YARD_DECOR_KINDS.includes('airfield'),false,
+  'generic SiteSupplyCache and SecurityLamp overlap the working runway');
+ assert.equal(createBuildingYard('airfield',218),null,
+  'airfield service yard is the single authority for its visual apron');
+ assert.ok(createBuildingYard('barracks',158),'other building yards must stay intact');
+ const airfield=createAirfieldServiceYard();
+ const runway=airfield.getObjectByName('AirfieldExtendedRunway');
+ assert.ok(runway);
+ const runwayCenter=airfield.position.x+airfield.scale.x*runway.position.x;
+ const runwayHalfWidth=runway.geometry.parameters.width*airfield.scale.x*.5;
+ const lamps=airfield.children.filter(x=>x.name==='AirfieldRunwayLamp');
+ assert.equal(lamps.length,20,'retain symmetric real landing-zone markers');
+ for(const lamp of lamps){
+  const wx=airfield.position.x+airfield.scale.x*lamp.position.x;
+  const lampHalf=lamp.geometry.parameters.width*airfield.scale.x*.5;
+  assert.ok(Math.abs(wx-runwayCenter)-lampHalf>runwayHalfWidth,
+   'light must sit fully outside the aircraft runway');
+  assert.ok(lamp.geometry.parameters.height<=.3,
+   'flush taxi/landing light must not become a physical obstacle');
+ }
+ assert.ok(airfield.getObjectByName('HangarDoorLeft_0'),'hangar door still exists');
+ disposeAirfieldServiceYard({airfieldServiceYard:airfield});
 });
