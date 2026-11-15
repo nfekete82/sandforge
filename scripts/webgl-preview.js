@@ -491,7 +491,7 @@ function instancedStone(){
  }
  // Desert is a landscape of sand and wind, not hundreds of loose stones.
  // Keep seed determinism and all real navigation/collision rocks unchanged.
- for(let i=0;i<(spacious&&biome==='desert'?90:spacious?420:1600);i++){
+ for(let i=0;i<(spacious&&biome==='desert'?60:spacious?420:1600);i++){
   const x=75+r()*(size-150),z=75+r()*(size-150),index=world.index({x,y:z});
   if(index<0||world.blocked[index]||terrain.sites.some(p=>Math.hypot(x-p.x,z-p.y)<160))continue;
   put(x,z,spacious?1.4+r()*3.6:2+r()*5,
