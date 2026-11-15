@@ -1258,7 +1258,7 @@ export class SandforgeBattlefield {
     this.panel.dataset.tab='buildings';
     if(!this.catalogContext().engineer){
      if(!this.selectEngineer()){
-      this.message('Kein Pionier verfügbar · im Feldkommando einen Pionier ausbilden');
+      this.message('Kein Pionier verfügbar · im Kommandozentrale einen Pionier ausbilden');
       this.drawInterface();return;
      }
     }
@@ -1278,7 +1278,7 @@ export class SandforgeBattlefield {
      const existing=this.game.bases.filter(b=>b.owner===0&&b.hp>0&&
       source.includes(b.kind));
      const complete=existing.some(b=>b.buildRemaining<=0);
-     this.message(complete?'Produktionswarteschlange voll oder Feldkommando fehlt':
+     this.message(complete?'Produktionswarteschlange voll oder Kommandozentrale fehlt':
       existing.length?'Produktionsgebäude noch im Bau':
       'Benötigt '+source.map(k=>BUILDINGS[k].name).join(' oder '));
      this.drawInterface();return;
@@ -1422,7 +1422,7 @@ export class SandforgeBattlefield {
     '</h2><div class="catalog-grid">'+
     cards(unitKinds.filter(k=>UNITS[k].producers.includes(kind)),'unit')+'</div></section>';
   }).join('');
-  const infantryRoster=roster([['headquarters','FELDKOMMANDO · PIONIERE'],
+  const infantryRoster=roster([['headquarters','KOMMANDOZENTRALE · PIONIERE'],
    ['barracks','KASERNE · INFANTERIE']]);
   const vehicleRoster=roster([['factory','FAHRZEUGFABRIK']]);
   const aircraftRoster=roster([['airfield','FLUGFELD']]);
@@ -1521,7 +1521,7 @@ export class SandforgeBattlefield {
     :g.credits[0]<spec.cost||!g.hasHeadquarters(0)&&kind!=='headquarters'||
       kind==='generator'&&generatorLimitReached||ownedUnique||interceptorLimit;
    const requirement=button.dataset.unit
-    ?(g.needsHeadquarters(0)?'Feldkommando erforderlich':
+    ?(g.needsHeadquarters(0)?'Kommandozentrale erforderlich':
        !validProductionSite?'Benötigt '+UNITS[kind].producers.map(k=>BUILDINGS[k].name).join(' oder '):
        !producer?'Warteschlange voll':
        g.credits[0]<spec.cost?'Zu wenig Credits':
