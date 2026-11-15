@@ -44,7 +44,7 @@ function turretLocalBounds(turret){
  const inverse=turret.matrixWorld.clone().invert();
  const bounds=new THREE.Box3(),part=new THREE.Box3(),transform=new THREE.Matrix4();
  turret.traverse(node=>{
-  if(!node.isMesh||!node.geometry)return;
+  if(!node.isMesh||!node.geometry||node.userData?.teamMarking)return;
   if(!node.geometry.boundingBox)node.geometry.computeBoundingBox();
   if(!node.geometry.boundingBox)return;
   transform.multiplyMatrices(inverse,node.matrixWorld);

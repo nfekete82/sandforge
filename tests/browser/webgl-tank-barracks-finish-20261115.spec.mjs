@@ -10,6 +10,7 @@ test('real tank GLB mounts compact flag on rotating turret and real barracks GLB
   const THREE=await import('three');
   const {attachTeamMarkings,detachTeamMarkings}=await import('/webgl-team-markings.js');
   const {finishBarracksSides,disposeBarracksSides}=await import('/webgl-barracks-shell.js');
+  const {buildingIcon}=await import('/webgl-portraits.js');
   const sf=window.__sandforgeWebGL,bf=sf.battlefield;
   const [tankData,barracksData]=await Promise.all([
    bf.getModel(bf.asset('tank',0,'unit')),
@@ -27,16 +28,17 @@ test('real tank GLB mounts compact flag on rotating turret and real barracks GLB
   const after=flag?.getWorldPosition(new THREE.Vector3()).clone();
   const finish=finishBarracksSides(barracks);
   const sides=[-1,1].map(side=>finish.getObjectByName('BarracksSolidSideWall_'+side));
-  const oldDoor=barracks.getObjectByName('BarracksBlastDoor');
+  let oldDoor=null;barracks.traverse(o=>{if(/BarracksBlastDoor/.test(o.name))oldDoor=o;});
   // An actual WebGL draw, not just checking module source text.
   sf.renderer.render(sf.scene,sf.camera);
+  const wallIcon=await buildingIcon('wall',sf.renderer);
   const out={
    mounted:root?.parent===turret,hasFlag:!!flag&&!!pole,
    flagSize:flag?.scale.x,flagHeight:flag?.scale.y,
    poleHeight:pole?.scale.y,
    followsYaw:!!before&&!!after&&before.distanceTo(after)>.01,
    sides:sides.every(Boolean),panelCount:finish.children.filter(c=>c.name.startsWith('BarracksCamoSidePanel_')).length,
-   hasDoor:!!oldDoor,
+   hasDoor:!!oldDoor,wallIconReady:wallIcon.startsWith('data:image/png;base64,'),
    shaderPrograms:sf.renderer.info.programs?.length??0
   };
   detachTeamMarkings(entry);disposeBarracksSides(barracks);
@@ -52,6 +54,7 @@ test('real tank GLB mounts compact flag on rotating turret and real barracks GLB
  expect(result.sides).toBe(true);
  expect(result.panelCount).toBe(6);
  expect(result.hasDoor).toBe(true);
+ expect(result.wallIconReady).toBe(true);
  expect(result.shaderPrograms).toBeGreaterThan(0);
  expect(errors).toEqual([]);
 });

@@ -8,8 +8,8 @@ test('wall costs exactly 75 credits in gameplay and catalog',()=>{
  assert.equal(BUILDINGS.wall.cost,75);
  assert.ok(readFileSync('scripts/webgl-battlefield.js','utf8')
   .includes("const spec=type==='unit'?UNITS[kind]:BUILDINGS[kind]"));
- assert.match(readFileSync('src/reborn/webgl-classic-hud.css','utf8'),
-  /catalog-card\\[data-build="wall"\\] \\.sf-card-image img/);
+ assert.ok(readFileSync('src/reborn/webgl-classic-hud.css','utf8')
+  .includes('button.catalog-card[data-build="wall"] .sf-card-image img'));
 });
 test('both faction walls have authentic textured desert panels and intact markings',()=>{
  for(const owner of [0,1]){
