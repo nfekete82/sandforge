@@ -1,0 +1,50 @@
+name: Sandforge Defilade-style detailed desert and sparse rocks QA
+on:
+  push:
+    branches: [feat/desert-defilade-detail-and-sparse-rocks-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-detailed-desert-sparse-rocks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  photoreal-desert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - name: Detailed PBR, seamless tiling, sparse stone density, existing game/material regressions
+        run: |
+          node --test \
+            tests/webgl-desert-defilade-rock-density-20261115.test.mjs \
+            tests/webgl-authored-sand-pbr-20261115.test.mjs \
+            tests/webgl-stone-desert-unified-pbr-20261115.test.mjs \
+            tests/webgl-desert-rock-crater-polish-20261110.test.mjs \
+            tests/webgl-desert-villages-palette-20261115.test.mjs \
+            tests/webgl-unified-desert-scenery-style-20261115.test.mjs
+      - run: npm ci --prefix tests/browser --no-audit --no-fund
+      - run: |
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Actual 4-bastion WebGL scene with new detail textures and reduced gravel
+        env:
+          ATLAS_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-defilade-desert-ground-20261115.spec.mjs --config=playwright.config.mjs
+      - name: Keep diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-detailed-desert-qa
+          path: tests/browser/artifacts/
+          retention-days: 7

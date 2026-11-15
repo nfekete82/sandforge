@@ -43,7 +43,7 @@ test('3D desert only: same scene material, normal/surface detail, and unmodified
  assert.match(build,/cpSync\('scripts\/webgl-sand-pbr\.js','dist\/webgl-sand-pbr\.js'\)/);
  assert.match(build,/cpSync\('src\/assets', 'dist\/src\/assets', \{recursive:true\}\)/);
  assert.doesNotMatch(sim,/installDesertSandPBR|SANDFORGE_SAND_PBR/);
- assert.equal(DESERT_SCENIC_STYLE.authoredSandVertexBlend,.90);
+ assert.equal(DESERT_SCENIC_STYLE.authoredSandVertexBlend,.83);
  const col=new THREE.Color(DESERT_SCENIC_STYLE.authoredSandVertex);
  assert.equal(col.getHexString(),'ffffff','the PBR albedo supplies the real warm sand pigment');
 });

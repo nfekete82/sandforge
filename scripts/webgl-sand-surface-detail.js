@@ -1,0 +1,138 @@
+import * as THREE from 'three';
+
+/**
+ * Sandforge's second-generation desert material: three coordinated *real*
+ * tiling color textures, blended IN the existing MeshStandardMaterial's PBR
+ * shader.  No flat decal, second ground mesh, image-lit highlight, shader
+ * noise loop or extra draw call.  The authored dune photograph stays the main
+ * albedo; these two fine details fill otherwise featureless open terrain.
+ *
+ * All noise is baked ONCE on startup as RGBA DataTextures (256px), not in
+ * the per-frame render loop. Texture coordinates derive from continuous local
+ * world geometry, so there are no seams across the 16 ground chunks and no
+ * moving pattern on model/building previews.
+ */
+export const DESERT_SURFACE_DETAIL=Object.freeze({
+ revision:'wind-sand-silt-grit-v2-20261115',
+ size:256,
+ windTileMetres:900,
+ siltTileMetres:360,
+ gritTileMetres:82,
+ coverageTileMetres:1850,
+ coverageStrength:.43,
+ gritStrength:.13
+});
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const mix=(a,b,t)=>a+(b-a)*t;
+const ease=t=>t*t*(3-2*t);
+const hash=(x,y,seed)=>{
+ let h=(Math.imul(x|0,374761393)+Math.imul(y|0,668265263)+seed)|0;
+ h=Math.imul(h^(h>>>13),1274126177);
+ return ((h^(h>>>16))>>>0)/4294967296;
+};
+// Signed, periodic and seamlessly repeating VALUE noise.
+function tiledNoise(u,v,f,seed){
+ const X=u*f,Y=v*f,ix=Math.floor(X),iy=Math.floor(Y);
+ const fx=ease(X-ix),fy=ease(Y-iy);
+ const x=((ix%f)+f)%f,y=((iy%f)+f)%f,x1=(x+1)%f,y1=(y+1)%f;
+ return mix(
+  mix(hash(x,y,seed),hash(x1,y,seed),fx),
+  mix(hash(x,y1,seed),hash(x1,y1,seed),fx),fy);
+}
+const rgba=(data,index,r,g,b)=>{
+ data[index]=Math.round(clamp(r,0,255));
+ data[index+1]=Math.round(clamp(g,0,255));
+ data[index+2]=Math.round(clamp(b,0,255));
+ data[index+3]=255;
+};
+function makeTexture(data,size,renderer,{srgb=true,name=''}={}){
+ const tex=new THREE.DataTexture(data,size,size,THREE.RGBAFormat);
+ tex.name=name;tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+ tex.minFilter=THREE.LinearMipmapLinearFilter;
+ tex.magFilter=THREE.LinearFilter;
+ tex.generateMipmaps=true;
+ tex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+ if(srgb)tex.colorSpace=THREE.SRGBColorSpace;
+ tex.needsUpdate=true;
+ return tex;
+}
+export function createDesertSurfaceDetail(renderer){
+ const size=DESERT_SURFACE_DETAIL.size,count=size*size;
+ const grit=new Uint8Array(count*4);
+ const silt=new Uint8Array(count*4);
+ const mask=new Uint8Array(count*4);
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const u=x/size,v=y/size,index=(y*size+x)*4;
+  // Repeatable surface patterns: dusty compacted silt, wind-carved ripples,
+  // mineral particles and tiny pits. No white spots and no sharp color jumps.
+  const broad=tiledNoise(u,v,3,0x7a11b5);
+  const medium=tiledNoise(u,v,11,0x12881c);
+  const fine=tiledNoise(u,v,42,0x4cab90);
+  const tiny=tiledNoise(u,v,92,0x55aa91);
+  const wavy=Math.sin(2*Math.PI*(18*u+3*v)+.35*Math.sin(2*Math.PI*(2*u-1*v)));
+  const ripples=.5+.5*wavy;
+  const dust=.56*broad+.29*medium+.15*fine;
+  // Silt is a mildly more compact and striated sand; no dark crust islands.
+  const s=clamp((dust-.5)*1.55+.19*(ripples-.5),-.30,.30);
+  rgba(silt,index,
+   207+16*s+9*(tiny-.5),
+   184+15*s+7*(tiny-.5),
+   153+12*s+5*(tiny-.5));
+  // Subtle dense grain with very small occluded quartz/mineral specks.
+  const fleck=tiny>.83?-.055:tiny<.16?-.045:0;
+  const g=(fine-.5)*.22+(medium-.5)*.1+fleck;
+  rgba(grit,index,
+   206+80*g,182+70*g,149+63*g);
+  // World-size sediment pockets appear through a low-frequency,
+  // seamless coverage mask rather than painted white cloud overlays.
+  const patch=.61*tiledNoise(u,v,4,0x8ac361)+
+   .27*tiledNoise(u,v,9,0x207bec)+.12*tiledNoise(u,v,21,0x4923dc);
+  const m=clamp(.5+1.18*(patch-.49));
+  rgba(mask,index,m*255,m*255,m*255);
+ }
+ return Object.freeze({
+  silt:makeTexture(silt,size,renderer,{name:'SandforgeSiltPBRColor'}),
+  grit:makeTexture(grit,size,renderer,{name:'SandforgeFineMineralGrain'}),
+  mask:makeTexture(mask,size,renderer,{srgb:false,name:'SandforgeSedimentCoverage'})
+ });
+}
+
+export function installDesertSurfaceDetail(material,renderer){
+ if(material.userData?.sandforgeSurfaceDetail)return material.userData.sandforgeSurfaceDetail;
+ const maps=createDesertSurfaceDetail(renderer);
+ const revision=DESERT_SURFACE_DETAIL.revision;
+ const previous=material.onBeforeCompile;
+ material.onBeforeCompile=function(shader,r){
+  previous.call(this,shader,r);
+  shader.uniforms.sfDesertSilt={value:maps.silt};
+  shader.uniforms.sfDesertGrain={value:maps.grit};
+  shader.uniforms.sfDesertMask={value:maps.mask};
+  const varying='varying vec2 sfDesertGround;';
+  shader.vertexShader=shader.vertexShader.replace('#include <common>',
+   '#include <common>\n'+varying);
+  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',
+   '#include <begin_vertex>\nsfDesertGround=position.xz;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>',
+   '#include <common>\n'+varying+'\nuniform sampler2D sfDesertSilt;\nuniform sampler2D sfDesertGrain;\nuniform sampler2D sfDesertMask;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',[
+   '#include <map_fragment>',
+   '// Single surface, three physical colour textures; no second mesh.',
+   'float sfBed=texture2D(sfDesertMask,sfDesertGround/'+DESERT_SURFACE_DETAIL.coverageTileMetres.toFixed(1)+').r;',
+   'float sfBedMask=smoothstep(.44,.76,sfBed);',
+   'vec3 sfSediment=texture2D(sfDesertSilt,sfDesertGround/'+DESERT_SURFACE_DETAIL.siltTileMetres.toFixed(1)+').rgb;',
+   'vec3 sfMineral=texture2D(sfDesertGrain,sfDesertGround/'+DESERT_SURFACE_DETAIL.gritTileMetres.toFixed(1)+').rgb;',
+   'diffuseColor.rgb=mix(diffuseColor.rgb,sfSediment,sfBedMask*'+DESERT_SURFACE_DETAIL.coverageStrength.toFixed(2)+');',
+   'diffuseColor.rgb=mix(diffuseColor.rgb,sfMineral,'+DESERT_SURFACE_DETAIL.gritStrength.toFixed(2)+'*(.45+.45*sfBedMask));'
+  ].join('\n'));
+  // Silt dries a touch differently, while the regular sand normal and
+  // roughness maps stay in charge of real light/shadow response.
+  shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',
+   '#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.93,sfBedMask*.08);');
+ };
+ material.customProgramCacheKey=()=>revision;
+ material.userData={...material.userData,
+  sandforgeSurfaceDetail:maps,
+  sandforgeSurfaceDetailRevision:revision};
+ material.needsUpdate=true;
+ return maps;
+}

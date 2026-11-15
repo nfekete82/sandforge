@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {installDesertSurfaceDetail,DESERT_SURFACE_DETAIL} from './webgl-sand-surface-detail.js';
 
 /** Original authored, seamless golden wind-ripple sand image.
  * The source albedo is generated from Sandforge's new reference artwork.
@@ -9,7 +10,8 @@ import * as THREE from 'three';
  * gets PBR. Runtime terrain fallback remains playable if the asset fails.
  */
 export const SANDFORGE_SAND_PBR={
- revision:'authored-wind-sand-v1-20261115',
+ revision:'authored-wind-sand-silt-grit-v2-20261115',
+ surfaceDetailRevision:DESERT_SURFACE_DETAIL.revision,
  albedo:'/src/assets/reborn/terrain/sand-wind-albedo-v1.webp',
  sourceSize:512,
  generatedMapsSize:1024,
@@ -97,10 +99,13 @@ export async function installDesertSandPBR(material,renderer,{url=SANDFORGE_SAND
  material.map=albedo;
  material.color.set('#ffffff'); // Real albedo owns the pigment, no double tint.
  material.normalMap=maps.normal;
- material.normalScale.set(.60,.60);
+ material.normalScale.set(.72,.72);
  material.roughnessMap=maps.roughness;
  material.roughness=1;
  material.metalness=0;
+ // Blend two additional tiled surface maps *inside* the existing physical
+ // material; do not layer decals or additional ground geometry.
+ installDesertSurfaceDetail(material,renderer);
  material.needsUpdate=true;
  material.userData={...material.userData,
   sandforgeSandPBR:SANDFORGE_SAND_PBR.revision,
