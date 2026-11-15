@@ -265,7 +265,7 @@ function buildTerrain(){
  // Pale sun-bleached ochre and beige rather than orange desert clay.
  const sandGold=new THREE.Color('#d9bb92'),sandLight=new THREE.Color('#ebd4b1'),
   sandstone=new THREE.Color('#ad9679'),riverSediment=new THREE.Color('#bda78a');
- // Lift ONLY the desert terrain vertices toward pale sand by 10%.
+ // Blend only desert terrain toward the reference's pale sand-gold (20%).
  // Never change building models, rocks, village roads, or scene exposure.
  const subtleSandLift=new THREE.Color('#f5e7d1');
  const vertexColor=new THREE.Color();
@@ -304,9 +304,9 @@ function buildTerrain(){
     const earth=terrainGradingEdge(x,z,terrain.sites,gradingHomes,2);
     vertexColor.lerp(sandstone,earth*.16);
    }
-   // One small lift on actual sand only. Building GLBs and everything else
+   // Warm pale dune sand only. Building GLBs and everything else
    // have their own materials and therefore retain exactly their old look.
-   if(biome==='desert')vertexColor.lerp(subtleSandLift,.10);
+   if(biome==='desert')vertexColor.lerp(subtleSandLift,.20);
    colors[n]=vertexColor.r;colors[n+1]=vertexColor.g;colors[n+2]=vertexColor.b;
    uv[k*2]=x/(spacious?2200:1500);uv[k*2+1]=z/(spacious?2200:1500);
    // Sample normals from the continuous field, not triangle tessellation:
