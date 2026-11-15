@@ -37,11 +37,11 @@ const flashTex=muzzleTexture();
 const ownerColor=owner=>owner===0?'#68ddf5':'#ff8a69';
 const pulseSize=kind=>infantry.has(kind)?21:air.has(kind)?36:kind==='tank'?40:35;
 const barWidth=(kind,type)=>type==='building'
- ?kind==='headquarters'?52:Math.max(42,Math.min(68,(BUILDINGS[kind]?.width??115)*.30)):
+ ?Math.max(42,Math.min(68,(BUILDINGS[kind]?.width??115)*.30)):
  infantry.has(kind)?26:air.has(kind)?44:36;
 const barAltitude=(kind,type)=>type==='building'
  ?Math.max(65,Math.min(144,(BUILDINGS[kind]?.width??130)*.55)):
- kind==='engineer'?40:infantry.has(kind)?62:air.has(kind)?49:56;
+ infantry.has(kind)?62:air.has(kind)?49:56;
 
 function statusBar(scene,entity,type){
  const width=barWidth(entity.kind,type);
@@ -137,15 +137,9 @@ export class SandforgeActorPresentation {
    const detail=entry.detail??entry.placeholder;
    if(detail){
     const wasFallback=detail===entry.placeholder;
-    const authoredDeath=(detail.userData?.sandforgeStylized||detail.userData?.sandforgeLowpolySoldier)&&entry.animation?.death;
-    let deathMixer=null;
     if(entry.animation?.mixer){
      entry.animation.mixer.stopAllAction();
-     if(authoredDeath){
-      deathMixer=entry.animation.mixer;
-      const action=deathMixer.clipAction(authoredDeath);
-      action.reset().setLoop(THREE.LoopOnce,1);action.clampWhenFinished=true;action.play();
-     }else if(entry.detail)entry.animation.mixer.uncacheRoot(entry.detail);
+     if(entry.detail)entry.animation.mixer.uncacheRoot(entry.detail);
      entry.animation=null;
     }
     entry.node.remove(detail);
@@ -156,19 +150,16 @@ export class SandforgeActorPresentation {
     fallen.userData={deathEffect:true,nonPlayable:true,corpse:true};
     fallen.position.copy(entry.node.position);
     fallen.rotation.y=entry.node.rotation.y;
-    if(authoredDeath){pose.position.y=0;pose.rotation.x=0;pose.rotation.z=0;}
-    else{
-     pose.position.y=3;
-     pose.rotation.x=Math.PI/2;
-     pose.rotation.z=(entity.id%2?1:-1)*.13;
-    }
+    pose.position.y=3;
+    pose.rotation.x=Math.PI/2;
+    pose.rotation.z=(entity.id%2?1:-1)*.13;
     pose.add(detail);fallen.add(pose);
     detail.traverse(mesh=>{
      if(mesh.isMesh)mesh.raycast=()=>{};
     });
     this.scene.add(fallen);
     this.remnants.push({
-     mesh:fallen,model:detail,wasFallback,deathMixer,
+     mesh:fallen,model:detail,wasFallback,
      time:this.remnantSeconds,total:this.remnantSeconds
     });
     while(this.remnants.length>this.maxRemnants)
@@ -189,7 +180,6 @@ export class SandforgeActorPresentation {
  }
  removeRemnant(r){
   if(!r)return;
-  if(r.deathMixer){r.deathMixer.stopAllAction();r.deathMixer.uncacheRoot(r.model);}
   this.scene.remove(r.mesh);
   if(!r.wasFallback)disposeRocketLauncher(r.model);
   const geometries=new Set(),materials=new Set();
@@ -209,7 +199,6 @@ export class SandforgeActorPresentation {
   if(!active)return;
   this.remnants=this.remnants.filter(r=>{
    r.time-=dt;
-   r.deathMixer?.update(Math.min(.08,dt));
    if(r.time>0){
     // After 4.5 seconds sink gently into the sand, not a sudden pop.
     if(r.time<1.5)r.mesh.position.y-=dt*3.4;
@@ -276,7 +265,7 @@ export class SandforgeActorPresentation {
   if(bar.root.visible)this.stats.visibleBars++;
   if(visible){
    bar.root.position.copy(entry.node.position);
-   bar.root.position.y+=entry.modelHeight?Math.max(bar.altitude,entry.modelHeight+(type==='building'&&entity.kind==='headquarters'?24:5)):bar.altitude;
+   bar.root.position.y+=entry.modelHeight?Math.max(bar.altitude,entry.modelHeight+5):bar.altitude;
    bar.root.quaternion.copy(this.camera.quaternion);
    bar.fill.scale.x=bar.width*pct;
    bar.fill.position.x=-(bar.width*(1-pct))/2;
@@ -335,16 +324,9 @@ export class SandforgeActorPresentation {
   if(entry.animation){
    const clips=entry.animation;
    const hurt=(state.hurtTime??0)>0;
-   const working=entity.kind==='engineer'&&!moving&&entity.workingTarget!=null;
-   const building=working&&entity.orders?.[0]?.kind==='build';
-   const sprint=entry.detail?.userData?.sandforgeLowpolySoldier&&
-     (entity.orders?.[0]?.kind==='attack'||entity.orders?.[0]?.kind==='attack-move');
    const desired=hurt&&clips.hit?clips.hit:
     shooting&&clips.attack?clips.attack:
-    moving?(entry.detail?.userData?.sandforgeLowpolySoldier?
-      (sprint?clips.run??clips.walk:clips.walk):
-      entry.detail?.userData?.sandforgeStylized&&infantry.has(entity.kind)?clips.run:clips.walk):
-    working?(building?clips.build??clips.repair:clips.repair??clips.build)??clips.idle:clips.idle;
+    moving?clips.walk:clips.idle;
    const retrigger=shooting&&state.shotTrigger!==(state.lastClipTrigger??-1);
    if(desired&&typeof entry.playAnimation==='function')
     entry.playAnimation(desired,retrigger);
@@ -352,8 +334,6 @@ export class SandforgeActorPresentation {
    if(visible&&active&&dt>0){
     const action=desired?clips.mixer.existingAction(desired):null;
     if(action)action.setEffectiveTimeScale(
-     entry.detail?.userData?.sandforgeStylized&&entity.kind==='rover'&&moving
-      ?clamp((entity.driveSpeed??UNITS.rover.speed)/(Math.PI*2*.48*18),.1,8):
      ['rover','tank','artillery'].includes(entity.kind)&&!moving&&desired===clips.idle
       ?0:entry.productionMotion&&moving
        ?clamp((entity.driveSpeed??80)/80,.15,3):1);
@@ -362,12 +342,6 @@ export class SandforgeActorPresentation {
   }
   const body=entry.detail??entry.placeholder;
   if(!body)return;
-  // Authored muzzle follows the skin's weapon bone or vehicle gun pivot.
-  // Convert to actor space so orientation and scale are applied exactly once.
-  if((body.userData?.sandforgeStylized||body.userData?.sandforgeLowpolySoldier)&&state.flash){
-   const muzzle=body.getObjectByName('WeaponMuzzle');
-   if(muzzle){body.updateWorldMatrix(true,true);muzzle.getWorldPosition(state.flash.position);entry.node.worldToLocal(state.flash.position);}
-  }
   const base=entry.visualBaseY??body.position.y;
   if(!Number.isFinite(entry.visualBaseY))entry.visualBaseY=base;
   if(!Number.isFinite(entry.visualBaseZ))entry.visualBaseZ=body.position.z;
@@ -384,7 +358,7 @@ export class SandforgeActorPresentation {
   const recoil=shooting?Math.sin((1-clamp(state.shotPulse/.23,0,1))*Math.PI)*2.4:0;
   const stagger=state.hurtTime>0?Math.sin((1-state.hurtTime/.25)*Math.PI)*1.7:0;
   body.position.y=base+bob;
-  if(!air.has(entity.kind))body.position.z=entry.visualBaseZ+(body.userData?.sandforgeStylized?0:recoil-stagger);
+  if(!air.has(entity.kind))body.position.z=entry.visualBaseZ+recoil-stagger;
  }
  refreshStats(){
   this.stats.visibleBars=0;this.stats.walking=0;this.stats.shooting=0;

@@ -10,28 +10,22 @@ import * as THREE from 'three';
  * mesh spanning the entire barracks facade to build from bottom to top, rather
  * than suddenly pop into existence at 75% like the ordinary mesh-name stages.
  */
-export const AUTHORED_ASSEMBLY_KINDS=Object.freeze(['headquarters','barracks','factory','airfield','research','silo','generator','turret','interceptor','wall']);
+export const AUTHORED_ASSEMBLY_KINDS=Object.freeze(['headquarters','barracks']);
 
-export function prepareAuthoredAssembly(root,{referenceHeight=0}={}){
+export function prepareAuthoredAssembly(root){
  if(!root)return null;
  root.updateWorldMatrix(true,true);
  const inverse=new THREE.Matrix4().copy(root.matrixWorld).invert();
  const meshes=[];let globalMin=Infinity,globalMax=-Infinity;
  const tmp=new THREE.Vector3(),relative=new THREE.Matrix4();
  root.traverse(mesh=>{
-  // Instanced fence posts/wires have an independent per-instance height.
-  // They are staged as complete late-build perimeter sections instead.
-  if(!mesh.isMesh||mesh.isInstancedMesh||
-     !mesh.geometry?.getAttribute('position'))return;
+  if(!mesh.isMesh||!mesh.geometry?.getAttribute('position'))return;
   const source=mesh.geometry,position=source.getAttribute('position');
   const count=source.index?.count??position.count;
   if(count<3||count%3)return;
-  // BoxGeometry and many other single-material meshes have six+ draw
-  // groups (one for each face). Those groups are NOT multiple materials:
-  // excluding them silently skipped HQ3 doors, side consoles and crates.
-  // Sorting and collapsing groups is safe when the mesh has one material.
-  // True multi-material meshes retain the normal name-based fallback.
-  if(Array.isArray(mesh.material))return;
+  // The uploaded GLBs export one PBR material per mesh. Unexpected grouped
+  // multi-material meshes keep the existing name-based construction fallback.
+  if(Array.isArray(mesh.material)||source.groups.length>1)return;
   relative.multiplyMatrices(inverse,mesh.matrixWorld);
   const heights=new Float32Array(position.count);
   for(let i=0;i<position.count;i++){
@@ -60,11 +54,6 @@ export function prepareAuthoredAssembly(root,{referenceHeight=0}={}){
   relative.identity();
  });
  if(!meshes.length)return null;
- // Site furnishings (side console, crates, lights) use yard-scale units,
- // while the HQ3 GLB is normalized separately. Supply the completed HQ
- // height so all regular geometry follows the same world-height reveal.
- if(Number.isFinite(referenceHeight)&&referenceHeight>0)
-  globalMax=Math.max(globalMax,referenceHeight);
  return {root,meshes,minY:globalMin,maxY:globalMax};
 }
 export function updateAuthoredAssembly(assembly,progress){

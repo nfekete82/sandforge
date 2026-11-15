@@ -40,16 +40,15 @@ test('building height staging reveals merged GLB triangle groups bottom-up',()=>
  assert.deepEqual(Array.from(original.index.array),source,'cached source remains unchanged');
  mesh.material.dispose();original.dispose();
 });
-test('HQ3 is staged in place while Kaserne uses its closed variant or the new single authored model',()=>{
+test('closed HQ and Kaserne models are staged during construction; restored afterward',()=>{
  const code=readFileSync('scripts/webgl-construction.js','utf8');
  const battle=readFileSync('scripts/webgl-battlefield.js','utf8');
- assert.ok(code.includes('Boolean(entry.detail??entry.placeholder)'));
- assert.ok(code.includes("base.kind==='barracks'?(entry.variantDetail??entry.detail):entry.detail"));
+ assert.ok(code.includes('entry.detail&&entry.variantDetail'));
+ assert.ok(code.includes('authored?entry.variantDetail:null'));
  assert.ok(code.includes("if(!authored)stageGroup(model,'building')"));
  assert.ok(code.includes('releaseAuthoredAssembly(state.authoredAssembly)'));
  assert.ok(code.includes('entry.detail,entry.variantDetail,entry.placeholder'));
- assert.ok(battle.includes("task.entry.kind!=='headquarters'"));
- assert.ok(battle.includes("task.entry.kind==='barracks'?'inactive':'active'"));
+ assert.ok(battle.includes("['barracks','headquarters'].includes(task.entry.kind)?'inactive':'active'"));
  const build=readFileSync('scripts/build.mjs','utf8');
  assert.ok(build.includes("cpSync('scripts/webgl-construction-assembly.js'"));
 });

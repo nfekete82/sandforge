@@ -1,22 +1,5 @@
 import {test,expect} from '@playwright/test';
 
-test('Hauptmenü: secondary icons and labels align vertically, Spielen is independent',async({page})=>{
- await page.setViewportSize({width:1440,height:900});
- await page.goto('/webgl-preview.html',{waitUntil:'domcontentloaded'});
- await expect(page.locator('#main-dialog')).toBeVisible();
- const positions=await page.evaluate(()=>{
-  const ids=['sf3d-main-options','sf3d-main-stats','sf3d-main-credits','sf3d-main-exit'];
-  const iconX=id=>document.querySelector('#'+id+' > svg').getBoundingClientRect().left;
-  const textX=id=>document.querySelector('#'+id+' > span').getBoundingClientRect().left;
-  return {icons:ids.map(iconX),labels:ids.map(textX),
-   playIcon:iconX('sf3d-new'),playLabel:textX('sf3d-new')};
- });
- expect(Math.max(...positions.icons)-Math.min(...positions.icons)).toBeLessThan(1);
- expect(Math.max(...positions.labels)-Math.min(...positions.labels)).toBeLessThan(1);
- expect(Math.abs(positions.playIcon-positions.icons[0])).toBeGreaterThan(20);
- expect(Math.abs(positions.playLabel-positions.labels[0])).toBeGreaterThan(20);
-});
-
 test('3D starts with the original Sandforge title and enters a real playable campaign',async({page})=>{
  test.setTimeout(130000);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -25,8 +8,6 @@ test('3D starts with the original Sandforge title and enters a real playable cam
  await expect(page.locator('#main-dialog')).toBeVisible();
  await expect(page.locator('html')).toHaveClass(/sandforge-clean-title/);
  await expect(page.locator('#main-dialog .sandforge-splash-logo')).toBeVisible();
- const background=await page.request.get(new URL('/src/assets/reborn/sandforge-start-background.png',page.url()).href);
- if(background.ok())await page.waitForFunction(()=>document.documentElement.classList.contains('sf-bastion-bg-ready'));
  await expect(page.locator('#sf3d-new')).toBeVisible();
  await expect(page.locator('#sf3d-main-options')).toBeVisible();
  expect(await page.evaluate(()=>!!window.__sandforgeWebGL)).toBe(false);
@@ -56,21 +37,12 @@ test('3D starts with the original Sandforge title and enters a real playable cam
  expect(state.hasWebGL).toBe(true);
  expect(state.canvas).toBeGreaterThan(400);
  expect(state.hasHud).toBe(true);
- const hudLogoAsset=await page.request.get(new URL('/src/assets/reborn/sandforge-bastion-logo.webp',page.url()).href);
- if(hudLogoAsset.ok()){
-  await expect(page.locator('#sf-classic-root .sandforge-hud-logo')).toHaveAttribute('src',/sandforge-bastion-logo\.webp/);
- }
- // The modern tactical HUD intentionally hides the legacy toolbar by default.
- await page.locator('#sf-hud-menu-toggle').click();
- await expect(page.locator('#sf-tools')).toBeVisible();
- await page.locator('#sf-tools [data-action="menu"]').click();
+ await page.locator('[data-action="menu"]').click();
  await expect(page.locator('#sf3d-pause-dialog')).toBeVisible();
  await page.locator('#sf3d-pause-save').click();
  expect(await page.evaluate(()=>Boolean(localStorage.getItem('sandforge:webgl:v1')))).toBe(true);
  await page.locator('#sf3d-pause-main').click();
  await expect(page.locator('#main-dialog')).toBeVisible();
- await expect(page.locator('#main-dialog .sf3d-hero-button')).toHaveCount(5);
- await page.locator('#sf3d-new').click();
  await expect(page.locator('#sf3d-continue')).toBeVisible();
  await page.locator('#sf3d-continue').click();
  await expect(page).toHaveURL(/resume=1/);

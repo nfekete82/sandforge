@@ -5,10 +5,8 @@ import {createStrategicBuilding,isStrategicBuilding} from './webgl-strategic-bui
 import {createRocketInfantry,attachRocketLauncherToInfantry} from './webgl-rocket-infantry.js';
 import {createResearchArtwork,RESEARCH_ARTWORK_KINDS} from './webgl-research-artworks.js';
 import {tintFactionMaterials} from './webgl-faction-accents.js';
-import {isStrategicGlbKind,strategicGlbUrl,HQ3_FALLBACK_URL,applyStrategicGlbFinish} from './webgl-strategic-glb.js';
+import {isStrategicGlbKind,strategicGlbUrl,applyStrategicGlbFinish} from './webgl-strategic-glb.js';
 import {strategicBuildingHeightScale} from './webgl-scale.js';
-import {stylizedAsset} from './webgl-stylized-pack.js';
-import {meshyAsset,meshyModelYaw} from './webgl-meshy-assets.js';
 
 /** Sprite-sheet portrait extraction shared by the WebGL HUD.
  * The classic game crops one idle frame rather than scaling down the entire
@@ -183,32 +181,13 @@ function renderModelPortrait(model,renderer,{width=320,height=220,research=false
   for(const material of materials)material.dispose();
  }
 }
-async function renderStylizedPortrait(kind,renderer,{width=320,height=220,infantryCard=false}={}){
- const url=meshyAsset(kind,0)??stylizedAsset(kind,0);
- if(!url)throw Error('Unknown authored portrait '+kind);
- const data=await new GLTFLoader().loadAsync(url);
- const model=cloneSkeleton(data.scene);
- if(meshyAsset(kind,0))model.rotation.y+=meshyModelYaw(kind);
- // Isolated clones: the portrait compositor disposes its temporary GPU
- // resources and must never invalidate the live game's shared GLB cache.
- model.traverse(node=>{
-  if(!node.isMesh)return;
-  node.geometry=node.geometry.clone();
-  node.material=Array.isArray(node.material)?
-   node.material.map(m=>m.clone()):node.material.clone();
- });
- return renderModelPortrait(model,renderer,{width,height,infantryCard});
-}
 async function renderStrategicPortrait(kind,renderer){
  if(isStrategicGlbKind(kind)){
   // The build-menu thumbnail should show the exact SAME original 3D model
   // as the placed building, not the obsolete procedural research/silo art.
   try{
    const url=strategicGlbUrl(kind,'active')??strategicGlbUrl(kind,'inactive');
-   const data=await new GLTFLoader().loadAsync(url).catch(error=>{
-    if(kind==='headquarters')return new GLTFLoader().loadAsync(HQ3_FALLBACK_URL);
-    throw error;
-   });
+   const data=await new GLTFLoader().loadAsync(url);
    const model=cloneSkeleton(data.scene);
    // Portrait render disposes temporary GPU resources; never release the
    // loader's cached GLB geometries or shared materials.
@@ -335,12 +314,6 @@ function rocketUnitIconFallback(){
  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
 }
 export function unitIcon(kind,renderer){
- if(renderer&&(meshyAsset(kind,0)||stylizedAsset(kind,0))){
-  if(!iconCache.has(kind))iconCache.set(kind,
-   renderStylizedPortrait(kind,renderer,{width:192,height:132,infantryCard:true})
-    .catch(error=>{console.warn('Low-poly unit portrait fallback',kind,error);return rasterizeUnitIcon(kind);}));
-  return iconCache.get(kind);
- }
  if(kind==='rocket'&&!renderer)return Promise.resolve(rocketUnitIconFallback());
  if(kind==='rocket'&&!iconCache.has(kind)){
   iconCache.set(kind,new Promise((resolve,reject)=>{
@@ -379,18 +352,6 @@ export function unitIcon(kind,renderer){
 // into a consistent wide tile without clipping its silhouette.
 const buildingIconCache=new Map();
 async function rasterizeBuildingIcon(kind,renderer){
- // Match the actual placed low-poly Feldkommando instead of displaying the
- // older stylized headquarters on the construction tile. Meshy remains
- // explicitly opt-in; the stylized HQ is available via ?hq=stylized.
- if(kind==='headquarters'){
-  if(!renderer)return buildingIconUrl(kind);
-  try{return await renderStrategicPortrait(kind,renderer);}
-  catch(error){console.warn('Feldkommando thumbnail fallback',error);}
- }
- if(renderer&&(meshyAsset(kind,0)||stylizedAsset(kind,0))){
-  try{return await renderStylizedPortrait(kind,renderer);}
-  catch(error){console.warn('Low-poly building portrait fallback',kind,error);}
- }
  if(isStrategicBuilding(kind)||isStrategicGlbKind(kind)){
   if(!renderer)return buildingIconUrl(kind);
   try{return await renderStrategicPortrait(kind,renderer);}

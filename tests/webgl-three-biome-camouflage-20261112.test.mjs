@@ -2,9 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {readFileSync} from 'node:fs';
-import {CAMOUFLAGE_PALETTES,SOLDIER_HQ3_DESERT_PALETTE,
- HQ3_MATCHED_DESERT_PALETTE,
- setWorldCamouflageBiome,worldCamouflageBiome,
+import {CAMOUFLAGE_PALETTES,setWorldCamouflageBiome,worldCamouflageBiome,
  tintFactionMaterials,shouldTintFactionSurface} from '../scripts/webgl-faction-accents.js';
 test('snow/desert/jungle use three distinct camouflage palettes on structures and units',()=>{
  for(const biome of ['snow','desert','jungle']){
@@ -21,11 +19,8 @@ test('snow/desert/jungle use three distinct camouflage palettes on structures an
     fragmentShader:'#include <common>\n#include <color_fragment>'};
    finish.onBeforeCompile(shader,null);
    assert.ok(shader.fragmentShader.includes('sfPaint='));
-   const expected=biome==='desert'?
-    (type==='unit'?SOLDIER_HQ3_DESERT_PALETTE.rgb:
-     HQ3_MATCHED_DESERT_PALETTE.wall):CAMOUFLAGE_PALETTES[biome].rgb;
-   assert.ok(shader.fragmentShader.includes(expected[0]));
-   assert.ok(shader.fragmentShader.includes(expected[2]));
+   assert.ok(shader.fragmentShader.includes(CAMOUFLAGE_PALETTES[biome].rgb[0]));
+   assert.ok(shader.fragmentShader.includes(CAMOUFLAGE_PALETTES[biome].rgb[2]));
    assert.ok(shader.vertexShader.includes('sfDesertWorld'));
    obj.geometry.dispose();obj.material.dispose();m.dispose();
   }
