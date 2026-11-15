@@ -84,7 +84,14 @@ export function finishBarracksDesertPalette(model){
    if(paletteSkip.test(role)||!palettePaint.test(role))return source;
    if(source.userData?.sandforgeBarracksPalette===BARRACKS_PALETTE_REVISION)return source;
    if(owned.has(source))return owned.get(source);
-   const material=source.clone();
+   // Preserve the live ghost material reference: validity updates keep
+   // tinting this exact object red/green as the placement cursor moves.
+   // GLB template materials are unowned and still require their own clone.
+   const instanceOwned=source.userData?.sandforgePreviewMaterial||
+    source.userData?.sandforgeFactionTint||
+    source.userData?.sandforgeBarracksSideMaterial||
+    source.userData?.sandforgeBuildingFill;
+   const material=instanceOwned?source:source.clone();
    const steel=/atlasupgrade_barracks_steel|armoured|armour/.test(role);
    const coverage=steel?.68:.94;
    // Prevent the old warm emissive texture from tinting the neutral paint.
