@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {disposeRocketLauncher} from '/webgl-rocket-infantry.js';
+import {updateEngineerWrench} from '/webgl-engineer-wrench.js';
 import {UNITS,BUILDINGS} from '/src/reborn/catalog.js';
 import {healthFraction,healthColor} from '/webgl-health.js';
 import {turretMuzzleOffset} from '/webgl-scale.js';
@@ -70,7 +71,7 @@ function flashSprite(entry,entity,type){
  if(type==='building'&&entity.kind==='turret')return null;
  // Rocket artillery flashes belong to the individual launch tubes. The
  // former generic sprite looked like an MG and hovered above the truck.
- if(type==='unit'&&entity.kind==='artillery')return null;
+ if(type==='unit'&&(entity.kind==='artillery'||entity.kind==='engineer'))return null;
  const mat=new THREE.SpriteMaterial({map:flashTex,color:'#fff3bd',
   blending:THREE.AdditiveBlending,transparent:true,depthWrite:false,depthTest:true,
   opacity:0,toneMapped:false});
@@ -318,7 +319,7 @@ export class SandforgeActorPresentation {
   // Built-in glTF clips are preferred. The procedural pose is used only if
   // clips are absent/incomplete (or during asynchronous model loading).
   const moving=entity.moving===true;
-  const shooting=state.shotPulse>0||entity.fire>0;
+  const shooting=entity.kind!=='engineer'&&(state.shotPulse>0||entity.fire>0);
   if(moving&&visible)this.stats.walking++;
   if(shooting&&visible)this.stats.shooting++;
   if(entry.animation){
@@ -342,6 +343,8 @@ export class SandforgeActorPresentation {
   }
   const body=entry.detail??entry.placeholder;
   if(!body)return;
+  if(entity.kind==='engineer')
+   updateEngineerWrench(entry.toolNode,entity.workingTarget!=null&&entity.moving!==true,this.game.time);
   const base=entry.visualBaseY??body.position.y;
   if(!Number.isFinite(entry.visualBaseY))entry.visualBaseY=base;
   if(!Number.isFinite(entry.visualBaseZ))entry.visualBaseZ=body.position.z;
