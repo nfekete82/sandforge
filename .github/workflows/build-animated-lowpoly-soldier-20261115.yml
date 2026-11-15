@@ -18,7 +18,7 @@ jobs:
       - name: Install Blender for skeletal rig + GLB animation
         run: |
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y blender
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y blender python3-numpy
           blender -b --version | head -n 2
       - name: Rig imported low-poly character; export six skeletal actions
         run: |
