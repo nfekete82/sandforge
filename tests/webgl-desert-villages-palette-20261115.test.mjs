@@ -102,8 +102,8 @@ test('sun-bleached desert is only slightly lighter, existing gameplay buildings 
  assert.match(preview,/sandGold=new THREE\.Color\('#d9bb92'\)/);
  assert.match(preview,/sandLight=new THREE\.Color\('#ebd4b1'\)/);
  assert.match(preview,/riverSediment=new THREE\.Color\('#bda78a'\)/);
- assert.match(preview,/const subtleSandLift=new THREE\.Color\('#f5e7d1'\)/);
- assert.match(preview,/if\(biome==='desert'\)vertexColor\.lerp\(subtleSandLift,\.20\)/);
+ assert.match(preview,/const subtleSandLift=new THREE\.Color\('#ead2a6'\)/);
+ assert.match(preview,/if\(biome==='desert'\)vertexColor\.lerp\(subtleSandLift,\.12\)/);
  assert.match(preview,/if\(spacious&&biome==='desert'&&normalMap\)normalMap\.repeat\.set\(6\.5,6\.5\)/);
  assert.ok(preview.includes("renderer.toneMappingExposure=biome==='desert'?(spacious?.96:1.00)"),
   'do not change renderer exposure / building brightness');
