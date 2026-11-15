@@ -76,6 +76,6 @@ export async function loadRefinedHeadquarters(team,source=undefined){
  for(let i=0;i<=64;i++){times.push(i/64*48);rotations.push(...rest.clone().multiply(new T.Quaternion().setFromAxisAngle(axis,i/64*Math.PI*2)).toArray());}
  const scale=beacon.scale.toArray(),pulse=[1,1.12,.45,.45,1].flatMap(s=>scale.map(v=>v*s));
  const clips=[new T.AnimationClip('RadarSpin',48,[new T.QuaternionKeyframeTrack('RadarDish.quaternion',times,rotations)]),new T.AnimationClip('BeaconPulse',3.8,[new T.VectorKeyframeTrack('Beacon.scale',[0,.16,.35,.70,3.8],pulse)])];
- model.userData.atlasDesign={name:'Feldkommando',kind:'headquarters',team,parts,triangles:Math.round(triangles),geometry:'User-refined headquarters with preserved surfaces and reattached rigid details',source:'tools/building-sources/headquarters-refined.glb',attachedDetails:attached};
+ model.userData.atlasDesign={name:'Kommandozentrale',kind:'headquarters',team,parts,triangles:Math.round(triangles),geometry:'User-refined headquarters with preserved surfaces and reattached rigid details',source:'tools/building-sources/headquarters-refined.glb',attachedDetails:attached};
  return {model,clips,dish,beacon};
 }
