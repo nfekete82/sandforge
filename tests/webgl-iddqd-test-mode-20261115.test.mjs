@@ -77,4 +77,7 @@ test('WebGL listens for the full iddqd code outside inputs, with the infinity HU
  assert.match(code,/typing\(\)/);
  assert.match(code,/game\.enableTestMode\(\)/);
  assert.match(readFileSync('scripts/webgl-battlefield.js','utf8'),/g\.testMode\?'∞'/);
+ const menu=readFileSync('scripts/webgl-title-menu.js','utf8');
+ assert.match(menu,/const activated=g\.enableTestMode\(\)/);
+ assert.doesNotMatch(menu,/credits\[0\]\s*\+=\s*1000/);
 });

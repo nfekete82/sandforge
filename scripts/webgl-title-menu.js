@@ -55,8 +55,9 @@
  const changePause=(shouldRun)=>{
   if(running()!==shouldRun)$('simulation')?.click();
  };
- // Typed only in the actual tactical-pause modal. No visible debug controls.
- // The sequence may be entered again to grant another 1,000 credits.
+ // Typed only in the tactical-pause modal. The gameplay listener in
+ // webgl-preview.js uses the exact same Simulation.enableTestMode() entrypoint.
+ // Handle the modal separately because it captures keyboard focus.
  const pauseCheat='iddqd';
  let pauseCheatProgress=0;
  let returnToGame=false;
@@ -237,10 +238,12 @@
     if(pauseCheatProgress===pauseCheat.length){
      pauseCheatProgress=0;
      const active=window.__sandforgeWebGL,g=active?.game;
-     if(active?.loaded&&g?.status==='playing'&&Number.isFinite(g.credits?.[0])){
-      g.credits[0]+=1000;
+     if(active?.loaded&&g?.status==='playing'&&typeof g.enableTestMode==='function'){
+      const activated=g.enableTestMode();
       active.battlefield?.drawInterface?.();
-      $('sf3d-pause-status').textContent='TESTCODE AKTIV · +1.000 CREDITS';
+      $('sf3d-pause-status').textContent=activated
+       ?'TESTMODUS AKTIV · ∞ Credits · Sofortbau, Produktion und Forschung'
+       :'TESTMODUS BEREITS AKTIV · ∞ Credits';
      }
     }
     return;

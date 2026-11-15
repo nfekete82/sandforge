@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 
-test('IDDQD typed in actual 3D tactical pause dialog gives 1000 credits, repeats, and never affects play or options',async({page})=>{
+test('IDDQD in 3D tactical pause enables unlimited credits idempotently and skips options',async({page})=>{
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.goto('/webgl-preview.html',{waitUntil:'domcontentloaded'});
  await page.waitForFunction(()=>Boolean(window.Sandforge3DMenu));
@@ -9,7 +9,8 @@ test('IDDQD typed in actual 3D tactical pause dialog gives 1000 credits, repeats
  // Supply the runtime's documented game/UI contract for deterministic input.
  await page.evaluate(()=>{
   document.getElementById('main-dialog').close();
-  const game={credits:[400,300],status:'playing'};
+  const game={credits:[400,300],status:'playing',testMode:false,
+   enableTestMode(){if(this.testMode)return false;this.testMode=true;this.credits[0]=1_000_000_000;return true;}};
   window.__sandforgeWebGL={loaded:true,simulationRunning:true,game,
    battlefield:{drawInterface(){window.__cheatUIUpdates=(window.__cheatUIUpdates??0)+1;}}};
   // The HTML already includes the simulation toggle. Bind that existing
@@ -27,20 +28,22 @@ test('IDDQD typed in actual 3D tactical pause dialog gives 1000 credits, repeats
  await expect(page.locator('#sf3d-pause-dialog')).toBeVisible();
  expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationRunning)).toBe(false);
  await page.keyboard.type('IdDqD');
- await expect(page.locator('#sf3d-pause-status')).toContainText('+1.000 CREDITS');
- expect(await page.evaluate(()=>window.__sandforgeWebGL.game.credits)).toEqual([1400,300]);
+ await expect(page.locator('#sf3d-pause-status')).toContainText('TESTMODUS AKTIV · ∞ Credits');
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.game.credits)).toEqual([1_000_000_000,300]);
  await page.keyboard.type('iddqd');
- expect(await page.evaluate(()=>window.__sandforgeWebGL.game.credits)).toEqual([2400,300]);
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.game.credits)).toEqual([1_000_000_000,300]);
  expect(await page.evaluate(()=>window.__cheatUIUpdates)).toBe(2);
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.game.testMode)).toBe(true);
+ await expect(page.locator('#sf3d-pause-status')).toContainText('TESTMODUS BEREITS AKTIV');
  await page.locator('#sf3d-pause-options').click();
  await expect(page.locator('#sf3d-options-dialog')).toBeVisible();
  await page.keyboard.type('iddqd');
- expect(await page.evaluate(()=>window.__sandforgeWebGL.game.credits)).toEqual([2400,300]);
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.game.credits)).toEqual([1_000_000_000,300]);
  await page.evaluate(()=>document.getElementById('sf3d-options-dialog').close());
  await page.locator('#sf3d-pause-resume').click();
  await expect(page.locator('#sf3d-pause-dialog')).toBeHidden();
  expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationRunning)).toBe(true);
  await page.keyboard.type('iddqd');
- expect(await page.evaluate(()=>window.__sandforgeWebGL.game.credits)).toEqual([2400,300]);
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.game.credits)).toEqual([1_000_000_000,300]);
  expect(errors).toEqual([]);
 });
