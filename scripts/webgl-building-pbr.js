@@ -54,6 +54,7 @@ export function buildingSurfaceRole(kind,meshName='',materialName=''){
  return null;
 }
 const textures=new Map();
+const textureReady=new Map();
 const fallbackColor={
  wall:'#cbbc9e',camo:'#c6b695',roof:'#b9ab91',metal:'#555954',trim:'#776f5f'
 };
@@ -102,7 +103,13 @@ function roleMaps(role){
   ]);
   albedo=new THREE.DataTexture(r,1,1,THREE.RGBAFormat);
   albedo.needsUpdate=true;
- }else albedo=new THREE.TextureLoader().load(DESERT_BUILDING_IMAGES[role]);
+ }else{
+  let resolveReady,rejectReady;
+  const loaded=new Promise((resolve,reject)=>{resolveReady=resolve;rejectReady=reject;});
+  albedo=new THREE.TextureLoader().load(DESERT_BUILDING_IMAGES[role],
+   ()=>resolveReady(),undefined,error=>rejectReady(error));
+  textureReady.set(role,loaded);
+ }
  albedo.name='SandforgeDesertBuildingAlbedo-'+role;
  albedo.colorSpace=THREE.SRGBColorSpace;
  albedo.wrapS=albedo.wrapT=THREE.RepeatWrapping;
@@ -113,6 +120,13 @@ function roleMaps(role){
  const result={albedo,...detail};
  textures.set(role,result);
  return result;
+}
+
+/** Wait for the exact textures already shared by the HUD and gameplay.
+ * Do not render a dark/unloaded portrait during the first model load. */
+export function waitForDesertBuildingTextures(){
+ for(const role of Object.keys(DESERT_BUILDING_IMAGES))roleMaps(role);
+ return Promise.all([...textureReady.values()]);
 }
 
 /** A single pass per material. It incorporates the new authored imagery
