@@ -25,6 +25,7 @@ import {Soundscape} from '/src/reborn/audio.js';
 import {fineSandPattern} from '/src/reborn/fine-sand.js';
 import {cinematicSandSample,addDesertWashStones} from '/webgl-desert-art.js';
 import {DESERT_SCENIC_STYLE as desertStyle} from '/webgl-desert-style.js';
+import {installDesertSandPBR,SANDFORGE_SAND_PBR} from '/webgl-sand-pbr.js';
 import {createDesertVillages} from '/webgl-desert-village.js';
 import {installMatchResultOverlay} from '/webgl-match-result.js';
 import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry} from '/webgl-rock-materials.js';
@@ -235,6 +236,16 @@ function buildTerrain(){
   map:texture,normalMap,normalScale:new THREE.Vector2(spacious?.77:.45,spacious?.77:.45),
   vertexColors:true,roughness:.99,metalness:0
  });
+ // Modern playable desert: use ONE authored seamless albedo, plus normal
+ // and roughness derived from it. The old procedural PBR remains a safe
+ // visible fallback until this small WebP has loaded; no extra art layers.
+ // Every one of the 16 ground chunks shares this single material.
+ if(biome==='desert'&&terrain.battlefield){
+  installDesertSandPBR(material,renderer).then(ok=>{
+   if(ok)console.info('Sandforge 3D terrain PBR: '+SANDFORGE_SAND_PBR.revision);
+   else console.warn('Sandforge 3D terrain PBR source unavailable: procedural fallback retained');
+  });
+ }
  // The old 2K sand-ripples-v2 artwork contains broad PAINTED bright patches.
  // Putting those over an independently lit 3D heightfield produces the
  // irregular white/cream stains visible on modern desert maps. Modern maps
@@ -318,6 +329,11 @@ function buildTerrain(){
    // Warm pale dune sand only. Building GLBs and everything else
    // have their own materials and therefore retain exactly their old look.
    if(biome==='desert')vertexColor.lerp(subtleSandLift,desertStyle.warmLiftStrength);
+   // The authored albedo now provides the actual sand pigment. Retain
+   // subtle terrain-gradation shading but avoid double-multiplying the
+   // full old orange/gold vertex palette into the real photo texture.
+   if(biome==='desert'&&terrain.battlefield)
+    vertexColor.lerp(new THREE.Color(desertStyle.authoredSandVertex),desertStyle.authoredSandVertexBlend);
    colors[n]=vertexColor.r;colors[n+1]=vertexColor.g;colors[n+2]=vertexColor.b;
    uv[k*2]=x/(spacious?2200:1500);uv[k*2+1]=z/(spacious?2200:1500);
    // Sample normals from the continuous field, not triangle tessellation:
