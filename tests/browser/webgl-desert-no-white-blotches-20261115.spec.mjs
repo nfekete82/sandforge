@@ -36,8 +36,8 @@ test('modern 4-bastion desert renders real seamless albedo/normal/roughness PBR 
   }
   for(let i=0;i<w;i++){
    for(let c=0;c<3;c++){
-    edgeDelta+=Math.abs(data[(i*w)*4+c]-data[((h-1)*w+i)*4+c]);
-    edgeDelta+=Math.abs(data[i*4+c]-data[((i+1)*w-1)*4+c]);
+    edgeDelta+=Math.abs(data[i*4+c]-data[((h-1)*w+i)*4+c]);
+    edgeDelta+=Math.abs(data[(i*w)*4+c]-data[((i+1)*w-1)*4+c]);
    }
   }
   return {
