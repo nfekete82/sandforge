@@ -337,7 +337,10 @@ function buildTerrain(){
    if(biome==='desert'&&terrain.battlefield)
     vertexColor.lerp(new THREE.Color(desertStyle.authoredSandVertex),desertStyle.authoredSandVertexBlend);
    colors[n]=vertexColor.r;colors[n+1]=vertexColor.g;colors[n+2]=vertexColor.b;
-   uv[k*2]=x/(spacious?2200:1500);uv[k*2+1]=z/(spacious?2200:1500);
+   // A 512px photographic sand tile stretched over 2.2km loses all
+   // fine detail. Repeat it at a realistic RTS surface scale instead.
+   uv[k*2]=x/(spacious&&biome==='desert'?900:spacious?2200:1500);
+   uv[k*2+1]=z/(spacious&&biome==='desert'?900:spacious?2200:1500);
    // Sample normals from the continuous field, not triangle tessellation:
    // border ring and playable terrain now have identical lighting at seams.
    const eps=1.6,dx=(heightAt(x+eps,z)-heightAt(x-eps,z))/(2*eps);
@@ -486,7 +489,9 @@ function instancedStone(){
    put(x+(r()-.5)*55,z+(r()-.5)*55,8+r()*16,
     spacious?7+r()*16:8+r()*26,8+r()*15);
  }
- for(let i=0;i<(spacious?420:1600);i++){
+ // Desert is a landscape of sand and wind, not hundreds of loose stones.
+ // Keep seed determinism and all real navigation/collision rocks unchanged.
+ for(let i=0;i<(spacious&&biome==='desert'?90:spacious?420:1600);i++){
   const x=75+r()*(size-150),z=75+r()*(size-150),index=world.index({x,y:z});
   if(index<0||world.blocked[index]||terrain.sites.some(p=>Math.hypot(x-p.x,z-p.y)<160))continue;
   put(x,z,spacious?1.4+r()*3.6:2+r()*5,
