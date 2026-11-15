@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {polishFinalFeldkommando} from './webgl-final-hq-finish.js';
+import {applyLowpolyFeldkommandoFinish} from './webgl-lowpoly-hq-finish.js';
 
 /** Original user-authored GLBs. The meshes, topology and scene hierarchy
  * remain untouched. Only Sandforge's existing PBR materials are recoloured.
@@ -117,6 +118,7 @@ export function applyStrategicGlbFinish(root){
    mesh.material.map(style):style(mesh.material);
  });
  polishFinalFeldkommando(root);
+ applyLowpolyFeldkommandoFinish(root);
  return changed;
 }
 
