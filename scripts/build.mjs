@@ -27,6 +27,7 @@ cpSync('scripts/webgl-biomes.js','dist/webgl-biomes.js');
 cpSync('scripts/webgl-match-result.js','dist/webgl-match-result.js');
 cpSync('scripts/webgl-desert-art.js','dist/webgl-desert-art.js');
 cpSync('scripts/webgl-desert-style.js','dist/webgl-desert-style.js');
+cpSync('scripts/webgl-sand-pbr.js','dist/webgl-sand-pbr.js');
 cpSync('scripts/webgl-desert-village.js','dist/webgl-desert-village.js');
 cpSync('scripts/webgl-rock-materials.js','dist/webgl-rock-materials.js');
 for(const module of ['webgl-oases','webgl-oasis-generation','webgl-oasis-materials'])cpSync(`scripts/${module}.js`,`dist/${module}.js`);
