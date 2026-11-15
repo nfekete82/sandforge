@@ -1,0 +1,36 @@
+name: Kommandozentrale engineer wrench and self-defence acceptance
+on:
+  push:
+    branches: [feat/kommandozentrale-engineer-repair-defense-20261115]
+    paths: [.github/workflows/accept-kommandozentrale-engineer-20261115.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Build Sandforge on the November 11 graphics baseline
+        run: npm run build:3d
+      - name: Check real combat, repairs, names, skeleton socket and prior regressions
+        run: node --test tests/reborn-kommandozentrale-engineer-defense-20261115.test.mjs tests/reborn-support.test.mjs tests/sandforge-engineer-squad-escort.test.mjs tests/sandforge-engineer-sequential-orders.test.mjs tests/webgl-engineer-reliable-input-20261109.test.mjs tests/webgl-global-production-20261111.test.mjs
+      - name: Check distribution and user-facing labels
+        run: |
+          test -s dist/webgl-engineer-tools.js
+          ! grep -Rin 'Feldkommando' src/reborn/catalog.ts scripts/webgl-battlefield.js scripts/animation/atlas-buildings.js scripts/animation/refined-headquarters.js
+      - name: Install Playwright test dependencies
+        run: npm --prefix tests/browser ci
+      - name: Install browser
+        run: cd tests/browser && npx playwright install --with-deps chromium
+      - name: Live WebGL check for two original pioneer models, wrench and pistol
+        env:
+          SANDFORGE_BROWSER_CHANNEL: chromium
+          SANDFORGE_TEST_PORT: '8208'
+        run: node tests/browser/node_modules/playwright/cli.js test --config=tests/browser/playwright.config.mjs webgl-kommandozentrale-pioneer-tools-20261115.spec.mjs
