@@ -395,6 +395,10 @@ export class SandforgeBattlefield {
     // Each procedural fallback owns unique geometries/materials. Once its
     // cached authored GLB is ready, reclaim those GPU resources immediately.
     if(entry.placeholder){
+     // Tank flags now belong to the fallback turret. Detach them before
+     // disposing the fallback; their geometry/materials are module-shared.
+     if(type==='unit'&&['tank','artillery'].includes(entry.kind))
+      detachTeamMarkings(entry);
      entry.node.remove(entry.placeholder);
      disposeOwnedMeshes(entry.placeholder);
      entry.placeholder=null;
