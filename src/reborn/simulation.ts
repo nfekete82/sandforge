@@ -188,6 +188,10 @@ export class Simulation {
        this.credits[owner]<upgrade.cost)return false;
     this.credits[owner]-=upgrade.cost;
     state.active=kind;state.remaining=upgrade.seconds;
+    if(owner===0&&this.testMode){
+      this.credits[0]=Simulation.TEST_CREDITS;
+      this.completeResearch(owner,kind);
+    }
     if(owner===0)this.notices.push('Forschung begonnen: '+upgrade.name);
     return true;
   }
@@ -341,6 +345,36 @@ export class Simulation {
   /** Only enabled by WebGL. Never serialized; old saves and headless/Canvas
    * simulation retain the original immediate production semantics. */
   stageWebGLProduction=false;
+  // QA-only runtime switch, enabled by typing "iddqd" in WebGL. It is
+  // intentionally absent from the save format: reloading resets the cheat.
+  testMode=false;
+  private static readonly TEST_CREDITS=1_000_000_000;
+  enableTestMode():boolean{
+    if(this.testMode)return false;
+    this.testMode=true;
+    this.credits[0]=Simulation.TEST_CREDITS;
+    // Finish existing sites without teleports, time skips or changing AI.
+    const finished=new Set<number>();
+    for(const b of this.bases)if(b.owner===0&&b.hp>0){
+      if(b.buildRemaining>0){
+        b.buildRemaining=0;b.hp=buildingSpec(b).hp;
+        b.constructionActive=false;finished.add(b.id);
+      }
+      if(b.queue.length)b.production=b.queue[0];
+    }
+    // Completed foundations must not leave pioneers chasing stale orders.
+    if(finished.size)for(const u of this.units)if(u.owner===0){
+      u.orders=u.orders.filter(o=>o.kind!=='build'||!finished.has(o.target??-1));
+      if(u.workingTarget!==undefined&&u.workingTarget!==null&&finished.has(u.workingTarget)){
+        u.workingTarget=null;u.path=[];u.repath=0;
+      }
+    }
+    const research=this.research[0];
+    if(research.active)this.completeResearch(0,research.active);
+    this.updateVision();
+    this.notices.push('ID DQD: Testmodus aktiv – unbegrenzte Credits und Sofortbau.');
+    return true;
+  }
   private readonly productionDepartureHolds=new Map<number,number>();
   extendProductionDeparture(unitId:number,until:number):void {
     if(!this.stageWebGLProduction||!Number.isFinite(until))return;
@@ -663,7 +697,15 @@ export class Simulation {
     const b=this.bases.find(b=>b.id===baseId);if(!b)return false;
     kind??=unitKinds.find(k=>UNITS[k].producers.includes(b.kind));const spec=kind?UNITS[kind]:undefined;
     if(this.needsHeadquarters(b.owner)||!kind||!spec||b.hp<=0||b.buildRemaining>0||!spec.producers.includes(b.kind)||this.status!=='playing'||b.queue.length>=8||this.credits[b.owner]<spec.cost||this.count(b.owner)+this.queued(b.owner)>=RULES.capacity)return false;
-    b.queueCosts??=b.queueTypes.map(k=>UNITS[k].cost);b.queueCosts.push(spec.cost);this.credits[b.owner]-=spec.cost;b.queue.push(spec.buildTime);b.queueTypes.push(kind);return true;
+    b.queueCosts??=b.queueTypes.map(k=>UNITS[k].cost);b.queueCosts.push(spec.cost);
+    this.credits[b.owner]-=spec.cost;b.queue.push(spec.buildTime);b.queueTypes.push(kind);
+    if(this.testMode&&b.owner===0){
+      this.credits[0]=Simulation.TEST_CREDITS;
+      // Keep the canonical buildTime (save/validator compatibility). The
+      // production tick completes it immediately, never a 0-second queue.
+      if(b.queue.length===1)b.production=b.queue[0];
+    }
+    return true;
   }
   cancel(baseId:number,index?:number):void {
     const b=this.bases.find(b=>b.id===baseId);if(!b?.queue.length)return;
@@ -750,13 +792,21 @@ export class Simulation {
     const spec=BUILDINGS[kind],territory=this.territories.find(t=>inside(p,t.polygon));
     if(!territory){this.notices.push('Bauplatz liegt außerhalb eines Sektors.');return null;}
     let id=1000;while(this.bases.some(b=>b.id===id)||this.units.some(u=>u.id===id))id++;
-    const b:Base={id,owner,kind,...p,hp:spec.hp*.25,territory:territory.id,radius:spec.radius,queue:[],queueTypes:[],production:0,buildRemaining:spec.buildTime,cooldown:0,rally:null,
+    const instant=owner===0&&this.testMode;
+    const b:Base={id,owner,kind,...p,hp:instant?spec.hp:spec.hp*.25,territory:territory.id,radius:spec.radius,queue:[],queueTypes:[],production:0,buildRemaining:instant?0:spec.buildTime,cooldown:0,rally:null,
       ...(kind==='silo'?{siloCharge:SILO_CHARGE_SECONDS}:{}),
       ...(kind==='interceptor'?{interceptorAmmo:INTERCEPTOR_MAX_AMMO}:{}),
       ...(facing!==0?{facing}:{})};
     this.bases.push(b);
-    if(!this.command(workers.map(u=>u.id),{...p,kind:'build',target:id},append)){this.bases.pop();this.notices.push('Kein ausgewählter Pionier kann diese Baustelle erreichen.');return null;}
-    this.credits[owner]-=spec.cost;this.updateVision();return b;
+    if(!instant&&!this.command(workers.map(u=>u.id),{...p,kind:'build',target:id},append)){
+      this.bases.pop();this.notices.push('Kein ausgewählter Pionier kann diese Baustelle erreichen.');return null;
+    }
+    this.credits[owner]-=spec.cost;
+    if(instant){
+      this.credits[0]=Simulation.TEST_CREDITS;
+      this.notices.push('Gebäude fertiggestellt: '+spec.name+'.');
+    }
+    this.updateVision();return b;
   }
   cancelConstruction(id:number):boolean {
     const b=this.bases.find(b=>b.id===id);if(!b||b.buildRemaining<=0||b.hp<=0)return false;
@@ -1490,6 +1540,7 @@ export class Simulation {
   private stepMeasured(dt=RULES.tick):void {
     if(this.paused||this.status!=='playing'||dt<=0)return;
     this.movementCollision=undefined;
+    if(this.testMode)this.credits[0]=Simulation.TEST_CREDITS;
     // One fixed tick only: callers accumulate elapsed time; no wall-clock economy.
     dt=Math.min(dt,.1);this.time+=dt;this.incomeClock+=dt;this.fogClock+=dt;
     this.unitById=new Map(this.units.map(u=>[u.id,u]));
@@ -1832,7 +1883,10 @@ export class Simulation {
 
       }
       if(!b.queue.length)continue;
-      b.production=Math.min(b.queue[0],b.production+dt);
+      // QA fast production: retain exact stored queue durations for valid
+      // save games and run the ordinary obstacle-safe spawn code this tick.
+      b.production=this.testMode&&b.owner===0
+       ?b.queue[0]:Math.min(b.queue[0],b.production+dt);
       if(b.production+1e-8>=b.queue[0]){
         const kind=b.queueTypes[0]??'infantry',spec=UNITS[kind],sign=this.world.mapVersion>=2&&b.kind==='headquarters'&&b.owner===1?-1:1,exit={x:b.x+(b.radius+42)*sign,y:b.y+(b.radius+12)*sign};
         const vehicle=spec.group==='Fahrzeuge'&&!spec.flying;
@@ -1913,6 +1967,7 @@ export class Simulation {
     // unfinished sites all prevent a premature match end.
     // A destroyed HQ retained for sector capture has hp=0 and is ignored.
     this.status=eliminationOutcome(this.units,this.bases);
+    if(this.testMode)this.credits[0]=Simulation.TEST_CREDITS;
   }
   // The tactical director runs every three simulated seconds and can be the
   // source of frame spikes even when GPU rendering is smooth. Record only

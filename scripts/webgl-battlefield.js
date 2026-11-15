@@ -1404,10 +1404,10 @@ export class SandforgeBattlefield {
    tab.disabled=!allowed;
    tab.setAttribute('aria-pressed',String(view.dataset.tab===tab.dataset.tab));
   }
-  view.querySelector('#sf-credits').textContent=format(g.credits[0]);
+  view.querySelector('#sf-credits').textContent=g.testMode?'∞':format(g.credits[0]);
   view.querySelector('#sf-income').textContent='+ '+format(g.income(0));
   view.querySelector('#sf-capacity').innerHTML=g.count(0)+' <em>/ '+RULES.capacity+'</em>';
-  view.querySelector('#sf-stats').textContent='Credits '+format(g.credits[0])+' · '+g.count(0)+'/'+RULES.capacity;
+  view.querySelector('#sf-stats').textContent='Credits '+(g.testMode?'∞':format(g.credits[0]))+' · '+g.count(0)+'/'+RULES.capacity;
   view.querySelector('#sf-sectors').textContent=g.territories.filter(t=>t.owner===0).length+' / '+g.territories.length+' SEKTOREN';
   // Rebuild only when the roster/territory markup itself changes. Credits and
   // producer availability update button states in place, preserving clicks.
