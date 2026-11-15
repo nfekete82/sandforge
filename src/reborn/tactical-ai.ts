@@ -1265,8 +1265,11 @@ export class TacticalAI {
   * Existing economy code pays for everything and chooses legal build sites. */
  openingEconomy():void{
   const g=this.g;
-  if(this.mode!=='director'||this.earlyEconomyMode!=='barracks-first'
-   ||g.world.mapVersion!==11||g.time>=RULES.aiOpeningDelay
+  const modernOpening=g.world.mapVersion>=23&&g.time>=3;
+  const legacyEarlyOpening=g.world.mapVersion===11&&
+   this.earlyEconomyMode==='barracks-first'&&g.time>=2;
+  if(this.mode!=='director'||(!modernOpening&&!legacyEarlyOpening)
+   ||g.time>=RULES.aiOpeningDelay
    ||g.needsHeadquarters(1)||g.status!=='playing')return;
   const army=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier);
   developArmy(g,this.state,army,p=>this.danger(p));
