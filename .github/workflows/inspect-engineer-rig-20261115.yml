@@ -1,0 +1,33 @@
+name: Inspect engineer rig and old command center strings
+on:
+  push:
+    branches: [feat/command-center-unarmed-engineer-wrench-20261115]
+    paths: [.github/workflows/inspect-engineer-rig-20261115.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate all display names and inspect real pioneer skeleton / pistol
+        shell: bash
+        run: |
+          echo '### User-facing strings'
+          rg -n -i 'feldkommando|kommandozentrale|pionier' src scripts tests | head -n 75 || true
+          echo '### Engineer GLB skeleton hierarchy'
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          for(const side of [0,1]){
+           const f=readFileSync('src/assets/reborn/prototype/engineer-'+side+'.glb');
+           const chunkLen=f.readUInt32LE(12);
+           const g=JSON.parse(f.toString('utf8',20,20+chunkLen));
+           console.log('ENGINEER',side,JSON.stringify({bytes:f.length,nodes:g.nodes.length,meshes:g.meshes?.length,skins:g.skins?.map(s=>({joints:s.joints?.length,skeleton:s.skeleton})),animations:g.animations?.map(a=>a.name)}));
+           const found=g.nodes.map((n,i)=>({...n,i})).filter(n=>/hand|pistol|rifle|weapon|tool|wrist|forearm|bone|arm|gun|right/i.test(n.name??''));
+           console.log('RIG_NODES',side,JSON.stringify(found.slice(0,95).map(n=>({i:n.i,name:n.name,parent:g.nodes.findIndex(p=>p.children?.includes(n.i)),translation:n.translation,rotation:n.rotation,scale:n.scale,mesh:n.mesh}))));
+           const meshNodes=g.nodes.map((n,i)=>({...n,i})).filter(n=>n.mesh!=null);
+           console.log('MESH_NODES',side,JSON.stringify(meshNodes.slice(0,80).map(n=>({i:n.i,name:n.name,mesh:n.mesh,translation:n.translation}))));
+          }
+          NODE
