@@ -48,7 +48,9 @@ export function cinematicSandSample({x,z,size,seed,profile='mixed',slope=0,heigh
  */
 export function addDesertWashStones({scene,world,size,seed,heightAt,sites=[],lowQuality=false}){
  if(!world?.generated?.battlefield)return null;
- const target=lowQuality?140:480;
+ // Sparse dry-wash mineral clusters; the earlier 480 stones made every
+ // open dune look like a pebble field. Preserve only representative pockets.
+ const target=lowQuality?35:105;
  const palette=desertStyle.riverPebbles;
  const geometry=weatheredStoneGeometry(lowQuality);
  const material=stoneMaterial(desertStyle.riverPebbleBase,{lowQuality,normalScale:.43});
