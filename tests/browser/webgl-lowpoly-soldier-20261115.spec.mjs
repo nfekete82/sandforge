@@ -21,12 +21,14 @@ test('live Sandforge loads the new soldier and plays actual skeletal actions',as
   prepareLowpolySoldier(blue,0);
   prepareLowpolySoldier(red,1);
   const walk=data.animations.find(a=>a.name==='Walk');
-  const rootBone=blue.getObjectByName('Thigh.L');
-  const q0=rootBone?.quaternion.toArray();
+  const bones=[];
+  blue.traverse(node=>{if(node.isBone)bones.push(node);});
+  const q0=bones.map(b=>b.quaternion.toArray());
   const mixer=new THREE.AnimationMixer(blue);
   mixer.clipAction(walk).play();
   mixer.update(.24);
-  const q1=rootBone?.quaternion.toArray();
+  const q1=bones.map(b=>b.quaternion.toArray());
+  const movedBones=q0.filter((q,i)=>q.some((v,j)=>Math.abs(v-q1[i][j])>.0001)).length;
   let redTints=0,meshCount=0,skinned=0;
   red.traverse(node=>{
    if(!node.isMesh)return;
@@ -49,7 +51,7 @@ test('live Sandforge loads the new soldier and plays actual skeletal actions',as
   return {
    route0,route1,clips:data.animations.map(a=>a.name),
    bones:blue.getObjectByName('SandforgeSoldierRig')?.children?.length??null,
-   hasLegBone:Boolean(rootBone),q0,q1,
+   boneCount:bones.length,movedBones,
    redTints,meshCount,skinned,drawCalls,
    blueAuthored:blue.userData.sandforgePreserveAuthoredMaterials,
    hasMuzzle:Boolean(blue.getObjectByName('WeaponMuzzle'))
@@ -58,8 +60,8 @@ test('live Sandforge loads the new soldier and plays actual skeletal actions',as
  expect(result.route0).toBe('/src/assets/meshy/infantry-animated.glb');
  expect(result.route1).toBe(result.route0);
  for(const clip of ['Idle','Walk','Run','Attack','Hit','Death'])expect(result.clips).toContain(clip);
- expect(result.hasLegBone).toBeTruthy();
- expect(result.q0).not.toEqual(result.q1);
+ expect(result.boneCount).toBeGreaterThanOrEqual(18);
+ expect(result.movedBones).toBeGreaterThan(0);
  expect(result.skinned).toBeGreaterThan(0);
  expect(result.redTints).toBeGreaterThan(0);
  expect(result.meshCount).toBeGreaterThan(0);
