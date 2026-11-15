@@ -17,6 +17,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Compile full game on November 11 visual baseline
+        run: npm run build:3d
       - name: Verify targeted Bastion mesh, geometry and CPU optimizations
         run: |
           node --test tests/webgl-bastion-base-cleanup-perf-20261115.test.mjs \
@@ -24,8 +26,6 @@ jobs:
             tests/webgl-late-match-combat-input-20261111.test.mjs \
             tests/sandforge-bastion-navigation.test.mjs \
             tests/webgl-300s-performance.test.mjs
-      - name: Compile full game on November 11 visual baseline
-        run: npm run build:3d
       - name: Check built frontend includes the cleaned Bastion module
         run: |
           test -s dist/webgl-bastion-visual.js
