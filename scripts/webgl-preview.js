@@ -775,8 +775,25 @@ const cameraCorners=[new THREE.Vector2(-1,-1),new THREE.Vector2(-1,1),
  new THREE.Vector2(1,-1),new THREE.Vector2(1,1)];
 const typing=()=>['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)||
  document.activeElement?.isContentEditable===true;
+let testCode='';
 addEventListener('keydown',event=>{
  if(typing()||event.ctrlKey||event.metaKey||event.altKey)return;
+ // Secret sequence typed during gameplay, never into a form or chat input.
+ // In-memory only: it does not change normal rules or stored settings.
+ if(!event.repeat&&/^[a-z]$/i.test(event.key)){
+  testCode=(testCode+event.key.toLowerCase()).slice(-5);
+  if(testCode==='iddqd'){
+   testCode='';
+   event.preventDefault();panKeys.clear();
+   const activated=game.enableTestMode();
+   battlefield.message(activated
+    ?'TESTMODUS AKTIV · ∞ Credits · Sofortbau, Produktion und Forschung'
+    :'TESTMODUS BEREITS AKTIV');
+   battlefield.drawInterface();
+   return;
+  }
+ }
+
  if(panControls.has(event.code)){
   event.preventDefault();panKeys.add(event.code);return;
  }

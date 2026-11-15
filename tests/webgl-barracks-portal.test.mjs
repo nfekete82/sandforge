@@ -39,3 +39,26 @@ test('barracks blast door and authored facade become a real clipped 3D opening',
  disposeBarracksPortal(entry);
  assert.equal(entry.barracksPortal,undefined);
 });
+
+test('merged AtlasUpgrade barracks GLB receives a real sliding gate, not a frozen facade',()=>{
+ const root=new THREE.Group();
+ const hull=make('Atlas_CeramicHull_3');
+ const steel=make('AtlasUpgrade_barracks_steel');
+ root.add(hull,steel);
+ const entry={detail:root},renderer={localClippingEnabled:false};
+ const portal=prepareBarracksPortal(entry,renderer);
+ assert.ok(portal);
+ const recovery=root.getObjectByName('BarracksBlastDoor_Recovery');
+ assert.ok(recovery,'recover missing authored door node at runtime');
+ assert.equal(steel.material.clippingPlanes.length,6,
+  'static merged shutter must be cut from the true cavity');
+ assert.equal(recovery.position.z,1.501);
+ setBarracksDoorOpen(portal,1);
+ assert.ok(recovery.scale.y<.1);
+ assert.ok(portal.hall.visible);
+ setBarracksDoorOpen(portal,0);
+ assert.equal(recovery.scale.y,1);
+ disposeBarracksPortal(entry);
+ assert.equal(root.getObjectByName('BarracksBlastDoor_Recovery'),undefined);
+ assert.equal(steel.material.clippingPlanes,null,'restore the original shared GLB material');
+});

@@ -29,6 +29,7 @@ import {sameKindVisibleUnits} from '/webgl-double-click-select.js';
 import {tracerWindow} from '/webgl-hit-response.js';
 import {applyFactionAccents} from '/webgl-faction-accents.js';
 import {attachTeamMarkings,detachTeamMarkings} from '/webgl-team-markings.js';
+import {finishBarracksSides,disposeBarracksSides} from '/webgl-barracks-shell.js';
 import {SandforgeConstructionPresentation} from '/webgl-construction.js';
 import {createBastionCaptureBar,updateBastionCaptureBar} from '/webgl-bastion-capture.js';
 import {snapToPlayableEdge,worldToMinimap} from '/webgl-map-edges.js';
@@ -383,8 +384,10 @@ export class SandforgeBattlefield {
      model.position.set(-box0.getCenter(new THREE.Vector3()).x*scale,
       -box0.min.y*scale,-box0.getCenter(new THREE.Vector3()).z*scale);
     }
-    if(type==='building')this.lightBuildingMeshes(model);
-    else model.traverse(o=>{
+    if(type==='building'){
+     this.lightBuildingMeshes(model);
+     if(entry.kind==='barracks')finishBarracksSides(model);
+    }else model.traverse(o=>{
      if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}
     });
     // Visual normalization is independent of collision/pathfinding. Re-ground
@@ -392,6 +395,10 @@ export class SandforgeBattlefield {
     // Each procedural fallback owns unique geometries/materials. Once its
     // cached authored GLB is ready, reclaim those GPU resources immediately.
     if(entry.placeholder){
+     // Tank flags now belong to the fallback turret. Detach them before
+     // disposing the fallback; their geometry/materials are module-shared.
+     if(type==='unit'&&['tank','artillery'].includes(entry.kind))
+      detachTeamMarkings(entry);
      entry.node.remove(entry.placeholder);
      disposeOwnedMeshes(entry.placeholder);
      entry.placeholder=null;
@@ -652,6 +659,7 @@ export class SandforgeBattlefield {
       -bounds.min.y*scale,-bounds.getCenter(new THREE.Vector3()).z*scale);
    }
    if(kind==='airfield')hideOldAirfieldHangar({detail:model});
+   if(kind==='barracks')finishBarracksSides(model);
    tint(model,false,.50);
    model.visible=true; // final authored shape and its actual entrances
    group.remove(placeholder);disposeOwnedMeshes(placeholder);
@@ -671,8 +679,10 @@ export class SandforgeBattlefield {
     disposeServicePaint(preview.userData.previewService);
     disposeOwnedMeshes(preview.userData.previewService);
    }
-   if(preview.userData.previewDetail)
+   if(preview.userData.previewDetail){
+    disposeBarracksSides(preview.userData.previewDetail);
     disposeTaggedMaterials(preview.userData.previewDetail,'sandforgePreviewMaterial');
+   }
    if(preview.userData.previewFrontMarker)
     disposeOwnedMeshes(preview.userData.previewFrontMarker);
    // Clones deliberately have no service-texture ownership metadata.
@@ -870,7 +880,8 @@ export class SandforgeBattlefield {
     if(e.yard){disposeBuildingYard(e.yard);e.yard=null;}
     disposeAirfieldServiceYard(e);disposeFactoryServiceYard(e);
     if(e.placeholder){disposeOwnedMeshes(e.placeholder);e.placeholder=null;}
-    if(e.detail)disposeTaggedMaterials(e.detail,'sandforgeBuildingFill');
+    if(e.detail){disposeBarracksSides(e.detail);
+     disposeTaggedMaterials(e.detail,'sandforgeBuildingFill');}
     if(e.motion?.mixer){
      e.motion.mixer.stopAllAction();
      if(e.detail)e.motion.mixer.uncacheRoot(e.detail);
@@ -1393,10 +1404,10 @@ export class SandforgeBattlefield {
    tab.disabled=!allowed;
    tab.setAttribute('aria-pressed',String(view.dataset.tab===tab.dataset.tab));
   }
-  view.querySelector('#sf-credits').textContent=format(g.credits[0]);
+  view.querySelector('#sf-credits').textContent=g.testMode?'∞':format(g.credits[0]);
   view.querySelector('#sf-income').textContent='+ '+format(g.income(0));
   view.querySelector('#sf-capacity').innerHTML=g.count(0)+' <em>/ '+RULES.capacity+'</em>';
-  view.querySelector('#sf-stats').textContent='Credits '+format(g.credits[0])+' · '+g.count(0)+'/'+RULES.capacity;
+  view.querySelector('#sf-stats').textContent='Credits '+(g.testMode?'∞':format(g.credits[0]))+' · '+g.count(0)+'/'+RULES.capacity;
   view.querySelector('#sf-sectors').textContent=g.territories.filter(t=>t.owner===0).length+' / '+g.territories.length+' SEKTOREN';
   // Rebuild only when the roster/territory markup itself changes. Credits and
   // producer availability update button states in place, preserving clicks.

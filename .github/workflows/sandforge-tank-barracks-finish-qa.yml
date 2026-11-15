@@ -1,0 +1,57 @@
+name: Sandforge tank flags and barracks finish QA
+on:
+  push:
+    branches: [fix/tank-flags-barracks-shell-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-tank-barracks-finish-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-and-node:
+    name: WebGL build and visual model regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - run: node --test tests/webgl-team-markings-20261111.test.mjs tests/webgl-barracks-sides-20261115.test.mjs tests/webgl-barracks-portal.test.mjs tests/webgl-barracks-proportions.test.mjs tests/webgl-wall-finish-20261115.test.mjs tests/webgl-iddqd-test-mode-20261115.test.mjs
+  chromium:
+    name: Chromium WebGL2 / actual GLB QA
+    needs: build-and-node
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tests/browser --no-audit --no-fund
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - run: npm run build:3d
+      - name: Render original model, flag turret and working barracks portal
+        env:
+          ATLAS_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-tank-barracks-finish-20261115.spec.mjs webgl-barracks-portal.spec.mjs --config=playwright.config.mjs
+      - name: Save diagnostics if Chromium failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-tank-barracks-qa
+          path: tests/browser/artifacts/
+          retention-days: 7

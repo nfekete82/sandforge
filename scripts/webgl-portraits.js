@@ -5,6 +5,7 @@ import {createStrategicBuilding,isStrategicBuilding} from './webgl-strategic-bui
 import {createRocketInfantry,attachRocketLauncherToInfantry} from './webgl-rocket-infantry.js';
 import {createResearchArtwork,RESEARCH_ARTWORK_KINDS} from './webgl-research-artworks.js';
 import {tintFactionMaterials} from './webgl-faction-accents.js';
+import {finishBarracksSides} from './webgl-barracks-shell.js';
 
 /** Sprite-sheet portrait extraction shared by the WebGL HUD.
  * The classic game crops one idle frame rather than scaling down the entire
@@ -19,7 +20,11 @@ export const strategicBuildingIcon=kind=>{
   const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 190">'+
    '<rect width="192" height="190" rx="13" fill="#222a2a"/>'+
    '<path d="M14 140 L35 115 L158 115 L177 140 L177 162 L14 162Z" fill="#656456"/>'+
-   '<path d="M21 70 H171 V133 H21Z" fill="#bbab87" stroke="#6e6a58" stroke-width="5"/>'+
+   '<path d="M21 70 H171 V133 H21Z" fill="#c9b994" stroke="#6e6a58" stroke-width="5"/>'+
+   '<path d="M24 73 H66 L77 89 L65 104 H25Z" fill="#a69a78"/>'+
+   '<path d="M91 73 H149 L162 89 L141 111 H109 L88 95Z" fill="#82866d"/>'+
+   '<path d="M37 107 L91 97 L115 127 H33Z" fill="#ac9671"/>'+
+   '<path d="M138 112 L169 98 V130 H127Z" fill="#8f9477"/>'+
    '<path d="M71 73 V135 M121 73 V135" stroke="#827966" stroke-width="4"/>'+
    '<path d="M18 69 H174 V79 H18Z" fill="#3c819e"/>'+
    '<path d="M21 102 H171" stroke="#a3997b" stroke-width="3"/>'+
@@ -330,6 +335,13 @@ async function rasterizeBuildingIcon(kind,renderer){
   if(!renderer)return buildingIconUrl(kind);
   try{return renderStrategicPortrait(kind,renderer);}
   catch(error){console.warn('Strategic portrait fallback:',kind,error);return buildingIconUrl(kind);}
+ }
+ if(kind==='barracks'&&renderer){
+  try{
+   const data=await new GLTFLoader().loadAsync('/src/assets/reborn/buildings-3d/barracks-0.glb');
+   finishBarracksSides(data.scene);
+   return renderModelPortrait(data.scene,renderer);
+  }catch(error){console.warn('Barracks 3D portrait fallback:',error);}
  }
  const image=await loadImage(buildingIconUrl(kind));
  let source=image;

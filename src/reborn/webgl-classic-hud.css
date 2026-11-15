@@ -2201,6 +2201,9 @@
 }
 
 
+/* A low defensive wall should read as a smaller structure than the command
+ * buildings. Final rule below also covers locked/disabled cards. */
+
 /* Final WebGL catalogue state: unaffordable and tech-locked cards are muted,
  * gently defocused, never blue/selected. The actual title/cost stay sharp. */
 #sf-classic-root #sf-actions button.catalog-card[data-build]:disabled,
@@ -2466,4 +2469,15 @@
   flex-basis:96px!important;width:96px!important;
   min-width:96px!important;max-width:96px!important;
  }
+}
+
+/* Sperrmauer thumbnail: 82% only affects the wall artwork, never price/card. */
+#sf-classic-root[data-tab="buildings"] #sf-actions
+ button.catalog-card[data-build="wall"] .sf-card-image img,
+#sf-classic-root[data-tab="buildings"] #sf-actions
+ button.catalog-card[data-build="wall"]:disabled .sf-card-image img,
+#sf-classic-root[data-tab="buildings"] #sf-actions
+ button.catalog-card[data-build="wall"].locked .sf-card-image img{
+ transform:scale(.82)!important;
+ transform-origin:center center!important;
 }
