@@ -8,8 +8,7 @@ import {setWorldCamouflageBiome,tintFactionMaterials,shouldTintFactionSurface} f
 
 const path='src/assets/reborn/buildings-3d/sandforge_feldkommando_textured_plus.glb';
 test('new textured-plus Feldkommando has intact geometry, authored PBR artwork and animated radar pivot',()=>{
- assert.ok(strategicGlbUrl('headquarters','active').endsWith('sandforge_funkzentrale_hq3_game_ready.glb'));
- // Keep the previous textured-plus asset available without loading it as HQ.
+ assert.ok(strategicGlbUrl('headquarters','active').endsWith('sandforge_feldkommando_textured_plus.glb'));
  const bytes=readFileSync(path);
  assert.equal(bytes.length,7783052);
  assert.equal(bytes.toString('ascii',0,4),'glTF');
@@ -19,32 +18,12 @@ test('new textured-plus Feldkommando has intact geometry, authored PBR artwork a
  const gltf=JSON.parse(bytes.toString('utf8',20,20+bytes.readUInt32LE(12)));
  assert.equal(gltf.images.length,26);
  assert.equal(gltf.materials.length,29);
- const radarNodes=gltf.nodes.filter(n=>n.name?.startsWith('DISH_'));
- assert.ok(radarNodes.length>=5,'original textured dish parts present');
- const view=readFileSync('scripts/webgl-strategic-glb.js','utf8');
- assert.ok(view.includes('ensureTexturedHqRadarPivot(root)'));
- assert.ok(view.includes('pivot.attach(component)'));
+ const radar=gltf.nodes.find(n=>n.name==='RADAR_DISH_PIVOT');
+ assert.ok(radar&&radar.children.length>=5,'original dish grouped for in-place rotation');
  assert.ok(gltf.materials.some(m=>m.name==='Desert_Camouflage_PBR'));
  assert.ok(gltf.materials.filter(m=>m.pbrMetallicRoughness?.baseColorTexture).length>=15);
  assert.ok(!gltf.nodes.some(n=>n.name==='GATE_LEFT_PIVOT'),
   'do not try to animate an absent old HQ door node');
-});
-test('original uploaded HQ dish is grouped without adding replacement geometry',async()=>{
- const {ensureTexturedHqRadarPivot}=await import('../scripts/webgl-strategic-glb.js');
- const root=new THREE.Group();
- for(let i=0;i<6;i++){
-  const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial());
-  mesh.name='DISH_part_'+i;mesh.position.set(9+i*.1,3,2);
-  root.add(mesh);
- }
- const before=new THREE.Box3().setFromObject(root);
- const pivot=ensureTexturedHqRadarPivot(root);
- assert.equal(pivot.name,'RADAR_DISH_PIVOT');
- assert.equal(pivot.children.length,6);
- assert.deepEqual(new THREE.Box3().setFromObject(root).min.toArray(),before.min.toArray());
- assert.deepEqual(new THREE.Box3().setFromObject(root).max.toArray(),before.max.toArray());
- assert.equal(ensureTexturedHqRadarPivot(root),pivot,'idempotent');
- for(const child of pivot.children){child.geometry.dispose();child.material.dispose();}
 });
 test('preserve authored 2048px desert textures while supporting snow and jungle camouflage',()=>{
  const root=new THREE.Group();
@@ -77,10 +56,10 @@ test('preserve authored 2048px desert textures while supporting snow and jungle 
  camo.dispose();texture.dispose();
  setWorldCamouflageBiome('desert');
 });
-test('HQ3 is the one model for construction and completion, preserving gameplay',()=>{
- assert.equal(strategicGlbUrl('headquarters','inactive'),strategicGlbUrl('headquarters','active'));
+test('existing offline HQ, simulation footprint and animated base assembly remain unchanged',()=>{
+ assert.ok(strategicGlbUrl('headquarters','inactive').endsWith('feldkommando_offline.glb'));
  const battlefield=readFileSync('scripts/webgl-battlefield.js','utf8');
- assert.ok(battlefield.includes('ensureTexturedHqRadarPivot(entry.detail)'));
+ assert.ok(battlefield.includes("getObjectByName('RADAR_DISH_PIVOT')"));
  assert.ok(battlefield.includes("['barracks','headquarters'].includes(kind)?"));
  const portraits=readFileSync('scripts/webgl-portraits.js','utf8');
  assert.ok(portraits.includes("strategicGlbUrl(kind,'active')"));

@@ -2,10 +2,8 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {readFileSync} from 'node:fs';
-import {createBuildingYard,disposeBuildingYard,YARD_FENCE_HEIGHT,YARD_FENCE_POST_WIDTH}
- from '../scripts/webgl-building-yard.js';
-import {setWorldCamouflageBiome,tintFactionMaterials,shouldTintFactionSurface,
- HQ3_MATCHED_DESERT_PALETTE,BARRACKS_HQ3_CHARCOAL_ROOF,CAMOUFLAGE_PALETTES}
+import {createBuildingYard,disposeBuildingYard} from '../scripts/webgl-building-yard.js';
+import {setWorldCamouflageBiome,tintFactionMaterials,shouldTintFactionSurface}
  from '../scripts/webgl-faction-accents.js';
 
 function testMaterial(name,hex,owner=0,type='building',kind='headquarters'){
@@ -58,76 +56,6 @@ test('neutral bastions use biome camouflage; glass, signals, skin and team marks
  assert.ok(!battlefield.includes('material.emissive.setRGB(1,1,1)'));
  assert.ok(battlefield.includes("tintFactionMaterials(detail,owner,'bastion','building')"));
 });
-test('HQ3-style desert paint darkens barracks and Bastion MK2 without hiding signal materials',()=>{
- setWorldCamouflageBiome('desert');
- for(const [kind,name] of [
-  ['barracks','SF_olive'],
-  ['barracks','SF_steel_light'],
-  ['bastion','SF_Bastion_concrete'],
-  ['bastion','SF_Bastion_armor'],
-  ['bastion','SF_Bastion_sandplate']
- ]){
-  const p=testMaterial(name,'#ffffff',kind==='bastion'?-1:0,'building',kind);
-  try{
-   assert.equal(p.count,1,kind+': '+name);
-   assert.equal(p.mesh.material.userData.sandforgeCamouflageBiome,'desert');
-   assert.ok(p.mesh.material.roughness>=.63);
-   const shader={uniforms:{},vertexShader:'#include <common>\n#include <begin_vertex>',
-    fragmentShader:'#include <common>\n#include <color_fragment>'};
-   p.mesh.material.onBeforeCompile(shader,null);
-   assert.ok(p.mesh.material.userData.sandforgeMaterialReference);
-   assert.ok(shader.uniforms.sfHqMap.value.isTexture);
-   assert.ok(shader.vertexShader.includes('sfBuildingPosition'));
-  }finally{p.dispose();}
- }
- for(const name of ['SF_Bastion_red','SF_Bastion_light','SF_Bastion_glass',
-  'SF_Bastion_dish','SF_Bastion_dishshade','SF_Bastion_stripe']){
-  assert.equal(shouldTintFactionSurface('bastion','building',name,
-   'static__'+name),false,name+' is preserved');
- }
- const signal=testMaterial('SF_Bastion_red','#ff4137',0,'building','bastion');
- try{
-  assert.equal(signal.count,0);
-  assert.equal(signal.mesh.material.userData.sandforgeCamouflageBiome,undefined);
- }finally{signal.dispose();}
-});
-test('every desert facility inherits HQ3 dark olive camouflage while protected details stay legible',()=>{
- setWorldCamouflageBiome('desert');
- for(const kind of ['factory','research','silo','generator','interceptor','airfield','headquarters']){
-  const p=testMaterial('SF_olive','#dfd9c7',0,'building',kind);
-  try{
-   assert.equal(p.count,1,kind);
-   const shader={uniforms:{},vertexShader:'#include <common>\n#include <begin_vertex>',
-    fragmentShader:'#include <common>\n#include <color_fragment>'};
-   p.mesh.material.onBeforeCompile(shader,null);
-   if(kind==='headquarters')assert.ok(shader.fragmentShader.includes(HQ3_MATCHED_DESERT_PALETTE.wall[1]));
-   else assert.equal(shader.uniforms.sfHqMap.value.name,'HQ3_camouflage-albedo');
-   assert.equal(p.mesh.material.userData.sandforgeCamouflageBiome,'desert');
-  }finally{p.dispose();}
- }
- for(const name of ['SF_glass','Radar_Dish','SF_blue_glow','Door_Shutter','Warning_Lamp']){
-  assert.equal(shouldTintFactionSurface('factory','building',name,'static__'+name),
-   false,name+' detail should not be painted');
- }
-});
-
-test('snow/jungle Bastion and barracks use the original per-biome palettes',()=>{
- for(const biome of ['snow','jungle']){
-  setWorldCamouflageBiome(biome);
-  for(const [kind,name] of [['barracks','SF_olive'],['bastion','SF_Bastion_armor']]){
-   const p=testMaterial(name,'#b7a181',0,'building',kind);
-   try{
-    const shader={uniforms:{},vertexShader:'#include <common>\n#include <begin_vertex>',
-     fragmentShader:'#include <common>\n#include <color_fragment>'};
-    p.mesh.material.onBeforeCompile(shader,null);
-    assert.equal(p.mesh.material.userData.sandforgeCamouflageBiome,biome);
-    assert.ok(shader.fragmentShader.includes(CAMOUFLAGE_PALETTES[biome].rgb[0]));
-    assert.ok(!shader.fragmentShader.includes('sfRoofPaint'));
-   }finally{p.dispose();}
-  }
- }
- setWorldCamouflageBiome('desert');
-});
 test('all building fences are slim and have raised barbed strands without blocking entrances',()=>{
  for(const kind of ['headquarters','barracks','research','silo','factory','interceptor']){
   const yard=createBuildingYard(kind,160);
@@ -141,8 +69,8 @@ test('all building fences are slim and have raised barbed strands without blocki
    const size=new THREE.Vector3(),p=new THREE.Vector3(),
     q=new THREE.Quaternion(),matrix=new THREE.Matrix4();
    posts.getMatrixAt(0,matrix);matrix.decompose(p,q,size);
-   assert.ok(size.x<=YARD_FENCE_POST_WIDTH&&size.z<=YARD_FENCE_POST_WIDTH);
-   assert.ok(Math.abs(size.y-YARD_FENCE_HEIGHT)<1e-4);
+   assert.ok(size.x<=1.2&&size.z<=1.2);
+   assert.ok(Math.abs(size.y-16.8)<1e-4);
    rails.getMatrixAt(0,matrix);matrix.decompose(p,q,size);
    assert.ok(Math.min(size.x,size.y,size.z)<1);
    const meta=yard.getObjectByName('BasePerimeter_'+kind).userData;
@@ -153,7 +81,7 @@ test('all building fences are slim and have raised barbed strands without blocki
    for(let i=0;i<wires.count;i++){
     wires.getMatrixAt(i,matrix);
     p.setFromMatrixPosition(matrix);
-    if(p.y>=YARD_FENCE_HEIGHT){highWire=true;break;}
+    if(p.y>=16.9){highWire=true;break;}
    }
    assert.ok(highWire,'stacheldraht is above the normal rails');
   }finally{disposeBuildingYard(yard);}

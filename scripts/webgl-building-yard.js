@@ -1,6 +1,4 @@
 import * as THREE from 'three';
-import {applyBuildingDesign} from './webgl-building-design.js';
-import {worldCamouflageBiome} from './webgl-faction-accents.js';
 import {disposeOwnedMeshes} from './webgl-resource-lifecycle.js';
 import {STRATEGIC_BUILDING_VISUAL_SCALE} from './webgl-scale.js';
 
@@ -59,68 +57,19 @@ export const YARD_DECOR_KINDS=Object.freeze([
  'headquarters','barracks','factory','research','silo','interceptor',
  'airfield','generator'
 ]);
-// Fence-free Sandforge: retain lighting and utility props but never create
-// wire panels, fence posts, barbed wire or invisible perimeter meshes.
-const fencedSites=new Set([]);
+const fencedSites=new Set([
+ 'headquarters','barracks','factory','research','silo','interceptor'
+]);
 // Light military perimeter fence: thin powder-coated posts, hairline mesh
 // and barbed concertina strands instead of bulky decorative timber rails.
 const fencePost=mat('#555e55',.26,.83);
 const fenceRail=mat('#737b6f',.32,.78);
-// Same near-black chain-link and barbed-wire finish as the MK2 Feldkommando.
-const mk2BarracksPost=mat('#171b1b',.48,.74);
-const mk2BarracksWire=mat('#222829',.46,.69);
 const lampGlass=new THREE.MeshStandardMaterial({
  color:'#d7e8da',emissive:'#b3e5df',emissiveIntensity:.72,
  metalness:.08,roughness:.4
 });
 const crateBand=mat('#998b6a',.22,.77);
 const barrelPaint=mat('#606f67',.27,.7);
-
-// Deterministic dirt, painted wood grain, chipped olive steel and brushed
-// barrel metal. Small shared RGBA PBR albedo textures are generated once,
-// work in Node tests (no canvas/document), require zero image downloads and
-// add no new yard meshes or draw calls. Only cosmetic authored prop materials.
-function yardSurfaceTexture(style){
- const side=64,data=new Uint8Array(side*side*4);
- const hash=(x,y)=>{let h=Math.imul(x+71,374761393)^Math.imul(y+17,668265263);
-  h=Math.imul(h^(h>>>13),1274126177);return ((h^(h>>>16))>>>0)/4294967295;};
- for(let y=0;y<side;y++)for(let x=0;x<side;x++){
-  const noise=hash(x,y),scratch=hash((x/4)|0,y);
-  const grain=style==='wood'?
-    10*Math.sin(y*.87)+8*Math.sin(y*.19)+12*(noise-.5):
-    style==='barrel'?
-    7*Math.sin(x*.6)+16*(noise-.5):
-    7*Math.sin(x*.13+y*.32)+15*(noise-.5);
-  const chip=style==='olive'&&noise>.964?-36:
-   style==='barrel'&&noise>.975?-46:0;
-  const dust=style==='sand'?9*Math.sin(x*.13+y*.24):0;
-  const v=Math.max(115,Math.min(255,229+grain+chip+dust+7*(scratch-.5)));
-  const i=(y*side+x)*4;
-  data[i]=v;
-  data[i+1]=Math.min(255,v+(style==='wood'?2:0));
-  data[i+2]=Math.min(255,v+(style==='barrel'?4:0));
-  data[i+3]=255;
- }
- const texture=new THREE.DataTexture(data,side,side,THREE.RGBAFormat);
- texture.name='YardPropSurface_'+style;
- texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
- texture.magFilter=THREE.LinearFilter;
- texture.minFilter=THREE.LinearMipmapLinearFilter;
- texture.generateMipmaps=true;
- texture.colorSpace=THREE.SRGBColorSpace;
- texture.needsUpdate=true;
- return texture;
-}
-wood.map=yardSurfaceTexture('wood');
-olive.map=yardSurfaceTexture('olive');
-sand.map=yardSurfaceTexture('sand');
-crateBand.map=yardSurfaceTexture('metal');
-barrelPaint.map=yardSurfaceTexture('barrel');
-
-// Taller, lighter military-grade perimeter: thinner posts, finer bracing,
-// concertina above eye level. Collision and capture geometry are untouched.
-export const YARD_FENCE_HEIGHT=19.2;
-export const YARD_FENCE_POST_WIDTH=.82;
 
 function storageCrate(group,x,z,size=16,paint=olive){
  const g=new THREE.Group();g.name='SupplyCrate';g.position.set(x,0,z);group.add(g);
@@ -167,11 +116,11 @@ function instanceBoxes(group,name,paint,parts){
  instances.receiveShadow=true;
  group.add(instances);
 }
-function instanceFenceWires(group,parts,paint=fenceRail){
+function instanceFenceWires(group,parts){
  if(!parts.length)return;
  // Cross-bracing reads like a light wire fence at strategic camera distance.
- const wires=new THREE.InstancedMesh(new THREE.CylinderGeometry(.12,.12,1,5),
-  paint,parts.length);
+ const wires=new THREE.InstancedMesh(new THREE.CylinderGeometry(.17,.17,1,5),
+  fenceRail,parts.length);
  wires.name='YardFenceMesh';
  wires.userData={visualOnly:true,nonPlayable:true,siteDecor:true,
   containsBarbedWire:true};
@@ -193,19 +142,14 @@ function instanceFenceWires(group,parts,paint=fenceRail){
  group.add(wires);
 }
 function perimeterFence(group,width,kind){
- // The newer user-authored HQ3 Funkzentrale has its front stairs on +Z,
- // while barracks and research retain entrances on -Z. Keep the decorative
- // fence behind each entrance instead of running across its stairs/door.
- // The local facade mapping follows the building's rotation automatically.
+ // The research lab, original field command and replacement barracks have
+ // their main entrances on local -Z. Leave that facade fully open: fence
+ // the opposite (+Z) side. Other facilities retain their existing entrance.
  // Three instanced draw calls for posts, rails and cross-bracing.
- const barracks=kind==='barracks';
- const x=width*(barracks?.72:.65);
- const reverseFront=['research','barracks'].includes(kind);
- const rear=reverseFront?width*(barracks?.59:.53):-width*.53;
- // Main barracks entrance points toward local -Z.
- const front=reverseFront?-width*(barracks?.43:.28):width*.28;
- const fenceHeight=barracks?25.6:YARD_FENCE_HEIGHT;
- const postWidth=barracks?1.16:YARD_FENCE_POST_WIDTH;
+ const x=width*.65;
+ const reverseFront=['research','headquarters','barracks'].includes(kind);
+ const rear=reverseFront?width*.53:-width*.53;
+ const front=reverseFront?-width*.28:width*.28;
  const posts=[],rails=[],wires=[],seen=new Set();
  let barbedWirePieces=0;
  function line(x0,z0,x1,z1){
@@ -217,22 +161,21 @@ function perimeterFence(group,width,kind){
    const key=px.toFixed(3)+':'+pz.toFixed(3);
    if(!seen.has(key)){
     seen.add(key);
-    posts.push({x:px,y:fenceHeight*.5,z:pz,
-     w:postWidth,h:fenceHeight,d:postWidth});
+    posts.push({x:px,y:8.4,z:pz,w:1.15,h:16.8,d:1.15});
     // Fine upward outriggers keep the double concertina strand above posts.
-    wires.push({x:px,y:fenceHeight+.35,z:pz,dx:0,dy:1.5,dz:0});
+    wires.push({x:px,y:17.15,z:pz,dx:0,dy:1.65,dz:0});
     barbedWirePieces++;
    }
    if(i===steps)continue;
    const u=(i+.5)/steps;
    const mx=x0+dx*u,mz=z0+dz*u;
-   for(const y of [fenceHeight*.28,fenceHeight*.78])
-    rails.push({x:mx,y,z:mz,w:.52,h:.56,d:dist/steps+.35,yaw});
+   for(const y of [5.3,12.7])
+    rails.push({x:mx,y,z:mz,w:.76,h:.82,d:dist/steps+.45,yaw});
    const sx=dx/steps,sz=dz/steps;
    // Fine diamond mesh uses lightweight instancing, not a solid fence panel.
-   wires.push({x:mx,y:fenceHeight*.52,z:mz,dx:sx,dy:fenceHeight*.50,dz:sz});
-   wires.push({x:mx,y:fenceHeight*.52,z:mz,dx:sx,dy:-fenceHeight*.50,dz:sz});
-   for(const height of [fenceHeight-.35,fenceHeight+.75]){
+   wires.push({x:mx,y:8.75,z:mz,dx:sx,dy:9.7,dz:sz});
+   wires.push({x:mx,y:8.75,z:mz,dx:sx,dy:-9.7,dz:sz});
+   for(const height of [16.45,17.55]){
     wires.push({x:mx,y:height,z:mz,dx:sx,dy:0,dz:sz});
     barbedWirePieces++;
    }
@@ -242,8 +185,8 @@ function perimeterFence(group,width,kind){
    if(length>.01)for(const offset of [.3,.7]){
     const bx=x0+dx*(i+offset)/steps,bz=z0+dz*(i+offset)/steps;
     const nx=-sz/length,nz=sx/length;
-    wires.push({x:bx,y:fenceHeight+.2,z:bz,dx:nx*2.2,dy:1.6,dz:nz*2.2});
-    wires.push({x:bx,y:fenceHeight+.2,z:bz,dx:-nx*2.2,dy:1.6,dz:-nz*2.2});
+    wires.push({x:bx,y:17.0,z:bz,dx:nx*2.7,dy:1.8,dz:nz*2.7});
+    wires.push({x:bx,y:17.0,z:bz,dx:-nx*2.7,dy:1.8,dz:-nz*2.7});
     barbedWirePieces+=2;
    }
   }
@@ -251,17 +194,9 @@ function perimeterFence(group,width,kind){
  line(-x,rear,x,rear);
  line(-x,rear,-x,front);
  line(x,rear,x,front);
- if(barracks){
-  // Fully fenced perimeter with a clear, centred opening at the door.
-  const doorHalf=width*.19;
-  line(-x,front,-doorHalf,front);
-  line(doorHalf,front,x,front);
-  group.userData.frontDoorGap=doorHalf*2;
-  group.userData.frontOpening=true;
- }
- instanceBoxes(group,'YardFencePosts',barracks?mk2BarracksPost:fencePost,posts);
- instanceBoxes(group,'YardFenceRails',barracks?mk2BarracksWire:fenceRail,rails);
- instanceFenceWires(group,wires,barracks?mk2BarracksWire:fenceRail);
+ instanceBoxes(group,'YardFencePosts',fencePost,posts);
+ instanceBoxes(group,'YardFenceRails',fenceRail,rails);
+ instanceFenceWires(group,wires);
  group.userData.fencePosts=posts.length;
  group.userData.fenceRails=rails.length;
  group.userData.fenceWires=wires.length;
@@ -277,38 +212,21 @@ function addSiteDecor(root,kind,width){
  const large=width>=155;
  if(fencedSites.has(kind))perimeterFence(g,width,kind);
  const supplies=new THREE.Group();
- // The HQ3 supply pallet used to overlap the right fence: its outer edge
- // reached x=width*.55+30.5 while the fence stands at x=width*.65.
- // Shift the entire crate/barrel/pallet cluster inward without changing
- // the entrance, fence or other facility yards.
- const compact=fencedSites.has(kind)&&kind!=='headquarters';
- const supplyX=kind==='headquarters'?width*.38:
-  kind==='barracks'?width*.42:compact?width*.565:width*.55;
- supplies.name='BaseSupplyCache';supplies.position.set(supplyX,0,-width*.2);
+ supplies.name='BaseSupplyCache';supplies.position.set(width*.55,0,-width*.2);
  g.add(supplies);
- // A barracks already has integrated crates, vents and equipment lockers in
- // its GLB. A compact one-crate cache reads better than another huge pallet
- // of cargo beside its entrance. All other buildings keep their equipment.
- if(compact){
-  // A full 43-unit pallet cannot fit between these walls and their fence.
-  // One human-scale crate/barrel cache keeps every entrance and wire clear.
-  storageCrate(supplies,0,0,kind==='barracks'?14:13);
-  supplyBarrel(supplies,kind==='barracks'?13:0,kind==='barracks'?-7:-20);
- }else{
-  storageCrate(supplies,0,0,large?19:13);
-  storageCrate(supplies,large?18:13,12,large?14:11,sand);
-  if(kind!=='airfield'){
-   box(supplies,'SupplyPallet',[43,3.2,27],wood,9,1.6,4);
-   supplyBarrel(supplies,-16,-11);
-   if(kind==='factory'||kind==='research'||kind==='headquarters')
-    supplyBarrel(supplies,-3,-19);
-  }
+ // Different silhouettes per facility, all deterministic and inexpensive.
+ storageCrate(supplies,0,0,large?19:13);
+ storageCrate(supplies,large?18:13,12,large?14:11,sand);
+ if(kind!=='airfield'){
+  box(supplies,'SupplyPallet',[43,3.2,27],wood,9,1.6,4);
+  supplyBarrel(supplies,-16,-11);
+  if(kind==='factory'||kind==='research'||kind==='headquarters')
+   supplyBarrel(supplies,-3,-19);
  }
  // Place masts near the side fencing, never along the open front door/spawn.
  const lampHeight=Math.min(60,Math.max(43,width*.29));
  securityLamp(g,-width*.56,width*.20,lampHeight);
- if(large&&kind!=='airfield'&&kind!=='barracks')
-  securityLamp(g,width*.53,-width*.40,lampHeight);
+ if(large&&kind!=='airfield')securityLamp(g,width*.53,-width*.40,lampHeight);
  if(kind==='headquarters'||kind==='research'||kind==='silo'){
   // A small technical crate station reads like base infrastructure.
   const service=new THREE.Group();
@@ -360,21 +278,23 @@ export function createBuildingYard(kind,width=160){
   box(g,'ToolCaseHandle',[9,2,2],dark,31,13,-21);
  }else if(kind==='barracks'){
   const g=new THREE.Group();g.name='InfantryEquipment';
-  // Compact military equipment corner: one helmet, one weapon and one
-  // ammunition case. Previously three helmets, three rifles, two cases
-  // and an oversized pallet competed with the authored barracks silhouette.
-  g.scale.setScalar(.44);
-  g.position.set(width*.39,0,width*.28);root.add(g);
-  box(g,'EquipmentPallet',[54,3.2,35],wood,0,1.6,0);
-  box(g,'HelmetRack',[32,3.2,10],steel,-10,11,-7);
-  helmet(g,-10,-7);
-  box(g,'WeaponRack',[8,22,28],wood,19,15,6);
-  rifle(g,0,6);
-  box(g,'AmmunitionCrate',[15,12,13],olive,-14,8,15);
-  box(g,'AmmunitionClasp',[10,2,2],steel,-14,15,21);
+  // Geometry was authored at building scale: 19-unit helmets and ~53-unit
+  // rifles looked as large as a human next to the 3D infantry (~36 units).
+  // Keep all individual assets and their spacing proportional, without
+  // changing collision, unit models, or the garage/barracks portal.
+  g.scale.setScalar(.48);
+  g.position.set(width*.43,0,width*.34);root.add(g);
+  box(g,'EquipmentPallet',[79,4,46],wood,0,2,0);
+  box(g,'HelmetRack',[75,4,13],steel,-1,12,-10);
+  for(const x of [-24,0,24])helmet(g,x,-10);
+  box(g,'WeaponRack',[10,27,49],wood,30,17,20);
+  for(const [i,x] of [-1,0,1].entries())rifle(g,-25+i*18,17);
+  for(let i=0;i<2;i++){
+   box(g,'AmmunitionCrate',[16,12,13],olive,-26+i*19,10,33);
+   box(g,'AmmunitionClasp',[11,2,2],steel,-26+i*19,17,39);
+  }
  }
  addSiteDecor(root,kind,width);
- applyBuildingDesign(root,{kind,biome:worldCamouflageBiome()});
  return root;
 }
 

@@ -1,8 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {createBuildingYard,disposeBuildingYard,YARD_FENCE_HEIGHT,YARD_FENCE_POST_WIDTH}
- from '../scripts/webgl-building-yard.js';
+import {createBuildingYard,disposeBuildingYard} from '../scripts/webgl-building-yard.js';
 import {calibratedScale,STRATEGIC_BUILDING_VISUAL_SCALE} from '../scripts/webgl-scale.js';
 import {applyStrategicGlbFinish} from '../scripts/webgl-strategic-glb.js';
 
@@ -17,8 +16,8 @@ function fencePosts(yard){
  }
  return {mesh,posts};
 }
-test('barracks and research retain their -Z facade openings',()=>{
- for(const kind of ['barracks','research']){
+test('HQ, barracks and research keep the -Z entrance open behind the fence',()=>{
+ for(const kind of ['headquarters','barracks','research']){
   const yard=createBuildingYard(kind,WIDTH);
   try{
    const {mesh,posts}=fencePosts(yard);
@@ -32,28 +31,10 @@ test('barracks and research retain their -Z facade openings',()=>{
    assert.equal(yard.scale.x,factor);
    const m=new THREE.Matrix4(),scale=new THREE.Vector3();
    mesh.getMatrixAt(0,m);scale.setFromMatrixScale(m);
-   assert.ok(Math.abs(scale.y-YARD_FENCE_HEIGHT)<1e-4);
+   assert.ok(Math.abs(scale.y-16.8)<1e-4);
    assert.equal(mesh.userData.nonPlayable,true);
   }finally{disposeBuildingYard(yard);}
  }
-});
-test('HQ3 Funkzentrale has its entrance opening at +Z, with rear fence at -Z',()=>{
- const yard=createBuildingYard('headquarters',WIDTH);
- try{
-  const {mesh,posts}=fencePosts(yard);
-  const x=WIDTH*.65,z=WIDTH*.53;
-  assert.ok(posts.some(p=>Math.abs(p.x)<WIDTH*.1&&Math.abs(p.z+z)<.01),
-   'rear fence must be solid behind the HQ3 at -Z');
-  assert.ok(!posts.some(p=>Math.abs(p.x)<WIDTH*.1&&p.z>0),
-   'front stairs and spawn lane at +Z must be open');
-  assert.ok(posts.some(p=>Math.abs(p.x-x)<.01));
-  assert.ok(posts.some(p=>Math.abs(p.x+x)<.01));
-  const m=new THREE.Matrix4(),scale=new THREE.Vector3();
-  mesh.getMatrixAt(0,m);scale.setFromMatrixScale(m);
-  assert.ok(Math.abs(scale.y-YARD_FENCE_HEIGHT)<1e-4);
-  assert.equal(yard.scale.x,STRATEGIC_BUILDING_VISUAL_SCALE.headquarters,
-   'HQ3 yard must share the 10% visual enlargement with its authored building');
- }finally{disposeBuildingYard(yard);}
 });
 test('the other facility entrance remains +Z, not changed by the HQ correction',()=>{
  const yard=createBuildingYard('silo',WIDTH);
