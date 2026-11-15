@@ -780,9 +780,12 @@ async function addRuins(){
  }
  return ruinMeshes.length;
 }
-$('simulation').onclick=()=>{
+$('simulation').onclick=event=>{
  running=!running;
- if(!running)pauseSource=pauseFromKeyboard?'Leertaste':'Pause-Schaltfläche';
+ // Native keyboard activation of a focused button emits detail=0. A
+ // pointer click carries detail>=1. This also handles Playwright/keyboard
+ // focus without relying on the order of button and window key handlers.
+ if(!running)pauseSource=pauseFromKeyboard||event?.detail===0?'Leertaste':'Pause-Schaltfläche';
  pauseFromKeyboard=false;
  $('simulation').textContent=running?'Simulation pausieren':'Simulation starten';
  if(!running)sound.pause();
