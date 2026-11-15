@@ -50,7 +50,7 @@ export function addDesertWashStones({scene,world,size,seed,heightAt,sites=[],low
  if(!world?.generated?.battlefield)return null;
  // Sparse dry-wash mineral clusters; the earlier 480 stones made every
  // open dune look like a pebble field. Preserve only representative pockets.
- const target=lowQuality?35:105;
+ const target=lowQuality?25:60;
  const palette=desertStyle.riverPebbles;
  const geometry=weatheredStoneGeometry(lowQuality);
  const material=stoneMaterial(desertStyle.riverPebbleBase,{lowQuality,normalScale:.43});
