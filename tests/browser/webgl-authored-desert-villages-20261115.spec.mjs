@@ -71,7 +71,10 @@ test('actual authored desert settlement: textured ruins and no floating road sla
  expect(info.instanced).toBe(true);
  expect(info.oldBoxes).toBe(false);
  expect(info.names.every(n=>n.startsWith('visual-authored-abandoned-'))).toBe(true);
- expect(info.drawCalls).toBeLessThanOrEqual(8);
+ // Each of the two authored ruins contains eight real material primitives.
+ // 16 instanced submeshes plus one shared sand-track draw stay constant even
+ // when the settlement grows from 3 to 10 authored buildings.
+ expect(info.drawCalls).toBeLessThanOrEqual(18);
  expect(info.loaded).toBe(2);
  expect(info.roadColorChannels).toBe(4);
  expect(info.highestAlpha).toBeLessThanOrEqual(.26);
