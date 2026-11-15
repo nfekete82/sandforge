@@ -6,6 +6,8 @@ import {createRocketInfantry,attachRocketLauncherToInfantry} from './webgl-rocke
 import {createResearchArtwork,RESEARCH_ARTWORK_KINDS} from './webgl-research-artworks.js';
 import {tintFactionMaterials} from './webgl-faction-accents.js';
 import {finishBarracksSides,finishBarracksDesertPalette} from './webgl-barracks-shell.js';
+import {finishBuildingFacadeShading} from './webgl-building-shading.js';
+import {finishDesertBuildingMaterials,waitForDesertBuildingTextures,DESERT_BUILDING_KINDS} from './webgl-building-pbr.js';
 
 /** Sprite-sheet portrait extraction shared by the WebGL HUD.
  * The classic game crops one idle frame rather than scaling down the entire
@@ -336,15 +338,30 @@ async function rasterizeBuildingIcon(kind,renderer){
   try{return renderStrategicPortrait(kind,renderer);}
   catch(error){console.warn('Strategic portrait fallback:',kind,error);return buildingIconUrl(kind);}
  }
- if(kind==='barracks'&&renderer){
+ if(DESERT_BUILDING_KINDS.includes(kind)&&renderer){
   try{
-   const data=await new GLTFLoader().loadAsync('/src/assets/reborn/buildings-3d/barracks-0.glb');
-   finishBarracksSides(data.scene);
-   // Use the same finished desert paint and ownership tint as gameplay.
-   tintFactionMaterials(data.scene,0,'barracks','building');
-   finishBarracksDesertPalette(data.scene);
-   return renderModelPortrait(data.scene,renderer);
-  }catch(error){console.warn('Barracks 3D portrait fallback:',error);}
+   // The image tiles in the HUD must match the *real* 3D materials exactly.
+   // Preview assets get their own buffers; renderModelPortrait frees them.
+   const [data]=await Promise.all([
+    new GLTFLoader().loadAsync('/src/assets/reborn/buildings-3d/'+kind+'-0.glb'),
+    waitForDesertBuildingTextures()
+   ]);
+   const model=data.scene.clone(true);
+   model.traverse(node=>{
+    if(!node.isMesh)return;
+    node.geometry=node.geometry.clone();
+    node.material=Array.isArray(node.material)?
+     node.material.map(m=>m.clone()):node.material.clone();
+   });
+   if(kind==='barracks')finishBarracksSides(model);
+   tintFactionMaterials(model,0,kind,'building');
+   if(kind==='barracks')finishBarracksDesertPalette(model);
+   finishDesertBuildingMaterials(model,kind);
+   finishBuildingFacadeShading(model);
+   return renderModelPortrait(model,renderer);
+  }catch(error){
+   console.warn('Desert building PBR portrait fallback:',kind,error);
+  }
  }
  const image=await loadImage(buildingIconUrl(kind));
  let source=image;
