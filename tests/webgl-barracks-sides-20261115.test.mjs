@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {finishBarracksSides,disposeBarracksSides}
+import {finishBarracksSides,finishBarracksDesertPalette,BARRACKS_PALETTE_REVISION,disposeBarracksSides}
  from '../scripts/webgl-barracks-shell.js';
 
 function fixture(){
@@ -37,4 +37,37 @@ test('barracks flanks are solid, sand camouflage, symmetrical and idempotent',()
   'portal approach at +Z must remain unobstructed');
  disposeBarracksSides(root);
  assert.equal(root.getObjectByName('SandforgeBarracksSideCladding'),undefined);
+});
+
+test('sand/khaki finish corrects the original painted barracks hull, keeps PBR textures and doors unchanged',()=>{
+ const {root,door}=fixture();
+ const ceramic=root.getObjectByName('Atlas_CeramicHull_4');
+ const original=ceramic.material;
+ const image=new THREE.Texture(),normal=new THREE.Texture(),roughness=new THREE.Texture();
+ original.map=image;original.normalMap=normal;original.roughnessMap=roughness;
+ const steel=root.getObjectByName('Atlas_ArmouredHull_3');
+ const steelBefore=steel.material;
+ finishBarracksSides(root);
+ const count=finishBarracksDesertPalette(root);
+ assert.ok(count>=3,'original hull, armor and painted exterior panels corrected');
+ assert.equal(finishBarracksDesertPalette(root),0,'finish is idempotent');
+ assert.notEqual(ceramic.material,original,'original glTF cache remains unchanged');
+ assert.equal(original.userData.sandforgeBarracksPalette,undefined);
+ assert.equal(ceramic.material.map,image);
+ assert.equal(ceramic.material.normalMap,normal);
+ assert.equal(ceramic.material.roughnessMap,roughness);
+ assert.equal(ceramic.material.userData.sandforgeBarracksPalette,BARRACKS_PALETTE_REVISION);
+ assert.equal(ceramic.material.userData.sandforgeColorMapCamo,true);
+ assert.equal(steel.material.map,steelBefore.map);
+ assert.equal(door.material,steelBefore,'animated door retains original metal finish');
+ const shader={
+  vertexShader:'#include <common>\n#include <begin_vertex>',
+  fragmentShader:'#include <common>\n#include <color_fragment>'
+ };
+ ceramic.material.onBeforeCompile(shader,{});
+ assert.match(shader.vertexShader,/sfBarracksLocal=transformed/);
+ assert.match(shader.fragmentShader,/sfSand\*sfGrain/);
+ assert.match(shader.fragmentShader,/sfKhaki/);
+ assert.doesNotMatch(shader.fragmentShader,/sfDesertWorld/);
+ disposeBarracksSides(root);
 });
