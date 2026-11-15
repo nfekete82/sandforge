@@ -11,7 +11,6 @@ import {SandforgeBattlefield} from '/webgl-battlefield.js';
 import {DesertOases} from '/webgl-oases.js';
 import {DesertArtPass} from '/webgl-environment.js';
 import {BIOME_STYLES,normalizeBiome,createBiomeGroundTexture,addBiomeVegetation} from '/webgl-biomes.js';
-import {setWorldCamouflageBiome} from '/webgl-faction-accents.js';
 import {SandforgeCombatEffects} from '/webgl-combat-vfx.js';
 import {SandforgeStrategicEffects} from '/webgl-strategic-effects.js';
 import {SandforgePerformanceWatch} from '/webgl-perf-watch.js';
@@ -34,16 +33,13 @@ import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry} from '/webgl-rock-
 const $=id=>document.getElementById(id);
 const query=new URLSearchParams(location.search);
 const biome=normalizeBiome(query.get('biome'));
-setWorldCamouflageBiome(biome);
 const biomeStyle=BIOME_STYLES[biome];
 // Brand-new 50%-larger WebGL battlefields. Earlier Canyon v15-v18 saves
 // remain available via legacy=1 and are never silently migrated.
 // Keep pre-generator seeded bookmarks on their historical v19–22 maps.
 // The new-game menu always supplies terrain=random (or a chosen profile).
 const procedural=query.has('terrain')||query.has('play')||!query.has('seed');
-const sizes=query.get('legacy')==='1'?{4:15,8:16,12:17,16:18}:
- query.get('map')==='previous'?{4:23,8:24,12:25,16:26}:
- procedural?{4:27,8:28,12:29,16:30}:{4:19,8:20,12:21,16:22};
+const sizes=query.get('legacy')==='1'?{4:15,8:16,12:17,16:18}:procedural?{4:23,8:24,12:25,16:26}:{4:19,8:20,12:21,16:22};
 const bastions=Object.hasOwn(sizes,query.get('bastions'))?Number(query.get('bastions')):8;
 const inputSeed=query.get('seed');
 const seed=inputSeed!==null&&inputSeed.trim()!==''&&Number.isSafeInteger(Number(inputSeed))&&Number(inputSeed)>=0&&Number(inputSeed)<=4294967295
@@ -300,7 +296,7 @@ function buildTerrain(){
    if(terrain.battlefield?.generatorVersion===2){
     // Baked, subtle cut-and-fill earth at graded bastion edges. Same terrain
     // height field, no additional draw call or changing ground mesh.
-    const earth=terrainGradingEdge(x,z,terrain.sites,gradingHomes,2,world.mapVersion);
+    const earth=terrainGradingEdge(x,z,terrain.sites,gradingHomes,2);
     vertexColor.lerp(sandstone,earth*.16);
    }
    colors[n]=vertexColor.r;colors[n+1]=vertexColor.g;colors[n+2]=vertexColor.b;
@@ -453,8 +449,7 @@ function instancedStone(){
  }
  for(let i=0;i<(spacious?420:1600);i++){
   const x=75+r()*(size-150),z=75+r()*(size-150),index=world.index({x,y:z});
-  if(index<0||world.blocked[index]||terrain.sites.some(p=>Math.hypot(x-p.x,z-p.y)<160)||
-   (world.mapVersion>=27&&gradingHomes.some(p=>Math.hypot(x-p.x,z-p.y)<1190)))continue;
+  if(index<0||world.blocked[index]||terrain.sites.some(p=>Math.hypot(x-p.x,z-p.y)<160))continue;
   put(x,z,spacious?1.4+r()*3.6:2+r()*5,
    spacious?.8+r()*2.7:1+r()*4,
    spacious?1.5+r()*4.2:2+r()*6);
@@ -1184,9 +1179,7 @@ function animate(now){
  if(performanceWatch.enabled)performanceWatch.auxiliary(performance.now()-beforeAux);
  const beforeRender=performanceWatch.enabled?performance.now():0;
  renderer.render(scene,camera);
- // The wall-line ghost deliberately hides the single-building hologram. A
- // separate instanced ghost still needs the overlay render pass while dragging.
- if(battlefield.buildPreview?.visible||battlefield.wallLinePreview?.visible){
+ if(battlefield.buildPreview?.visible){
   // A second render pass guarantees the translucent construction silhouette
   // is always visible even behind rocks, soldiers, the black fog or buildings.
   // The first pass already cleared the frame. Clear only depth for the overlay.
