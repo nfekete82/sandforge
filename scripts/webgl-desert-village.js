@@ -107,7 +107,7 @@ export function createDesertVillages({scene,world,terrain,pos,heightAt,seed=worl
  const villages=planDesertVillages({world,terrain,seed,lowQuality});
  if(!villages.length)return {villages:[],meshes:[],roads:null,drawCalls:0};
  const walls=instanced(scene,'visual-abandoned-adobe-walls',
-  new THREE.MeshStandardMaterial({color:'#d7bea0',roughness:.98,metalness:0}),250);
+  new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.98,metalness:0}),250);
  const roofs=instanced(scene,'visual-abandoned-adobe-roof-fragments',
   new THREE.MeshStandardMaterial({color:'#ab9274',roughness:1,metalness:0}),60);
  const windows=instanced(scene,'visual-abandoned-adobe-window-recesses',
@@ -142,8 +142,8 @@ export function createDesertVillages({scene,world,terrain,pos,heightAt,seed=worl
   section(0,0,-depth/2,h/2,w,h,wall);
   section(0,-w/2+wall/2,0,h/2,wall,h,depth);
   section(0,w/2-wall/2,0,h/2,wall,h*(house.damaged?.64:1),depth);
-  section(0,-w/2+gap/4,depth/2,h/2,gap/2,h,wall);
-  section(0,w/2-gap/4,depth/2,h/2,gap/2,h,wall);
+  section(0,-w/2+gap/2,depth/2,h/2,gap,h,wall);
+  section(0,w/2-gap/2,depth/2,h/2,gap,h,wall);
   section(0,0,depth/2,h-2.7,door+1,5.4,wall);
   // Partial collapsed roof gives readable, derelict silhouettes from above.
   section(1,-w*.22,-depth*.12,h+.45,w*.53,.95,depth*.80);
