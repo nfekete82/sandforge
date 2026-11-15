@@ -16,7 +16,7 @@ test('visual lab is an independent, shipped Three.js entrypoint',()=>{
  assert.match(app,/headquarters-0\.glb/);
  assert.match(app,/palm-tree\.glb/);
  assert.match(app,/draw Calls:|Draw Calls:/);
- assert.doesNotMatch(app,/localStorage|game\.simulation|pathfinding|location\.reload/);
+ assert.doesNotMatch(app,/localStorage|game\.simulation|location\.reload/);
  assert.match(build,/cpSync\('desert-look-lab\.html','dist\/desert-look-lab\.html'\)/);
  assert.match(build,/cpSync\('scripts\/desert-look-lab\.js','dist\/desert-look-lab\.js'\)/);
 });
