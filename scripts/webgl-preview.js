@@ -221,7 +221,9 @@ function sandMicroNormalTexture(){
 function buildTerrain(){
  const texture=biome==='desert'?sandTexture():createBiomeGroundTexture(THREE,biome,seed);
  const normalMap=biome==='desert'?sandMicroNormalTexture():null;
- if(spacious&&normalMap)normalMap.repeat.set(2.2,2.2);
+ // Finer wind-cut dune ripples at the tactical camera scale, matching
+ // pale desert reference sand; visual PBR normals only, never terrain height.
+ if(spacious&&biome==='desert'&&normalMap)normalMap.repeat.set(6.5,6.5);
  const material=new THREE.MeshStandardMaterial({
   color:biome==='desert'?(spacious?'#f6ead9':'#f5eadb'):biomeStyle.terrain,
   map:texture,normalMap,normalScale:new THREE.Vector2(spacious?.77:.45,spacious?.77:.45),
