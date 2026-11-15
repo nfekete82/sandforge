@@ -22,6 +22,7 @@ import {factoryRepairPoint} from '/src/reborn/factory-maintenance.js';
 import {selectedMaintenanceKind,serviceFootprintContains,maintenanceClickAllowed} from '/webgl-maintenance-input.js';
 import {disposeOwnedMeshes,disposeTaggedMaterials} from '/webgl-resource-lifecycle.js';
 import {releaseBastionRevision} from '/webgl-bastion-lifecycle.js';
+import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
 import {selectedInfantryForTransport,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
 import {pointerGestureIntent,submitConstruction,nearestEngineer,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
 import {sameKindVisibleUnits} from '/webgl-double-click-select.js';
@@ -731,6 +732,9 @@ export class SandforgeBattlefield {
  }
  sync(force=false,dt=0,active=true,alpha=1){
   const aliveUnits=new Set(),aliveBases=new Set();
+  // Service slots are uncommon, so build this lookup only when needed. On
+  // busy matches, avoid scanning every base for each repairing unit.
+  let serviceBasesById=null,remainingUnitsById=null;
   const blend=Math.max(0,Math.min(1,alpha));
   this.presentation.refreshStats();
   this.presentation.stepRemnants(dt,active);
@@ -758,7 +762,9 @@ export class SandforgeBattlefield {
    const z=Number.isFinite(u.previousY)?u.previousY+(u.y-u.previousY)*lerp:u.y;
    const terrainGround=this.heightAt(x,z);
    const siteId=u.airfieldService?.baseId??u.factoryService?.baseId;
-   const serviceBase=siteId===undefined?null:this.game.bases.find(base=>base.id===siteId&&base.hp>0);
+   const serviceBase=siteId===undefined?null:
+    (serviceBasesById??=new Map(this.game.bases.filter(base=>base.hp>0)
+     .map(base=>[base.id,base]))).get(siteId)??null;
    let visualGround=terrainGround;
    if(serviceBase){
     const serviceLevel=this.heightAt(serviceBase.x,serviceBase.y);
@@ -778,7 +784,7 @@ export class SandforgeBattlefield {
    entry.node.visible=u.owner===0||this.game.canSee(0,u);
   }
   for(const [id,e] of this.units)if(!aliveUnits.has(id)){
-    const stillPresent=this.game.units.find(u=>u.id===id);
+    const stillPresent=(remainingUnitsById??=new Map(this.game.units.map(u=>[u.id,u]))).get(id);
     // Boarding units still exist with carrier ID. Actual casualties were
     // removed by Simulation at the fixed tick and must be identified from
     // their last visible actor snapshot. Saves/reset must not create corpses.
@@ -942,6 +948,9 @@ export class SandforgeBattlefield {
    const modelPath='/src/assets/reborn/buildings-3d/bastion-'+owner+'.glb';
    const data=await this.getModel(modelPath);
    if(version!==entry.version||!entry.node.parent)return;
+   // Trim the obsolete front shield once from the cached GLB template.
+   // All Bastions of this faction share the cleaned geometry.
+   removeBastionFrontShield(data.scene);
    const detail=cloneSkeleton(data.scene);
    const box=new THREE.Box3().setFromObject(detail),size=box.getSize(new THREE.Vector3());
    const factor=116/Math.max(.0001,size.x,size.z),center=box.getCenter(new THREE.Vector3());

@@ -1130,6 +1130,7 @@ function updateAttackWarning(){
  }
 }
 let lastFrame=performance.now(),frames=0,lastOutcome=game.status;
+const reusableShadowShift=new THREE.Vector3();
 function animate(now){
  performanceWatch.begin(now);
  const dt=Math.min(.08,(now-lastFrame)/1000);lastFrame=now;
@@ -1168,12 +1169,13 @@ function animate(now){
  strategicEffects.update(running);
  if(performanceWatch.enabled)performanceWatch.effectsCost(performance.now()-beforeEffects);
  if(running&&sound.enabled)sound.update(game,soundView);
- controls.update();
+ // Exactly one damped OrbitControls step per frame. The second step was
+ // consuming damping twice and doing redundant camera calculations.
  stepCamera(dt);
  controls.update();
  // Keep the shadow-map volume centered on the active camera area.
- const shift=controls.target.clone().sub(sun.target.position);
- sun.position.add(shift);sun.target.position.add(shift);
+ reusableShadowShift.copy(controls.target).sub(sun.target.position);
+ sun.position.add(reusableShadowShift);sun.target.position.add(reusableShadowShift);
  atmosphere.update(dt);
  oases.update(now*.001);
  if(performanceWatch.enabled)performanceWatch.auxiliary(performance.now()-beforeAux);
