@@ -17,6 +17,8 @@ test('both faction walls have authentic textured desert panels and intact markin
   const panels=wall.children.filter(mesh=>mesh.name==='WallArmoredPanel');
   assert.equal(panels.length,3);
   assert.ok(panels.every(mesh=>mesh.material.map?.isTexture&&mesh.material.userData.sandforgeWallCamouflage));
+  assert.ok(panels.every(mesh=>mesh.material.userData.sandforgeColorMapCamo),
+   'model-local camouflage must remain fixed when the building ghost moves');
   assert.ok(panels.every(mesh=>mesh.material.roughness>.8));
   assert.equal(wall.children.filter(mesh=>mesh.name==='WallFactionBand').length,3);
   assert.equal(wall.userData.defensiveWall,true);

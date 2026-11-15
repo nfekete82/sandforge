@@ -78,7 +78,9 @@ function createDefensiveWall(owner){
   color:'#fff7e7',roughness:.9,metalness:.04,
   map:siloDesertCamo,bumpMap:materialGrain,bumpScale:.24
  });
- concrete.userData={sandforgeWallCamouflage:true};
+ // The albedo is already camouflage: do not cover it with the generic
+ // world-position shader (it would slide across a moving build preview).
+ concrete.userData={sandforgeWallCamouflage:true,sandforgeColorMapCamo:true};
  const cap=new THREE.MeshStandardMaterial({color:'#817960',roughness:.84,metalness:.19,
   map:materialGrain,bumpMap:materialGrain,bumpScale:.1});
  const stripe=new THREE.MeshStandardMaterial({color:owner===0?'#3179a2':'#b35f4a',
