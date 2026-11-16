@@ -127,7 +127,7 @@ export function createStrategicBuilding(kind,owner=0){
   black:new THREE.MeshStandardMaterial({color:researchCamo?'#585345':'#252b29',map:materialGrain,
    bumpMap:materialGrain,bumpScale:.07,roughness:.68,metalness:.38}),
   glow:new THREE.MeshStandardMaterial({color:FACTION_PAINT[owner],
-   emissive:FACTION_PAINT[owner],emissiveIntensity:.34,metalness:.25,roughness:.4}),
+   emissive:FACTION_PAINT[owner],emissiveIntensity:kind==='silo'?.53:.34,metalness:.25,roughness:.4}),
   trim:new THREE.MeshStandardMaterial({color:structuralCamo?'#d3bd91':'#c2ac84',map:materialGrain,
    bumpMap:materialGrain,bumpScale:.12,roughness:.62,metalness:.36}),
   vent:new THREE.MeshStandardMaterial({color:researchCamo?'#505249':'#343c3b',roughness:.77,metalness:.35}),
