@@ -418,14 +418,16 @@ export function updateAirfieldServiceYard(entry,base,units,time,dt,active=true){
  if(rotor&&active&&dt>0)rotor.rotation.y+=dt*.44;
 }
 export function hideOldAirfieldHangar(entry){
- if(!entry.detail||entry.airfieldOldHidden)return;
+ if(!entry?.detail||entry.airfieldHiddenDetail===entry.detail)return;
  // The airfield has ONE complete authored service yard with its own
  // hangar, tower, apron and runway. The old building GLB must NEVER render
  // alongside it, even if it has an unexpected mesh/asset naming convention:
  // old unlabelled skids/landing strips otherwise leak onto the new runway.
  // Hide only the duplicate detail root, not aircraft units or game entities.
+ // Async GLB swaps can replace entry.detail: hide each new identity as well.
  entry.detail.visible=false;
  entry.detail.userData.airfieldLegacyHidden=true;
+ entry.airfieldHiddenDetail=entry.detail;
  entry.airfieldOldHidden=true;
 }
 export function disposeAirfieldServiceYard(entry){
