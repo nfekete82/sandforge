@@ -1901,6 +1901,7 @@ export class Simulation {
         // Hand off in front of the REAL door, on collision-safe ground.
         // Classic (and non-staged) production retains its original spawn.
         let spawn:Point|null=null;
+        let footFrontExit=false;
         if(this.stageWebGLProduction&&b.kind==='factory'&&vehicle){
           for(const candidate of factoryDoorExitCandidates(b)){
             if(!this.world.walkable(candidate,spawnObstacles,clearance))continue;
@@ -1910,19 +1911,25 @@ export class Simulation {
             if(clear&&distance(clear,candidate)<1){spawn=clear;break;}
           }
         }
-        // When a rally is set, infantry exits the actual front gate first and
-         // immediately heads for that rally. No forced excursion to the old
-         // right-hand/default waiting spot. Non-rally units retain that spot.
-         if(!spawn&&this.stageWebGLProduction&&b.rally&&
+        // All WebGL foot soldiers use the real front door, with or without a
+         // rally marker. Without rally they stop a few metres beyond it;
+         // obstructed doors still fall back to the previous safe exit.
+         if(!spawn&&this.stageWebGLProduction&&
             (b.kind==='barracks'||(b.kind==='headquarters'&&kind==='engineer'))){
            for(const candidate of infantryDoorExitCandidates(b)){
              if(!this.world.walkable(candidate,spawnObstacles,clearance))continue;
              const clear=this.world.nearest(candidate,spawnObstacles,this.units,undefined,clearance);
-             if(clear&&distance(clear,candidate)<1){spawn=clear;break;}
+             if(clear&&distance(clear,candidate)<1){spawn=clear;footFrontExit=true;break;}
            }
          }
          if(!spawn)spawn=spec.flying?exit:this.world.nearest(exit,spawnObstacles,this.units,undefined,clearance);
         if(spawn&&this.count(b.owner)<RULES.capacity){const u=this.spawn(b.owner,spawn,kind);
+           if(footFrontExit){
+             // Match the visible first steps to the authoritative facing
+             // so the actor cannot snap back to its default 45-degree angle.
+             const angle=[0,Math.PI,Math.PI/2,Math.PI*1.5][b.facing??0]??0;
+             u.angle=Math.PI/2-angle;
+           }
           // The actual spawn remains authoritative; the renderer performs only a
           // short exterior arrival fade. Never fake an opening in the baked facade.
           this.productionReleases.push({unitId:u.id,baseId:b.id,kind,owner:b.owner,at:this.time,from:{x:b.x,y:b.y},to:{...spawn}});
@@ -1932,11 +1939,10 @@ export class Simulation {
              // Minimum until the door is fully open and the real vehicle has
              // cleared the hall. The 3D presenter extends this for longer
              // exit routes (backward facings) before the next simulation tick.
-             // Foot units with a rally use a shorter, direct front-door rollout.
-             // The presenter extends this for any longer valid exit route.
-             const directRallyFoot=b.rally&&
-              (b.kind==='barracks'||(b.kind==='headquarters'&&kind==='engineer'));
-             this.productionDepartureHolds.set(u.id,this.time+(directRallyFoot?2.65:4.85));
+             // The presenter releases foot units when the visible walk reaches
+             // the lawful spawn, not after a second stationary door close.
+             const foot=b.kind==='barracks'||(b.kind==='headquarters'&&kind==='engineer');
+             this.productionDepartureHolds.set(u.id,this.time+(foot?2.65:4.85));
            }
          }
       }
