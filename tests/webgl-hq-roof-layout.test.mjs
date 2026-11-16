@@ -28,7 +28,7 @@ test('both HQs have 64%-larger dome centered on the roof, not on the barracks',(
   assert.ok(shell.max[0]>3.10&&shell.min[0]<-3.10,'large roof dome spans center');
   assert.ok(shell.max[2]>2.95&&shell.min[2]<-3.20,'dome is centered in Z');
   assert.ok(shell.max[1]>=8.10,'dome should tower above the prior 6.63m version');
-  assert.equal(doc.meshes.length,40,'40 drawcalls, not hundreds');
+  assert.equal(doc.meshes.length,43,'43 drawcalls including original vents and centered dome');
   assert.ok(doc.materials.some(m=>m.name==='SF_OriginalPBR_roof'));
   assert.ok(doc.images.length>=40);
  }
