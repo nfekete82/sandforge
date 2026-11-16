@@ -125,6 +125,8 @@ execFileSync(process.execPath,['scripts/generate-bastion-radar.mjs'],{stdio:'inh
 // Factory GLBs are deterministic, checked-in as a generator rather than 10MB binaries.
 // Both teams share the same PBR topology and real animated FactoryRollupDoor.
 execFileSync(process.execPath,['scripts/generate-factory-pbr.mjs'],{stdio:'inherit'});
+// The Energy Core is generated for BOTH factions from one compact PBR source.
+execFileSync(process.execPath,['scripts/generate-energy-core-pbr.mjs'],{stdio:'inherit'});
 // Both airfield factions are deterministic low-poly PBR assets in Git source.
 // Real flightline service still animates doors and controls aircraft docking.
 execFileSync(process.execPath,['scripts/generate-airfield-pbr.mjs'],{stdio:'inherit'});
