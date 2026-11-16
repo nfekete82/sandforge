@@ -1223,6 +1223,7 @@
 #sf-classic-root .sf-passenger-slot{display:flex;align-items:center;justify-content:center;height:29px;min-width:0;border:1px solid #a38a56;border-radius:3px;background:linear-gradient(145deg,#455b50,#25372e);color:#f0dfb4;font:700 10px var(--mono);padding:0;cursor:pointer}
 #sf-classic-root button.sf-passenger-slot:hover,#sf-classic-root button.sf-passenger-slot:focus-visible{outline:2px solid #e9ce7e;background:#62715a}
 #sf-classic-root .sf-passenger-empty{border-color:#4d5a4d;color:#667469;background:#1b2925;cursor:default}
+#sf-classic-root .sf-passenger-pending{border:1px dashed #ab925f;color:#d4b883;background:#403c2a;cursor:default}
 @media(max-width:1050px){#sf-classic-root .sf-passenger-slot{height:24px;font-size:9px}}
 @media(max-width:800px){#sf-classic-root #sf-selection-panel.sf-transport-selected{height:auto;min-height:190px}}
 
