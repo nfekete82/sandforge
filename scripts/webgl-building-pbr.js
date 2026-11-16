@@ -7,7 +7,7 @@ import * as THREE from 'three';
  * Original GLB geometry, UVs, doors, PBR wear/normal maps and animations
  * are preserved. No meshes or draw calls are added.
  */
-export const DESERT_BUILDING_PBR_REVISION='sandforge-authored-building-pbr-v1-20261115';
+export const DESERT_BUILDING_PBR_REVISION='sandforge-authored-building-pbr-v2-20261116';
 export const DESERT_BUILDING_KINDS=Object.freeze(['barracks','headquarters','factory','airfield']);
 const root='/src/assets/reborn/buildings-3d/textures/';
 export const DESERT_BUILDING_IMAGES=Object.freeze({
@@ -172,10 +172,13 @@ export function finishDesertBuildingMaterials(model,kind){
    const ghost=source.userData?.sandforgePreviewMaterial===true;
    const material=ghost?source:source.clone();
    const maps=roleMaps(role),config=settings[role];
-   // Hangar GLB uses genuine world-size 100-unit walls; factory and
-   // barracks meshes are authored around 5 units. Keep the physical
-   // camouflage splotch size similar across structures.
-   const uvScale=kind==='airfield'?.055:config.scale;
+   // The hangar facade is ~180 GLB units long while the barracks shell is
+   // ~5. The previous 0.055 tiled the 512px atlas ~10 times per wall,
+   // producing checkerboard camouflage at RTS camera distance. Project the
+   // SAME barracks source at 0.027 (~5 tiles across the hangar).
+   const uvScale=kind==='airfield'?.027:config.scale;
+   const wallCoverage=role==='camo'&&
+    (kind==='airfield'||kind==='factory')?.985:config.coverage;
    if(!material.normalMap)material.normalMap=maps.normal;
    if(!material.roughnessMap)material.roughnessMap=maps.roughness;
    material.roughness=Math.max(material.roughness,config.roughness);
@@ -219,7 +222,7 @@ export function finishDesertBuildingMaterials(model,kind){
      ' +texture2D(sfBuildingAlbedo,sfP.xy).rgb*sfBP.z;',
      // Retain dark joins, seams and baked weathering from original GLB.
      'float sfWear=clamp(.60+dot(diffuseColor.rgb,vec3(.2126,.7152,.0722))*.66,.36,1.12);',
-     'diffuseColor.rgb=mix(diffuseColor.rgb,sfPaint*sfWear,'+config.coverage.toFixed(2)+');'
+     'diffuseColor.rgb=mix(diffuseColor.rgb,sfPaint*sfWear,'+wallCoverage.toFixed(3)+');'
     ].join('\n');
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',coating);
    };
