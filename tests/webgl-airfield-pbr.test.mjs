@@ -227,10 +227,14 @@ test('flightline concrete uses small uniform slab aggregates, never camouflage b
  assert.match(paint,/const idx=slab\|\|asphalt\?1/);
  const material=servicePaint(['#82817a','#aaa69f','#c3beb5'],{pattern:'slab',seed:39});
  const d=material.map.image.data;
- const value=(x,y)=>d[(y*96+x)*4];
+ const side=material.map.image.width;
+ assert.equal(side,256,'fine shared service materials use 256px albedo');
+ const value=(x,y)=>d[(y*side+x)*4];
  assert.ok(Math.abs(value(18,18)-value(19,18))<22,'no large irregular swatches');
- assert.ok(value(48,18)<value(18,18)-12,'visible concrete panel joint');
- material.map.dispose();material.dispose();
+ assert.ok(value(64,18)<value(62,18)-10,'fine visible concrete panel joint');
+ assert.equal(material.normalMap?.isDataTexture,true,'microrelief PBR normal map exists');
+ assert.equal(material.normalMap.image.width,256);
+ material.map.dispose();material.normalMap.dispose();material.dispose();
 });
 
 test('tower has a circular shaft, 360-degree glazing and a round roof',()=>{
