@@ -21,7 +21,7 @@ test('both PBR HQ GLBs have the same textured command dome without losing animat
   const doc=glb(PATH+'headquarters-'+owner+'.glb');
   const names=new Set(doc.nodes.map(n=>n.name));
   const materialNames=new Set(doc.materials.map(m=>m.name));
-  assert.equal(doc.meshes.length,40,'HQ dome must add only five draw calls');
+  assert.equal(doc.meshes.length,43,'35 authored + 3 rear vent + 5 dome meshes');
   for(const name of ['HQ_Dome_Shell','HQ_Dome_Base','HQ_Dome_Glazing',
    'HQ_Dome_Armour','HQ_Dome_Frame',
    'HQ_Radar_01_LargeDish_Rotor','HQ_Radar_02_PhasedArray_Rotor',
