@@ -84,3 +84,14 @@ Browser: http://localhost:8110/webgl-preview.html (nach dem Beenden des alten Se
 - Die Layoutversion ist `centered-command-dome-roof-v4-canopy-20261116`. Der kombinierte Installer kopiert bei jedem Lauf wieder die originalen HQ-GLBs aus `sandforge-hq-pbr` und baut Layout, bündige Lüftung und Kuppel neu auf; die Kaserne bleibt unverändert.
 - In `tests/webgl-hq-roof-layout.test.mjs` wird jetzt die reale Lage der Stahlpunkte **unter** der Plane und die neue Radarposition für beide Fraktionen geprüft. Die komplette GLB-Kette Layout→Lüftungen→Kuppel wurde für Blau und Rot erzeugt und erneut geöffnet: je 43 Meshes, 47/50 PBR-Bilder, 0.17 minimale Materialfreiheit, Radar `x=5.87`.
 - Vollständigen lokalen Build, Node-Tests und optischen Browser-Test nach `git fetch` und `git merge --ff-only origin/feat/combined-barracks-hq-pbr-20261116` ausführen.
+
+
+## HUD: Kommandozentrale in heller PBR-Studiobeleuchtung
+
+Die HQ-GLB selbst hat auf Wand, Dach, Betonsockel und Stoff trotz eingebetteter Albedo-Texturen den metallischen Exportfaktor `1.0`. Im eigenständigen transparenten HUD-Render ohne HDR-Umgebungsreflexion erscheinen diese Flächen dadurch dunkel bis schwarz. Die bisherige Vorschau übermalte die ursprüngliche Wüstentarnung zusätzlich mit dem alten generischen Wüsten-Finish, während das 3D-Spiel die originalen HQ-PBR-Materialien unverändert nutzt.
+
+- `scripts/webgl-hq-portrait.js` erkennt das echte HQ an seinen GLB-Meshes. Ausschließlich bei der **separaten HUD-Miniatur** werden die metallischen Exportwerte von Wand/Dach/Beton/Stoff auf maximal `0.13` begrenzt; Bodenplatten und Türen behalten ihre dunklen Farben. Die eingebetteten `map`, `normalMap` und `roughnessMap` bleiben erhalten. Ein dezentes albedo-basiertes Bounce-Light macht auch die Schattenseiten lesbar.
+- `scripts/webgl-portraits.js` überspringt nur beim finalen authored HQ die generischen Fraktionsfarb-/Wüsten-Repaint-Shader und verwendet etwas stärkere, weiche Hemisphere-/Directional-/Ambient-Lichter in der **isolierten Portrait-Scene**. Die echte Battlefield-Scene und ihr Tonemapping werden nicht verändert.
+- `scripts/build.mjs` kopiert das neue Modul nach `dist`, sodass die Standard-HUD-Icon-Pipeline es laden kann.
+- `tests/webgl-hq-portrait-lighting.test.mjs` prüft die materialbezogene Aufhellung, die originalen Farb-, Normal- und Roughness-Maps, unveränderte dunkle Tore, Kaserne/Legacy-HQ sowie den Build-Importpfad.
+- Die Portraits werden beim Neuladen des Spiels aus dem bereits im gemeinsamen Test-Worktree installierten HQ-GLB neu gerendert; keine neuen GLB-Dateien oder HUD-PNGs nötig.
