@@ -68,7 +68,7 @@ test('gameplay, placement ghost, HUD, and the deployed build share roof markers'
  assert.match(battlefield,/paintFactionRoofStripes\(model,entry\.kind,entry\.owner\)/);
  assert.match(battlefield,/paintFactionRoofStripes\(model,kind,0\)/);
  assert.match(battlefield,/paintFactionRoofStripes\(entry\.detail,b\.kind,b\.owner\)/);
- assert.match(portrait,/if\(authoredHQ\|\|authoredBarracks\)paintFactionRoofStripes\(model,kind,0\)/);
+ assert.match(portrait,/if\(authoredHQ\|\|authoredBarracks\)\s*\{\s*paintFactionRoofStripes\(model,kind,0\);\s*paintFactionEntranceBanners\(model,kind,0\);/);
  assert.match(build,/cpSync\('scripts\/webgl-building-roof-stripes\.js','dist\/webgl-building-roof-stripes\.js'\)/);
  const policy=readFileSync('scripts/webgl-builder-input.js','utf8');
  assert.match(policy,/kind==='wall'\|\|Boolean\(shift\)/);
