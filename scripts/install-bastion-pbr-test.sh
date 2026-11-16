@@ -39,7 +39,8 @@ node --test \
  tests/webgl-entrance-banners-and-hud-compact.test.mjs \
  tests/webgl-factory-pbr-and-faction-palette.test.mjs \
  tests/webgl-pause-resume-consistency.test.mjs \
- tests/webgl-airfield-pbr.test.mjs
+ tests/webgl-airfield-pbr.test.mjs \
+ tests/webgl-micro-ruins.test.mjs
 trap - ERR
 echo "Bastion + finale PBR-Kaserne + PBR-Kommandozentrale geladen. Backup: $BACKUP"
 echo "Preview: PORT=8111 npm run preview"
