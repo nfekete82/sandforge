@@ -91,8 +91,9 @@ test('selection HUD has only demolition for ordinary buildings, never for units 
  const sim=src('src/reborn/simulation.ts');
  const build=src('scripts/build.mjs');
  assert.match(html,/data-action="demolish"/);
- assert.match(battle,/const ownBuilding=Boolean\(base&&base\.owner===0&&chosen\.length===0\)/);
- assert.match(battle,/button\.hidden=a!=='demolish'/);
+ assert.match(battle,/const buildingSelected=Boolean\(base&&chosen\.length===0\)/);
+ assert.match(battle,/const ownBuilding=Boolean\(buildingSelected&&base\.owner===0\)/);
+ assert.match(battle,/button\.hidden=!ownBuilding/);
  assert.match(battle,/if\(action==='demolish'\)/);
  assert.match(battle,/window\.confirm\(message\)/);
  assert.match(battle,/this\.game\.demolishBuilding\(base\.id,0\)/);
