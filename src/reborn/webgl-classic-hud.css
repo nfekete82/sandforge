@@ -2481,3 +2481,36 @@
  transform:scale(.82)!important;
  transform-origin:center center!important;
 }
+
+/* Building portraits must remain legible even while a facility is locked.
+   Older rules stacked opacity(.78) on the card with grayscale/blur,
+   brightness(.70) and image opacity(.77), making HQ almost black.
+   Keep the locked border, subdued footer and disabled interaction; only
+   remove the destructive image darkening. Does not affect unit cards. */
+#sf-classic-root #sf-actions button.catalog-card[data-build]:disabled,
+#sf-classic-root #sf-actions button.catalog-card[data-build].locked {
+  opacity:1!important;
+  filter:none!important;
+  border-color:#686b5e!important;
+  background:linear-gradient(155deg,#42443c,#292e2b 72%)!important;
+}
+#sf-classic-root #sf-actions button.catalog-card[data-build]:disabled .sf-card-image,
+#sf-classic-root #sf-actions button.catalog-card[data-build].locked .sf-card-image {
+  background:radial-gradient(ellipse at 50% 75%,#8d81664d 0%,#333a348a 76%,#262b28 100%)!important;
+}
+#sf-classic-root #sf-actions button.catalog-card[data-build]:disabled .sf-card-image img,
+#sf-classic-root #sf-actions button.catalog-card[data-build].locked .sf-card-image img {
+  opacity:.96!important;
+  filter:grayscale(.26) brightness(1.08) contrast(1.04)!important;
+}
+#sf-classic-root #sf-actions button.catalog-card[data-build]:disabled .card-meta,
+#sf-classic-root #sf-actions button.catalog-card[data-build].locked .card-meta {
+  background:#282d29!important;
+  border-top-color:#686b5e!important;
+}
+/* Normal building artwork receives the true bright portrait, no extra CSS
+   color filter, so tan desert camo and dark details stay recognizable. */
+#sf-classic-root #sf-actions button.catalog-card[data-build]:not(:disabled):not(.locked) .sf-card-image img {
+  filter:none!important;
+  opacity:1!important;
+}
