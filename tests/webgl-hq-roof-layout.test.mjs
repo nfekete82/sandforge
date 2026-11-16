@@ -82,7 +82,7 @@ test('steel canopy braces sit below the fabric, never cut black diagonal lines t
   assert.equal(fabric.length,6);
   const roofY=x=>3.4542+(x-6.9426)*(2.9184-3.4542)/(8.7318-6.9426);
   const steel=positions('HQ_Static_SF_OriginalPBR_steel');
-  const inside=steel.filter(([x,y,z])=>x>=6.93&&x<=8.75&&z>=-2.09&&z<=2.45&&
+  const inside=steel.filter(([x,y,z])=>x>=6.91&&x<=8.75&&z>=-2.09&&z<=2.45&&
     y>roofY(x)-.30&&y<roofY(x)+.24);
   assert.ok(inside.length>100,'keep real structural steel below the canopy');
   assert.ok(inside.every(([x,y])=>y<=roofY(x)-.165),
