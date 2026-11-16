@@ -99,6 +99,7 @@ cpSync('scripts/webgl-bastion-visual.js','dist/webgl-bastion-visual.js');
 cpSync('scripts/webgl-construction.js','dist/webgl-construction.js');
 cpSync('scripts/webgl-construction-recovery.js','dist/webgl-construction-recovery.js');
 cpSync('scripts/webgl-production-gates.js','dist/webgl-production-gates.js');
+cpSync('scripts/webgl-building-collapse.js','dist/webgl-building-collapse.js');
 cpSync('scripts/webgl-wheel-motion.js','dist/webgl-wheel-motion.js');
 cpSync('scripts/webgl-barracks-portal.js','dist/webgl-barracks-portal.js');
 cpSync('scripts/webgl-headquarters-portal.js','dist/webgl-headquarters-portal.js');
