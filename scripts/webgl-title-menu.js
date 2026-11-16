@@ -235,6 +235,8 @@
  pauseDialog.addEventListener('cancel',e=>{e.preventDefault();resumeGame();});
  pauseDialog.addEventListener('close',()=>{pauseCheatProgress=0;});
  document.addEventListener('keydown',e=>{
+  // HTML confirmation is the active modal: never trigger tactical pause/ESC.
+  if(document.getElementById('sf-confirm-dialog')?.open)return;
   if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||
    (e.target instanceof Element&&e.target.matches('input,select,textarea,[contenteditable]')))return;
   if(pauseDialog.open&&!menu.open&&!newDialog.open&&!optionsDialog.open){
