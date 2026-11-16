@@ -63,6 +63,23 @@ function glassTube(r,bottom,top,sides=24){
   quad(g,pt(r,bottom,a),pt(r,top,a),pt(r,top,b),pt(r,bottom,b));
  }
 }
+// An OPEN, optically transparent hemispherical dome atop the energy tube.
+// Smooth 24-sided circumference and eight curved latitude bands, with no
+// opaque solid cap sealing the visible energy inside.
+export const ENERGY_GLASS_DOME=Object.freeze({radius:1.15,base:4.22,rise:.65,segments:8});
+function glassDome(){
+ const g=material('glass'),{radius:r,base,rise,segments}=ENERGY_GLASS_DOME;
+ const point=(theta,angle)=>[
+  Math.cos(angle)*r*Math.cos(theta),
+  base+rise*Math.sin(theta),
+  Math.sin(angle)*r*Math.cos(theta)
+ ];
+ for(let j=0;j<segments;j++)for(let i=0;i<24;i++){
+  const a=i*TAU/24,b=(i+1)*TAU/24;
+  const t0=j*PI/(2*segments),t1=(j+1)*PI/(2*segments);
+  quad(g,point(t0,a),point(t1,a),point(t1,b),point(t0,b));
+ }
+}
 function beam(mat,a,b,width=.09,rotor=false){
  const direction=unit(sub(b,a)),right=unit(cross(direction,[0,0,1])),forward=unit(cross(direction,right));
  const offset=(p,x,z)=>add(add(p,mul(right,x)),mul(forward,z)),w=width/2;
@@ -119,10 +136,11 @@ function buildParts(){
   beam('steel',[x,2.02,z],[x,4.22,z],.075);
  }
  ring('steel_light',4.19,1.13,1.25,.065,tube.sides);
- frustum('steel_dark',4.25,4.39,1.25,1.15,tube.sides);
- ring('team',4.26,1.11,1.25,.055,tube.sides);
- // Small round upper valve cap; no large turret, lamps or extra spires.
- cylinder('steel_light',.25,4.39,4.48,16);
+ // The top is real GLASS, not the previous opaque steel disk.
+ // Dome is integrated into the same PBR optical material as the cylinder.
+ glassDome();
+ ring('team',4.23,1.15,1.26,.047,tube.sides);
+ cylinder('energy',.14,4.09,4.52,16);
 
  // One simple stationary service door on the FRONT (+Z).
  box('steel_dark',[0,.91,1.493],[.77,1.15,.07]);
@@ -176,7 +194,7 @@ function exportTeam(owner){
  
  
  buildParts();
- const gltf={asset:{version:'2.0',generator:'sandforge-energy-core-pbr-v2-glass-20261116'},
+ const gltf={asset:{version:'2.0',generator:'sandforge-energy-core-pbr-v3-glass-dome-20261116'},
  extensionsUsed:['KHR_materials_unlit'],scene:0,
  scenes:[{nodes:[0]}],nodes:[{name:'SF_EnergyCore_PBR_Root',children:[]}],
  meshes:[],materials:[],images:[],textures:[],samplers:[{magFilter:9729,minFilter:9987,wrapS:10497,wrapT:10497}],
