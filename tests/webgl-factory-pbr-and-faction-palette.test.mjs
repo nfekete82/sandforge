@@ -78,9 +78,15 @@ test('factory is a complete procedural authored-style PBR model for both teams',
   const mesh=doc.meshes[door.mesh];
   const accessor=doc.accessors[mesh.primitives[0].attributes.POSITION];
   assert.ok(accessor.min[1]>=-.01&&accessor.min[1]<.07);
-  assert.ok(accessor.max[1]>=1.45&&accessor.max[1]<1.65);
+  assert.ok(accessor.max[1]>=1.68&&accessor.max[1]<1.75,
+   'new shutter must be ~12% taller than first factory');
+  assert.ok(accessor.max[0]-accessor.min[0]>2.05,
+   'new shutter must be ~15% wider than first factory');
   assert.ok(accessor.max[2]>2.25,'door must face +Z production rollout');
   assert.ok(doc.meshes.some(m=>m.name==='SF_Factory_PBR_white'),'two facade stars');
+  const roof=doc.nodes.find(n=>n.name==='SF_Factory_PBR_roof');
+  const roofAcc=doc.accessors[doc.meshes[roof.mesh].primitives[0].attributes.POSITION];
+  assert.ok(roofAcc.max[0]-roofAcc.min[0]>5.5,'factory body must be ~10% wider');
  }
 });
 
@@ -106,9 +112,56 @@ test('factory has one production gate; repair is still a separate OPEN platform'
  const service=readFileSync('scripts/webgl-factory-service.js','utf8');
  assert.match(gate,/getObjectByName\('FactoryRollupDoor'\)/);
  assert.match(gate,/gate\.door\.scale\.y=1-pose\.open\*\.96/);
+ assert.match(gate,/doorLiftHeight=finalFactory\?1\.70:1\.48/);
+ assert.match(gate,/garageWidth=finalFactory\?2\.20:1\.52/);
  assert.match(service,/FactoryOpenAirRepairPlatform/);
  assert.match(service,/ONE open-air, drive-on service platform/);
  const gen=readFileSync('scripts/generate-factory-pbr.mjs','utf8');
  assert.match(gen,/single REAL FactoryRollupDoor/);
  assert.match(gen,/Leave the real doorway EMPTY/);
+});
+
+/** Read authored GLB local geometry directly, without requiring WebGL. */
+function meshPositions(file,name){
+ const {doc,data,binStart}=file;
+ const node=doc.nodes.find(n=>n.name===name);
+ assert.ok(node?.mesh!==undefined,'Missing model part '+name);
+ const access=doc.accessors[doc.meshes[node.mesh].primitives[0].attributes.POSITION];
+ const view=doc.bufferViews[access.bufferView];
+ assert.equal(access.type,'VEC3');
+ const out=[];
+ for(let i=0;i<access.count;i++){
+  const offset=binStart+view.byteOffset+(access.byteOffset??0)+i*(view.byteStride??12);
+  out.push([data.readFloatLE(offset),data.readFloatLE(offset+4),data.readFloatLE(offset+8)]);
+ }
+ return out;
+}
+
+test('all four roof paint sections avoid the raised roof ventilation housings',()=>{
+ for(const owner of [0,1]){
+  const file=glb('factory-'+owner);
+  const roofPaint=meshPositions(file,'SF_Factory_PBR_team')
+   .filter(([x,y,z])=>y>2.57);
+  assert.ok(roofPaint.length>=96,'two split strips should yield four sections');
+  assert.ok(roofPaint.every(([x,y,z])=>z<=-1.35+.0001||z>=-.18-.0001),
+   'paint must NOT run under any of the two raised housings');
+  const zones=new Set(roofPaint.map(([x,y,z])=>
+   (x<0?'L':'R')+':'+(z<-1.35+.0001?'back':'front')));
+  assert.deepEqual([...zones].sort(),['L:back','L:front','R:back','R:front']);
+ }
+});
+
+test('factory reuses thin HQ/barracks wire, opens right side for repairs',()=>{
+ const yard=readFileSync('scripts/webgl-building-yard.js','utf8');
+ assert.match(yard,/perimeterBarracksWire\(g,width,\{factory:kind==='factory'\}\)/);
+ assert.match(yard,/segment\(x,rear,x,factory\?-width\*\.13:front\)/);
+ assert.match(yard,/if\(!factory\)segment\(gateHalf,front,x,front\)/);
+ assert.match(yard,/BarracksWireFenceStrands/);
+ assert.match(yard,/BarracksWireFenceBarbs/);
+ const scene=readFileSync('scripts/webgl-battlefield.js','utf8');
+ assert.match(scene,/const artScale=finalFactoryArt\?1\.06:1/);
+ assert.match(scene,/kind==='factory'&&model\.getObjectByName\('SF_Factory_PBR_roof'\)\?1\.06:1/);
+ const gen=readFileSync('scripts/generate-factory-pbr.mjs','utf8');
+ assert.match(gen,/FACTORY_WIDTH_FACTOR=1\.10/);
+ assert.match(gen,/FACTORY_GATE_OPEN_HEIGHT=1\.70/);
 });
