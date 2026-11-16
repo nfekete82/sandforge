@@ -6,7 +6,13 @@ import {join} from 'node:path';
 import {deflateSync} from 'node:zlib';
 const OUT=process.argv[2]||'src/assets/reborn/buildings-3d';
 const PI=Math.PI,TAU=2*PI;
-const colors={sandstone:[190,157,116],sand_light:[214,181,133],sand_shadow:[125,112,90],olive:[95,104,75],metal:[63,67,65],metal_light:[112,119,112],metal_dark:[26,34,36],amber:[231,159,69],blue:[60,171,208],white:[227,225,209],camo:[189,158,113],fabric:[44,103,153],sandbag:[178,158,123],bronze:[124,105,69],gunmetal:[41,45,44]};
+// Lift the octagonal tower by 60% above its unchanged capture foundation.
+// The independently rotating radar geometry retains its rigid dimensions.
+const TOWER_STRETCH=1.60,TOWER_STRETCH_START=1.31,RADAR_PIVOT_Y=6.14;
+const BEACON_X=-2.45,BEACON_Z=-.94;
+const liftedY=y=>y<=TOWER_STRETCH_START?y:
+ TOWER_STRETCH_START+(y-TOWER_STRETCH_START)*TOWER_STRETCH;
+const colors={sandstone:[190,157,116],sand_light:[214,181,133],sand_shadow:[125,112,90],olive:[95,104,75],metal:[63,67,65],metal_light:[112,119,112],metal_dark:[26,34,36],amber:[231,159,69],blue:[60,171,208],white:[227,225,209],camo:[189,158,113],fabric:[44,103,153],sandbag:[178,158,123],bronze:[124,105,69],gunmetal:[41,45,44],radar_base:[82,80,70],beacon:[60,171,208]};
 const add=(a,b)=>a.map((x,i)=>x+b[i]);
 const sub=(a,b)=>a.map((x,i)=>x-b[i]);
 const mul=(a,t)=>a.map(x=>x*t);
@@ -53,7 +59,7 @@ function star(frontZ=2.42){
 }
 function buildParts(){
  groups.clear();
- // Broad twelve-sided capture pad and camouflaged low sloping tower.
+ // Broad capture pad with a much taller, buttressed desert-camo tower.
  frustum('metal_dark',.06,.69,3.68,3.52,12);
  frustum('sandstone',.62,.90,3.48,3.35,12);
  frustum('sand_light',.88,1.31,3.30,3.07,12);
@@ -80,7 +86,16 @@ function buildParts(){
  beam('metal_light',[p[0],5.80,p[2]],[q[0],5.80,q[2]],.066);}
  for(const a of [PI/6,PI/2,5*PI/6,7*PI/6,11*PI/6])for(let j=0;j<4;j++){
  const ang=a+(j-1.5)*.07;box('sandbag',pt(3.24,1.38,ang),[.49,.23,.32],-ang);}
- // Radar geometry is LOCAL to a single independent, animated pivot at Y=5.93.
+ // Solid octagonal mechanical seat: platform + armoured bearing + steel spindle.
+ // Stationary housing intersects the rotating foot by ~9 cm so the radar
+ // has no gap at any angle. Visible in isometric camera view.
+ frustum('radar_base',5.55,5.78,1.14,1.03,12);
+ frustum('radar_base',5.78,6.13,.86,.60,12);
+ ring('bronze',5.77,.77,1.08,.095,12);
+ cylinder('metal_dark',.49,6.00,6.15,12);
+ for(let i=0;i<4;i++){const a=i*PI/2+PI/4;
+  beam('gunmetal',pt(1.39,5.61,a),pt(.62,6.05,a),.13);}
+ // Radar geometry remains LOCAL to the independent pivot RADAR_PIVOT_Y.
  cylinder('metal_dark',.65,-.08,.13,12,[0,0,0],true);
  cylinder('metal',.43,.13,.46,12,[0,0,0],true);
  cylinder('bronze',.36,.43,.69,12,[0,0,0],true);
@@ -91,10 +106,25 @@ function buildParts(){
  for(const x of [-1.34,1.34])box('metal_light',[x,1.17,.05],[.13,1.23,.16],0,true);
  beam('metal',[-.7,.46,-.17],[-.94,.85,-.11],.12,true);
  beam('metal',[.7,.46,-.17],[.94,.85,-.11],.12,true);
- cylinder('sandstone',.21,5.32,5.53,12,[-1.84,0,-.75]);
- beam('metal_dark',[-1.84,5.50,-.75],[-1.84,7.65,-.75],.09);
- cylinder('blue',.14,7.48,7.71,10,[-1.84,0,-.75]);
- box('metal',[-1.84,6.50,-.75],[.30,.51,.26]);
+ // Dedicated far-side beacon mount: radius 2.62 vs the rotor sweep <1.55.
+ // The cyan/red/neutral beacon never intersects the spinning rectangle.
+ box('radar_base',[BEACON_X,5.70,BEACON_Z],[.72,.20,.69]);
+ beam('metal_dark',[-2.12,5.53,-.80],[BEACON_X,5.73,BEACON_Z],.13);
+ cylinder('metal_dark',.27,5.77,5.97,12,[BEACON_X,0,BEACON_Z]);
+ beam('metal_dark',[BEACON_X,5.91,BEACON_Z],[BEACON_X,6.92,BEACON_Z],.095);
+ box('metal',[BEACON_X,6.33,BEACON_Z],[.32,.34,.28]);
+ cylinder('beacon',.17,6.81,7.04,12,[BEACON_X,0,BEACON_Z]);
+ // Scale ONLY the tower's stationary geometry, preserving a level deck and
+ // rigid rotor head. Rebuild normals to avoid mis-shaded sloped walls.
+ for(const g of groups.values()){
+  if(g.rotor)continue;
+  for(let i=1;i<g.p.length;i+=3)g.p[i]=liftedY(g.p[i]);
+  for(let i=0;i<g.p.length;i+=9){
+   const p=g.p.slice(i,i+3),q=g.p.slice(i+3,i+6),r=g.p.slice(i+6,i+9);
+   const n=unit(cross(sub(q,p),sub(r,p)));
+   for(let j=0;j<3;j++)g.n.splice(i+j*3,3,...n);
+  }
+ }
 }
 const crcTable=Array.from({length:256},(_,n)=>{let c=n;for(let i=0;i<8;i++)c=c&1?0xedb88320^(c>>>1):c>>>1;return c>>>0});
 function crc32(buffer){let c=0xffffffff;for(const b of buffer)c=crcTable[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0}
@@ -118,9 +148,10 @@ function exportTeam(owner){
  const pal=JSON.parse(JSON.stringify(colors));
  if(owner===1){pal.blue=[218,91,77];pal.fabric=[140,64,57];}
  if(owner===-1){pal.blue=[165,152,120];pal.fabric=[109,104,88];}
+ pal.beacon=pal.blue.slice();
  buildParts();
- const gltf={asset:{version:'2.0',generator:'sandforge-bastion-radar-v2'},scene:0,
- scenes:[{nodes:[0]}],nodes:[{name:'BastionRoot',children:[1]},{name:'BastionRadarRotor',translation:[0,5.93,0],children:[]}],
+ const gltf={asset:{version:'2.0',generator:'sandforge-bastion-radar-v3-tall-platform'},scene:0,
+ scenes:[{nodes:[0]}],nodes:[{name:'BastionRoot',children:[1]},{name:'BastionRadarRotor',translation:[0,liftedY(RADAR_PIVOT_Y),0],children:[]}],
  meshes:[],materials:[],images:[],textures:[],samplers:[{magFilter:9729,minFilter:9987,wrapS:10497,wrapT:10497}],
  buffers:[{byteLength:0}],bufferViews:[],accessors:[],animations:[]};
  const chunks=[];let offset=0;
@@ -143,7 +174,7 @@ function exportTeam(owner){
    gltf.textures.push({sampler:0,source:image});
    gltf.materials.push({name:'Sandforge_Bastion_'+g.name,pbrMetallicRoughness:{
     baseColorTexture:{index:image},metallicFactor:/metal|bronze|gunmetal/.test(g.name)?.45:.07,
-    roughnessFactor:.83},emissiveFactor:g.name==='blue'?
+    roughnessFactor:.83},emissiveFactor:(g.name==='blue'||g.name==='beacon')?
     (owner===0?[.05,.16,.25]:owner===1?[.24,.07,.06]:[.10,.1,.07]):[0,0,0],doubleSided:true});
    names.set(g.name,mat);
   }
