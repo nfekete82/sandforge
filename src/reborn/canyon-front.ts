@@ -48,7 +48,9 @@ export function generateCanyonFeatures(seed:number,size:number,columns:number,ro
    &&sites.every(s=>dist(s,p)>280+radius)
    &&!nearRoad(p)
    &&!ridge.spine.slice(1).some((b,i)=>segmentDistance(p,ridge.spine[i],b)<r.width+radius+120)
-   &&ruins.every(o=>dist(o,p)>Math.max(o.width,o.depth)+radius+(spacious?195:55));
+   // Modern 3D sites need open sand between them, not clusters of almost
+   // identical miniature houses. Legacy Canyon seed geometry is untouched.
+   &&ruins.every(o=>dist(o,p)>Math.max(o.width,o.depth)+radius+(spacious?265:55));
  };
  // Fixed visual zones, deterministic small offsets. Gameplay paths are never
  // inferred from this decoration; the block grid is built from exact footprints.
@@ -56,17 +58,25 @@ export function generateCanyonFeatures(seed:number,size:number,columns:number,ro
   [[.16,.19],[.82,.18],[.19,.81],[.81,.81],[.46,.19],[.54,.79],[.12,.46],[.87,.54],[.34,.33],[.66,.67]]:
   [[.2,.2],[.8,.22],[.21,.75],[.77,.77],[.48,.2],[.5,.79],[.1,.48],[.9,.53]];
  for(const [index,[ax,ay]] of anchors.entries()){
-  // One or two derelicts per region, not three identical buildings side by side.
-  for(let n=0;n<(spacious?1+(index%3===0?1:0):3);n++){
+  // Spacious maps: ONE distinct site per region (10 maximum, down from 14).
+  // Keep old map generator's 3-per-region layout unchanged.
+  for(let n=0;n<(spacious?1:3);n++){
    let added=false;
    for(let trial=0;trial<32&&!added;trial++){
-    const variant=Math.floor(random()*3);
+    // Large derelict buildings are deliberately rare. Most sites are
+    // micro-ruins, alternating their fragment profile by variant and seed.
+    const variant=spacious?(index%4===0?1:(random()<.5?0:2)):
+     Math.floor(random()*3);
     const r:CanyonRuin={x:(ax+(random()-.5)*.09)*size,y:(ay+(random()-.5)*.09)*size,
-      // On v19+ the *physical* ruin footprint grows with the mesh, so units
-      // cannot walk through larger facades. Older maps remain byte-identical.
-      width:(variant===1?120:80+random()*35)*(spacious?1.35:1),
-      depth:(variant===1?88:66+random()*29)*(spacious?1.35:1),
-      height:(variant===1?63:39+random()*26)*(spacious?1.20:1),
+      // Actual blocked footprints match the visible remains. Tiny broken
+      // walls do not reserve the space of a full-size building.
+      // Older map footprints and RNG calls stay byte-for-byte unchanged.
+      width:spacious?(variant===1?162:59+random()*19):
+       (variant===1?120:80+random()*35),
+      depth:spacious?(variant===1?119:45+random()*15):
+       (variant===1?88:66+random()*29),
+      height:spacious?(variant===1?75.6:14+random()*8):
+       (variant===1?63:39+random()*26),
       // Give spacious 3D ruins genuinely different orientations, not the
       // nearly identical +/-7-degree facing of legacy Canyon maps.
       rotation:spacious?(random()-.5)*Math.PI*1.7:(random()-.5)*.24,variant};
