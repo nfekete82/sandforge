@@ -58,7 +58,8 @@ function shadow(group,name,shape,at,width,height,yaw=0){
  mesh.renderOrder=7;
  mesh.castShadow=false;mesh.receiveShadow=false;
  mesh.raycast=()=>{};
- mesh.userData={visualOnly:true,nonPlayable:true,barracksContactShadow:true};
+ mesh.userData={visualOnly:true,nonPlayable:true,barracksContactShadow:true,
+  factionAccent:true};
  group.add(mesh);return mesh;
 }
 
