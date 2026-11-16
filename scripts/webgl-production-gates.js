@@ -57,7 +57,10 @@ export class SandforgeProductionGates {
    setHeadquartersDoorOpen(portal,0);
    return entry.gate;
   }
-  if(entry.kind!=='factory')return null;
+  // Production fixtures and legacy factory presenters may omit entry.kind.
+  // Detect an actual factory via its authored FactoryRollupDoor instead.
+  // HQ and barracks have their own portal branches above.
+  if(entry.kind&&entry.kind!=='factory')return null;
   const door=entry.detail.getObjectByName('FactoryRollupDoor');
   if(!door)return null;
   const root=door.parent,hall=new THREE.Group();hall.name='FactoryInterior';root.add(hall);
