@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {FACTION_PAINT} from './sandforge-faction-palette.js';
 
 /** Subtle painted faction strips on the REAL authored PBR roof surface.
  * One static non-interactive mesh per building, generated from ray samples
@@ -7,7 +8,7 @@ import * as THREE from 'three';
  * Coordinates are model-local; call before battlefield model normalization.
  */
 export const ROOF_STRIPE_REVISION='authored-roof-stripes-v1-20261116';
-export const ROOF_STRIPE_COLORS=Object.freeze({0:'#397fa1',1:'#aa514b'});
+export const ROOF_STRIPE_COLORS=FACTION_PAINT;
 const MARK='SF_FactionRoofStripes';
 
 function authoredRoofs(model,kind){
@@ -97,9 +98,11 @@ export function paintFactionRoofStripes(model,kind,owner){
  geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
  geometry.setIndex(indices);
  geometry.computeVertexNormals();
- const material=new THREE.MeshStandardMaterial({
-  color:ROOF_STRIPE_COLORS[owner],metalness:0,roughness:.95,
-  transparent:true,opacity:.94,side:THREE.DoubleSide,depthWrite:false,
+ // Flat painted identification must match the Bastion banner RGB,
+ // independent of the strong desert sun and camera tone mapping.
+ const material=new THREE.MeshBasicMaterial({
+  color:ROOF_STRIPE_COLORS[owner],toneMapped:false,
+  side:THREE.DoubleSide,depthWrite:true,
   polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2
  });
  const mark=new THREE.Mesh(geometry,material);
