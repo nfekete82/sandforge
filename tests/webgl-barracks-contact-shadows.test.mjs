@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {addBarracksContactShadows} from '../scripts/webgl-barracks-contact-shadows.js';
+import {createBuildingYard} from '../scripts/webgl-building-yard.js';
 
 function finalBarracks(){
  const root=new THREE.Group();
@@ -74,7 +75,6 @@ test('contact texture alpha is soft and wall shading fades downwards',()=>{
 });
 
 test('only barracks major yard props cast real sun shadows',()=>{
- const {createBuildingYard}=await import('../scripts/webgl-building-yard.js');
  const barracks=createBuildingYard('barracks',160);
  const crate=barracks.getObjectByName('CrateBody');
  const post=barracks.getObjectByName('BarracksWireFencePosts');
