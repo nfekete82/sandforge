@@ -15,6 +15,7 @@ import {SandforgeCombatEffects} from '/webgl-combat-vfx.js';
 import {SandforgeStrategicEffects} from '/webgl-strategic-effects.js';
 import {SandforgePerformanceWatch} from '/webgl-perf-watch.js';
 import {SandforgeAtmosphere3D} from '/webgl-atmosphere-3d.js';
+import {DESERT_GOLDEN_HOUR,desertGoldenHourEnabled} from '/webgl-golden-hour.js';
 import {addVisualPerimeter} from '/webgl-perimeter.js';
 import {addBoundaryCliffs} from '/webgl-edge-cliffs.js';
 import {cameraEdgeReach,cameraBlackOverscan} from '/webgl-map-edges.js';
@@ -109,20 +110,31 @@ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.65));
 stage.append(renderer.domElement);
 const scene=new THREE.Scene();
-// The 3D playable desert ends directly against a completely black map void.
-// A beige background would still reveal a bright square beyond the terrain.
+// The playable desert still ends at a BLACK void beyond the map. Golden
+// hour adjusts sunlight, warm ambient bounce and light haze, not sky geometry.
+const goldenHour=desertGoldenHourEnabled(biome,query.get('lighting'));
+const sunset=goldenHour?DESERT_GOLDEN_HOUR:null;
 scene.background=new THREE.Color('#000000');
-scene.fog=new THREE.FogExp2(biomeStyle.fog,.00008);
-scene.add(new THREE.HemisphereLight(biomeStyle.sky,biomeStyle.bounce,1.20));
-const sun=new THREE.DirectionalLight(biomeStyle.sunlight,spacious?2.85:3.05);
-sun.position.set(-700,1100,420);
+scene.fog=new THREE.FogExp2(sunset?.fogColor??biomeStyle.fog,
+ sunset?.fogDensity??.00008);
+scene.add(new THREE.HemisphereLight(
+ sunset?.skyColor??biomeStyle.sky,sunset?.bounceColor??biomeStyle.bounce,
+ sunset?.hemisphereIntensity??1.20));
+// One sun and one low-energy cool fill: longer shadows with good contrast
+// between 3D terrain, military camouflage and faction-colored glass.
+const sunlightOffset=new THREE.Vector3(...(sunset?.sunOffset??[-700,1100,420]));
+const sun=new THREE.DirectionalLight(
+ sunset?.sunColor??biomeStyle.sunlight,
+ sunset?.sunIntensity??(spacious?2.85:3.05));
+sun.position.copy(sunlightOffset);
 sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
 sun.shadow.camera.left=-1250;sun.shadow.camera.right=1250;
 sun.shadow.camera.top=1250;sun.shadow.camera.bottom=-1250;
 sun.shadow.camera.near=1;sun.shadow.camera.far=3000;
 sun.shadow.bias=-.00006;sun.shadow.normalBias=.038;
 sun.target.position.set(0,0,0);scene.add(sun,sun.target);
-const fill=new THREE.DirectionalLight(biomeStyle.fill,.40);
+const fill=new THREE.DirectionalLight(
+ sunset?.fillColor??biomeStyle.fill,sunset?.fillIntensity??.40);
 fill.position.set(650,500,-450);scene.add(fill);
 const camera=new THREE.OrthographicCamera(-680,680,410,-410,10,12000);
 // Initial framing presents a real ruin and the adjacent ridge in one view,
@@ -136,7 +148,7 @@ const camera=new THREE.OrthographicCamera(-680,680,410,-410,10,12000);
 camera.position.copy(cameraTarget).add(new THREE.Vector3(1200,1110,1640));
 // Anchor the initial sunlight to the player spawn for visible unit shadows.
 sun.target.position.copy(cameraTarget);
-sun.position.copy(cameraTarget).add(new THREE.Vector3(-700,1100,420));
+sun.position.copy(cameraTarget).add(sunlightOffset);
 camera.lookAt(cameraTarget);
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true;controls.dampingFactor=.10;
