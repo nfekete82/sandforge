@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {buildingFacingAngle} from './webgl-scale.js';
 import {rolloutWheelsShouldRoll} from './webgl-wheel-motion.js';
 import {prepareBarracksPortal,updateBarracksPortalPlanes,setBarracksDoorOpen,disposeBarracksPortal} from './webgl-barracks-portal.js';
+import {prepareHeadquartersPortal,setHeadquartersDoorOpen,disposeHeadquartersPortal} from './webgl-headquarters-portal.js';
 
 export const GATE_TIMING=Object.freeze({warning:.25,opening:1,drive:3.6,closing:1});
 const clamp=v=>Math.max(0,Math.min(1,v));
@@ -42,6 +43,21 @@ export class SandforgeProductionGates {
    setBarracksDoorOpen(portal,0);
    return entry.gate;
   }
+  if(entry.kind==='headquarters'){
+   const portal=prepareHeadquartersPortal(entry);
+   if(!portal)return null; // Old HQ GLBs keep ordinary immediate fallback spawns.
+   const root=portal.root;
+   const lampMaterial=new THREE.MeshStandardMaterial({
+    color:'#7d3913',emissive:'#ff9f2a',emissiveIntensity:0
+   });
+   const lamp=new THREE.Mesh(bulbGeometry,lampMaterial);
+   lamp.position.set(0,3.20,5.10);lamp.visible=false;root.add(lamp);
+   entry.gate={kind:'headquarters',root,portal,door:null,
+    hall:portal.hall,lamp,dust:null,ramp:null};
+   setHeadquartersDoorOpen(portal,0);
+   return entry.gate;
+  }
+  if(entry.kind!=='factory')return null;
   const door=entry.detail.getObjectByName('FactoryRollupDoor');
   if(!door)return null;
   const root=door.parent,hall=new THREE.Group();hall.name='FactoryInterior';root.add(hall);
@@ -63,6 +79,7 @@ export class SandforgeProductionGates {
  reset(entry){
   const gate=entry?.gate;if(!gate)return;
   if(gate.kind==='barracks')setBarracksDoorOpen(gate.portal,0);
+  else if(gate.kind==='headquarters')setHeadquartersDoorOpen(gate.portal,0);
   else {gate.door.position.y=0;gate.door.scale.y=1;}
   gate.hall.visible=false;gate.lamp.visible=false;
  }
@@ -83,7 +100,8 @@ export class SandforgeProductionGates {
    // A factory GLB can finish streaming after the real unit was produced.
    // Briefly hold that single authoritative unit while its actual shutter
    // loads, rather than letting it materialize outside the closed door.
-   const eligible=Boolean(base&&['factory','barracks'].includes(base.kind)&&
+   const eligible=Boolean(base&&(['factory','barracks'].includes(base.kind)||
+    (base.kind==='headquarters'&&event.kind==='engineer'))&&
     unit&&unit.hp>0&&entry?.node.visible&&actor);
    // Factory production is already supported for tanks, Humvees (rover)
    // and rocket trucks (artillery). A single physical garage has ONE door:
@@ -113,24 +131,25 @@ export class SandforgeProductionGates {
    }
    this.seen.add(event);
    entry.node.updateWorldMatrix(true,true);
-   const barracks=base.kind==='barracks',root=entry.gate.root;
+   const barracks=base.kind==='barracks',headquarters=base.kind==='headquarters';
+   const infantry=barracks||headquarters,root=entry.gate.root;
    const pbrBarracks=barracks&&entry.gate.portal?.pbrDoor===true;
    // New PBR gate sits at z≈4.0; Atlas legacy gate sat at z≈1.5.
-   const exit=root.localToWorld(barracks?
+   const exit=root.localToWorld(headquarters?new THREE.Vector3(0,.14,6.35):barracks?
     (pbrBarracks?new THREE.Vector3(0,.55,5.20):new THREE.Vector3(-.18,0,2.10)):
     new THREE.Vector3(.18,0,2.9));
-   const start=root.localToWorld(barracks?
+   const start=root.localToWorld(headquarters?new THREE.Vector3(0,.61,4.12):barracks?
     (pbrBarracks?new THREE.Vector3(0,.58,3.23):new THREE.Vector3(-.18,.275,.9)):
     new THREE.Vector3(.18,.265,-.03));
    const target=bf.entityPosition(unit),center=entry.node.position;
    const exitAngle=Math.atan2(exit.x-center.x,exit.z-center.z);
    const targetAngle=Math.atan2(target.x-center.x,target.z-center.z);
    const turn=Math.abs(Math.atan2(Math.sin(targetAngle-exitAngle),Math.cos(targetAngle-exitAngle)));
-   const radius=Math.max(barracks?90:160,Math.hypot(exit.x-center.x,exit.z-center.z));
+   const radius=Math.max(headquarters?145:barracks?90:160,Math.hypot(exit.x-center.x,exit.z-center.z));
    const length=start.distanceTo(exit)+turn*radius+Math.abs(radius-Math.hypot(target.x-center.x,target.z-center.z));
    // Rear-facing exits need more travel time around the footprint, rather
    // than accelerating a tank to Humvee speed to meet a fixed deadline.
-   const duration=Math.max(barracks?2.8:GATE_TIMING.drive,length/(barracks?105:95));
+   const duration=Math.max(infantry?2.8:GATE_TIMING.drive,length/(infantry?105:95));
    // Freeze only the real simulation actor's departure, NOT production or
    // its paid rally order. At the exact portal hand-off it resumes ordinary
    // 20 Hz movement from the same lawful spawn with no visual teleport.
@@ -151,7 +170,8 @@ export class SandforgeProductionGates {
    if(gate.kind==='barracks'){
     updateBarracksPortalPlanes(gate.portal);
     setBarracksDoorOpen(gate.portal,pose.open);
-   }else{
+   }else if(gate.kind==='headquarters')setHeadquartersDoorOpen(gate.portal,pose.open);
+   else{
     gate.door.scale.y=1-pose.open*.96;
     gate.door.position.y=1.48*pose.open*.96;
    }
@@ -168,9 +188,10 @@ export class SandforgeProductionGates {
    entry.node.updateWorldMatrix(true,true);
    // First clear the entire hull and barrel past the real threshold. Only
    // outside the gate may the actor turn toward Simulation's actual exit.
-   const infantry=gate.kind==='barracks';
-   const pbrBarracks=infantry&&gate.portal?.pbrDoor===true;
-   const outside=infantry?
+   const headquarters=gate.kind==='headquarters';
+   const infantry=gate.kind==='barracks'||headquarters;
+   const pbrBarracks=gate.kind==='barracks'&&gate.portal?.pbrDoor===true;
+   const outside=headquarters?new THREE.Vector3(0,.14,6.35):infantry?
     (pbrBarracks?new THREE.Vector3(0,.55,5.20):new THREE.Vector3(-.18,0,2.10)):
     new THREE.Vector3(.18,0,2.9);
    const root=gate.root;
@@ -181,10 +202,10 @@ export class SandforgeProductionGates {
    const facing=buildingFacingAngle(base.facing);
    if(fraction<clearFraction){
     const t=smooth(fraction/clearFraction);
-    const z=infantry?(pbrBarracks?3.23+1.97*t:.9+1.20*t):-.03+2.93*t;
-    const y=infantry?(pbrBarracks?(0.58-0.03*t):(0.275*(1-t))):
+    const z=headquarters?4.12+2.23*t:infantry?(pbrBarracks?3.23+1.97*t:.9+1.20*t):-.03+2.93*t;
+    const y=headquarters?(.61-.47*t):infantry?(pbrBarracks?(0.58-0.03*t):(0.275*(1-t))):
      (z<=1.5?0.265:Math.max(0,0.265*(2.9-z)/1.4));
-    p=root.localToWorld(new THREE.Vector3(infantry?(pbrBarracks?0:-.18):.18,y,z));
+    p=root.localToWorld(new THREE.Vector3(headquarters?0:infantry?(pbrBarracks?0:-.18):.18,y,z));
     yaw=facing;
    }else{
     // Route around the footprint for every cardinal facing. The simulation's
@@ -197,7 +218,7 @@ export class SandforgeProductionGates {
     const turn=Math.atan2(Math.sin(endAngle-startAngle),Math.cos(endAngle-startAngle));
     const startRadius=Math.hypot(outside.x-center.x,outside.z-center.z);
     const endRadius=Math.hypot(target.x-center.x,target.z-center.z);
-    const radius=Math.max(startRadius,infantry?90:160);
+    const radius=Math.max(startRadius,headquarters?145:infantry?90:160);
     const path=q=>{
      const angle=startAngle+turn*smooth(q/.76);
      const r=q<.76?startRadius+(radius-startRadius)*smooth(q/.22):radius+(endRadius-radius)*smooth((q-.76)/.24);
@@ -248,6 +269,7 @@ export class SandforgeProductionGates {
    entry.gate.lamp.material.dispose();entry.gate.lamp.removeFromParent();
    entry.gate.ramp?.removeFromParent();
    if(entry.gate.kind==='barracks')disposeBarracksPortal(entry);
+   else if(entry.gate.kind==='headquarters')disposeHeadquartersPortal(entry);
    else entry.gate.hall.removeFromParent();
    delete entry.gate;
   }
