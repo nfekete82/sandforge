@@ -2546,3 +2546,310 @@
 @media (min-width:901px) and (max-height:620px){
  #sf-classic-root{--sf-dock-height:210px!important}
 }
+
+
+/* Research Center / tactical tech tree 2026-11-16
+ * Appears only when the player's completed Research Center is selected.
+ * Fully independent of regular build/production dock and its scroll state.
+ * No decorative glows or stock UI effects: matte military engineering.
+ */
+#sf-classic-root .sf-research-overlay[hidden]{display:none!important}
+#sf-classic-root .sf-research-overlay{
+ position:fixed!important;
+ z-index:1200!important;
+ inset:7px 8px calc(var(--sf-dock-height,175px) + 10px) 8px!important;
+ display:flex!important;
+ justify-content:center!important;
+ align-items:center!important;
+ padding:10px!important;
+ background:rgba(4,10,11,.77)!important;
+ backdrop-filter:blur(3px);
+ pointer-events:auto!important;
+}
+#sf-classic-root .sf-research-window{
+ box-sizing:border-box!important;
+ display:flex!important;
+ flex-direction:column!important;
+ width:min(1090px,100%)!important;
+ max-height:100%!important;
+ min-height:240px;
+ overflow:hidden!important;
+ border:1px solid #9a895d!important;
+ border-radius:3px!important;
+ background:#1a2524!important;
+ box-shadow:0 20px 65px #050b0ccc, inset 0 0 0 3px #2b3530;
+ color:#e6e0cb!important;
+ font-family:var(--display,system-ui),sans-serif!important;
+}
+#sf-classic-root .sf-research-header{
+ display:flex;flex:0 0 auto;justify-content:space-between;
+ align-items:center;gap:14px;
+ padding:16px 19px 14px;
+ background:linear-gradient(112deg,#293b39,#1d2d2e);
+ border-bottom:2px solid #9a8654;
+}
+#sf-classic-root .sf-research-header-title small,
+#sf-classic-root .sf-research-detail-eyebrow{
+ display:block;color:#b7c8bf;
+ font:800 10px/1.4 var(--mono,monospace)!important;
+ letter-spacing:1.5px;
+}
+#sf-classic-root .sf-research-header-title h2{
+ margin:3px 0 4px!important;padding:0!important;
+ color:#f1dfb2!important;
+ font:900 25px/1.1 var(--display,system-ui)!important;
+ letter-spacing:1.1px;
+}
+#sf-classic-root .sf-research-header-title p{
+ margin:0!important;color:#b4b9a6;
+ font:700 10px/1.4 var(--mono,monospace)!important;
+}
+#sf-classic-root .sf-research-header-actions{
+ display:flex;align-items:center;gap:13px;
+}
+#sf-classic-root .sf-research-completion{
+ display:flex;flex-direction:column;align-items:flex-end;
+ gap:2px;white-space:nowrap;
+}
+#sf-classic-root .sf-research-completion strong{
+ color:#e6d09d;font:900 17px/1 var(--mono,monospace);
+}
+#sf-classic-root .sf-research-completion small{
+ color:#a7bbad;font:800 9px var(--mono,monospace);
+}
+#sf-classic-root button.sf-research-close{
+ display:grid!important;place-items:center!important;
+ flex:0 0 34px!important;width:34px!important;
+ height:34px!important;min-height:34px!important;
+ border:1px solid #657874!important;border-radius:2px!important;
+ color:#d1dfd5!important;background:#233331!important;
+ font-size:19px!important;font-weight:700!important;
+}
+#sf-classic-root button.sf-research-close:hover{
+ background:#354b47!important;border-color:#b5ac87!important;
+}
+#sf-classic-root .sf-research-activity{
+ flex:0 0 auto;
+ display:flex;align-items:center;gap:13px;
+ min-height:40px;padding:6px 19px;
+ border-bottom:1px solid #53605a;
+ background:#192321;
+}
+#sf-classic-root .sf-research-activity-label{
+ flex:0 0 235px;overflow:hidden;text-overflow:ellipsis;
+ white-space:nowrap;color:#d9d6b6;
+ font:800 10px/1.2 var(--display,system-ui);
+}
+#sf-classic-root .sf-research-activity-track{
+ display:block;flex:1 1 auto;height:8px;
+ border:1px solid #55635c;background:#0c1819;
+}
+#sf-classic-root .sf-research-activity-track span{
+ display:block;height:100%;width:0;
+ background:#9cb68a;
+ transition:width .15s linear;
+}
+#sf-classic-root .sf-research-activity-time{
+ min-width:44px;color:#d9deb8;text-align:right;
+ font:800 11px var(--mono,monospace);
+}
+#sf-classic-root .sf-research-activity-credits{
+ color:#e6c780;white-space:nowrap;
+ border-left:1px solid #617069;padding-left:12px;
+ font:800 12px var(--mono,monospace);
+}
+#sf-classic-root .sf-research-workspace{
+ display:grid;grid-template-columns:minmax(0,1fr) 285px;
+ flex:1 1 auto;min-height:0;overflow:hidden;
+}
+#sf-classic-root .sf-research-techgroups{
+ display:grid;
+ grid-template-columns:repeat(3,minmax(0,1fr));
+ align-items:start;gap:12px;
+ padding:17px 15px 20px 18px;
+ min-width:0;min-height:0;
+ overflow:auto;
+ scrollbar-color:#627468 #1a2926;
+}
+#sf-classic-root .sf-research-category{
+ display:flex;flex-direction:column;gap:7px;min-width:0;
+}
+#sf-classic-root .sf-research-category-heading{
+ display:flex;flex-direction:column;gap:3px;
+ padding:0 0 9px;border-bottom:1px solid #7d7961;
+}
+#sf-classic-root .sf-research-category-heading strong{
+ color:#e0d19c;font:900 12px/1.25 var(--display,system-ui)!important;
+}
+#sf-classic-root .sf-research-category-heading small{
+ color:#9caea4;font:700 10px/1.25 var(--mono,monospace)!important;
+}
+#sf-classic-root .sf-research-category-cards{
+ display:flex;flex-direction:column;gap:7px;
+}
+#sf-classic-root button.sf-research-upgrade{
+ display:flex!important;position:relative;
+ align-items:center!important;gap:10px!important;
+ box-sizing:border-box!important;
+ width:100%!important;min-width:0!important;
+ min-height:81px!important;height:auto!important;
+ padding:9px 9px 12px!important;
+ text-align:left!important;
+ border:1px solid #5a7165!important;border-left:3px solid #789482!important;
+ border-radius:2px!important;background:#253330!important;
+ color:#e7e6d5!important;
+ cursor:pointer!important;
+}
+#sf-classic-root button.sf-research-upgrade:hover,
+#sf-classic-root button.sf-research-upgrade.is-selected{
+ border-color:#d6b676!important;
+ border-left-color:#e7ce91!important;
+ background:#38413a!important;
+}
+#sf-classic-root button.sf-research-upgrade[data-state="done"]{
+ border-left-color:#79bca4!important;background:#263c36!important;
+}
+#sf-classic-root button.sf-research-upgrade[data-state="active"]{
+ border-left-color:#e6bc70!important;background:#403b2b!important;
+}
+#sf-classic-root button.sf-research-upgrade[data-state="exclusive"],
+#sf-classic-root button.sf-research-upgrade[data-state="prerequisite"]{
+ opacity:.77;
+}
+#sf-classic-root button.sf-research-upgrade .sf-research-upgrade-icon{
+ display:grid;place-items:center;flex:0 0 46px;
+ width:46px;height:47px;
+ border:1px solid #627c73;background:#142321;
+ color:#c3d4c7;
+}
+#sf-classic-root .sf-research-upgrade-icon svg{
+ width:31px!important;height:31px!important;stroke-width:1.5;
+}
+#sf-classic-root .sf-research-upgrade-copy{
+ display:flex;flex-direction:column;align-items:flex-start;
+ gap:4px;min-width:0;flex:1;
+}
+#sf-classic-root .sf-research-upgrade-copy strong{
+ color:#eadeb9;font:900 11px/1.2 var(--display,system-ui)!important;
+ white-space:normal;overflow-wrap:anywhere;
+}
+#sf-classic-root .sf-research-upgrade-copy small{
+ color:#c5c7a8;font:700 10px/1.25 var(--mono,monospace)!important;
+}
+#sf-classic-root .sf-research-upgrade-state{
+ color:#a8bfae;font:900 9px/1.2 var(--mono,monospace)!important;
+ letter-spacing:.3px;overflow-wrap:anywhere;
+}
+#sf-classic-root button.sf-research-upgrade[data-state="active"] .sf-research-upgrade-state{
+ color:#efcb82;
+}
+#sf-classic-root button.sf-research-upgrade[data-state="done"] .sf-research-upgrade-state{
+ color:#a8e3c9;
+}
+#sf-classic-root .sf-research-upgrade-progress{
+ position:absolute;left:0;right:0;bottom:0;height:3px;
+ background:#16231f;
+}
+#sf-classic-root .sf-research-upgrade-progress i{
+ display:block;width:0;height:100%;background:#c9b27b;
+ transition:width .15s linear;
+}
+#sf-classic-root .sf-research-detail{
+ display:flex;flex-direction:column;gap:13px;
+ min-height:0;overflow:auto;
+ padding:18px 18px 20px;
+ border-left:1px solid #718070;
+ background:linear-gradient(#283734,#1c2b29);
+}
+#sf-classic-root .sf-research-detail-icon{
+ display:grid;place-items:center;
+ flex:0 0 96px;min-height:96px;
+ color:#d2d9c0;border:1px solid #788579;
+ background:linear-gradient(125deg,#354b45,#20322e);
+}
+#sf-classic-root .sf-research-detail-icon svg{
+ width:68px!important;height:68px!important;stroke-width:1.3;
+}
+#sf-classic-root .sf-research-detail h3{
+ margin:0!important;color:#f4dfb2!important;
+ font:900 19px/1.15 var(--display,system-ui)!important;
+}
+#sf-classic-root .sf-research-detail-description{
+ margin:0!important;color:#cbd7c9!important;
+ font:500 12px/1.5 var(--display,system-ui)!important;
+}
+#sf-classic-root .sf-research-detail-stats{
+ display:flex;flex-direction:column;gap:0;margin:0!important;
+ border-block:1px solid #627368;
+}
+#sf-classic-root .sf-research-detail-stats div{
+ display:flex;justify-content:space-between;gap:12px;
+ padding:9px 0;border-bottom:1px solid #4c5d53;
+}
+#sf-classic-root .sf-research-detail-stats div:last-child{border:0}
+#sf-classic-root .sf-research-detail-stats dt{
+ color:#9eac9e;font:800 9px/1.3 var(--mono,monospace);
+}
+#sf-classic-root .sf-research-detail-stats dd{
+ margin:0!important;text-align:right;color:#e6dab5;
+ font:800 11px/1.3 var(--mono,monospace);
+}
+#sf-classic-root .sf-research-detail-state{
+ margin-top:auto;color:#b9cabc;
+ font:700 11px/1.3 var(--display,system-ui);
+}
+#sf-classic-root .sf-research-detail-state[data-state="prerequisite"],
+#sf-classic-root .sf-research-detail-state[data-state="exclusive"]{
+ color:#e1b7a3;
+}
+#sf-classic-root button.sf-research-start{
+ display:block!important;
+ width:100%!important;min-height:40px!important;
+ background:#b5a36d!important;border:1px solid #dbc58c!important;
+ color:#1d2723!important;
+ font:900 12px var(--display,system-ui)!important;
+ letter-spacing:.6px;
+ cursor:pointer;
+}
+#sf-classic-root button.sf-research-start:disabled{
+ background:#38443b!important;border-color:#687567!important;
+ color:#a8b1a4!important;cursor:not-allowed!important;
+}
+#sf-classic-root .sf-research-detail-hint{
+ color:#95a89b;font:500 10px/1.4 var(--display,system-ui);
+}
+@media(max-width:1080px){
+ #sf-classic-root .sf-research-workspace{grid-template-columns:minmax(0,1fr) 255px}
+ #sf-classic-root .sf-research-techgroups{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+}
+@media(max-width:720px){
+ #sf-classic-root .sf-research-overlay{
+  inset:5px 5px calc(var(--sf-dock-height,170px) + 6px) 5px!important;
+  padding:3px!important;
+ }
+ #sf-classic-root .sf-research-header{padding:10px 12px;gap:5px}
+ #sf-classic-root .sf-research-header-title h2{font-size:17px!important}
+ #sf-classic-root .sf-research-header-title p{display:none}
+ #sf-classic-root .sf-research-activity{padding:5px 9px;gap:6px;flex-wrap:wrap}
+ #sf-classic-root .sf-research-activity-label{flex:1 0 140px}
+ #sf-classic-root .sf-research-activity-credits{padding-left:6px}
+ #sf-classic-root .sf-research-workspace{grid-template-columns:minmax(0,1fr)}
+ #sf-classic-root .sf-research-techgroups{grid-template-columns:repeat(2,minmax(0,1fr));padding:10px;gap:8px}
+ #sf-classic-root .sf-research-detail{
+  max-height:175px;border-left:0;border-top:1px solid #718070;
+  padding:10px 12px;
+  display:grid;grid-template-columns:65px 1fr;gap:4px 10px;
+ }
+ #sf-classic-root .sf-research-detail-eyebrow,
+ #sf-classic-root .sf-research-detail-hint{display:none}
+ #sf-classic-root .sf-research-detail-icon{grid-row:span 2;min-height:56px;height:56px}
+ #sf-classic-root .sf-research-detail-icon svg{width:38px!important;height:38px!important}
+ #sf-classic-root .sf-research-detail h3{font-size:14px!important}
+ #sf-classic-root .sf-research-detail-description{font-size:10px!important}
+ #sf-classic-root .sf-research-detail-stats{display:none}
+ #sf-classic-root .sf-research-detail-state{grid-column:1/-1}
+ #sf-classic-root button.sf-research-start{grid-column:1/-1;min-height:30px!important}
+}
+@media(prefers-reduced-motion:reduce){
+ #sf-classic-root .sf-research-overlay *{transition:none!important}
+}
