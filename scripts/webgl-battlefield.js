@@ -34,7 +34,8 @@ import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
 import {selectedInfantryForTransport,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
 import {pointerGestureIntent,submitConstruction,nearestEngineer,keepPlacementAfterBuild,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
 import {validatedWallDrag,WALL_CHAIN_DRAG_THRESHOLD,WALL_CHAIN_MAX} from '/webgl-wall-drag.js';
-import {sameKindVisibleUnits} from '/webgl-double-click-select.js';
+import {sameKindVisibleUnits,visibleFriendlyUnits} from '/webgl-double-click-select.js';
+import {FIELD_UNIT_COMMANDS,orderReturnToBase,returnBaseForUnit} from '/webgl-unit-commands.js';
 import {tracerWindow} from '/webgl-hit-response.js';
 import {applyFactionAccents} from '/webgl-faction-accents.js';
 import {finishBuildingFacadeShading} from '/webgl-building-shading.js';
@@ -1684,12 +1685,23 @@ export class SandforgeBattlefield {
    if(action==='attack'){this.attackMode=!this.attackMode;this.clearPlacement();this.drawInterface();this.message(this.attackMode?'Angriffsbewegung: Rechtsklick auf Ziel':'Angriffsbewegung beendet');}
    if(action==='unload')this.unloadSelectedTransport();
    if(action==='stop'){
-    const count=this.selected.size;
-    this.game.stop([...this.selected],false);
-    this.message(count?count+' Einheiten angehalten':'Keine Einheiten gewählt');
+    const units=this.game.units.filter(u=>this.selected.has(u.id)&&u.hp>0&&u.owner===0&&!u.carrier);
+    // Manually holding a position overrides return-to-workshop autopilot.
+    for(const unit of units){unit.autoFactoryRepair=false;unit.autoAirfieldRepair=false;}
+    this.game.stop(units.map(u=>u.id),true,true);
+    this.attackMode=false;
+    this.message(units.length?units.length+' Einheit(en): Position halten und Umkreis bewachen':'Keine Einheiten gewählt');
+    this.drawInterface();
+   }
+   if(action==='return-base'){
+    const result=orderReturnToBase(this.game,[...this.selected]);
+    this.attackMode=false;
+    this.message(result.accepted?result.accepted+' Einheit(en) kehren zur Basis zurück und sichern sie':
+     'Keine erreichbare eigene Basis oder keine Einheiten gewählt');
+    this.drawInterface();
    }
    if(action==='cancel'){this.clearPlacement();this.attackMode=false;this.strategicTargetMode=false;this.selected.clear();this.selectedBase=null;this.drawInterface();}
-   if(action==='select-all'){this.selected=new Set(this.game.units.filter(u=>u.hp>0&&u.owner===0&&!u.carrier).map(u=>u.id));this.selectedBase=null;this.drawInterface();}
+   if(action==='select-all')this.selectVisibleFriendlyOnScreen();
   });
   this.panel.addEventListener('sandforge-tabchange',event=>{
    const available=globalCatalogAvailability(this.game);
@@ -2020,7 +2032,9 @@ export class SandforgeBattlefield {
   const roleNames={infantry:'INF',medic:'SAN',engineer:'PIO',heavy:'MG',rocket:'RAK'};
   const passengerMarkup=manifest
    ?'<div class="sf-passenger-manifest"><div class="sf-passenger-heading"><span>PASSAGIERE '+manifest.occupied+' / '+manifest.capacity+
-     (manifest.pending?' · '+manifest.pending+' STEIGEN EIN':'')+'</span><span>'+manifest.available+' FREI · Klick: ausladen</span></div>'+
+     (manifest.pending?' · '+manifest.pending+' STEIGEN EIN':'')+'</span><span>'+manifest.available+' FREI · Klick: ausladen</span>'+
+     (manifest.occupied?'<button type="button" class="sf-passenger-unload-all" data-action="unload" title="Alle Passagiere ausladen (U)">AUSLADEN</button>':'')+
+     '</div>'+
     '<div class="sf-passenger-slots">'+manifest.slots.map((passenger,i)=>
      passenger?'<button type="button" class="sf-passenger-slot" data-carrier-id="'+manifest.carrier.id+
       '" data-passenger-id="'+passenger.id+'" title="'+plain(UNITS[passenger.kind]?.name??passenger.kind)+
@@ -2147,11 +2161,9 @@ export class SandforgeBattlefield {
     (base.interceptorAmmo??INTERCEPTOR_MAX_AMMO)>=INTERCEPTOR_MAX_AMMO||
     g.credits[0]<INTERCEPTOR_REARM_COST;
   }
-  const unloadButton=view.querySelector('[data-action="unload"]');
-  if(unloadButton)unloadButton.hidden=!selectedLoadedTransports(g.units,this.selected).length;
-  // Buildings are NOT troops: hide general attack/stop/select commands and
-  // show only their own removal action. Preserve strategic Silo / Interceptor
-  // buttons; every ordinary unit retains all familiar commands.
+  // Passenger unloading lives with the manifest, never as a fourth
+  // generic troop command. Buildings keep only dedicated building actions.
+  // Infantry, engineers, tanks and aircraft all share the same 3 controls.
   const buildingSelected=Boolean(base&&chosen.length===0);
   const ownBuilding=Boolean(buildingSelected&&base.owner===0);
   const commands=view.querySelector('#sf-command-buttons');
@@ -2161,9 +2173,8 @@ export class SandforgeBattlefield {
     button.hidden=!ownBuilding||
      (a!=='demolish'&&!(a==='missile-target'&&base.kind==='silo')&&
       !(a==='interceptor-rearm'&&base.kind==='interceptor'));
-   }else if(a==='demolish')button.hidden=true;
-   else if(!['rally','unload','missile-target','interceptor-rearm'].includes(a))
-    button.hidden=false;
+   }else if(chosen.length)button.hidden=!FIELD_UNIT_COMMANDS.includes(a);
+   else button.hidden=a!=='select-all';
   }
   const demolishButton=commands?.querySelector('[data-action="demolish"]');
   if(demolishButton&&ownBuilding){
@@ -2171,7 +2182,7 @@ export class SandforgeBattlefield {
    demolishButton.title=base.buildRemaining>0?
     'Baustelle entfernen · 75 % Baukosten zurück':'Eigenes Gebäude endgültig abreißen';
   }
-  view.querySelector('[data-action="attack"]').setAttribute('aria-pressed',String(this.attackMode));
+  view.querySelector('[data-action="attack"]')?.setAttribute('aria-pressed',String(this.attackMode));
   view.querySelector('#sf-catalog-detail').textContent=
    spec?.description??'Einheiten auswählen · Rechtsklick bewegen · Pionier für Gebäude erforderlich.';
   // Opening technology research requires an explicit click on the actual
@@ -2284,6 +2295,31 @@ export class SandforgeBattlefield {
    for(const p of corners.slice(1))ctx.lineTo(p.x,p.y);
    ctx.closePath();ctx.stroke();
   }
+ }
+ /** The ALLE action selects only units physically present in the current
+  * camera view and visible through fog, never distant units across the map.
+  * This reuses the double-click projection policy for consistent behaviour.
+  */
+ selectVisibleFriendlyOnScreen(){
+  const canvas=this.renderer.domElement,rect=canvas.getBoundingClientRect();
+  if(!rect.width||!rect.height)return 0;
+  this.camera.updateMatrixWorld(true);
+  const projected=new THREE.Vector3();
+  const ids=visibleFriendlyUnits(this.game.units,this.units,{
+   project:node=>projected.copy(node.position).project(this.camera),
+   isVisible:ndc=>{
+    const x=rect.left+(ndc.x+1)*rect.width*.5;
+    const y=rect.top+(1-ndc.y)*rect.height*.5;
+    const top=document.elementFromPoint?.(x,y);
+    return !top||top===canvas||canvas.contains(top);
+   }
+  });
+  this.selected=new Set(ids);
+  this.selectedBase=null;this.rallyMode=false;
+  if(ids.length)this.sound?.select?.();
+  this.message(ids.length?ids.length+' sichtbare eigene Einheit(en) ausgewählt':
+   'Keine sichtbaren Einheiten auf dem Bildschirm');
+  this.drawInterface();return ids.length;
  }
  /** Double-click on one friendly actor chooses all same-class actors on the
   * current camera screen, not every matching unit in the world or fog.
@@ -2889,7 +2925,13 @@ export class SandforgeBattlefield {
    }
    if(event.code==='KeyF'){this.attackMode=true;this.message('Angriffsbewegung: Rechtsklick auf Ziel');}
    if(event.code==='KeyU'){event.preventDefault();this.unloadSelectedTransport();}
-   if(event.code==='KeyH'){this.selected=new Set(this.game.units.filter(u=>u.hp>0&&u.owner===0&&!u.carrier).map(u=>u.id));this.drawInterface();}
+   if(event.code==='KeyH'&&!event.repeat){event.preventDefault();this.selectVisibleFriendlyOnScreen();}
+   if(event.code==='KeyX'&&!event.repeat&&!this.buildKind){
+    event.preventDefault();this.panel.querySelector('#sf-command-buttons [data-action="stop"]')?.click();
+   }
+   if(event.code==='KeyG'&&!event.repeat&&!this.buildKind){
+    event.preventDefault();this.panel.querySelector('#sf-command-buttons [data-action="return-base"]')?.click();
+   }
    if(event.code==='KeyP'&&!event.repeat){event.preventDefault();this.selectEngineer();}
    const number=Number(event.code.replace('Digit',''));
    if(event.code.startsWith('Digit')&&number>=1&&number<=5){
