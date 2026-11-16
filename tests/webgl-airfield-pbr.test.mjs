@@ -105,6 +105,7 @@ test('HUD, gameplay, construction ghost and standard build share the airfield as
  assert.match(game,/getObjectByName\('SF_Airfield_PBR_Root'\)/);
  assert.match(hud,/const authoredAirfield=kind==='airfield'/);
  assert.match(hud,/authoredFactory\|\|authoredAirfield/);
+ assert.match(hud,/DESERT_BUILDING_KINDS\.includes\(kind\)\|\|kind==='airfield'/);
  assert.match(build,/scripts\/generate-airfield-pbr\.mjs/);
  assert.match(build,/dist\/webgl-airfield-pbr\.js/);
  const beforeAssets=build.indexOf("scripts/generate-airfield-pbr.mjs");
