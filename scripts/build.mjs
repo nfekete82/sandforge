@@ -43,6 +43,7 @@ cpSync('scripts/webgl-map-edges.js','dist/webgl-map-edges.js');
 cpSync('scripts/webgl-title-menu.js','dist/webgl-title-menu.js');
 cpSync('scripts/webgl-battlefield.js','dist/webgl-battlefield.js');
 cpSync('scripts/webgl-builder-input.js','dist/webgl-builder-input.js');
+cpSync('scripts/webgl-wall-drag.js','dist/webgl-wall-drag.js');
 cpSync('scripts/webgl-strategic-buildings.js','dist/webgl-strategic-buildings.js');
 cpSync('scripts/webgl-rocket-infantry.js','dist/webgl-rocket-infantry.js');
 cpSync('scripts/webgl-engineer-tools.js','dist/webgl-engineer-tools.js');
