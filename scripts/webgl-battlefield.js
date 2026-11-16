@@ -909,6 +909,7 @@ export class SandforgeBattlefield {
     // actor-owned. Release only our owned PBR clones on death/despawn.
     if(e.detail){
      disposeTaggedMaterials(e.detail,'sandforgeHelicopterOwnedPaint');
+     disposeTaggedMaterials(e.detail,'sandforgeArmourOwnedPaint');
      disposeTaggedMaterials(e.detail,'sandforgeFactionTint');
      if(e.kind==='rocket')disposeRocketLauncher(e.detail);
     }
