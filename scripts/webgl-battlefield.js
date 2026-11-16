@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {SandforgeProductionGates} from '/webgl-production-gates.js';
+import {SandforgeBuildingCollapse} from '/webgl-building-collapse.js';
 import {SandforgeAirfieldLaunch} from '/webgl-airfield-launch.js';
 import {nextPeriodicRefresh} from '/webgl-frame-scheduling.js';
 import {wheelsShouldRoll} from '/webgl-wheel-motion.js';
@@ -92,6 +93,7 @@ export class SandforgeBattlefield {
   this.fogEnabled=true;this.selectedRings=new Map();this.animations=new Map();
   this.presentation=new SandforgeActorPresentation(scene,camera,game);
   this.productionGates=new SandforgeProductionGates(this);
+  this.buildingCollapse=new SandforgeBuildingCollapse(scene);
   this.airfieldLaunch=new SandforgeAirfieldLaunch(this);
   this.grounding=new SandforgeGroundingPass(scene);
   this.construction=new SandforgeConstructionPresentation(renderer);
@@ -996,6 +998,7 @@ export class SandforgeBattlefield {
     if(this.selectedBase===id)this.selectedBase=null;
    }
   this.productionGates.update(active,blend);
+  this.buildingCollapse.update(dt,active);
   // Run AFTER authoritative unit/base sync, BEFORE actor presentation.
   // Airfield departures override only the current aircraft's visual node.
   this.airfieldLaunch.update(active,blend);
@@ -1280,6 +1283,25 @@ export class SandforgeBattlefield {
    const button=e.target.closest('button');if(!button)return;
    if(this.sound?.enabled)this.sound.select();
    const kind=button.dataset.build,unit=button.dataset.unit,action=button.dataset.action;
+   if(action==='demolish'){
+    const base=this.game.bases.find(b=>b.id===this.selectedBase&&b.owner===0&&b.hp>0);
+    if(!base)return;
+    const underConstruction=base.buildRemaining>0;
+    const message=underConstruction?
+     BUILDINGS[base.kind].name+' – Baustelle abbrechen? 75 % der Baukosten werden erstattet.':
+     BUILDINGS[base.kind].name+' wirklich abreißen? Das Gebäude stürzt ein. Keine Rückerstattung.';
+    if(!window.confirm(message))return;
+    const entry=this.bases.get(base.id);
+    if(!this.game.demolishBuilding(base.id,0)){
+     this.message('Abreißen nicht möglich');return;
+    }
+    if(entry)this.buildingCollapse.spawn(entry,base);
+    this.selectedBase=null;this.rallyMode=false;this.attackMode=false;
+    this.strategicTargetMode=false;
+    this.drawInterface();
+    this.message(underConstruction?'Baustelle abgebrochen':'Gebäude abgerissen');
+    return;
+   }
    if(button.dataset.passengerId!==undefined){
     this.unloadPassenger(Number(button.dataset.carrierId),Number(button.dataset.passengerId));
     return;
@@ -1930,6 +1952,26 @@ export class SandforgeBattlefield {
   }
   const unloadButton=view.querySelector('[data-action="unload"]');
   if(unloadButton)unloadButton.hidden=!selectedLoadedTransports(g.units,this.selected).length;
+  // Buildings are NOT troops: hide general attack/stop/select commands and
+  // show only their own removal action. Preserve strategic Silo / Interceptor
+  // buttons; every ordinary unit retains all familiar commands.
+  const ownBuilding=Boolean(base&&base.owner===0&&chosen.length===0);
+  const commands=view.querySelector('#sf-command-buttons');
+  if(commands)for(const button of commands.querySelectorAll('button[data-action]')){
+   const a=button.dataset.action;
+   if(ownBuilding){
+    button.hidden=a!=='demolish'&&!(a==='missile-target'&&base.kind==='silo')&&
+     !(a==='interceptor-rearm'&&base.kind==='interceptor');
+   }else if(a==='demolish')button.hidden=true;
+   else if(!['rally','unload','missile-target','interceptor-rearm'].includes(a))
+    button.hidden=false;
+  }
+  const demolishButton=commands?.querySelector('[data-action="demolish"]');
+  if(demolishButton&&ownBuilding){
+   demolishButton.textContent=base.buildRemaining>0?'BAU ABBRECHEN':'ABREISSEN';
+   demolishButton.title=base.buildRemaining>0?
+    'Baustelle entfernen · 75 % Baukosten zurück':'Eigenes Gebäude endgültig abreißen';
+  }
   view.querySelector('[data-action="attack"]').setAttribute('aria-pressed',String(this.attackMode));
   view.querySelector('#sf-catalog-detail').textContent=
    spec?.description??'Einheiten auswählen · Rechtsklick bewegen · Pionier für Gebäude erforderlich.';
