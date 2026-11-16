@@ -133,7 +133,7 @@ test('a miss uses pooled sand dust, bounded dent decal, and tracer lands at grou
  const vfx=src('scripts/webgl-combat-vfx.js');
  const battle=src('scripts/webgl-battlefield.js');
  assert.match(vfx,/sandMissAt\(shot\)/);
- assert.match(vfx,/this\.placeScorch\(point\.x,point\.y,7\+this\.rand\(\)\*5\)/);
+ assert.match(vfx,/this\.placeScorch\(point\.x,point\.y,towerRound\?10\+this\.rand\(\)\*6:7\+this\.rand\(\)\*5\)/);
  assert.match(vfx,/this\.game\.canSee\(0,point\)/);
  assert.match(vfx,/if\(shot\.miss\)\{\s*this\.sandMissAt\(shot\)/);
  assert.match(battle,/this\.heightAt\(shot\.to\.x,shot\.to\.y\)\+\(shot\.miss\?2:27\)/);
