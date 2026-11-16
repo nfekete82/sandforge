@@ -86,6 +86,44 @@ test('PBR textures are triplanar in local coordinates, preserve original GLB map
   assert.equal(shader.uniforms.sfBuildingAlbedo.value.isTexture,true);
  }
 });
+test('authored factory and airfield only repaint wall shells with barracks camouflage',()=>{
+ for(const [kind,wall,roof,gate] of [
+  ['factory','SF_Factory_PBR_camo','SF_Factory_PBR_roof','FactoryRollupDoor'],
+  ['airfield','SF_Airfield_PBR_camo','SF_Airfield_PBR_roof_corrugated','HangarRollupSlat_0_00']
+ ]){
+  const model=new THREE.Group();
+  for(const name of [wall,roof,gate]){
+   const mesh=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),
+    new THREE.MeshStandardMaterial({color:'#8c8272'}));
+   mesh.name=name;model.add(mesh);
+  }
+  const originalRoof=model.getObjectByName(roof).material;
+  const originalGate=model.getObjectByName(gate).material;
+  const count=finishDesertBuildingMaterials(model,kind);
+  assert.equal(count,1,'only exterior shell is repainted for '+kind);
+  const painted=model.getObjectByName(wall);
+  assert.equal(painted.material.userData.sandforgeBuildingPBRRole,'camo');
+  assert.equal(painted.material.customProgramCacheKey().includes('|'+kind+'|camo'),true);
+  const shader={
+   vertexShader:'#include <common>\n#include <begin_vertex>\n#include <beginnormal_vertex>',
+   fragmentShader:'#include <common>\n#include <color_fragment>',uniforms:{}
+  };
+  painted.material.onBeforeCompile(shader,{});
+  assert.ok(shader.fragmentShader.includes('sfBuildingAlbedo'),'shared barracks texture');
+  if(kind==='airfield')assert.ok(shader.fragmentShader.includes('sfBuildingLocal*0.055'),
+   'authored hangar uses correct physical-scale camouflage');
+  assert.strictEqual(model.getObjectByName(roof).material,originalRoof);
+  assert.strictEqual(model.getObjectByName(gate).material,originalGate);
+  assert.equal(finishDesertBuildingMaterials(model,kind),0,'idempotent');
+ }
+ const loader=readFileSync('scripts/webgl-airfield-pbr.js','utf8');
+ assert.match(loader,/if\(ghost\)styleGhost\(model\);[\s\S]*finishDesertBuildingMaterials\(model,'airfield'\)/);
+ const battle=readFileSync('scripts/webgl-battlefield.js','utf8');
+ assert.match(battle,/finishDesertBuildingMaterials\(model,'factory'\)/);
+ const hud=readFileSync('scripts/webgl-portraits.js','utf8');
+ assert.match(hud,/if\(authoredFactory\|\|authoredAirfield\)finishDesertBuildingMaterials\(model,kind\)/);
+});
+
 test('construction ghost keeps its material pointer and invalid site tint',()=>{
  const {root}=fixture(),mesh=root.getObjectByName('BarracksCamoSidePanel_1_0');
  const mat=mesh.material.clone();
