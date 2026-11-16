@@ -468,6 +468,17 @@
  width:100%!important;min-width:0!important;min-height:40px!important;
  height:40px!important;padding:4px!important;font-size:13px!important;font-weight:800!important;
 }
+/* The command grid has authored display rules, so respect the native
+   hidden property at every breakpoint. Otherwise troop commands remain
+   visible even after a building is selected. */
+#sf-classic-root #sf-selection-panel .commands button[hidden]{
+ display:none!important;
+}
+/* Demolition must read as intentional/destructive, not a unit attack. */
+#sf-classic-root #sf-selection-panel .commands button[data-action="demolish"]:not([hidden]){
+ border-color:#ae7158!important;background:#48302c!important;
+ color:#ffdfce!important;
+}
 /* Use readable typography without sacrificing the six-column building row.
    These overrides are scoped to the WebGL HUD; Canvas retains its own UI. */
 #sf-classic-root #sidebar .catalog #sf-production :is(.section-label,.queue-info){
