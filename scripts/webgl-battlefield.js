@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {SandforgeProductionGates} from '/webgl-production-gates.js';
+import {SandforgeAirfieldLaunch} from '/webgl-airfield-launch.js';
 import {nextPeriodicRefresh} from '/webgl-frame-scheduling.js';
 import {wheelsShouldRoll} from '/webgl-wheel-motion.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
@@ -91,6 +92,7 @@ export class SandforgeBattlefield {
   this.fogEnabled=true;this.selectedRings=new Map();this.animations=new Map();
   this.presentation=new SandforgeActorPresentation(scene,camera,game);
   this.productionGates=new SandforgeProductionGates(this);
+  this.airfieldLaunch=new SandforgeAirfieldLaunch(this);
   this.grounding=new SandforgeGroundingPass(scene);
   this.construction=new SandforgeConstructionPresentation(renderer);
   // Dedicated second render pass: the building hologram must remain visible
@@ -986,6 +988,9 @@ export class SandforgeBattlefield {
     if(this.selectedBase===id)this.selectedBase=null;
    }
   this.productionGates.update(active,blend);
+  // Run AFTER authoritative unit/base sync, BEFORE actor presentation.
+  // Airfield departures override only the current aircraft's visual node.
+  this.airfieldLaunch.update(active);
   this.presentation.consumeShots(this.units,this.bases);
   for(const u of this.game.units){
    const entry=this.units.get(u.id);
