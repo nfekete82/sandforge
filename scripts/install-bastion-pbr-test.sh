@@ -40,6 +40,7 @@ node --test \
  tests/webgl-entrance-banners-and-hud-compact.test.mjs \
  tests/webgl-factory-pbr-and-faction-palette.test.mjs \
  tests/webgl-factory-repair-supplies-20261116.test.mjs \
+ tests/webgl-concrete-foundations-and-icons-20261116.test.mjs \
  tests/webgl-tank-streaming-priority-20261116.test.mjs \
  tests/webgl-pause-resume-consistency.test.mjs \
  tests/webgl-airfield-pbr.test.mjs \
