@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import {
  paintFactionEntranceBanners,disposeFactionEntranceBanners,ENTRANCE_BANNER_COLORS
 } from '../scripts/webgl-entrance-banners.js';
+import {createBuildingYard,disposeBuildingYard} from '../scripts/webgl-building-yard.js';
 
 function authoredBuilding(kind){
  const root=new THREE.Group(),wallMaterial=new THREE.MeshStandardMaterial({
@@ -99,4 +100,39 @@ test('compact desktop HUD matches minimap proportions but respects narrow layout
  assert.match(block,/--sf-dock-height:210px!important/);
  assert.doesNotMatch(block,/#sf-classic-root #sidebar\s*\{[^}]*width:/,
   'preserve full-width tactical dock with no fixed right sidebar');
+});
+
+test('HQ and barracks now get flush rectangular STAR shields like Energiekern',()=>{
+ const source=readFileSync('scripts/webgl-entrance-banners.js','utf8');
+ assert.match(source,/facade-faction-star-plaques-v2-20261116/);
+ assert.match(source,/function pennantShape\(w,h\)/);
+ assert.doesNotMatch(source,/s\.lineTo\(0,-h\*\.52\)/,'no hanging pointed banners');
+ for(const kind of ['headquarters','barracks']){
+  const {root}=authoredBuilding(kind);
+  assert.equal(paintFactionEntranceBanners(root,kind,0),2);
+  const group=root.getObjectByName('SF_FactionEntranceBanners');
+  for(const mount of group.children){
+   const backing=mount.getObjectByName('SF_FactionStarPlaqueBacking');
+   assert.ok(backing?.isMesh);
+   assert.ok(backing.geometry.parameters.depth<.07);
+   assert.ok(mount.getObjectByName('SF_PennantStar')?.isMesh);
+   assert.ok(mount.position.z>4.1&&mount.position.z<4.4);
+  }
+  disposeFactionEntranceBanners(root);
+ }
+});
+
+test('compact Energiekern has actual barbed wire on three sides, with a clear entrance',()=>{
+ const yard=createBuildingYard('generator',112);
+ const perimeter=yard.getObjectByName('BasePerimeter_generator');
+ assert.ok(perimeter?.userData?.generatorWireFence);
+ assert.ok(perimeter.userData.fenceWires>0);
+ assert.ok(perimeter.userData.fencePosts>0);
+ assert.ok(perimeter.getObjectByName('BarracksWireFenceStrands')?.isInstancedMesh);
+ assert.ok(perimeter.getObjectByName('BarracksWireFenceBarbs')?.isInstancedMesh);
+ const code=readFileSync('scripts/webgl-building-yard.js','utf8');
+ assert.match(code,/const front=width\*\(generator\?\.45:\.28\)/);
+ assert.match(code,/const gateHalf=width\*\(generator\?\.28:\.23\)/);
+ assert.match(code,/if\(\['barracks','headquarters','factory','generator'\]\.includes\(kind\)\)/);
+ disposeBuildingYard(yard);
 });
