@@ -349,18 +349,20 @@ export class SandforgeCombatEffects {
   const height=this.heightAt(point.x,point.y);
   this.stats.misses++;
   this.stats.impacts++;
-  // A small irregular scorch stamp reads as a bullet indentation. Existing
-  // bounded ring-buffer keeps only the most recent battle marks.
-  this.placeScorch(point.x,point.y,7+this.rand()*5);
-  for(let i=0;i<5;i++){
-   const a=this.rand()*Math.PI*2,r=2+this.rand()*6;
+  // The turret's heavier high-velocity rounds leave a slightly wider
+  // irregular ground dent and a short, low dust puff. Both use the EXISTING
+  // bounded GPU instance pools, without new meshes or terrain deformation.
+  const towerRound=shot.weapon==='turret';
+  this.placeScorch(point.x,point.y,towerRound?10+this.rand()*6:7+this.rand()*5);
+  for(let i=0;i<(towerRound?7:5);i++){
+   const a=this.rand()*Math.PI*2,r=2+this.rand()*(towerRound?9:6);
    this.particle(this.dust,
     point.x+Math.cos(a)*r,point.y+Math.sin(a)*r,height+1.6,
-    6+this.rand()*8,.15+this.rand()*.21,
+    (towerRound?9:6)+this.rand()*8,.15+this.rand()*.21,
     Math.cos(a)*(11+this.rand()*18),Math.sin(a)*(11+this.rand()*18),
     3+this.rand()*7);
   }
-  for(let i=0;i<2;i++){
+  for(let i=0;i<(towerRound?3:2);i++){
    const a=this.rand()*Math.PI*2;
    this.particle(this.debris,point.x,point.y,height+1.7,
     1.5+this.rand()*2,.13+this.rand()*.14,
