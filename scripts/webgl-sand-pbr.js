@@ -10,12 +10,12 @@ import {installDesertSurfaceDetail,DESERT_SURFACE_DETAIL} from './webgl-sand-sur
  * gets PBR. Runtime terrain fallback remains playable if the asset fails.
  */
 export const SANDFORGE_SAND_PBR={
- revision:'terrain-aware-pale-ripple-pbr-v3-20261116',
+ revision:'multiscale-natural-pbr-v4-20261116',
  surfaceDetailRevision:DESERT_SURFACE_DETAIL.revision,
  albedo:'/src/assets/reborn/terrain/sand-wind-albedo-v1.webp',
  sourceSize:512,
  generatedMapsSize:1024,
- normalStrength:.59,
+ normalStrength:.83,
  roughnessRange:[.89,.985],
 };
 export const SAND_PBR_TERRAIN_REPEAT=1;
@@ -45,8 +45,8 @@ export function createSandNormalAndRoughness(image,renderer,{size=1024}={}){
   // 42-period waves keep the phase continuous at either edge of the tile.
   const phase=t*(42*x/size+7*y/size)+.22*Math.sin(t*3*y/size);
   const ridge=Math.cos(phase);
-  const dX=(pick(x+2,y)-pick(x-2,y))*.46+ridge*.031;
-  const dY=(pick(x,y+2)-pick(x,y-2))*.46+ridge*.0052;
+  const dX=(pick(x+2,y)-pick(x-2,y))*.58+ridge*.055;
+  const dY=(pick(x,y+2)-pick(x,y-2))*.58+ridge*.008;
   let nx=-dX*SANDFORGE_SAND_PBR.normalStrength;
   let ny=-dY*SANDFORGE_SAND_PBR.normalStrength;
   const inv=1/Math.hypot(nx,ny,1);
@@ -100,7 +100,7 @@ export async function installDesertSandPBR(material,renderer,{url=SANDFORGE_SAND
  material.map=albedo;
  material.color.set('#ffffff'); // Real albedo owns the pigment, no double tint.
  material.normalMap=maps.normal;
- material.normalScale.set(.67,.67);
+ material.normalScale.set(.82,.82);
  material.roughnessMap=maps.roughness;
  material.roughness=1;
  material.metalness=0;
