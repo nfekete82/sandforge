@@ -17,6 +17,7 @@ import {SandforgeActorPresentation} from '/webgl-actor-presentation.js';
 import {calibratedScale,visualUnitScale,unitVisualYaw,unitRenderAltitude,buildingFacingAngle,nextBuildingFacing,buildingFacingDegrees,turretAimLocalYaw,selectionRingRadius} from '/webgl-scale.js';
 import {SandforgeGroundingPass} from '/webgl-grounding.js';
 import {createBuildingYard,disposeBuildingYard} from '/webgl-building-yard.js';
+import {createBuildingFoundation,disposeBuildingFoundation} from '/webgl-foundation-slabs.js';
 import {polishBarracksProps} from '/webgl-barracks-props.js';
 import {addBarracksContactShadows} from '/webgl-barracks-contact-shadows.js';
 import {createAirfieldServiceYard,conformAirfieldSurface,updateAirfieldServiceYard,hideOldAirfieldHangar,disposeAirfieldServiceYard} from '/webgl-airfield-service.js';
@@ -646,9 +647,11 @@ export class SandforgeBattlefield {
      // "sandforgeServiceTexture" object without dispose(), crashing the
      // next preview teardown and freezing all building-card clicks.
      if(ownSource){
-      const texture=mat.userData?.sandforgeServiceTexture;
-      if(texture?.isTexture&&typeof texture.dispose==='function')
-       group.userData.previewOwnedTextures.add(texture);
+      for(const texture of [mat.userData?.sandforgeServiceTexture,
+       mat.userData?.sandforgeServiceNormalMap]){
+       if(texture?.isTexture&&typeof texture.dispose==='function')
+        group.userData.previewOwnedTextures.add(texture);
+      }
      }
      if(group.userData.previewSiteValid===false&&m.userData.sandforgePreviewInvalidColor)
       m.color.copy(m.userData.sandforgePreviewInvalidColor);
@@ -664,6 +667,13 @@ export class SandforgeBattlefield {
   placeholder.visible=true; // realistic fallback until the authored GLB is ready
   group.userData.previewPlaceholder=placeholder;
   group.add(placeholder);
+  // Same thin foundation as the finished building, translucent in preview.
+  const foundation=createBuildingFoundation(kind,spec.width);
+  if(foundation){
+   tint(foundation,true,.48);
+   group.add(foundation);
+   group.userData.previewFoundation=foundation;
+  }
   // Schematic FOUNDATION + SCAFFOLD, never a finished building. The
   // old faint 1px box was almost invisible against orange desert dunes.
   // Real, translucent 3D beams remain legible at tactical camera zoom.
@@ -816,6 +826,7 @@ export class SandforgeBattlefield {
    this.buildPreviewScene.remove(preview);
    if(preview.userData.previewPlaceholder)disposeOwnedMeshes(preview.userData.previewPlaceholder);
    if(preview.userData.previewCircle)disposeOwnedMeshes(preview.userData.previewCircle);
+   if(preview.userData.previewFoundation)disposeBuildingFoundation(preview.userData.previewFoundation);
    if(preview.userData.previewYard)disposeOwnedMeshes(preview.userData.previewYard);
    if(preview.userData.previewService){
     if(preview.userData.previewService.userData.hangarService)
