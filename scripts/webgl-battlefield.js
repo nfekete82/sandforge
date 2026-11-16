@@ -1182,7 +1182,8 @@ export class SandforgeBattlefield {
    }
    const a=this.turretTracerOrigins.get(shot)??
     this.pos(shot.from.x,shot.from.y,this.heightAt(shot.from.x,shot.from.y)+27);
-   const b=this.pos(shot.to.x,shot.to.y,this.heightAt(shot.to.x,shot.to.y)+27);
+   const b=this.pos(shot.to.x,shot.to.y,
+    this.heightAt(shot.to.x,shot.to.y)+(shot.miss?2:27));
    const offset=n*6;
    // Moving golden tracer, not a permanent full-screen team-colored laser.
    // Endpoint calculations reuse the two authoritative shot locations.
