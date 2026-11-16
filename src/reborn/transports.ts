@@ -19,15 +19,18 @@ export class Transports {
   const bases=this.g.obstacles();
   return [...bases,...infantryStructureColliders(bases),...this.g.bastionColliders()];
  }
- private site(p:Point):Point|null{
+ private site(p:Point,maxDistance=300):Point|null{
   const point={x:p.x,y:p.y};
   const site=this.g.world.nearest(point,this.landingObstacles(),[],undefined,72);
-  return site&&distance(site,p)<=300?site:null;
+  return site&&distance(site,p)<=maxDistance?site:null;
  }
  board(id:number,ids:number[]):number{
   const g=this.g,h=g.units.find(u=>u.id===id&&isCarrier(u)&&u.hp>0&&!u.carrier);if(!h)return 0;
   const existing=h.transport,cargo=existing?.cargo??[],room=transportCapacity(h.kind)-cargo.length-(existing?.pickup.length??0);if(room<=0)return 0;
-  const site=existing&&existing.task==='load'&&['approach','landing','loading'].includes(existing.phase)?existing.site:h.kind==='rover'?{x:h.x,y:h.y}:this.site(h);if(!site||distance(site,h)>300)return 0;
+  const maxApproach=h.kind==='scout'?450:300;
+  const site=existing&&existing.task==='load'&&['approach','landing','loading'].includes(existing.phase)?
+   existing.site:h.kind==='rover'?{x:h.x,y:h.y}:this.site(h,maxApproach);
+  if(!site||distance(site,h)>maxApproach)return 0;
   const obstacles=this.landingObstacles();
   const accepted=g.units.filter(u=>ids.includes(u.id)&&u.owner===h.owner&&u.hp>0&&!u.carrier&&
    unitSpec(u).group==='Infanterie'&&!existing?.pickup.includes(u.id)&&
@@ -40,6 +43,21 @@ export class Transports {
   }
   const t=h.transport!;t.pickup.push(...accepted.map(u=>u.id));t.task='load';
   for(const u of accepted){u.orders=[{...site,kind:'board',target:h.id}];u.path=[];u.repath=0;u.hold=false;u.workingTarget=null;delete u.burst;}
+  // A carrier parked for airfield maintenance used to accept a boarding
+  // command but never execute it: advanceAirfieldService() took precedence
+  // over Transports.step() on every frame. Finish the authored takeoff first,
+  // then use normal safe ground pickup (never jump through the hangar roof).
+  if(h.kind==='scout'&&h.airfieldService){
+   const s=h.airfieldService;
+   h.autoAirfieldRepair=false;
+   if(s.phase==='approach'){
+    delete h.airfieldService;h.flightHeight=1;h.path=[];h.repath=0;
+   }else if(s.phase==='repair'||s.phase==='ready'){
+    s.phase='takeoff';s.elapsed=0;
+   }
+   // landing/taxi finish normally; the simulator switches to takeoff
+   // when the pending helicopter pickup has been registered.
+  }
   return accepted.length;
  }
  unload(id:number,p:Point,passengerId?:number):boolean{
