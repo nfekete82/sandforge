@@ -7,7 +7,7 @@ import * as THREE from 'three';
  * Original GLB geometry, UVs, doors, PBR wear/normal maps and animations
  * are preserved. No meshes or draw calls are added.
  */
-export const DESERT_BUILDING_PBR_REVISION='sandforge-authored-building-pbr-v2-20261116';
+export const DESERT_BUILDING_PBR_REVISION='sandforge-authored-building-pbr-v3-matched-facades-20261117';
 export const DESERT_BUILDING_KINDS=Object.freeze(['barracks','headquarters','factory','airfield']);
 const root='/src/assets/reborn/buildings-3d/textures/';
 export const DESERT_BUILDING_IMAGES=Object.freeze({
@@ -42,9 +42,9 @@ export function buildingSurfaceRole(kind,meshName='',materialName=''){
  // Authored factory/hangar GLBs use batched mesh names per material.
  // Repaint the exterior wall ONLY, not the roof, shutters, glass, factory
  // production doors, hangar roof corrugation or mechanical equipment.
- if(kind==='airfield')return mesh==='sf_airfield_pbr_camo'?'camo':null;
+ if(kind==='airfield')return mesh==='sf_airfield_pbr_camo'?'wall':null;
  if(kind==='factory'&&mesh.startsWith('sf_factory_pbr_'))
-  return mesh==='sf_factory_pbr_camo'?'camo':null;
+  return mesh==='sf_factory_pbr_camo'?'wall':null;
  if(exclude.test(mesh))return null;
  if(camouflage.test(mesh))return 'camo';
  if(roofing.test(mesh))return 'roof';
@@ -172,13 +172,15 @@ export function finishDesertBuildingMaterials(model,kind){
    const ghost=source.userData?.sandforgePreviewMaterial===true;
    const material=ghost?source:source.clone();
    const maps=roleMaps(role),config=settings[role];
-   // The hangar facade is ~180 GLB units long while the barracks shell is
-   // ~5. The previous 0.055 tiled the 512px atlas ~10 times per wall,
-   // producing checkerboard camouflage at RTS camera distance. Project the
-   // SAME barracks source at 0.027 (~5 tiles across the hangar).
+   // Authored factory/hangar shell must use the exact same "wall" atlas
+   // as the barracks/HQ ceramic hull, not the checkerboard camo-panel atlas.
+   // The hangar uses full-size GLB coordinates; factory uses small local
+   // coordinates similar to barracks. Neither inherits a high-frequency
+   // paint pattern underneath the new shared exterior coating.
+   const authoredWallShell=role==='wall'&&
+    (kind==='airfield'||kind==='factory');
    const uvScale=kind==='airfield'?.027:config.scale;
-   const wallCoverage=role==='camo'&&
-    (kind==='airfield'||kind==='factory')?.985:config.coverage;
+   const wallCoverage=authoredWallShell?1:config.coverage;
    if(!material.normalMap)material.normalMap=maps.normal;
    if(!material.roughnessMap)material.roughnessMap=maps.roughness;
    material.roughness=Math.max(material.roughness,config.roughness);
@@ -220,8 +222,12 @@ export function finishDesertBuildingMaterials(model,kind){
      'vec3 sfPaint=texture2D(sfBuildingAlbedo,sfP.zy).rgb*sfBP.x',
      ' +texture2D(sfBuildingAlbedo,sfP.xz).rgb*sfBP.y',
      ' +texture2D(sfBuildingAlbedo,sfP.xy).rgb*sfBP.z;',
-     // Retain dark joins, seams and baked weathering from original GLB.
-     'float sfWear=clamp(.60+dot(diffuseColor.rgb,vec3(.2126,.7152,.0722))*.66,.36,1.12);',
+     // Old GLBs baked a very dark checkerboard into the wall's base-color
+     // texture. A 98.5% overlay still multiplied the new paint by that
+     // checkerboard via sfWear, so eliminate it ONLY for the authored wall.
+     // Other building roles retain their normal weathering and join shading.
+     (authoredWallShell?'float sfWear=1.0;':
+      'float sfWear=clamp(.60+dot(diffuseColor.rgb,vec3(.2126,.7152,.0722))*.66,.36,1.12);'),
      'diffuseColor.rgb=mix(diffuseColor.rgb,sfPaint*sfWear,'+wallCoverage.toFixed(3)+');'
     ].join('\n');
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',coating);
