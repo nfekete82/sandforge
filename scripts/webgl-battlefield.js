@@ -11,6 +11,7 @@ import {RULES} from '/src/reborn/config.js';
 import {installClassicHud} from '/webgl-classic-hud.js';
 import {globalCatalogAvailability} from '/webgl-global-catalog.js';
 import {hydrateUnitIcons,hydrateBuildingIcons,unitIcon,buildingIcon,buildingIconUrl,researchIconMarkup,researchEffectLabel,hydrateResearchArtworks} from '/webgl-portraits.js';
+import {createSandforgeResearchDeck} from '/webgl-research-deck.js';
 import {SandforgeActorPresentation} from '/webgl-actor-presentation.js';
 import {calibratedScale,visualUnitScale,unitVisualYaw,unitRenderAltitude,buildingFacingAngle,nextBuildingFacing,buildingFacingDegrees,turretAimLocalYaw,selectionRingRadius} from '/webgl-scale.js';
 import {SandforgeGroundingPass} from '/webgl-grounding.js';
@@ -1279,6 +1280,18 @@ export class SandforgeBattlefield {
  }
  buildInterface(){
   this.panel=installClassicHud();
+  // Dedicated research menu opens automatically upon clicking a completed
+  // owned Research Center, while the global production tabs remain intact.
+  this.researchDeck=createSandforgeResearchDeck({
+   parent:this.panel,upgrades:UPGRADES,upgradeKinds:UPGRADE_KINDS,
+   iconMarkup:researchIconMarkup,
+   onResearch:kind=>{
+    if(this.game.startResearch(0,kind))
+     this.message('Forschung begonnen: '+UPGRADES[kind].name);
+    else this.message('Forschung nicht möglich: Credits, Voraussetzung oder laufendes Projekt prüfen');
+    this.drawInterface();
+   }
+  });
   this.mini=this.panel.querySelector('#sf-map');
   this.panel.addEventListener('click',e=>{
    const button=e.target.closest('button');if(!button)return;
@@ -1978,6 +1991,12 @@ export class SandforgeBattlefield {
   view.querySelector('[data-action="attack"]').setAttribute('aria-pressed',String(this.attackMode));
   view.querySelector('#sf-catalog-detail').textContent=
    spec?.description??'Einheiten auswählen · Rechtsklick bewegen · Pionier für Gebäude erforderlich.';
+  // Do not rebuild tech thumbnails during 20-Hz Simulation updates. The
+  // research module updates in place and remembers the selected technology.
+  this.researchDeck?.update({
+   base,state:techState,credits:g.credits[0],online:researchOnline,
+   playing:g.status==='playing'
+  });
   if(g.status!=='playing')this.message(g.status==='victory'?'SIEG – alle Gegner besiegt':'NIEDERLAGE');
  }
  drawMinimap(){
