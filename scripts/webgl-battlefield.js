@@ -13,6 +13,7 @@ import {SandforgeActorPresentation} from '/webgl-actor-presentation.js';
 import {calibratedScale,visualUnitScale,unitVisualYaw,unitRenderAltitude,buildingFacingAngle,nextBuildingFacing,buildingFacingDegrees,turretAimLocalYaw,selectionRingRadius} from '/webgl-scale.js';
 import {SandforgeGroundingPass} from '/webgl-grounding.js';
 import {createBuildingYard,disposeBuildingYard} from '/webgl-building-yard.js';
+import {polishBarracksProps} from '/webgl-barracks-props.js';
 import {createAirfieldServiceYard,conformAirfieldSurface,updateAirfieldServiceYard,hideOldAirfieldHangar,disposeAirfieldServiceYard} from '/webgl-airfield-service.js';
 import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '/webgl-factory-service.js';
 import {disposeServicePaint,previewServiceMaterial} from '/webgl-service-materials.js';
@@ -371,6 +372,7 @@ export class SandforgeBattlefield {
     const {entry,type}=task;
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
+    if(type==='building'&&entry.kind==='barracks')polishBarracksProps(model);
     if(type==='unit'&&entry.kind==='engineer')
      entry.engineerTools=equipEngineerTools(model);
     if(type==='unit'&&entry.kind==='rocket')
@@ -656,7 +658,9 @@ export class SandforgeBattlefield {
   if(isStrategicBuilding(kind))return; // detailed procedural fallback is already ghosted
   this.getModel(this.asset(kind,0,'building')).then(data=>{
    if(this.buildPreview!==group||this.buildKind!==kind)return;
-   const model=cloneSkeleton(data.scene),bounds=new THREE.Box3().setFromObject(model);
+   const model=cloneSkeleton(data.scene);
+   if(kind==='barracks')polishBarracksProps(model);
+   const bounds=new THREE.Box3().setFromObject(model);
    const size=bounds.getSize(new THREE.Vector3());
    if(size.y>0&&Math.max(size.x,size.z)>0){
     const scale=calibratedScale(kind,'building',size,spec.width);
