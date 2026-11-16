@@ -171,6 +171,26 @@ export function paintCanyonRuins(c:CanvasRenderingContext2D,ruins:readonly Canyo
   const w=r.width*.5,d=r.depth*.5,h=r.height;
   c.fillStyle='#5d422c42';c.beginPath();c.ellipse(7,12,w*1.35,d*.95,0,0,Math.PI*2);c.fill();
   shape(c,[{x:-w-7,y:-d-5},{x:w+7,y:-d-5},{x:w+8,y:d+8},{x:-w-8,y:d+8}],'#c8a579');
+  // Modern tiny fragments are NOT miniature houses in the classic/2D
+  // renderer either. Only two low broken walls and a little loose masonry,
+  // with lots of open sand. Old Canyon versions always have taller ruins.
+  if(r.height<30){
+   const rand=mix(Math.round(r.x*43+r.y*97));
+   const halfH=r.height*.55;
+   wall(c,[{x:-w*.68,y:-d*.25,z:0},{x:w*.05,y:-d*.25,z:0},
+    {x:w*.05,y:-d*.25,z:halfH*.46},{x:-w*.25,y:-d*.25,z:halfH},
+    {x:-w*.68,y:-d*.25,z:halfH*.65}],'#b59b7c');
+   wall(c,[{x:-w*.57,y:-d*.25,z:0},{x:-w*.57,y:d*.34,z:0},
+    {x:-w*.57,y:d*.34,z:halfH*.33},{x:-w*.57,y:d*.10,z:halfH*.72},
+    {x:-w*.57,y:-d*.25,z:halfH*.70}],'#947d64');
+   for(let i=0;i<4;i++){
+    const x=(rand()-.5)*r.width*.65,y=(rand()-.5)*r.depth*.65;
+    const n=2+rand()*3;
+    wall(c,[{x,y,z:0},{x:x+n,y,z:0},
+     {x:x+n*.58,y:y-n*.45,z:n*.52}],'#c7ab87');
+   }
+   c.restore();continue;
+  }
   // Exposed inner courtyard floor; faceted roof remnants read as broken
   // masonry rather than a solid undamaged building.
   shape(c,[{x:-w+8,y:-d+9},{x:w-8,y:-d+9},{x:w-8,y:d-8},{x:-w+8,y:d-8}],'#9d7a53');
