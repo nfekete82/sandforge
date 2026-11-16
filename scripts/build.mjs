@@ -28,6 +28,7 @@ cpSync('desert-look-lab.html','dist/desert-look-lab.html');
 cpSync('scripts/desert-look-lab.js','dist/desert-look-lab.js');
 cpSync('scripts/webgl-preview.js','dist/webgl-preview.js');
 cpSync('scripts/webgl-biomes.js','dist/webgl-biomes.js');
+cpSync('scripts/webgl-golden-hour.js','dist/webgl-golden-hour.js');
 cpSync('scripts/webgl-match-result.js','dist/webgl-match-result.js');
 cpSync('scripts/webgl-desert-art.js','dist/webgl-desert-art.js');
 cpSync('scripts/webgl-desert-style.js','dist/webgl-desert-style.js');
