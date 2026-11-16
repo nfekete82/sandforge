@@ -10,13 +10,13 @@ import {installDesertSurfaceDetail,DESERT_SURFACE_DETAIL} from './webgl-sand-sur
  * gets PBR. Runtime terrain fallback remains playable if the asset fails.
  */
 export const SANDFORGE_SAND_PBR={
- revision:'authored-wind-sand-silt-grit-v2-20261115',
+ revision:'terrain-aware-pale-ripple-pbr-v3-20261116',
  surfaceDetailRevision:DESERT_SURFACE_DETAIL.revision,
  albedo:'/src/assets/reborn/terrain/sand-wind-albedo-v1.webp',
  sourceSize:512,
  generatedMapsSize:1024,
- normalStrength:.66,
- roughnessRange:[.86,.97],
+ normalStrength:.59,
+ roughnessRange:[.89,.985],
 };
 export const SAND_PBR_TERRAIN_REPEAT=1;
 
@@ -58,7 +58,8 @@ export function createSandNormalAndRoughness(image,renderer,{size=1024}={}){
 
   // Dry grain is almost fully matte, its local roughness changes slightly
   // with compacted areas. Never introduce glossy water/white spot decals.
-  const v=Math.max(.86,Math.min(.97,.925+(lum[y*size+x]-.70)*.085));
+  const v=Math.max(SANDFORGE_SAND_PBR.roughnessRange[0],
+   Math.min(SANDFORGE_SAND_PBR.roughnessRange[1],.944+(lum[y*size+x]-.70)*.066));
   const r=Math.round(v*255);
   rough.data[o]=r;rough.data[o+1]=r;rough.data[o+2]=r;rough.data[o+3]=255;
  }
@@ -99,7 +100,7 @@ export async function installDesertSandPBR(material,renderer,{url=SANDFORGE_SAND
  material.map=albedo;
  material.color.set('#ffffff'); // Real albedo owns the pigment, no double tint.
  material.normalMap=maps.normal;
- material.normalScale.set(.72,.72);
+ material.normalScale.set(.67,.67);
  material.roughnessMap=maps.roughness;
  material.roughness=1;
  material.metalness=0;
