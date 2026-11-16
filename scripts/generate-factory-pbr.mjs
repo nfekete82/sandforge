@@ -183,10 +183,11 @@ function png(color,key){
   // Uniform paint: same sRGB as the team roof stripes and the static flags.
   const i=y*(width*4+1)+1+x*4,
   noise=(key==='team'||key==='white')?0:
-   Math.round((random()-.5)*(key==='roof'?7:17));
+   Math.round((random()-.5)*(['roof','camo'].includes(key)?5:17));
   let rgb=color;
-  if(key==='camo'){const blob=Math.sin(x*.27+Math.cos(y*.31)*2.1)+Math.cos(y*.28-x*.12);
-   if(blob>.73)rgb=[82,91,64];else if(blob<-.80)rgb=[128,134,96];}
+  // Do not bake the old 48px sine-wave camouflage into the exterior:
+  // the factory uses the same high-detail wall atlas as HQ and barracks.
+  // A quiet sandy base remains visible briefly before PBR shader upload.
   for(let c=0;c<3;c++)scan[i+c]=Math.max(0,Math.min(255,rgb[c]+noise));scan[i+3]=255;
  }
  const hdr=Buffer.alloc(13);hdr.writeUInt32BE(width,0);hdr.writeUInt32BE(height,4);hdr[8]=8;hdr[9]=6;
