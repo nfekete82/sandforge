@@ -75,7 +75,7 @@ export function paintFactionEntranceBanners(model,kind,owner){
  const already=model.getObjectByName(MARK);
  if(already){
   already.userData.owner=owner;
-  already.userData.bannerCloth.color.set(ENTRANCE_BANNER_COLORS[owner]);
+  already.getObjectByName('SF_FactionPennant')?.material?.color.set(ENTRANCE_BANNER_COLORS[owner]);
   return 2;
  }
  const door=entrance(model,kind),faces=facadeMeshes(model,kind);
@@ -122,7 +122,6 @@ export function paintFactionEntranceBanners(model,kind,owner){
  const ivory=new THREE.MeshBasicMaterial({color:'#e5d2a5',side:THREE.DoubleSide,
   toneMapped:false});
  const steel=new THREE.MeshStandardMaterial({color:'#4e5750',roughness:.77,metalness:.28});
- group.userData.bannerCloth=cloth;
  const pennantGeometry=new THREE.ShapeGeometry(pennantShape(width,height));
  const starGeometry=new THREE.ShapeGeometry(starShape(width*.25));
  const barGeometry=new THREE.BoxGeometry(width+.07,.045,.065);
