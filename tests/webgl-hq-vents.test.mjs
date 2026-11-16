@@ -33,9 +33,9 @@ test('HQ has two extra rear louvres with original embedded PBR textures in both 
   assert.equal(doc.asset.extras?.sandforgeHQVents,'flush-hq-vents-rear-v1-20261116');
   assert.equal(doc.meshes.length,43);
   for(const [name,material] of [
-   ['HQ_RearVent_Recess','SF_VentRecessDark'],
-   ['HQ_RearVent_Slats','SF_VentSlatsGunmetal'],
-   ['HQ_RearVent_Frame','SF_VentFrameCharcoal']]){
+   ['HQ_RearVent_Recess','HQ_PBR_RearVentRecess'],
+   ['HQ_RearVent_Slats','HQ_PBR_RearVentSlats'],
+   ['HQ_RearVent_Frame','HQ_PBR_RearVentFrame']]){
    const info=vertices(glb,name);
    assert.equal(doc.materials[info.primitive.material].name,material);
    assert.ok(info.primitive.attributes.TEXCOORD_0!==undefined);
