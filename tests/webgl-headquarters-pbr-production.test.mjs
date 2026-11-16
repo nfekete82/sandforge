@@ -24,6 +24,21 @@ function createHqPbrFixture(){
  detail.scale.setScalar(13);
  return {entry:{kind:'headquarters',node,detail},node,detail};
 }
+test('legacy factory visual entries without kind still initialize their real rollup door',()=>{
+ const detail=new THREE.Group(),door=new THREE.Group();
+ door.name='FactoryRollupDoor';detail.add(door);
+ const node=new THREE.Group();node.add(detail);
+ const entry={node,detail}; // old presenter fixture had no entry.kind
+ const presenter=new SandforgeProductionGates({game:{time:0,productionReleases:[]},
+  bases:new Map(),renderer:{localClippingEnabled:false}});
+ const gate=presenter.prepare(entry);
+ assert.ok(gate,'old factories must not lose production animation');
+ assert.equal(gate.kind,'factory');
+ assert.equal(gate.door,door);
+ presenter.detach(entry);
+ assert.equal(entry.gate,undefined);
+});
+
 test('HQ uses barracks-style thin barbed wire, with clear front engineer exit',()=>{
  const width=BUILDINGS.headquarters.width;
  assert.equal(width,225);
