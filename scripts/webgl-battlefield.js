@@ -1880,15 +1880,18 @@ export class SandforgeBattlefield {
    ?'Sammelpunkt aktiv · Neue Einheiten marschieren automatisch zum markierten Ziel.'
    :spec?.description??'Wähle eine Einheit oder ein Gebäude. Rechtsklick: Marsch oder Zielbefehl.';
   const manifest=selectedTransportManifest(g.units,this.selected);
-  const roleNames={infantry:'INF',medic:'SAN',engineer:'PIO',heavy:'MG'};
+  const roleNames={infantry:'INF',medic:'SAN',engineer:'PIO',heavy:'MG',rocket:'RAK'};
   const passengerMarkup=manifest
-   ?'<div class="sf-passenger-manifest"><div class="sf-passenger-heading"><span>PASSAGIERE '+manifest.occupied+' / '+manifest.capacity+'</span><span>Klick: einzeln ausladen</span></div>'+
+   ?'<div class="sf-passenger-manifest"><div class="sf-passenger-heading"><span>PASSAGIERE '+manifest.occupied+' / '+manifest.capacity+
+     (manifest.pending?' · '+manifest.pending+' STEIGEN EIN':'')+'</span><span>'+manifest.available+' FREI · Klick: ausladen</span></div>'+
     '<div class="sf-passenger-slots">'+manifest.slots.map((passenger,i)=>
      passenger?'<button type="button" class="sf-passenger-slot" data-carrier-id="'+manifest.carrier.id+
       '" data-passenger-id="'+passenger.id+'" title="'+plain(UNITS[passenger.kind]?.name??passenger.kind)+
       ' einzeln ausladen" aria-label="Platz '+(i+1)+': '+plain(UNITS[passenger.kind]?.name??passenger.kind)+
       ' ausladen"><span>'+plain(roleNames[passenger.kind]??'INF')+'</span></button>'
-      :'<span class="sf-passenger-slot sf-passenger-empty" title="Platz '+(i+1)+' frei" aria-label="Platz '+(i+1)+' frei">–</span>'
+      :i<manifest.occupied+manifest.pending?
+       '<span class="sf-passenger-slot sf-passenger-pending" title="Platz '+(i+1)+' reserviert · Soldat steigt ein" aria-label="Platz '+(i+1)+' reserviert">…</span>':
+       '<span class="sf-passenger-slot sf-passenger-empty" title="Platz '+(i+1)+' frei" aria-label="Platz '+(i+1)+' frei">–</span>'
      ).join('')+'</div></div>'
    :'';
   view.querySelector('#sf-selection-panel')?.classList.toggle('sf-transport-selected',Boolean(manifest));
