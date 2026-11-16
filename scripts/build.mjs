@@ -118,6 +118,9 @@ execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs'],{stdio:
 // The Bastion, unlike the authored large HQ/barracks binaries, is fully
 // generated from its committed procedural mesh source on every build.
 execFileSync(process.execPath,['scripts/generate-bastion-radar.mjs'],{stdio:'inherit'});
+// Factory GLBs are deterministic, checked-in as a generator rather than 10MB binaries.
+// Both teams share the same PBR topology and real animated FactoryRollupDoor.
+execFileSync(process.execPath,['scripts/generate-factory-pbr.mjs'],{stdio:'inherit'});
 cpSync('src/assets', 'dist/src/assets', {recursive:true});
 // Incremental local builds must also discard the retired aircraft assets.
 for(const team of [0,1])for(const extension of ['glb','png','json'])rmSync(`dist/src/assets/reborn/animation/gunship-${team}.${extension}`,{force:true});
