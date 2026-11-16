@@ -263,7 +263,8 @@ function buildParts(){
  // Keep a small warning beacon OUTSIDE the panel's rotating footprint.
  box('steel_dark',[towerX+20,129,towerZ-15],[1.8,9,1.8]);
  box('warning',[towerX+20,134,towerZ-15],[3.0,2.4,3.0]);
- box('team',[towerX,112,towerZ+23.8],[12,7,.85]);
+ // Tower observation glazing stays clear, without a blue/red badge.
+ // The roof strips and hangar gate flags still identify each faction.
  // Near hangar and tower use neutral service accessories; the runway
  // remains untouched and terrain-draped by webgl-airfield-service.js.
 }
@@ -280,10 +281,11 @@ function png(color,key){
  const random=()=>{state=(1664525*state+1013904223)>>>0;return state/4294967296};
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
   // Uniform paint: same sRGB as the team roof stripes and the static flags.
-  const i=y*(width*4+1)+1+x*4,noise=(key==='team'||key==='white')?0:Math.round((random()-.5)*17);
+  const i=y*(width*4+1)+1+x*4,noise=(key==='team'||key==='white')?0:
+   Math.round((random()-.5)*(key==='camo'?5:17));
   let rgb=color;
-  if(key==='camo'){const blob=Math.sin(x*.27+Math.cos(y*.31)*2.1)+Math.cos(y*.28-x*.12);
-   if(blob>.73)rgb=[82,91,64];else if(blob<-.80)rgb=[128,134,96];}
+  // No baked low-resolution sine-wave camouflage on the wall shell.
+  // The actual barracks 512px atlas covers this surface after GLB loading.
   if(corrugated){
    // Embedded, tileable olive/khaki corrugated-sheet texture; 18
    // longitudinal folds, sun-faded crowns, dark seams and dusty streaks.
