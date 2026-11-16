@@ -1,22 +1,21 @@
-# Neue Eroberungsbastion – animiertes PBR-Radar im Sandforge-Stil
+# Sandforge – neue PBR-Eroberungsbastion mit drehendem Radar
 
-Die alte zylindrische, mehrstöckige Eroberungsbastion erhält einen kompakten, breiteren und niedrigeren **Wüstentarn-Turm mit achteckigem Sockel**. Dazu kommen dunkle Stahlverstrebungen, Lüftungsöffnungen, Sandsäcke, blaue/rote/neutralfarbene Capture-Lichter und ein blauer/roter/neutraler Stern-Banner.
+## Problem und Lösung
 
-Die Designreferenz ist das am 16. November 2026 gemeinsam entwickelte Bild eines flachen Wüstentarn-Eroberungsturms mit großem Radarpanel. Der erste Meshy-7.1-Bild-zu-3D-Render ist ein detailliertes Referenzmodell; die **separat erstellte, für Sandforge optimierte GLB** besitzt echte Teile und eine Animationsspur.
+Das bisherige Bastion-Modell in GitHub war noch die alte, schwarze, mehrstöckige Variante mit **runder** Satellitenschüssel. PR #324 enthielt zunächst nur ein ZIP-Installationsskript; ein normales `git pull` und `npm run build` änderte den Inhalt der GLBs daher nicht.
 
-## Technische Daten der spieloptimierten GLB
+**Korrigiert:** Der vollständige Generator `scripts/generate-bastion-radar.mjs` ist nun in Git enthalten und nutzt ausschließlich Node.js-Bordmittel. `npm run build` führt ihn automatisch **vor** dem Kopieren der Assets ins `dist/` aus. Dadurch werden alle drei alten Bastions-GLBs bei jedem Build durch die neue kompakte Version ersetzt. **Keine ZIP und kein Meshladen aus fremden Quellen nötig.**
 
-- GLB 2.0, drei identische Geometrievarianten: `bastion--1.glb` (neutral), `bastion-0.glb` (Blau) und `bastion-1.glb` (Rot).
-- 19 zusammengefasste Materialmeshes (etwa 3.788 Dreiecke); rund 1.2 MB pro GLB.
-- 14 eingebettete PBR-Materialbilder, UVs, sandfarbene Betonstruktur und Camouflage.
-- Eigenständiger GLB-Knoten `BastionRadarRotor`, getrennte Metall-Radar-Arrays und GLTF-Animationsclip `RadarSpin` mit linear interpolierter vollständiger Drehung.
-- Namenspräfixe `BastionStatic_` und `BastionRadar_` für spätere Team-/Radar-Modifikationen.
-- Bestehendes `scripts/webgl-battlefield.js` lädt schon die Bastion-GLB nach Eigentümer und erkennt `RadarSpin` automatisch. Keine zusätzlichen Fake-Radare nötig.
-- Gameplay (Einflusskreis, Eroberungsdauer, Sektoreinkommen, Gebietspunkte, KI, Sicht/Fog) **unverändert**.
+## Design / technische Daten
 
-## Getrennter Mac-Spieltest
+- Kompakte, deutlich flachere achteckige Bastion mit sandfarbenem Sockel, grünen Wüstentarnflächen, Metallverstrebungen, Stern-Banner, kleinen Lüftungsgittern und Schutzelementen
+- Eindeutig **rechteckiges** drehendes Radar statt der großen runden Schüssel
+- Drei GLB-2.0-Dateien: `bastion--1.glb` (neutral), `bastion-0.glb` (blau), `bastion-1.glb` (rot)
+- Jeweils **19 Material-Meshes, 14 eingebettete PNG-Albedo-PBR-Texturen und 2340 Dreiecke**, etwa **303 KB je Datei**
+- `BastionRadarRotor` als eigenständiger glTF-Knoten mit `RadarSpin`-Animation (360° in 8 Sekunden). Im vorhandenen `webgl-battlefield.js` wird der Clip automatisch über `THREE.AnimationMixer` abgespielt.
+- Originales Gameplay: Eroberung, Teamwechsel, Sektoreinkommen, KI, Fog of War und Capture-UI bleiben unverändert
 
-Lade `sandforge_bastion_radar_3teams.zip` herunter und speichere sie unter diesem Namen in Downloads.
+## Auf dem Mac – ohne Download
 
 ```bash
 cd ~/Projects/sandforge-bastion-wars
@@ -24,14 +23,15 @@ git fetch origin
 git worktree add --detach ../sandforge-bastion-pbr-test origin/feat/bastion-pbr-radar-capture-20261116
 cd ../sandforge-bastion-pbr-test
 npm ci
-bash scripts/install-bastion-pbr-test.sh
+npm run build
+node --test tests/webgl-bastion-pbr-radar.test.mjs tests/sandforge-bastion-navigation.test.mjs
 PORT=8111 npm run preview
 ```
 
-Browser: http://localhost:8111/webgl-preview.html. Beim Spielen eine neutrale Bastion ansehen, erobern, auf Team-Rot-Wechsel prüfen und die gleichmäßige Drehung des Radars beobachten.
+**Achtung:** Falls der Test-Worktree schon besteht, nur `git fetch origin` und dort `git merge --ff-only origin/feat/bastion-pbr-radar-capture-20261116` ausführen. Den neuen Bastion-Test auf **Port 8111** öffnen, nicht die alte kombinierte Kaserne/HQ-Version auf Port 8110. Browser mit `Cmd+Shift+R` aktualisieren und eine neutrale Bastion auf der Karte betrachten.
 
-Der Installer prüft **alle drei** GLB-Dateien samt Radar-Animationsclip vor dem Austausch, sichert die bisherigen Originalmodelle und stellt sie bei Fehlern wieder her. Die bisherigen HQ/Kaserne-Versionen in anderen Worktrees bleiben unverändert.
+## Tests / Freigabe
 
-## Git-Stand
+`tests/webgl-bastion-pbr-radar.test.mjs` meldet jetzt einen Fehler, wenn noch die alte GLB im Worktree liegt. Der Test prüft zusätzlich den Generator-Marker `sandforge-bastion-radar-v2`, drei Fraktionsvarianten, die eigenen Radarrotoren und Animationskanäle. Der komplette Build erzeugt die drei benötigten GLBs deterministisch vor dem Test. Ohne erfolgreiche Node-Tests oder Sichtprüfung im Browser PR #324 noch nicht mergen.
 
-Dieser Draft-PR enthält Installationsskript, Dokumentation und Regressionstests. Die drei kleinen **Binär-GLBs sind noch nicht in GitHub committet**: Für den lokalen Test werden sie aus der heruntergeladenen ZIP eingelesen. Nach erfolgreichem Browser-Test können die drei Dateien aus `src/assets/reborn/buildings-3d/` in den Branch eingecheckt und der PR gemergt werden. Der detaillierte Meshy-Render ist eine separate, höher aufgelöste Referenz und wird nicht als fertiger animierter Capture-Turm ausgegeben.
+Die generierten GLBs sind Arbeitskopie-Artefakte und noch nicht als Binärdateien committed; **der zur Erzeugung notwendige Sourcecode ist vollständig auf GitHub**.
