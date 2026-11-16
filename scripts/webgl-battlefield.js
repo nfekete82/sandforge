@@ -26,7 +26,7 @@ import {disposeOwnedMeshes,disposeTaggedMaterials} from '/webgl-resource-lifecyc
 import {releaseBastionRevision} from '/webgl-bastion-lifecycle.js';
 import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
 import {selectedInfantryForTransport,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
-import {pointerGestureIntent,submitConstruction,nearestEngineer,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
+import {pointerGestureIntent,submitConstruction,nearestEngineer,keepPlacementAfterBuild,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
 import {sameKindVisibleUnits} from '/webgl-double-click-select.js';
 import {tracerWindow} from '/webgl-hit-response.js';
 import {applyFactionAccents} from '/webgl-faction-accents.js';
@@ -2423,7 +2423,7 @@ export class SandforgeBattlefield {
      this.sound?.command?.();
      // Walls are laid in a series: keep their ghost AND the building tab
      // armed after each successful placement. RMB / Escape still cancel.
-     if(!event.shiftKey&&kind!=='wall')this.clearPlacement();
+     if(!keepPlacementAfterBuild(kind,event.shiftKey))this.clearPlacement();
      this.sync(true);
      this.message(BUILDINGS[kind].name+
       (order.append?' in Baufolge eingereiht':' beauftragt')+
