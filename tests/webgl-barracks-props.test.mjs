@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {polishBarracksProps} from '../scripts/webgl-barracks-props.js';
+import {barracksPropMaps,BARRACKS_PROP_SURFACES} from '../scripts/webgl-barracks-prop-materials.js';
 
 function marker(name){
  const mesh=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),
@@ -43,6 +44,14 @@ test('replaces named original PBR props without changing hull, gate or gameplay 
   if(!mesh.isMesh)return;
   assert.equal(mesh.userData.sandforgeBarracksPropPolish,true);
   assert.ok(mesh.material.isMeshStandardMaterial);
+  assert.ok(mesh.material.map?.isDataTexture,
+   'every visible polished prop surface needs a real albedo texture: '+mesh.name);
+  assert.ok(mesh.material.normalMap?.isDataTexture,
+   'every polished prop needs a textile, wood or metal normal map: '+mesh.name);
+  assert.ok(mesh.material.roughnessMap?.isDataTexture,
+   'every polished prop needs a roughness map: '+mesh.name);
+  assert.equal(mesh.material.map.colorSpace,THREE.SRGBColorSpace);
+  assert.ok(mesh.geometry.attributes.uv,'PBR textures require usable UVs');
   assert.ok(mesh.geometry.attributes.normal,'every polished mesh has vertex normals');
  });
 });
@@ -77,4 +86,34 @@ test('sandsacks, crates and radar use separate grounded model-space groups',()=>
  assert.ok(dish.geometry.index.count>400);
  const box=new THREE.Box3().setFromObject(radar);
  assert.ok(box.min.y>4.0&&box.max.y<7.0);
+});
+
+
+test('every authored prop material has non-uniform color, normals and roughness maps',()=>{
+ for(const role of Object.keys(BARRACKS_PROP_SURFACES)){
+  const maps=barracksPropMaps(role);
+  assert.equal(maps.color.image.width,256);
+  assert.equal(maps.normal.image.width,256);
+  assert.equal(maps.roughness.image.width,256);
+  for(const tex of Object.values(maps)){
+   assert.ok(tex.isDataTexture);
+   assert.equal(tex.wrapS,THREE.RepeatWrapping);
+   assert.equal(tex.wrapT,THREE.RepeatWrapping);
+   assert.equal(tex.generateMipmaps,true);
+  }
+  const color=maps.color.image.data;
+  const roughness=maps.roughness.image.data;
+  const normal=maps.normal.image.data;
+  let hasColorVariation=false,hasRoughnessVariation=false,hasNormalVariation=false;
+  for(let i=4;i<color.length;i+=4){
+   if(color[i]!==color[0])hasColorVariation=true;
+   if(roughness[i+1]!==roughness[1])hasRoughnessVariation=true;
+   if(normal[i]!==normal[0]||normal[i+1]!==normal[1])hasNormalVariation=true;
+   if(hasColorVariation&&hasRoughnessVariation&&hasNormalVariation)break;
+  }
+  assert.ok(hasColorVariation,role+' must not be a single-color rectangle');
+  assert.ok(hasRoughnessVariation,role+' must not have uniform roughness');
+  assert.ok(hasNormalVariation,role+' must have real surface relief');
+  assert.equal(barracksPropMaps(role),maps,'cached texture maps must be reused');
+ }
 });
