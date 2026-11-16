@@ -254,7 +254,11 @@ function addSiteDecor(root,kind,width){
  // extended another 30+ units into the wire-fence line (x=.65*width).
  // Keep the barracks-only cache compact and clearly inside the perimeter.
  supplies.name='BaseSupplyCache';
- supplies.position.set(kind==='barracks'?width*.49:kind==='headquarters'?width*.50:width*.55,0,-width*.2);
+ // Keep HQ crates clear of the thinner wire at small and real HQ sizes:
+  // the outer crate lid reaches 20 units past the cache origin.
+  // At width 160, .50 placed its edge at x=100: only 4 from the wire (x=104).
+  // .47 leaves 8.8 clearance; real HQ width 225 has >20.
+  supplies.position.set(kind==='barracks'?width*.49:kind==='headquarters'?width*.47:width*.55,0,-width*.2);
  g.add(supplies);
  // Different silhouettes per facility, all deterministic and inexpensive.
  if(kind==='barracks'||kind==='headquarters'){
