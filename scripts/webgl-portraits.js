@@ -9,6 +9,8 @@ import {finishBarracksSides,finishBarracksDesertPalette} from './webgl-barracks-
 import {finishBuildingFacadeShading} from './webgl-building-shading.js';
 import {finishDesertBuildingMaterials,waitForDesertBuildingTextures,DESERT_BUILDING_KINDS} from './webgl-building-pbr.js';
 import {hasAuthoredHeadquartersPBR,prepareAuthoredHeadquartersPortrait} from './webgl-hq-portrait.js';
+import {hasFinalBarracksPBR,prepareFinalBarracksPortrait} from './webgl-pbr-barracks-portrait.js';
+import {polishBarracksProps} from './webgl-barracks-props.js';
 
 /** Sprite-sheet portrait extraction shared by the WebGL HUD.
  * The classic game crops one idle frame rather than scaling down the entire
@@ -365,11 +367,22 @@ async function rasterizeBuildingIcon(kind,renderer){
      node.material.map(m=>m.clone()):node.material.clone();
    });
    const authoredHQ=kind==='headquarters'&&hasAuthoredHeadquartersPBR(model);
+   const authoredBarracks=kind==='barracks'&&hasFinalBarracksPBR(model);
    if(authoredHQ){
-    // Match the actual in-game HQ: the original 3D glTF keeps its embedded
-    // desert camouflage, rather than receiving the old synthetic building
-    // paint and aggressive metallic factor in the small HUD capture.
+    // Same original PBR textures as the real domed command centre.
     prepareAuthoredHeadquartersPortrait(model);
+   }else if(authoredBarracks){
+    // Keep the hand-authored desert camouflage, not the legacy orange
+    // recolor applied to old procedural barracks.
+    if(polishBarracksProps(model))model.traverse(node=>{
+     if(!node.isMesh||!node.userData.sandforgeBarracksPropPolish)return;
+     // Generated prop resources are shared with the main world. Isolate
+     // them before the temporary HUD renderer disposes its scene.
+     node.geometry=node.geometry.clone();
+     node.material=Array.isArray(node.material)?
+      node.material.map(m=>m.clone()):node.material.clone();
+    });
+    prepareFinalBarracksPortrait(model);
    }else{
     if(kind==='barracks')finishBarracksSides(model);
     tintFactionMaterials(model,0,kind,'building');
