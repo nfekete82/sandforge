@@ -223,6 +223,11 @@ export class SandforgeProductionGates {
     // immediately, while the doors close independently in the background.
     // Previously one extra stationary second caused an obvious stop/start.
     if(!state.released){
+     // The last cosmetic frame lands exactly at the already paid exterior
+     // spawn; the next Simulation tick can continue to the rally without
+     // any pop-back or an extra stationary second.
+     actor.node.position.copy(state.target);
+     actor.node.visible=true;
      game.cancelProductionDeparture?.(event.unitId);
      state.released=true;
      state.releaseTime=game.time;
