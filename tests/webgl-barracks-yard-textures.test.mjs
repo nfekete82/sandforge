@@ -92,19 +92,30 @@ test('barracks supply cache stays fully clear of the side wire and rear fence',(
  }
 });
 
-test('headquarters uses its compact fenced-in PBR depot, others keep original depot',()=>{
+test('headquarters PBR depot keeps real crate geometry clear of its wire fence',()=>{
+ // Covers both the compact test yard and the production-sized HQ (225).
+ for(const width of [160,225]){
+  const hq=createBuildingYard('headquarters',width);
+  const cache=hq.getObjectByName('BaseSupplyCache');
+  const perimeter=hq.getObjectByName('BasePerimeter_headquarters');
+  assert.ok(cache&&perimeter?.userData.barracksWireFence);
+  assert.equal(cache.position.x,width*.47,'HQ depot is shifted inside wire');
+  assert.equal(cache.getObjectByName('SupplyPallet').geometry.parameters.width,28);
+  assert.equal(cache.getObjectByName('CrateBody').material.map?.isDataTexture,true);
+  hq.updateMatrixWorld(true);
+  const bounds=new THREE.Box3().setFromObject(cache);
+  const clearance=width*.65-bounds.max.x;
+  assert.ok(clearance>=8,
+   'HQ crate/pallet overlaps side fence at width '+width+
+   ': right edge='+bounds.max.x+', wire='+width*.65+
+   ', clearance='+clearance);
+  assert.ok(bounds.min.z>-width*.53+8,
+   'HQ depot must not overlap rear fence at width '+width);
+  assert.ok(bounds.max.z<width*.28-8,
+   'HQ depot must not block engineer gate at width '+width);
+  disposeBuildingYard(hq);
+ }
  const width=160;
- const hq=createBuildingYard('headquarters',width);
- const cache=hq.getObjectByName('BaseSupplyCache');
- assert.ok(cache);
- assert.equal(cache.position.x,width*.50,'HQ cache shifted inside wire perimeter');
- assert.equal(cache.getObjectByName('SupplyPallet').geometry.parameters.width,28);
- assert.equal(cache.getObjectByName('CrateBody').material.map?.isDataTexture,true);
- hq.updateMatrixWorld(true);
- const bounds=new THREE.Box3().setFromObject(cache);
- assert.ok(bounds.max.x<width*.65-4,'HQ cache stays inside wire');
- disposeBuildingYard(hq);
-
  const factory=createBuildingYard('factory',width);
  const legacy=factory.getObjectByName('BaseSupplyCache');
  assert.equal(legacy.position.x,width*.55,'factory keeps original cache placement');
