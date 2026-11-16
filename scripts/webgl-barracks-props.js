@@ -146,5 +146,9 @@ export function polishBarracksProps(root){
  originals.forEach(o=>{o.visible=false;});
  const result=new THREE.Group();result.name='BarracksPolishedProps';
  addSandbags(result);addCrates(result);addRadar(result);
+ result.traverse(obj=>{if(obj.isMesh){
+  obj.userData.sandforgeBarracksPropPolish=true;
+  obj.raycast=()=>{};
+ }});
  root.add(result);return true;
 }
