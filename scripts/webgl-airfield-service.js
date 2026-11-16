@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {disposeOwnedMeshes} from './webgl-resource-lifecycle.js';
 import {servicePaint,disposeServicePaint} from './webgl-service-materials.js';
+import {ensureAirfieldPbr,detachAirfieldPbr} from './webgl-airfield-pbr.js';
 
 // Explicit, single-bay 3D service hangar on the simulation's local flightline.
 // All meshes are presentation-only; the actual bomber remains one Simulation unit.
@@ -24,7 +25,7 @@ function cylinder(parent,name,radius,height,x,y,z,mat,axis='y'){
  mesh.castShadow=false;mesh.receiveShadow=true;
  parent.add(mesh);return mesh;
 }
-export function createAirfieldServiceYard(){
+export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
  const group=new THREE.Group();
  group.name='AirfieldSingleMaintenanceHangar';
  group.userData={visualOnly:true,nonPlayable:true,hangarService:true};
@@ -278,6 +279,9 @@ export function createAirfieldServiceYard(){
   part.position.x+=57;
  group.scale.set(.90,.84,.82);group.position.x=95;
  group.traverse(mesh=>{if(mesh.isMesh){mesh.castShadow=false;mesh.receiveShadow=false;mesh.raycast=()=>{};}});
+ // Show existing hangar until the real PBR pair (blue/red) has loaded.
+ // The model is in this SAME compact service coordinate system as its runway.
+ void ensureAirfieldPbr(group,owner,{ghost});
  return group;
 }
 /** Terrain-following surface mesh used by both the construction ghost and
@@ -359,6 +363,9 @@ export function conformAirfieldSurface(group,base,heightAt,{force=false}={}){
 
 export function updateAirfieldServiceYard(entry,base,units,time,dt){
  const group=entry.airfieldServiceYard;if(!group)return;
+ // Owner changes swap the whole authored PBR atlas without recoloring camo.
+ if(group.userData.airfieldPbrOwner!==base.owner)
+  void ensureAirfieldPbr(group,base.owner);
  for(const bay of [0]){
   const gate=group.userData['bay'+bay];
   // Historic saves with bay 1 also use the only visible door.
@@ -388,6 +395,13 @@ export function updateAirfieldServiceYard(entry,base,units,time,dt){
 }
 export function hideOldAirfieldHangar(entry){
  if(!entry.detail||entry.airfieldOldHidden)return;
+ // The imported modern airfield GLB is already rendered at correct scale
+ // INSIDE the service yard; don't duplicate its hangar and tower here.
+ if(entry.detail.getObjectByName('SF_Airfield_PBR_Root')){
+  entry.detail.visible=false;
+  entry.airfieldOldHidden=true;
+  return;
+ }
  entry.detail.traverse(child=>{
   if(/^(?:Atlas_)?(?:Hangar|ParkedJet|JetWheel|AirfieldRunway|AirfieldConcreteApron|TaxiwayFromHangar|Runway|ApronStopLine|SecurityPerimeter|ControlTower|Tower|MaintenanceServiceBlock|ServiceFlatRoof|ServiceRollerDoor|ServiceDoorLouvre|RoofCoolingUnit|AntennaEquipmentPad|AntennaStem|Beacon|FuelStorageTank|FuelTankSteelBand|FuelTankSupport|FuelPipingMain|FuelPipeTap|CargoContainer|AirbaseFloodlightMast|AirbaseFloodlightTop|AirbaseFloodlightLens|GroundPlinth|CeramicFoundation)/.test(child.name))
    {child.visible=false;child.userData.airfieldLegacyHidden=true;}
@@ -397,5 +411,6 @@ export function hideOldAirfieldHangar(entry){
 export function disposeAirfieldServiceYard(entry){
  if(!entry?.airfieldServiceYard)return;
  const root=entry.airfieldServiceYard;root.removeFromParent();
+ detachAirfieldPbr(root); // imported glTF buffers are shared across bases
  disposeServicePaint(root);disposeOwnedMeshes(root);entry.airfieldServiceYard=null;
 }
