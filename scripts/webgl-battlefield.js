@@ -825,7 +825,7 @@ export class SandforgeBattlefield {
   }).catch(error=>console.warn('Baupreview: vereinfachtes 3D-Modell',error));
  }
  clearPlacement(){
-  this.wallDrag=null;
+  this.resetWallPreview();
   if(this.wallPreviewMeshes){
    for(const m of this.wallPreviewMeshes.meshes){
     m.geometry.dispose();m.material.dispose();m.removeFromParent();
@@ -887,6 +887,19 @@ export class SandforgeBattlefield {
    clientY:Math.min(rect.bottom-1,Math.max(rect.top+1,event.clientY))};
   return this.terrainPoint(p,{snapEdge:true});
  }
+ resetWallPreview(){
+  if(this.buildPreview&&this.wallPreviewMeshes){
+   for(const child of this.buildPreview.children){
+    if(this.wallPreviewMeshes.meshes.includes(child)){
+     child.count=0;child.visible=false;
+    }else if(child.userData.wallDragPreviousVisible!==undefined){
+     child.visible=child.userData.wallDragPreviousVisible;
+     delete child.userData.wallDragPreviousVisible;
+    }
+   }
+  }
+  this.wallDrag=null;
+ }
  ensureWallPreview(){
   if(this.wallPreviewMeshes||!this.buildPreview)return;
   const root=this.buildPreview,geom=new THREE.BoxGeometry(109,42,25);
@@ -919,8 +932,13 @@ export class SandforgeBattlefield {
   const root=this.buildPreview;
   // Existing building ghost has its own authored materials. Hide it only
   // for the drag and render cheap TRUE-length wall segments in one pass.
-  for(const child of root.children)if(!this.wallPreviewMeshes.meshes.includes(child))
+  for(const child of root.children)if(!this.wallPreviewMeshes.meshes.includes(child)){
+   // Do not resurrect objects the authored ghost initially hid (e.g. gate
+   // internals) when a wall drag ends or is cancelled.
+   if(child.userData.wallDragPreviousVisible===undefined)
+    child.userData.wallDragPreviousVisible=child.visible;
    child.visible=false;
+  }
   root.position.set(0,0,0);root.rotation.set(0,0,0);root.visible=true;
   const byValidity=[[],[]];
   for(const segment of plan.segments)byValidity[segment.valid?0:1].push(segment);
@@ -974,11 +992,7 @@ export class SandforgeBattlefield {
   }
   // Always restore the ordinary single ghost at the pointer when the drag
   // finishes; walls stay armed for another drag, RMB/Escape cancels.
-  if(this.buildPreview){
-   for(const child of this.buildPreview.children)
-    child.visible=!this.wallPreviewMeshes?.meshes.includes(child);
-   this.buildPreview.position.set(0,0,0);this.buildPreview.rotation.y=0;
-  }
+  this.resetWallPreview();
   this.updatePlacementPreview(event);
   this.drawInterface();
   this.message(built?built+' Mauersegmente zum Bau beauftragt'+
@@ -2814,7 +2828,7 @@ export class SandforgeBattlefield {
   window.addEventListener('pointerup',e=>{if(this.clickStart)this.pointerUp(e);});
   canvas.addEventListener('pointerleave',()=>{if(this.wallDrag?.active)return;if(this.buildPreview)this.buildPreview.visible=false;this.buildHint.style.display='none';});
   const resetPointerGesture=()=>{
-   this.wallDrag=null;
+   this.resetWallPreview();
    this.clickStart=null;
    this.selectionBox.style.display='none';
    if(this.buildPreview)this.buildPreview.visible=false;
