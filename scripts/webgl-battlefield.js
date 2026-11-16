@@ -14,6 +14,7 @@ import {calibratedScale,visualUnitScale,unitVisualYaw,unitRenderAltitude,buildin
 import {SandforgeGroundingPass} from '/webgl-grounding.js';
 import {createBuildingYard,disposeBuildingYard} from '/webgl-building-yard.js';
 import {polishBarracksProps} from '/webgl-barracks-props.js';
+import {addBarracksContactShadows} from '/webgl-barracks-contact-shadows.js';
 import {createAirfieldServiceYard,conformAirfieldSurface,updateAirfieldServiceYard,hideOldAirfieldHangar,disposeAirfieldServiceYard} from '/webgl-airfield-service.js';
 import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '/webgl-factory-service.js';
 import {disposeServicePaint,previewServiceMaterial} from '/webgl-service-materials.js';
@@ -422,6 +423,7 @@ export class SandforgeBattlefield {
      if(type==='building')finishDesertBuildingMaterials(model,entry.kind);
      if(type==='building')finishBuildingFacadeShading(model);
     }
+    if(type==='building'&&entry.kind==='barracks')addBarracksContactShadows(model);
     if(type==='unit')attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
     entry.visualBaseY=model.position.y;entry.visualBaseZ=model.position.z;
     if(type==='building'){
