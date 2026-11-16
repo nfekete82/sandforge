@@ -50,8 +50,10 @@ export class SandforgeAirfieldLaunch {
    if(this.seen.has(event)||!flightKinds.has(event.kind))continue;
    const base=bases.get(event.baseId);
    if(!base||base.kind!=='airfield'){this.seen.add(event);continue;}
-   const u=entities.get(event.unitId),entry=bf.bases.get(base.id),
-    actor=bf.units.get(event.unitId),yard=entry?.airfieldServiceYard;
+   const u=entities.get(event.unitId);
+   const entry=bf.bases.get(base.id);
+   const actor=bf.units.get(event.unitId);
+   const yard=entry?.airfieldServiceYard;
    const ready=Boolean(game.stageWebGLProduction&&u?.hp>0&&base.hp>0&&
     base.buildRemaining<=0&&entry?.node.visible&&actor&&yard);
    // Only staged lawful exits may be animated. If a factory was built near a
