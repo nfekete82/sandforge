@@ -75,3 +75,12 @@ Browser: http://localhost:8110/webgl-preview.html (nach dem Beenden des alten Se
 - Drei zusätzliche GPU-Meshes für die gesamte Rückseite statt vieler einzelner Lüfter: `35+3+5=43` HQ-Meshes inklusive Dachkuppel; die Kaserne und die Eingangstor-/Pionierlogik sind unberührt.
 - Der gemeinsame Installer nutzt beide Original-GLBs aus den Quell-Worktrees, führt `upgrade-hq-layout.mjs`, `upgrade-hq-vents.mjs` und `upgrade-hq-dome.mjs` nacheinander aus und prüft mit `tests/webgl-hq-vents.test.mjs` auch Blau und Rot. Kein erneuter Download erforderlich.
 - Die umgebaute Kombinations-GLB wurde lokal für beide Fraktionen erzeugt und auf Mesh-Namen, Material-Maps, Binär-Header und Stückzahl geprüft. Der vollständige lokale Sandforge-Browserlauf erfolgt anschließend über `PORT=8110 npm run preview`.
+
+
+## Feinschliff: Vordach ohne Schnittlinien, Radar etwas weiter rechts
+
+- Im Modell `scripts/upgrade-hq-layout.mjs` werden die echten metallenen Vordachstreben dort, wo sie zuvor knapp durch die Stoffplane ragten, mindestens `0.17` Modell-Einheiten **unter** die bereits verbreiterte Plane gesetzt. Die diagonalen schwarzen Schnitt-/Z-Fighting-Linien sollen damit verschwinden. Tragfüße, Dach und Tore bleiben unverändert.
+- Der rechteckige Radarspiegel `HQ_Radar_02_PhasedArray_Rotor` sitzt bei `x=5.87` statt `x=5.32` (+0.55 Modell-Einheiten nach rechts), mit intaktem Rotationspivot. Die kleine Schüssel vorn und der große Antennenmast bleiben an ihren Positionen.
+- Die Layoutversion ist `centered-command-dome-roof-v4-canopy-20261116`. Der kombinierte Installer kopiert bei jedem Lauf wieder die originalen HQ-GLBs aus `sandforge-hq-pbr` und baut Layout, bündige Lüftung und Kuppel neu auf; die Kaserne bleibt unverändert.
+- In `tests/webgl-hq-roof-layout.test.mjs` wird jetzt die reale Lage der Stahlpunkte **unter** der Plane und die neue Radarposition für beide Fraktionen geprüft. Die komplette GLB-Kette Layout→Lüftungen→Kuppel wurde für Blau und Rot erzeugt und erneut geöffnet: je 43 Meshes, 47/50 PBR-Bilder, 0.17 minimale Materialfreiheit, Radar `x=5.87`.
+- Vollständigen lokalen Build, Node-Tests und optischen Browser-Test nach `git fetch` und `git merge --ff-only origin/feat/combined-barracks-hq-pbr-20261116` ausführen.
