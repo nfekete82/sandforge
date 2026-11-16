@@ -39,7 +39,8 @@ test('studio exposure is temporary; real terrain and unit/research portraits are
 test('disabled buildings stay recognizable; locked state remains visually marked',()=>{
  const marker='Building portraits must remain legible even while a facility is locked.';
  assert.equal(css.split(marker).length-1,1,'one final locked-building visibility override');
- const fix=css.slice(css.indexOf(marker));
+ const fix=css.slice(css.indexOf(marker),css.indexOf('/* Compact desktop tactical dock:',css.indexOf(marker)));
+ assert.ok(fix.length>0,'locked card styles must be isolated from unrelated HUD/modal CSS');
  assert.match(fix,/button\.catalog-card\[data-build\]:disabled/);
  assert.match(fix,/button\.catalog-card\[data-build\]\.locked/);
  assert.match(fix,/opacity:1!important/,'no double parent-card dimming');
