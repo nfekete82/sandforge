@@ -50,6 +50,7 @@ cpSync('scripts/webgl-bastion-capture.js','dist/webgl-bastion-capture.js');
 cpSync('scripts/webgl-actor-presentation.js','dist/webgl-actor-presentation.js');
 cpSync('scripts/webgl-faction-accents.js','dist/webgl-faction-accents.js');
 cpSync('scripts/webgl-team-markings.js','dist/webgl-team-markings.js');
+cpSync('scripts/webgl-building-roof-stripes.js','dist/webgl-building-roof-stripes.js');
 cpSync('scripts/webgl-building-shading.js','dist/webgl-building-shading.js');
 cpSync('scripts/webgl-building-pbr.js','dist/webgl-building-pbr.js');
 cpSync('scripts/webgl-barracks-shell.js','dist/webgl-barracks-shell.js');
