@@ -12,6 +12,7 @@ import {hasAuthoredHeadquartersPBR,prepareAuthoredHeadquartersPortrait} from './
 import {hasFinalBarracksPBR,prepareFinalBarracksPortrait} from './webgl-pbr-barracks-portrait.js';
 import {polishBarracksProps} from './webgl-barracks-props.js';
 import {paintFactionRoofStripes} from './webgl-building-roof-stripes.js';
+import {paintFactionEntranceBanners} from './webgl-entrance-banners.js';
 
 /** Sprite-sheet portrait extraction shared by the WebGL HUD.
  * The classic game crops one idle frame rather than scaling down the entire
@@ -393,7 +394,10 @@ async function rasterizeBuildingIcon(kind,renderer){
     finishBuildingFacadeShading(model);
    }
    // Same flush roof insignia in the actual battle, placement ghost and HUD.
-   if(authoredHQ||authoredBarracks)paintFactionRoofStripes(model,kind,0);
+   if(authoredHQ||authoredBarracks){
+    paintFactionRoofStripes(model,kind,0);
+    paintFactionEntranceBanners(model,kind,0);
+   }
    return renderModelPortrait(model,renderer,{buildingCard:true,headquartersCard:authoredHQ});
   }catch(error){
    console.warn('Desert building PBR portrait fallback:',kind,error);
