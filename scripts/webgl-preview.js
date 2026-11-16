@@ -30,6 +30,7 @@ import {createDesertVillages} from '/webgl-desert-village.js';
 import {installMatchResultOverlay} from '/webgl-match-result.js';
 import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry} from '/webgl-rock-materials.js';
 import {makeSmallRuinFragments,isSmallRuin} from '/webgl-ruin-fragments.js';
+import {chooseRareScenicHouseIndex,createScenicDesertHouse} from '/webgl-scenic-desert-houses.js';
 
 /** Opt-in WebGL scene using the real authoritative Sandforge map and simulation.
  * This page is isolated from the production Canvas renderer, save format and AI
@@ -735,12 +736,19 @@ async function addRuins(){
  const data=await Promise.all([
   tryModel('/src/assets/reborn/canyon-3d/ruin-house.gltf'),
   tryModel('/src/assets/reborn/canyon-3d/ruin-depot.gltf')]);
+ const rareHouse=chooseRareScenicHouseIndex(terrain.ruins,seed,{
+  modern:biome==='desert'&&spacious&&terrain.battlefield?.generatorVersion===2
+ });
  for(const [i,ruin] of terrain.ruins.entries()){
   const anchor=new THREE.Group();
   anchor.position.copy(pos(ruin.x,ruin.y));
   anchor.rotation.y=ruin.rotation;
   const micro=spacious&&isSmallRuin(ruin);
-  if(micro){
+  if(i===rareHouse){
+   // Replace one existing large-ruin site with a rare abandoned whitewashed
+   // house. Same collision/seed/save, never an extra map obstacle.
+   anchor.add(createScenicDesertHouse(ruin,seed,i));
+  }else if(micro){
    // Only 2–3 broken walls, 2–4 bits of debris, NO roof/whole building.
    // The smaller World obstruction footprint comes from canyon-front.ts.
    anchor.add(makeSmallRuinFragments(ruin,seed,i,{
