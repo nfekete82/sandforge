@@ -62,9 +62,9 @@ function beam(mat,a,b,width=.09,rotor=false){
  for(let i=0;i<4;i++){const j=(i+1)%4;quad(g,low[i],low[j],high[j],high[i]);}quad(g,...low.slice().reverse());quad(g,...high);
 }
 function star(x,y,z,r=.105){
- const g=material('white'),center=[x,y,z],points=[];
+ const g=material('white'),center=[x*FACTORY_WIDTH_FACTOR,y,z],points=[];
  for(let i=0;i<10;i++){const a=PI/2+i*TAU/10,d=i%2?r*.43:r;
-  points.push([x+d*Math.cos(a),y+d*Math.sin(a),z]);}
+  points.push([(x+d*Math.cos(a))*FACTORY_WIDTH_FACTOR,y+d*Math.sin(a),z]);}
  for(let i=0;i<10;i++)tri(g,center,points[i],points[(i+1)%10]);
 }
 /** Closed one-storey low-poly/PBR production hall, precisely aligned with
