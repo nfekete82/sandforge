@@ -927,6 +927,11 @@ export class SandforgeBattlefield {
     end.x-drag.lastPreviewPoint.x,end.y-drag.lastPreviewPoint.y)<14)return;
   drag.end=end;drag.lastPreviewPoint={...end};drag.lastRender=now;
   const plan=validatedWallDrag(this.game,drag.origin,end,0,{axis:drag.axis});
+  const canBuild=this.game.units.some(u=>u.owner===0&&u.kind==='engineer'&&u.hp>0&&!u.carrier);
+  if(!canBuild){
+   plan.stopReason='Pionier erforderlich';plan.buildable=0;
+   plan.segments.forEach(segment=>{segment.valid=false;segment.reason=plan.stopReason;});
+  }
   drag.plan=plan;
   this.ensureWallPreview();
   const root=this.buildPreview;
@@ -1038,7 +1043,9 @@ export class SandforgeBattlefield {
   this.buildHint.style.left=Math.max(4,Math.min(event.clientX+17,window.innerWidth-265))+'px';
   this.buildHint.style.top=Math.max(4,Math.min(event.clientY+15,window.innerHeight-85))+'px';
   this.buildHint.textContent=BUILDINGS[this.buildKind].name+' · '+
-   (valid?'Bauplatz frei · Klick baut':error??'Pionier benötigt')+
+   (valid?this.buildKind==='wall'?
+    'Bauplatz frei · Linksklick halten und Mauer ziehen':'Bauplatz frei · Klick baut':
+    error??'Pionier benötigt')+
    ' · R drehen ('+buildingFacingDegrees(this.placementFacing)+'°)';
   this.buildHint.style.borderColor=valid?'#9edfbe':'#ee8875';
  }
