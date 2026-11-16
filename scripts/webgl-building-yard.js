@@ -439,7 +439,10 @@ export function createBuildingYard(kind,width=160){
  // Only three selected facilities get ONE small side awning; most buildings
  // have no camouflage fabric at all. Never cover doors or active roof gear.
  if(CAMO_NET_BUILDING_KINDS.includes(kind))attachSmallCamouflageNet(root,width);
- if(kind==='barracks'||kind==='headquarters'||kind==='factory')textureBarracksYard(root);
+ // The generator's side crates, pallet and barrels need the same authored
+ // wood/steel/cloth PBR mapping as HQ supplies, not plain colored blocks.
+ if(['barracks','headquarters','factory','generator'].includes(kind))
+  textureBarracksYard(root);
  return root;
 }
 
