@@ -107,9 +107,12 @@ cpSync('src/reborn/style.css', 'dist/style.css');
 cpSync('src/reborn/retro-desert.css', 'dist/retro-desert.css');
 cpSync('src/reborn/qwen-general.worker.js', 'dist/src/reborn/qwen-general.worker.js');
 cpSync('legacy', 'dist/legacy', {recursive:true});
-// New compact PBR Bastions are generated from checked-in JS, not from a
-// user-downloaded ZIP. Do this on every build so dist cannot ship the retired
-// round-radar tower even when the original binary files remain in Git.
+// The final barracks and dome HQ live in existing local PBR worktrees.
+// Verify/import both GLB factions BEFORE building assets; never silently
+// fall back to the old, gold-tinted stock building models in this branch.
+execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs'],{stdio:'inherit'});
+// The Bastion, unlike the authored large HQ/barracks binaries, is fully
+// generated from its committed procedural mesh source on every build.
 execFileSync(process.execPath,['scripts/generate-bastion-radar.mjs'],{stdio:'inherit'});
 cpSync('src/assets', 'dist/src/assets', {recursive:true});
 // Incremental local builds must also discard the retired aircraft assets.
