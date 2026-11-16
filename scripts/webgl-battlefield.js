@@ -42,6 +42,7 @@ import {UPGRADES,UPGRADE_KINDS,canResearchUpgrade,INTERCEPTOR_ENABLED,SILO_CHARG
 import {createStrategicBuilding,isStrategicBuilding} from '/webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry,disposeRocketLauncher} from '/webgl-rocket-infantry.js';
 import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building-roof-stripes.js';
+import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette.js';
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 
@@ -49,7 +50,7 @@ import {equipEngineerTools} from '/webgl-engineer-tools.js';
 // exclusively by the original Simulation. 3D nodes are presentation only.
 const UP=new THREE.Vector3(0,1,0);
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-const colors={blue:'#62c6e9',red:'#f19b73',neutral:'#d3c09b'};
+const colors={blue:FACTION_BLUE,red:FACTION_RED,neutral:'#d3c09b'};
 const title=(v)=>v.name||v.kind||'';
 const format=(n)=>Math.round(n).toLocaleString('de-DE');
 const plain=(value)=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -131,7 +132,7 @@ export class SandforgeBattlefield {
  createFallback(kind,owner,type){
   if(type==='building'&&isStrategicBuilding(kind))return createStrategicBuilding(kind,owner);
   if(type==='unit'&&kind==='rocket')return createRocketInfantry(owner);
-  const group=new THREE.Group(),team=owner===0?'#397f9d':'#9f5541',metal=new THREE.MeshStandardMaterial({color:team,metalness:.55,roughness:.53}),
+  const group=new THREE.Group(),team=FACTION_PAINT[owner],metal=new THREE.MeshStandardMaterial({color:team,metalness:.55,roughness:.53}),
    dark=new THREE.MeshStandardMaterial({color:'#444743',metalness:.45,roughness:.7});
   // Placeholder structures use the same gentle ambient lift as detailed GLBs.
   // Materials are local to this fallback; soldier/vehicle surfaces stay untouched.
