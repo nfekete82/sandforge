@@ -2514,3 +2514,24 @@
   filter:none!important;
   opacity:1!important;
 }
+
+
+/* Compact desktop tactical dock: the former 270px strip was much taller
+ * than the 156px minimap and hid playable terrain. At 225px CSS the map,
+ * building tiles and action/production columns form one restrained footer.
+ * Narrow/mobile breakpoints retain their independent two-row layouts. */
+@media (min-width:901px){
+ #sf-classic-root{
+  --sf-dock-height:225px!important;
+ }
+ #sf-classic-root #sidebar > .catalog .catalog-scroll{
+  min-height:0!important;
+ }
+ #sf-classic-root #sidebar > #sf-selection-panel .selection-copy p{
+  -webkit-line-clamp:2!important;
+  line-clamp:2;
+ }
+}
+@media (min-width:901px) and (max-height:620px){
+ #sf-classic-root{--sf-dock-height:210px!important}
+}
