@@ -10,7 +10,7 @@ import {installDesertSurfaceDetail,DESERT_SURFACE_DETAIL} from './webgl-sand-sur
  * gets PBR. Runtime terrain fallback remains playable if the asset fails.
  */
 export const SANDFORGE_SAND_PBR={
- revision:'multiscale-natural-pbr-v4-20261116',
+ revision:'anti-banding-natural-pbr-v5-20261116',
  surfaceDetailRevision:DESERT_SURFACE_DETAIL.revision,
  albedo:'/src/assets/reborn/terrain/sand-wind-albedo-v1.webp',
  sourceSize:512,
@@ -36,17 +36,18 @@ export function createSandNormalAndRoughness(image,renderer,{size=1024}={}){
  }
  const normal=ctx.createImageData(size,size);
  const rough=ctx.createImageData(size,size);
- const t=2*Math.PI;
  const pick=(x,y)=>lum[((y+size)%size)*size+((x+size)%size)];
  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
   const o=(y*size+x)*4;
-  // Follow small photographic surface features and superimpose a restrained
-  // wind ripple at the EXACT same period as the seamless painted albedo.
-  // 42-period waves keep the phase continuous at either edge of the tile.
-  const phase=t*(42*x/size+7*y/size)+.22*Math.sin(t*3*y/size);
-  const ridge=Math.cos(phase);
-  const dX=(pick(x+2,y)-pick(x-2,y))*.58+ridge*.055;
-  const dY=(pick(x,y+2)-pick(x,y-2))*.58+ridge*.008;
+  // Irregular albedo-derived slopes ONLY. Layering a 42-cycle cosine on
+  // top of the original wind photograph produced visible regular parallel
+  // bands / Moiré at shallow RTS camera angles, especially at sunset.
+  // Wider derivatives remove high-frequency stripe aliasing while retaining
+  // diffuse sand grain and physically lit natural dunes.
+  const dX=(pick(x+2,y)-pick(x-2,y))*.26+
+   (pick(x+6,y)-pick(x-6,y))*.14;
+  const dY=(pick(x,y+2)-pick(x,y-2))*.26+
+   (pick(x,y+6)-pick(x,y-6))*.14;
   let nx=-dX*SANDFORGE_SAND_PBR.normalStrength;
   let ny=-dY*SANDFORGE_SAND_PBR.normalStrength;
   const inv=1/Math.hypot(nx,ny,1);
@@ -100,7 +101,7 @@ export async function installDesertSandPBR(material,renderer,{url=SANDFORGE_SAND
  material.map=albedo;
  material.color.set('#ffffff'); // Real albedo owns the pigment, no double tint.
  material.normalMap=maps.normal;
- material.normalScale.set(.82,.82);
+ material.normalScale.set(.52,.52);
  material.roughnessMap=maps.roughness;
  material.roughness=1;
  material.metalness=0;
