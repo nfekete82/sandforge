@@ -412,9 +412,14 @@ export class SandforgeBattlefield {
     const dims=box0.getSize(new THREE.Vector3());
     const desired=type==='unit'?UNITS[entry.kind].width:BUILDINGS[entry.kind].width;
     const extent=Math.max(dims.x,dims.z);
+    // The final factory is 10% wider in its GLB. Preserve this gain after
+    // width-normalization: collision, pathing and the repair pad do not grow.
+    const finalFactoryArt=type==='building'&&entry.kind==='factory'&&
+      Boolean(model.getObjectByName('SF_Factory_PBR_roof'));
+    const artScale=finalFactoryArt?1.06:1;
     if(extent>.0001){
      const scale=calibratedScale(entry.kind,type,dims,desired)*
-       (type==='unit'?visualUnitScale(entry.kind):1);
+       (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
      model.scale.multiplyScalar(scale);
      model.position.set(-box0.getCenter(new THREE.Vector3()).x*scale,
       -box0.min.y*scale,-box0.getCenter(new THREE.Vector3()).z*scale);
@@ -442,7 +447,7 @@ export class SandforgeBattlefield {
     }
     entry.node.add(model);entry.detail=model;
     const visualScale=calibratedScale(entry.kind,type,dims,desired)*
-      (type==='unit'?visualUnitScale(entry.kind):1);
+      (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
     entry.modelHeight=dims.y*visualScale;
     entry.modelFootprint=Math.max(dims.x,dims.z)*visualScale;
     if(!model.userData.sandforgeOriginalPBR){
@@ -708,7 +713,8 @@ export class SandforgeBattlefield {
    const bounds=new THREE.Box3().setFromObject(model);
    const size=bounds.getSize(new THREE.Vector3());
    if(size.y>0&&Math.max(size.x,size.z)>0){
-    const scale=calibratedScale(kind,'building',size,spec.width);
+    const scale=calibratedScale(kind,'building',size,spec.width)*
+     (kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')?1.06:1);
     model.scale.multiplyScalar(scale);
     model.position.set(-bounds.getCenter(new THREE.Vector3()).x*scale,
       -bounds.min.y*scale,-bounds.getCenter(new THREE.Vector3()).z*scale);
