@@ -200,11 +200,14 @@ export class SandforgeProductionGates {
    const root=gate.root;
    root.localToWorld(outside);
    const target=actor.node.position.clone();
-   const clearFraction=(infantry?1.65:GATE_TIMING.drive*.62)/state.duration;
+   // Infantry should leave at a believable running pace, not spend 1.65s
+   // taking two short steps and abruptly accelerate after the threshold.
+   // Vehicle rollouts keep their original smooth clearance.
+   const clearFraction=Math.min(.95,(infantry?.50:GATE_TIMING.drive*.62)/state.duration);
    let p,yaw;
    const facing=buildingFacingAngle(base.facing);
    if(fraction<clearFraction){
-    const t=smooth(fraction/clearFraction);
+    const t=infantry?clamp(fraction/clearFraction):smooth(fraction/clearFraction);
     const z=headquarters?4.12+2.23*t:infantry?(pbrBarracks?3.23+1.97*t:.9+1.20*t):-.03+2.93*t;
     const y=headquarters?(.61-.47*t):infantry?(pbrBarracks?(0.58-0.03*t):(0.275*(1-t))):
      (z<=1.5?0.265:Math.max(0,0.265*(2.9-z)/1.4));
