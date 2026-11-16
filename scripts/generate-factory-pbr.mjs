@@ -205,7 +205,7 @@ function exportTeam(owner){
    const factionSurface=g.name==='team';
    gltf.images.push({bufferView:append(png(color,g.name)),mimeType:'image/png'});
    gltf.textures.push({sampler:0,source:image});
-   gltf.materials.push({name:'Sandforge_Bastion_'+g.name,pbrMetallicRoughness:{
+   gltf.materials.push({name:'Sandforge_Factory_'+g.name,pbrMetallicRoughness:{
     baseColorTexture:{index:image},metallicFactor:/metal|bronze|gunmetal/.test(g.name)?.45:.07,
     roughnessFactor:.83},
     ...(factionSurface?{extensions:{KHR_materials_unlit:{}}}:{}),
