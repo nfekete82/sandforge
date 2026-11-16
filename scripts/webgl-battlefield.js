@@ -12,6 +12,7 @@ import {installClassicHud} from '/webgl-classic-hud.js';
 import {globalCatalogAvailability} from '/webgl-global-catalog.js';
 import {hydrateUnitIcons,hydrateBuildingIcons,unitIcon,buildingIcon,buildingIconUrl,researchIconMarkup,hydrateResearchArtworks} from '/webgl-portraits.js';
 import {createSandforgeResearchDeck} from '/webgl-research-deck.js';
+import {createSandforgeConfirmDialog} from '/webgl-confirm-dialog.js';
 import {SandforgeActorPresentation} from '/webgl-actor-presentation.js';
 import {calibratedScale,visualUnitScale,unitVisualYaw,unitRenderAltitude,buildingFacingAngle,nextBuildingFacing,buildingFacingDegrees,turretAimLocalYaw,selectionRingRadius} from '/webgl-scale.js';
 import {SandforgeGroundingPass} from '/webgl-grounding.js';
@@ -1298,6 +1299,9 @@ export class SandforgeBattlefield {
     this.drawInterface();
    }
   });
+  this.confirmDialog=createSandforgeConfirmDialog(this.panel,{
+   onChange:open=>window.dispatchEvent(new CustomEvent('sandforge-confirm-state',{detail:{open}}))
+  });
   this.mini=this.panel.querySelector('#sf-map');
   this.panel.addEventListener('click',e=>{
    const button=e.target.closest('button');if(!button)return;
@@ -1310,16 +1314,28 @@ export class SandforgeBattlefield {
     const message=underConstruction?
      BUILDINGS[base.kind].name+' – Baustelle abbrechen? 75 % der Baukosten werden erstattet.':
      BUILDINGS[base.kind].name+' wirklich abreißen? Das Gebäude stürzt ein. Keine Rückerstattung.';
-    if(!window.confirm(message))return;
-    const entry=this.bases.get(base.id);
-    if(!this.game.demolishBuilding(base.id,0)){
-     this.message('Abreißen nicht möglich');return;
-    }
-    if(entry)this.buildingCollapse.spawn(entry,base);
-    this.selectedBase=null;this.rallyMode=false;this.attackMode=false;
-    this.strategicTargetMode=false;
-    this.drawInterface();
-    this.message(underConstruction?'Baustelle abgebrochen':'Gebäude abgerissen');
+    const baseId=base.id;
+    // Browser-native confirm() blocks the renderer and does not match the HUD.
+    // Await a real in-game dialog. Validate ownership again after the click.
+    this.confirmDialog.ask({
+     title:underConstruction?'BAUSTELLE ABBRECHEN':'GEBÄUDE ABREISSEN',
+     description:message,
+     confirmLabel:underConstruction?'BAU ABBRECHEN':'ABREISSEN',
+     danger:!underConstruction
+    }).then(accepted=>{
+     if(!accepted)return;
+     const current=this.game.bases.find(b=>b.id===baseId&&b.owner===0&&b.hp>0);
+     if(!current){this.message('Gebäude nicht mehr verfügbar');return;}
+     const entry=this.bases.get(baseId);
+     if(!this.game.demolishBuilding(baseId,0)){
+      this.message('Abreißen nicht möglich');return;
+     }
+     if(entry)this.buildingCollapse.spawn(entry,current);
+     this.selectedBase=null;this.rallyMode=false;this.attackMode=false;
+     this.strategicTargetMode=false;
+     this.drawInterface();
+     this.message(underConstruction?'Baustelle abgebrochen':'Gebäude abgerissen');
+    });
     return;
    }
    if(button.dataset.passengerId!==undefined){
