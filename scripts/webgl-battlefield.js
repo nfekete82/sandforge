@@ -33,6 +33,7 @@ import {releaseBastionRevision} from '/webgl-bastion-lifecycle.js';
 import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
 import {selectedInfantryForTransport,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
 import {pointerGestureIntent,submitConstruction,nearestEngineer,keepPlacementAfterBuild,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
+import {validatedWallDrag,WALL_CHAIN_DRAG_THRESHOLD,WALL_CHAIN_MAX} from '/webgl-wall-drag.js';
 import {sameKindVisibleUnits} from '/webgl-double-click-select.js';
 import {tracerWindow} from '/webgl-hit-response.js';
 import {applyFactionAccents} from '/webgl-faction-accents.js';
@@ -108,6 +109,7 @@ export class SandforgeBattlefield {
   const hologramSun=new THREE.DirectionalLight('#fff6e2',2.1);
   hologramSun.position.set(420,750,310);this.buildPreviewScene.add(hologramSun);
   this.buildPreview=null;this.previewKind=null;this.placementFacing=0;
+  this.wallDrag=null;this.wallPreviewMeshes=null;
   this.buildHint=document.createElement('div');
   this.buildHint.id='sf3d-build-hint';this.buildHint.setAttribute('role','status');
   this.buildHint.style.cssText='position:fixed;z-index:18;pointer-events:none;display:none;min-width:156px;max-width:250px;padding:7px 10px;background:#14221ef0;border:1px solid #b5a177;color:#e7dbb7;font:bold 12px system-ui;box-shadow:0 5px 16px #0008';
@@ -823,6 +825,13 @@ export class SandforgeBattlefield {
   }).catch(error=>console.warn('Baupreview: vereinfachtes 3D-Modell',error));
  }
  clearPlacement(){
+  this.wallDrag=null;
+  if(this.wallPreviewMeshes){
+   for(const m of this.wallPreviewMeshes.meshes){
+    m.geometry.dispose();m.material.dispose();m.removeFromParent();
+   }
+   this.wallPreviewMeshes=null;
+  }
   this.buildKind=null;this.previewKind=null;
   if(this.buildPreview){
    const preview=this.buildPreview;
@@ -868,6 +877,113 @@ export class SandforgeBattlefield {
    this.buildPreview=null;
   }
   if(this.buildHint)this.buildHint.style.display='none';
+ }
+ /** Terrain ray, clipped to the actual canvas. This allows dragging up to
+  * the black map edge even when the pointer is just outside a sand triangle.
+  */
+ wallDragPoint(event){
+  const rect=this.renderer.domElement.getBoundingClientRect();
+  const p={clientX:Math.min(rect.right-1,Math.max(rect.left+1,event.clientX)),
+   clientY:Math.min(rect.bottom-1,Math.max(rect.top+1,event.clientY))};
+  return this.terrainPoint(p,{snapEdge:true});
+ }
+ ensureWallPreview(){
+  if(this.wallPreviewMeshes||!this.buildPreview)return;
+  const root=this.buildPreview,geom=new THREE.BoxGeometry(109,42,25);
+  const create=(color,opacity)=>{
+   const material=new THREE.MeshBasicMaterial({
+    color,transparent:true,opacity,depthWrite:false,side:THREE.DoubleSide});
+   const m=new THREE.InstancedMesh(geom.clone(),material,WALL_CHAIN_MAX);
+   m.name=color==='#6de7bf'?'WallDragAllowed':'WallDragBlocked';
+   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+   m.frustumCulled=false;m.raycast=()=>{};m.count=0;
+   root.add(m);return m;
+  };
+  const meshes=[create('#6de7bf',.49),create('#f36d5b',.49)];
+  geom.dispose();
+  this.wallPreviewMeshes={meshes};
+ }
+ updateWallDrag(event,force=false){
+  const drag=this.wallDrag;
+  if(!drag?.active||!this.buildPreview)return;
+  const end=this.wallDragPoint(event)??drag.end;
+  if(!end)return;
+  const now=performance.now();
+  if(!force&&now-drag.lastRender<45)return;
+  if(!force&&drag.lastPreviewPoint&&Math.hypot(
+    end.x-drag.lastPreviewPoint.x,end.y-drag.lastPreviewPoint.y)<14)return;
+  drag.end=end;drag.lastPreviewPoint={...end};drag.lastRender=now;
+  const plan=validatedWallDrag(this.game,drag.origin,end,0,{axis:drag.axis});
+  drag.plan=plan;
+  this.ensureWallPreview();
+  const root=this.buildPreview;
+  // Existing building ghost has its own authored materials. Hide it only
+  // for the drag and render cheap TRUE-length wall segments in one pass.
+  for(const child of root.children)if(!this.wallPreviewMeshes.meshes.includes(child))
+   child.visible=false;
+  root.position.set(0,0,0);root.rotation.set(0,0,0);root.visible=true;
+  const byValidity=[[],[]];
+  for(const segment of plan.segments)byValidity[segment.valid?0:1].push(segment);
+  const pos=new THREE.Vector3(),rotation=new THREE.Quaternion(),
+   matrix=new THREE.Matrix4(),scale=new THREE.Vector3(1,1,1);
+  for(let k=0;k<2;k++){
+   const mesh=this.wallPreviewMeshes.meshes[k];
+   mesh.count=byValidity[k].length;
+   for(let i=0;i<mesh.count;i++){
+    const segment=byValidity[k][i];
+    pos.copy(this.pos(segment.point.x,segment.point.y,
+     this.heightAt(segment.point.x,segment.point.y)+23));
+    rotation.setFromAxisAngle(UP,
+     segment.facing===2?Math.PI/2:0);
+    matrix.compose(pos,rotation,scale);mesh.setMatrixAt(i,matrix);
+   }
+   mesh.instanceMatrix.needsUpdate=true;
+   mesh.visible=mesh.count>0;
+  }
+  this.buildHint.style.display='block';
+  this.buildHint.style.left=Math.min(window.innerWidth-290,Math.max(4,event.clientX+14))+'px';
+  this.buildHint.style.top=Math.min(window.innerHeight-95,Math.max(4,event.clientY+14))+'px';
+  this.buildHint.style.borderColor=plan.stopReason?'#f19784':'#9edfbe';
+  this.buildHint.textContent='Mauer ziehen: '+plan.buildable+'/'+plan.segments.length+
+   ' Segmente · '+(plan.buildable*75)+' Credits'+
+   (plan.stopReason?' · Stopp: '+plan.stopReason:' · Loslassen: bauen');
+ }
+ finishWallDrag(event){
+  const drag=this.wallDrag;
+  if(!drag?.active)return;
+  this.updateWallDrag(event,true);
+  const plan=drag.plan;
+  this.wallDrag=null;
+  let built=0,reason=plan?.stopReason??null,lastWorkers=[];
+  // Each segment is a REAL paid, destructible construction, never a
+  // decoration or instant-completed barricade. Stop on the first failure.
+  for(const segment of plan?.segments??[]){
+   if(!segment.valid)break;
+   const error=this.game.buildError(0,'wall',segment.point,segment.facing);
+   if(error){reason=error;break;}
+   const order=submitConstruction(this.game,'wall',segment.point,this.selected,
+    segment.facing,event.shiftKey);
+   if(!order.base){reason=order.reason;break;}
+   built++;lastWorkers=order.workers;
+  }
+  if(built){
+   this.selected=new Set(lastWorkers.map(u=>u.id));
+   this.selectedBase=null;this.panel.dataset.tab='buildings';
+   this.sound?.command?.();
+   this.sync(true);
+  }
+  // Always restore the ordinary single ghost at the pointer when the drag
+  // finishes; walls stay armed for another drag, RMB/Escape cancels.
+  if(this.buildPreview){
+   for(const child of this.buildPreview.children)
+    child.visible=!this.wallPreviewMeshes?.meshes.includes(child);
+   this.buildPreview.position.set(0,0,0);this.buildPreview.rotation.y=0;
+  }
+  this.updatePlacementPreview(event);
+  this.drawInterface();
+  this.message(built?built+' Mauersegmente zum Bau beauftragt'+
+   (reason?' · Abbruch: '+reason:' · Für weitere Mauern erneut ziehen'):
+   reason??'Keine Mauer gebaut · geeignete Strecke wählen');
  }
  updatePlacementPreview(event){
   const ghost=this.buildPreview;if(!this.buildKind||!ghost)return;
@@ -2442,6 +2558,14 @@ export class SandforgeBattlefield {
  }
  pointerUp(event){
   if(!this.clickStart||event.button!==this.clickStart.button)return;
+  if(event.button===0&&this.buildKind==='wall'&&this.wallDrag?.active){
+   this.finishWallDrag(event);
+   this.clickStart=null;this.selectionBox.style.display='none';
+   return;
+  }
+  if(event.button===0&&this.wallDrag){
+   this.wallDrag=null;
+  }
   const start=this.clickStart;
   const moved=Math.hypot(event.clientX-start.x,event.clientY-start.y);
   this.clickStart=null;this.selectionBox.style.display='none';
@@ -2649,11 +2773,30 @@ export class SandforgeBattlefield {
   const canvas=this.renderer.domElement;
   canvas.addEventListener('pointerdown',e=>{
    this.clickStart={x:e.clientX,y:e.clientY,button:e.button};
+   if(e.button===0&&this.buildKind==='wall'){
+    const origin=this.wallDragPoint(e);
+    this.wallDrag=origin?{origin,end:origin,active:false,axis:null,
+     lastRender:-Infinity,lastPreviewPoint:null,plan:null}:null;
+    // Continue receiving pointer events right to the map/canvas boundary.
+    if(this.wallDrag&&canvas.setPointerCapture)canvas.setPointerCapture(e.pointerId);
+   }
    // The Canvas RTS issues right-click commands on press, not release.
    // With RMB rotation disabled this also supports Mac trackpad clicks.
    if(e.button===2){e.preventDefault();this.pointerUp(e);}
   });
   canvas.addEventListener('pointermove',e=>{
+   if(this.buildKind==='wall'&&this.wallDrag&&this.clickStart?.button===0&&(e.buttons&1)){
+    const moved=Math.hypot(e.clientX-this.clickStart.x,e.clientY-this.clickStart.y);
+    if(moved>=WALL_CHAIN_DRAG_THRESHOLD){
+     if(!this.wallDrag.axis){
+      const at=this.wallDragPoint(e)??this.wallDrag.origin;
+      this.wallDrag.axis=Math.abs(at.x-this.wallDrag.origin.x)>=
+       Math.abs(at.y-this.wallDrag.origin.y)?'x':'y';
+     }
+     this.wallDrag.active=true;this.updateWallDrag(e);
+    }
+    return;
+   }
    if(this.buildKind)this.updatePlacementPreview(e);
    const start=this.clickStart;
    if(!start||start.button!==0||!(e.buttons&1))return;
@@ -2669,8 +2812,9 @@ export class SandforgeBattlefield {
   canvas.addEventListener('pointerup',e=>this.pointerUp(e));
   canvas.addEventListener('dblclick',e=>{if(e.button===0&&this.selectSameKindOnScreen(e))e.preventDefault();});
   window.addEventListener('pointerup',e=>{if(this.clickStart)this.pointerUp(e);});
-  canvas.addEventListener('pointerleave',()=>{if(this.buildPreview)this.buildPreview.visible=false;this.buildHint.style.display='none';});
+  canvas.addEventListener('pointerleave',()=>{if(this.wallDrag?.active)return;if(this.buildPreview)this.buildPreview.visible=false;this.buildHint.style.display='none';});
   const resetPointerGesture=()=>{
+   this.wallDrag=null;
    this.clickStart=null;
    this.selectionBox.style.display='none';
    if(this.buildPreview)this.buildPreview.visible=false;
