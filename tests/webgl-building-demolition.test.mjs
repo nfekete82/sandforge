@@ -95,9 +95,11 @@ test('selection HUD has only demolition for ordinary buildings, never for units 
  assert.match(battle,/const ownBuilding=Boolean\(buildingSelected&&base\.owner===0\)/);
  assert.match(battle,/button\.hidden=!ownBuilding/);
  assert.match(battle,/if\(action==='demolish'\)/);
- assert.match(battle,/window\.confirm\(message\)/);
- assert.match(battle,/this\.game\.demolishBuilding\(base\.id,0\)/);
- assert.match(battle,/this\.buildingCollapse\.spawn\(entry,base\)/);
+ assert.match(battle,/this\.confirmDialog\.ask\(\{/);
+ assert.doesNotMatch(battle,/window\.confirm\(/);
+ assert.match(build,/webgl-confirm-dialog\.js/);
+ assert.match(battle,/this\.game\.demolishBuilding\(baseId,0\)/);
+ assert.match(battle,/this\.buildingCollapse\.spawn\(entry,current\)/);
  assert.match(battle,/this\.buildingCollapse\.update\(dt,active\)/);
  assert.match(sim,/demolishBuilding\(id:number,owner:Faction=0\)/);
  assert.match(build,/dist\/webgl-building-collapse\.js/);
