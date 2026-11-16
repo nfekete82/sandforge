@@ -354,7 +354,9 @@ async function rasterizeBuildingIcon(kind,renderer){
   try{return renderStrategicPortrait(kind,renderer);}
   catch(error){console.warn('Strategic portrait fallback:',kind,error);return buildingIconUrl(kind);}
  }
- if(DESERT_BUILDING_KINDS.includes(kind)&&renderer){
+ // Airfield uses a dedicated PBR hangar GLB; it is not part of the older
+ // generic building shader allowlist, but must still render in the HUD.
+ if((DESERT_BUILDING_KINDS.includes(kind)||kind==='airfield')&&renderer){
   try{
    // The image tiles in the HUD must match the *real* 3D materials exactly.
    // Preview assets get their own buffers; renderModelPortrait frees them.
