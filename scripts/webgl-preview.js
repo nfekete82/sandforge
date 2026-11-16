@@ -791,6 +791,18 @@ function setSimulationRunning(shouldRun,source='Pause-Schaltfläche'){
 $('simulation').onclick=event=>{
  setSimulationRunning(!running,event?.detail===0?'Tastatur':'Pause-Schaltfläche');
 };
+// Preserve the prior run/pause state when an in-game confirmation opens.
+// Closing the confirmation resumes only when the match was running before.
+let confirmationWasRunning=false;
+window.addEventListener('sandforge-confirm-state',event=>{
+ if(event.detail?.open){
+  confirmationWasRunning=running;
+  setSimulationRunning(false,'Bestätigung');
+ }else{
+  if(confirmationWasRunning)setSimulationRunning(true,'Bestätigung');
+  confirmationWasRunning=false;
+ }
+});
 $('rotate-left').onclick=()=>spin(-Math.PI/4);
 $('rotate-right').onclick=()=>spin(Math.PI/4);
 function spin(angle){
