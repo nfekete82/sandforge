@@ -371,6 +371,7 @@ async function rasterizeBuildingIcon(kind,renderer){
    });
    const authoredHQ=kind==='headquarters'&&hasAuthoredHeadquartersPBR(model);
    const authoredBarracks=kind==='barracks'&&hasFinalBarracksPBR(model);
+   const authoredFactory=kind==='factory'&&Boolean(model.getObjectByName('SF_Factory_PBR_roof')&&model.getObjectByName('FactoryRollupDoor'));
    if(authoredHQ){
     // Same original PBR textures as the real domed command centre.
     prepareAuthoredHeadquartersPortrait(model);
@@ -386,6 +387,9 @@ async function rasterizeBuildingIcon(kind,renderer){
       node.material.map(m=>m.clone()):node.material.clone();
     });
     prepareFinalBarracksPortrait(model);
+   }else if(authoredFactory){
+    // The generated factory is already full PBR with exact team-blue
+    // painted roof/flags. Retain its authored texture atlas untouched.
    }else{
     if(kind==='barracks')finishBarracksSides(model);
     tintFactionMaterials(model,0,kind,'building');
