@@ -392,8 +392,9 @@ async function rasterizeBuildingIcon(kind,renderer){
     });
     prepareFinalBarracksPortrait(model);
    }else if(authoredFactory||authoredAirfield||authoredGenerator){
-    // Factory and airfield share the canonical desert PBR paint. Keep the
-    // actual built GLB materials; no old orange faction shader in thumbnails.
+    // Keep HUD and gameplay in sync: only the external factory/hangar wall
+    // gets the barracks palette, with the original roof and gate preserved.
+    if(authoredFactory||authoredAirfield)finishDesertBuildingMaterials(model,kind);
    }else{
     if(kind==='barracks')finishBarracksSides(model);
     tintFactionMaterials(model,0,kind,'building');
