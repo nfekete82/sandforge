@@ -5,7 +5,7 @@ import {Simulation} from '../dist/src/reborn/simulation.js';
 import {UPGRADES,UPGRADE_KINDS} from '../dist/src/reborn/strategic-tech.js';
 import {UNIT_MISS_CHANCE,unitShotRoll,unitShotMisses,missedGroundPoint}
  from '../dist/src/reborn/unit-accuracy.js';
-import {RESEARCH_DECK_GROUPS,researchDeckTechStatus,RESEARCH_DECK_VERSION}
+import {RESEARCH_DECK_GROUPS,researchDeckTechStatus,RESEARCH_DECK_VERSION,createSandforgeResearchDeck}
  from '../scripts/webgl-research-deck.js';
 
 const src=path=>readFileSync(path,'utf8');
@@ -138,4 +138,65 @@ test('a miss uses pooled sand dust, bounded dent decal, and tracer lands at grou
  assert.match(vfx,/if\(shot\.miss\)\{\s*this\.sandMissAt\(shot\)/);
  assert.match(battle,/this\.heightAt\(shot\.to\.x,shot\.to\.y\)\+\(shot\.miss\?2:27\)/);
  assert.match(vfx,/this\.stats\.misses\+\+/);
+});
+
+
+test('research modal genuinely opens on lab selection, starts once, closes and reopens',()=>{
+ class Element{
+  constructor(name='node'){
+   this.name=name;this.dataset={};this.style={};this.attributes={};
+   this.textContent='';this.disabled=false;this.hidden=false;this.sub=new Map();
+   this.classList={toggle(){}};
+   this.parentElement={setAttribute(){}};
+  }
+  setAttribute(key,value){this.attributes[key]=value;}
+  querySelector(selector){
+   if(!this.sub.has(selector))this.sub.set(selector,new Element(selector));
+   return this.sub.get(selector);
+  }
+ }
+ const overlay=new Element('overlay');
+ Object.defineProperty(overlay,'innerHTML',{set(markup){
+  this.markup=markup;
+  this.cards=[...markup.matchAll(/data-sf-tech-kind="([^"]+)"/g)]
+   .map(hit=>{const card=new Element('card');card.dataset.sfTechKind=hit[1];return card;});
+ }});
+ overlay.querySelectorAll=selector=>selector==='[data-sf-tech-kind]'?overlay.cards:[];
+ overlay.addEventListener=(event,listener)=>{if(event==='click')overlay.click=listener;};
+ const parent={append(node){this.child=node;}};
+ const oldDocument=globalThis.document;
+ const clicked=[];
+ globalThis.document={createElement:()=>overlay};
+ try{
+  const deck=createSandforgeResearchDeck({
+   parent,upgrades:UPGRADES,upgradeKinds:UPGRADE_KINDS,iconMarkup:()=>'<svg></svg>',
+   onResearch:kind=>clicked.push(kind)
+  });
+  const lab={id:12,kind:'research',owner:0,hp:950,buildRemaining:0};
+  const state=research();
+  deck.update({base:lab,state,credits:10000,online:true,playing:true});
+  assert.equal(deck.open,true);
+  assert.equal(overlay.cards.length,UPGRADE_KINDS.length);
+  assert.equal(overlay.querySelector('[data-sf-tech-count]').textContent,'0 / 9');
+  const dispatch=match=>overlay.click({
+   stopPropagation(){},
+   target:{closest:selector=>selector===match?new Element('clicked'):null}
+  });
+  dispatch('[data-sf-tech-start]');
+  assert.deepEqual(clicked,[deck.selectedKind],
+   'clicking ERFORSCHEN invokes Simulation.startResearch handler once');
+  deck.close();
+  deck.update({base:lab,state,credits:10000,online:true,playing:true});
+  assert.equal(deck.open,false);
+  deck.reopen();
+  deck.update({base:lab,state,credits:10000,online:true,playing:true});
+  assert.equal(deck.open,true);
+  deck.update({base:null,state,credits:10000,online:true,playing:true});
+  assert.equal(deck.open,false);
+  deck.update({base:lab,state,credits:10000,online:true,playing:true});
+  assert.equal(deck.open,true);
+ }finally{
+  if(oldDocument===undefined)delete globalThis.document;
+  else globalThis.document=oldDocument;
+ }
 });
