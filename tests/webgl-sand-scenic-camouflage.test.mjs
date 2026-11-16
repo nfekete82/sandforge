@@ -95,7 +95,7 @@ test('camouflage nets cover only small, partial REAR yard sections on selected m
 });
 
 test('terrain Sand PBR masks wind, dunes and grain on original terrain mesh only',()=>{
- assert.equal(DESERT_SURFACE_DETAIL.revision,'multiscale-natural-desert-sediment-v4-20261116');
+ assert.equal(DESERT_SURFACE_DETAIL.revision,'nonperiodic-natural-desert-sediment-v5-20261116');
  assert.ok(DESERT_SURFACE_DETAIL.coverageStrength>=.40&&DESERT_SURFACE_DETAIL.coverageStrength<=.50);
  assert.ok(DESERT_SURFACE_DETAIL.gritStrength>=.10&&DESERT_SURFACE_DETAIL.gritStrength<=.13);
  const renderer={capabilities:{getMaxAnisotropy:()=>8}};
