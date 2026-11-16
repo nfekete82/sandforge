@@ -54,14 +54,16 @@ test('all visible barracks yard props use texture maps (except emissive lamp gla
  disposeBuildingYard(yard);
 });
 
-test('other building perimeter fences retain their previous design and materials',()=>{
- const hq=createBuildingYard('headquarters',160);
- const perimeter=hq.getObjectByName('BasePerimeter_headquarters');
- assert.ok(perimeter.getObjectByName('YardFenceRails'));
- assert.ok(perimeter.getObjectByName('YardFenceMesh'));
- assert.equal(perimeter.getObjectByName('BarracksWireFenceStrands'),undefined);
- assert.equal(perimeter.userData.barracksWireFence,undefined);
- disposeBuildingYard(hq);
+test('non-PBR building perimeter fences retain their previous design and materials',()=>{
+ for(const kind of ['factory','research']){
+  const yard=createBuildingYard(kind,160);
+  const perimeter=yard.getObjectByName('BasePerimeter_'+kind);
+  assert.ok(perimeter.getObjectByName('YardFenceRails'),kind+' keeps wooden rails');
+  assert.ok(perimeter.getObjectByName('YardFenceMesh'),kind+' keeps cross-bracing');
+  assert.equal(perimeter.getObjectByName('BarracksWireFenceStrands'),undefined);
+  assert.equal(perimeter.userData.barracksWireFence,undefined);
+  disposeBuildingYard(yard);
+ }
 });
 
 
@@ -90,11 +92,22 @@ test('barracks supply cache stays fully clear of the side wire and rear fence',(
  }
 });
 
-test('headquarters depot keeps previous size and placement',()=>{
- const width=160,yard=createBuildingYard('headquarters',width);
- const cache=yard.getObjectByName('BaseSupplyCache');
+test('headquarters uses its compact fenced-in PBR depot, others keep original depot',()=>{
+ const width=160;
+ const hq=createBuildingYard('headquarters',width);
+ const cache=hq.getObjectByName('BaseSupplyCache');
  assert.ok(cache);
- assert.equal(cache.position.x,width*.55);
- assert.equal(cache.getObjectByName('SupplyPallet').geometry.parameters.width,43);
- disposeBuildingYard(yard);
+ assert.equal(cache.position.x,width*.50,'HQ cache shifted inside wire perimeter');
+ assert.equal(cache.getObjectByName('SupplyPallet').geometry.parameters.width,28);
+ assert.equal(cache.getObjectByName('CrateBody').material.map?.isDataTexture,true);
+ hq.updateMatrixWorld(true);
+ const bounds=new THREE.Box3().setFromObject(cache);
+ assert.ok(bounds.max.x<width*.65-4,'HQ cache stays inside wire');
+ disposeBuildingYard(hq);
+
+ const factory=createBuildingYard('factory',width);
+ const legacy=factory.getObjectByName('BaseSupplyCache');
+ assert.equal(legacy.position.x,width*.55,'factory keeps original cache placement');
+ assert.equal(legacy.getObjectByName('SupplyPallet').geometry.parameters.width,43);
+ disposeBuildingYard(factory);
 });
