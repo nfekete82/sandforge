@@ -1177,7 +1177,7 @@ export class Simulation {
     // Deterministic fixed-step accuracy applies to UNIT shots for both
     // factions. Turret buildings and strategic weapons remain unchanged.
     // A miss still emits a real Shot to render tracer, sand dust and dent.
-    if('orders' in source){
+    if(this.stageWebGLProduction&&'orders' in source){
       const ordinal=(source.burst?.index??0)+(weapon==='machinegun'?71:0);
       if(unitShotMisses(this.seed,source.id,target.id,this.time,ordinal)){
         const targetRadius='queue' in target?target.radius:unitSpec(target).radius;
@@ -1263,7 +1263,7 @@ export class Simulation {
    * derive from the same persisted missile, including after save/load. */
   private releaseBomb(u:Unit,target:Unit|Base):void{
     const from={x:u.x,y:u.y};
-    const miss=unitShotMisses(this.seed,u.id,target.id,this.time,73);
+    const miss=this.stageWebGLProduction&&unitShotMisses(this.seed,u.id,target.id,this.time,73);
     const to=miss?missedGroundPoint(from,target,
       'queue' in target?target.radius:unitSpec(target).radius,this.world.size,
       unitShotRoll(this.seed,u.id,target.id,this.time,964)):
@@ -1286,7 +1286,7 @@ export class Simulation {
   }
   private launch(u:Unit,target:Unit|Base):void{
     const id=this.nextId++,antiArmor=u.kind==='tank'||u.kind==='rocket';
-    const miss=unitShotMisses(this.seed,u.id,target.id,this.time,u.burst?.index??0);
+    const miss=this.stageWebGLProduction&&unitShotMisses(this.seed,u.id,target.id,this.time,u.burst?.index??0);
     const offset=antiArmor?{x:0,y:0}:this.weather.artilleryOffset(id,u.id);
     const from={x:u.x,y:u.y};
     const to=miss?missedGroundPoint(from,target,
