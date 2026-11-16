@@ -54,3 +54,25 @@ Die Kombination aus der kleineren, nicht-HDR-beleuchteten Offscreen-Kamera und m
 - In `src/reborn/webgl-classic-hud.css` werden gesperrte Gebäudekacheln über den gedämpften Hintergrund, Rahmen und den Preistext kenntlich gemacht, **nicht** mehr durch starke Graustufen, Unschärfe und mehrfache Opacity-Verringerung. Interaktionen für gesperrte Gebäude bleiben blockiert.
 - `tests/webgl-building-portrait-readability.test.mjs` prüft, dass Beleuchtung und Belichtungsanpassung nur für Gebäude gelten, der Rendererzustand zurückgesetzt wird, die CSS-Regel die alte Verdunklung überschreibt und die Sperrlogik nicht verändert wurde.
 - Die Icons werden bei Browser-Neustart neu generiert. Kein neues GLB, ZIP oder Asset erforderlich. Lokaler visueller Check der neuen HUD-Karten steht auf Port 8111 noch aus.
+
+
+## Gemeinsamer finaler Spielstand: Bastion + Kaserne + Kommandozentrale
+
+Der Bastion-Worktree zeigte vorher trotz neuer Bastion wieder **ältere HQ-/Kasernen-GLBs**. Ursache: die finalen PBR-Kaserne- und HQ-Modelle waren nur in den bestehenden lokalen Mac-Worktrees, nicht im Git-Branch als große Binärdateien gespeichert. `npm run build` erzeugte bisher nur die Bastion neu und kopierte alle anderen alten GLBs unverändert nach `dist`.
+
+- `scripts/ensure-final-pbr-buildings.mjs` läuft jetzt **automatisch bei jedem Bastion-`npm run build` vor `generate-bastion-radar.mjs` und vor dem Asset-Copy**. Es prüft die finalen Kasernen-Tore, Dach-/Sandbag-/Crate-/Radar-Teile für Blau/Rot sowie die HQ-Dachkuppel, Radarrotoren, Lüfter auf der Rückseite und die aktuelle Dachlayout-Revision (`43` Meshes). Bei korrekter Version wird nichts verändert.
+- Falls die vier Modelle noch die alten sind, nimmt das Skript die vollständigen GLBs bevorzugt aus `~/Projects/sandforge-pbr-gesamt-test`. Wenn dort keine vollständig aktuelle Revision vorliegt, kopiert es aus `~/Projects/sandforge-kaserne-prop-polish` und `~/Projects/sandforge-hq-pbr`, führt das letzte HQ-Layout, die hinteren Lüfter und die große Dachkuppel in einer temporären Staging-Kopie aus und validiert alle vier. **Erst dann** werden die GLBs ins Spiel übernommen. Fehlende Quellen lösen einen klaren Buildfehler aus, statt eine veraltete Kaserne zu laden.
+- Die tatsächlichen HDR-/PBR-Vorschaubilder kommen aus den **gleichen finalen GLBs wie das Spiel**: `scripts/webgl-portraits.js` erkennt die echte handtexturierte Kaserne und übernimmt ihre Original-Tarnmuster ohne alte orangefarbene Recolor-Shader. Der separate PBR-Helfer `scripts/webgl-pbr-barracks-portrait.js` passt nur Metallwerte des HUD-Klons an und erhält eingebettete Farb-/Normal-/Roughness-Maps. Wie in der echten Spielwelt erhalten die Kasernen-Props den Material-Feinschliff; für das temporäre Icon werden ihre Meshes/Materialien separat geklont. Die HQ-Kuppel-Vorschau nutzt weiterhin die originalen HQ-Maps. Neue Studiolichtfarben sind neutralweiß statt goldgelb.
+- `tests/webgl-final-pbr-asset-sync.test.mjs` prüft alle **sieben finalen GLBs** (2 Kaserne, 2 HQ, 3 Bastion), die exakten Inhalte und SHA-256-Gleichheit von `src` zu `dist`. `tests/webgl-authored-barracks-portrait.test.mjs` prüft, dass Texturen erhalten bleiben und keine orangefarbene Neulackierung stattfindet. Der Bastion-Installer führt beide zusammen mit den bisherigen Bastion-, HQ- und HUD-Tests aus und sichert nun ebenfalls alle sieben Dateien.
+- **Voraussetzung:** Zum ersten Aktualisieren müssen entweder die bereits bestehenden kombinierten PBR-GLBs oder die zwei ursprünglichen handtexturierten Quell-Worktrees auf dem Mac vorhanden sein. Große PBR-GLB-Binärdateien selbst liegen nach wie vor nicht in Git. Der vollständige Browser-Sichttest auf Port 8111 steht aus.
+
+### Aktualisieren
+
+```bash
+cd ~/Projects/sandforge-bastion-pbr-test
+git fetch origin
+git merge --ff-only origin/feat/bastion-pbr-radar-capture-20261116
+bash scripts/install-bastion-pbr-test.sh && PORT=8111 npm run preview
+```
+
+Danach `Cmd+Shift+R` im Browser, Port **8111**. Jetzt läuft der gemeinsame Teststand für **Kaserne, Kommandozentrale und Bastion**, nicht mehr jeweils ein isolierter alter Zweig.
