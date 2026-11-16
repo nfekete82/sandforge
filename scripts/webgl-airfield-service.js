@@ -79,9 +79,8 @@ export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
   for(let n=0;n<7;n++){
    box(group,'AirfieldParkingRampTread_'+bay,103,.18,1.7,cx,2.28,176+n*4.8,fuelMetal);
   }
-  for(const z of [82,123,163]){
-   box(group,'AirfieldConcreteJoint_'+bay,111,.14,1.8,cx,2.04,z,steel);
-  }
+  // No three dark cross-stripes across the bomber parking apron.
+  // The slab PBR map already contains fine, subtle concrete seams.
   for(const x of [-40,-20,20,40]){
    box(group,'AirfieldParkingWearMark_'+bay,4,.12,19,cx+x,2.08,147,runwayWear);
   }
@@ -308,7 +307,7 @@ export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
  * The same function is called for the ghost at its prospective location and
  * for the built site, including every cardinal facing.
  */
-const AIRFIELD_GROUND_SURFACE=/^(AirfieldFuelServicePad|AirfieldFuelConcreteJoint|AirfieldParkingRampGrip|AirfieldParkingRampEdge|AirfieldParkingRampTread|AirfieldConcreteJoint|AirfieldParkingWearMark|AirfieldExpandedConcreteApron|AirfieldRunwaySandShoulder|AirfieldExtendedRunway|AirfieldAircraftParking(?:Pad|Centerline|Edge|Stop|Number)|AirfieldRunwayCenterDash|AirfieldRunwayEdgeLine|AirfieldRunwayThreshold|AirfieldRunwayLandingBars|AirfieldTaxiCrossGuide|AirfieldTaxiGuideDash|HangarCenterGuide|HangarApronStop|HangarSafetyChevron|AirfieldApronExpansionJoint)/;
+const AIRFIELD_GROUND_SURFACE=/^(AirfieldFuelServicePad|AirfieldFuelConcreteJoint|AirfieldParkingRampGrip|AirfieldParkingRampEdge|AirfieldParkingRampTread|AirfieldParkingWearMark|AirfieldExpandedConcreteApron|AirfieldRunwaySandShoulder|AirfieldExtendedRunway|AirfieldAircraftParking(?:Pad|Centerline|Edge|Stop|Number)|AirfieldRunwayCenterDash|AirfieldRunwayEdgeLine|AirfieldRunwayThreshold|AirfieldRunwayLandingBars|AirfieldTaxiCrossGuide|AirfieldTaxiGuideDash|HangarCenterGuide|HangarApronStop|HangarSafetyChevron|AirfieldApronExpansionJoint)/;
 const AIRFIELD_GROUND_PROPS=/^(AirfieldRunwayLamp|AirfieldAircraftParkingChock)$/;
 export function conformAirfieldSurface(group,base,heightAt,{force=false}={}){
  if(!group||typeof heightAt!=='function'||!Number.isFinite(base?.x)||!Number.isFinite(base?.y))return 0;
