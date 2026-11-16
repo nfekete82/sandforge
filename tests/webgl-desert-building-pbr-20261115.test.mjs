@@ -6,7 +6,7 @@ import {DESERT_BUILDING_PBR_REVISION,DESERT_BUILDING_IMAGES,DESERT_BUILDING_KIND
  from '../scripts/webgl-building-pbr.js';
 
 test('five actual building graphics shipped, original models still present',()=>{
- assert.deepEqual(DESERT_BUILDING_KINDS,['barracks','headquarters','factory']);
+ assert.deepEqual(DESERT_BUILDING_KINDS,['barracks','headquarters','factory','airfield']);
  assert.match(readFileSync('scripts/build.mjs','utf8'),/webgl-building-pbr\.js/);
  assert.ok(existsSync('dist/webgl-building-pbr.js'));
  for(const [role,path] of Object.entries(DESERT_BUILDING_IMAGES)){
@@ -29,6 +29,8 @@ test('wall/camouflage/roof/metal/trim classify only safe exterior parts',()=>{
   ['barracks','Atlas_BarracksRoofCamo_8','camo'],
   ['factory','FactoryRoofArmor','roof'],
   ['factory','ServiceWallCassette','camo'],
+  ['factory','SF_Factory_PBR_camo','camo'],
+  ['airfield','SF_Airfield_PBR_camo','camo'],
   ['factory','Atlas_ArmouredHull_3','metal'],
   ['headquarters','HeadquartersRoofArmourA','roof'],
   ['headquarters','Atlas_CeramicHull_7','wall']
@@ -39,6 +41,9 @@ test('wall/camouflage/roof/metal/trim classify only safe exterior parts',()=>{
    'SideWindow','GateHazardStripe','LadderRail','SealedEquipmentCase'])
    assert.equal(buildingSurfaceRole(kind,name,'Ceramic Paint'),null,kind+':'+name);
  assert.equal(buildingSurfaceRole('airfield','RoofCamo',''),null);
+ assert.equal(buildingSurfaceRole('airfield','SF_Airfield_PBR_roof_corrugated',''),null);
+ assert.equal(buildingSurfaceRole('factory','SF_Factory_PBR_roof',''),null);
+ assert.equal(buildingSurfaceRole('airfield','HangarRollupSlat_0_00',''),null);
 });
 function fixture(){
  const root=new THREE.Group(),originals=new Map();
