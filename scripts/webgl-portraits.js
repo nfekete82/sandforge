@@ -356,7 +356,7 @@ async function rasterizeBuildingIcon(kind,renderer){
  }
  // Airfield uses a dedicated PBR hangar GLB; it is not part of the older
  // generic building shader allowlist, but must still render in the HUD.
- if((DESERT_BUILDING_KINDS.includes(kind)||kind==='airfield')&&renderer){
+ if((DESERT_BUILDING_KINDS.includes(kind)||kind==='airfield'||kind==='generator')&&renderer){
   try{
    // The image tiles in the HUD must match the *real* 3D materials exactly.
    // Preview assets get their own buffers; renderModelPortrait frees them.
@@ -375,6 +375,7 @@ async function rasterizeBuildingIcon(kind,renderer){
    const authoredBarracks=kind==='barracks'&&hasFinalBarracksPBR(model);
    const authoredFactory=kind==='factory'&&Boolean(model.getObjectByName('SF_Factory_PBR_roof')&&model.getObjectByName('FactoryRollupDoor'));
    const authoredAirfield=kind==='airfield'&&Boolean(model.getObjectByName('SF_Airfield_PBR_Root')&&model.getObjectByName('HangarDoorLeft_0')&&model.getObjectByName('HangarDoorRight_0'));
+   const authoredGenerator=kind==='generator'&&Boolean(model.getObjectByName('SF_EnergyCore_PBR_Housing'));
    if(authoredHQ){
     // Same original PBR textures as the real domed command centre.
     prepareAuthoredHeadquartersPortrait(model);
@@ -390,7 +391,7 @@ async function rasterizeBuildingIcon(kind,renderer){
       node.material.map(m=>m.clone()):node.material.clone();
     });
     prepareFinalBarracksPortrait(model);
-   }else if(authoredFactory||authoredAirfield){
+   }else if(authoredFactory||authoredAirfield||authoredGenerator){
     // Factory and airfield share the canonical desert PBR paint. Keep the
     // actual built GLB materials; no old orange faction shader in thumbnails.
    }else{
