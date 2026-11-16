@@ -87,7 +87,14 @@ export function servicePaint(palette,{seed=1,pattern='camo',repeat=3,metalness=.
  * Ghosts share their source material.map ONLY until their original owned
  * textures are explicitly disposed, never copy the ownership metadata. */
 export function previewServiceMaterial(source,{opacity=.5,color='#a7e4cc'}={}){
- const clone=source.clone();
+ // Source userData holds REAL 256px albedo/normal textures. Three's
+ // Material.clone() JSON-copies userData and would serialize both arrays
+ // for every ghost (and leak fake texture objects). Strip metadata only for
+ // the synchronous clone, then restore it unchanged on the source.
+ const metadata=source.userData;
+ let clone;
+ try{source.userData={};clone=source.clone();}
+ finally{source.userData=metadata;}
  clone.color?.lerp(new THREE.Color(color),.14);
  clone.transparent=true;clone.opacity=Math.min(source.opacity??1,opacity);
  clone.depthWrite=false;clone.depthTest=true;
