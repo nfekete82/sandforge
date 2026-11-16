@@ -15,12 +15,41 @@ export function chooseRareScenicHouseIndex(ruins,seed,{modern=false}={}){
 const paint=(hex,roughness=.97)=>new THREE.MeshStandardMaterial({
  color:hex,roughness,metalness:0,flatShading:false
 });
+// Baked, seamless material grain and roof weathering: two tiny textures
+// reused by every rare house. No external asset, runtime fetch or shader pass.
+function makeScenicPBRTexture(kind,size=128){
+ const px=new Uint8Array(size*size*4),isRoof=kind==='roof';
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const i=(y*size+x)*4;
+  const n=(Math.imul(x+13,374761393)^Math.imul(y+17,668265263))>>>0;
+  const grain=((n^(n>>>13))%27)-13;
+  const stains=Math.sin(x*.10+Math.cos(y*.061)*1.9)+Math.cos(y*.064-x*.041);
+  const mortar=isRoof&&(x%32<2||y%20<2)?-33:0;
+  const fade=isRoof?Math.sin((x+y)*.075)*12:Math.sin(x*.053+y*.029)*6;
+  const weather=stains>1.05?-18:stains<-.85?9:0;
+  const base=isRoof?[158,141,116]:[226,216,197];
+  for(let k=0;k<3;k++)
+   px[i+k]=Math.max(0,Math.min(255,base[k]+grain*.65+weather+fade+mortar));
+  px[i+3]=255;
+ }
+ const texture=new THREE.DataTexture(px,size,size,THREE.RGBAFormat);
+ texture.name='SandforgeScenicDesert'+(isRoof?'OldRoofTiles':'WeatheredWhitePlaster');
+ texture.colorSpace=THREE.SRGBColorSpace;
+ texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
+ texture.generateMipmaps=true;
+ texture.minFilter=THREE.LinearMipmapLinearFilter;
+ texture.magFilter=THREE.LinearFilter;
+ texture.needsUpdate=true;
+ return texture;
+}
 const MAT={
- plaster:paint('#d9cfb5'),chalk:paint('#e6ddc7'),worn:paint('#c3b49a'),
- trim:paint('#aa987d'),timber:paint('#5c5045'),tile:paint('#9e8971'),
+ plaster:paint('#ffffff'),chalk:paint('#ede6d5'),worn:paint('#c3b49a'),
+ trim:paint('#aa987d'),timber:paint('#5c5045'),tile:paint('#ffffff'),
  roof:paint('#b1a28c'),dark:paint('#252c2e'),glass:paint('#303b3a',.47),
  rubble:paint('#c4ad8b')
 };
+MAT.plaster.map=makeScenicPBRTexture('plaster');
+MAT.tile.map=makeScenicPBRTexture('roof');
 function box(parent,name,width,height,depth,x,y,z,material,angle=0){
  const obj=new THREE.Mesh(new THREE.BoxGeometry(width,height,depth),material);
  obj.name=name;obj.position.set(x,y,z);obj.rotation.z=angle;
@@ -78,6 +107,21 @@ export function createScenicDesertHouse(ruin,seed=0,index=0){
    // Sparse wooden rafter at the front gable; not a solid roof block.
    box(g,'ExposedRoofEave',panelW,1.7,2,s*(w/4+1),
     base+h+3.2+rise/2,d/2+2.8,MAT.timber,s===-1?slant:-slant);
+  }
+  // Close triangular front/back gables with weathered plaster instead of
+  // leaving unrealistic dark holes beneath the pitched roof.
+  const yEave=base+h+3.3,yCrown=base+h+4+rise;
+  for(const z of [-d/2-.3,d/2+.3]){
+   const geo=new THREE.BufferGeometry();
+   geo.setAttribute('position',new THREE.Float32BufferAttribute([
+    -w/2,yEave,z,w/2,yEave,z,0,yCrown,z
+   ],3));
+   geo.setIndex([0,1,2]);geo.computeVertexNormals();
+   const gable=new THREE.Mesh(geo,MAT.chalk);
+   gable.name='WhitewashedPitchedGable';
+   gable.material.side=THREE.DoubleSide;
+   gable.castShadow=true;gable.receiveShadow=true;gable.raycast=()=>{};
+   g.add(gable);
   }
   box(g,'RoofRidgeCap',3.5,2,d+7,0,base+h+4+rise,0,MAT.worn);
   box(g,'OldStoneChimney',w*.095,rise*.87,w*.085,
