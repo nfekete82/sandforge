@@ -46,3 +46,24 @@ Die GLB-Binärdateien werden für den ersten Test **nur lokal in den neuen Workt
 - Die Kuppel belegt nur fünf zusätzliche Draw Calls und nutzt die **bereits eingebetteten** BaseColor-/Normal-/Roughness-Texturen des finalen HQ-Modells. Radarrotoren, Antennen, Doppeltor, Infanterieproduktion, Fundament und Kollision bleiben unverändert.
 - `scripts/install-combined-pbr-test.sh` kopiert die beiden originalen HQ-GLBs aus dem vorhandenen lokalen Worktree und führt danach automatisch `node scripts/upgrade-hq-dome.mjs` für Blau und Rot aus. Kein neuer Download nötig.
 - `tests/webgl-hq-dome.test.mjs` prüft beide Teammodelle, UV-/Normal-Daten, die vorhandenen PBR-Bildtexturen, freibleibende Radar- und Tür-Knoten sowie erneute idempotente Ausführung des Upgrade-Skripts.
+
+## Stand 16.11.: HQ-Anordnung, Bastion-Freihaltung und direkter Sammelpunkt
+
+- **HQ größer als die Kaserne:** die bestehende größere Kommandozentrale hat eine mittige PBR-Kuppel mit Radius `3.15` statt `1.92`, Oberkante `8.12` statt `6.63`, fünf zusätzliche texturierte Meshes. Der Gebäudefußabdruck und die Kollisionen bleiben unverändert.
+- **Radar:** hoher Funkmast mit Signallampe rechts hinten am Dachrand, große Parabolschüssel links hinten, Phased-Array rechts und kleine drehende Schüssel rechts vorne. Alle drei originalen Rotorknoten drehen weiterhin separat.
+- **Vordach:** echte Kasernen-PBR-Markise an der rechten Seitenwand, entlang der Fassade zentriert und 55 % breiter. Tragwerk, Füße und seitliche Kisten folgen dieser Position.
+- **Bastionen:** moderne Kartengenerierung schließt authored Ruinen (inklusive Hindernisgeometrie) bis 1.150 Welt-Einheiten um alle Bastionen aus. Dekorative Dorfhäuser und deren Sandfahrspuren werden ebenfalls pro Haus und Dorfstraße mit 1.150 Einheiten Bastion-Abstand platziert. Andere Stellen der Karte dürfen weiterhin Ruinen haben.
+- **Einheiten mit Sammelpunkt:** Infanterie aus der Kaserne und Pioniere aus der Kommandozentrale kommen vorne heraus, laufen ohne erzwungenen rechten Wartepunkt Richtung Sammelpunkt und werden nach der sichtbaren Torfreigabe schneller an die normale Bewegung übergeben. Ohne Sammelpunkt bleibt der Standard-Warteplatz rechts erhalten. Fabrik-/Fahrzeugtore bleiben unverändert.
+- Der Installer `scripts/install-combined-pbr-test.sh` nimmt die unveränderten Team-GLBs aus den beiden älteren Test-Worktrees, führt `scripts/upgrade-hq-layout.mjs` und anschließend `scripts/upgrade-hq-dome.mjs` für Blau/Rot aus und prüft mit neuen Roof-/Bastion-/Rally-Regressionstests. Keine manuellen GLB-Downloads.
+- Die Generatoren und Gameplay-Korrekturen sind vollständig auf GitHub. Die großen finalen GLB-Binärdateien werden beim Installieren **lokal generiert** und sind derzeit noch nicht in den Git-Branch gepusht.
+
+### Erneut testen
+
+```bash
+cd ~/Projects/sandforge-pbr-gesamt-test
+git fetch origin
+git merge --ff-only origin/feat/combined-barracks-hq-pbr-20261116
+bash scripts/install-combined-pbr-test.sh && PORT=8110 npm run preview
+```
+
+Browser: http://localhost:8110/webgl-preview.html (nach dem Beenden des alten Servers, danach Cmd+Shift+R). Den gesamten RTS-Test und Browser-Sichttest vor Merge nach `develop` abschließen.
