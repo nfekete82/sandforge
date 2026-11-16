@@ -282,8 +282,12 @@ function addSiteDecor(root,kind,width){
  // Keep shadows on the building and original production-yard props.
  g.traverse(object=>{
   if(!object.isMesh)return;
-  object.castShadow=false;
-  object.receiveShadow=false;
+  // Only the larger barracks-yard objects need an actual sunlight shadow.
+  // Tiny fence wires/straps stay shadow-free to avoid shadow-map aliasing.
+  const majorBarracksProp=kind==='barracks'&&
+   /^(CrateBody|CrateLid|SupplyPallet|BarrelShell|LampPost|LampHead)$/.test(object.name);
+  object.castShadow=majorBarracksProp;
+  object.receiveShadow=majorBarracksProp;
   // Decorative meshes must not compete with the building model when
   // recursive unit/building raycasts resolve game selection.
   object.raycast=()=>{};
