@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {barracksPropMaterial} from './webgl-barracks-prop-materials.js';
 
 // Render-only prop polish for the hand-authored Sandforge PBR barracks.
 // Gameplay, collision, unit spawns, and the building hull remain unchanged.
@@ -6,33 +7,6 @@ const ORIGINAL_PARTS=/^(?:sandbag_|crate_|crate_top_reinforcement_|crate_front_r
 const ORIGINAL_BAG=/^sandbag_/;
 const ORIGINAL_CRATE=/^crate_(?:\d|top_reinforcement_|front_reinforcement_|mid_rib_)/;
 const ORIGINAL_RADAR=/^radar_/;
-const accent=(color,metalness=0,roughness=.9)=>{
- const material=new THREE.MeshStandardMaterial({color,metalness,roughness});
- material.userData.sandforgeColorMapCamo=true;
- return material;
-};
-
-function clothTexture(){
- const n=128,pixels=new Uint8Array(n*n*4);
- for(let y=0;y<n;y++)for(let x=0;x<n;x++){
-  const hash=(Math.imul(x+17,73856093)^Math.imul(y+29,19349663))>>>0;
-  const threads=(x%4===0?15:0)+(y%4===0?11:0),grain=(hash%23)-11;
-  const i=(y*n+x)*4;
-  pixels[i]=Math.min(255,206+threads+grain);
-  pixels[i+1]=Math.min(255,183+threads+grain);
-  pixels[i+2]=Math.min(255,141+threads+grain);
-  pixels[i+3]=255;
- }
- const texture=new THREE.DataTexture(pixels,n,n,THREE.RGBAFormat);
- texture.colorSpace=THREE.SRGBColorSpace;
- texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
- texture.repeat.set(2,1);
- texture.magFilter=THREE.LinearFilter;
- texture.minFilter=THREE.LinearMipmapLinearFilter;
- texture.generateMipmaps=true;
- texture.needsUpdate=true;
- return texture;
-}
 function shadow(mesh){mesh.castShadow=true;mesh.receiveShadow=true;return mesh;}
 function cylinderBetween(parent,name,from,to,radius,material,segments=9){
  const length=from.distanceTo(to),body=shadow(new THREE.Mesh(
@@ -45,9 +19,8 @@ function cylinderBetween(parent,name,from,to,radius,material,segments=9){
 
 function addSandbags(root){
  const group=new THREE.Group();group.name='BarracksPolishedSandbags';
- const map=clothTexture();
- const bagMat=accent('#ffffff',0,.98);bagMat.map=map;bagMat.name='Barracks linen sandbag';
- const darker=accent('#d3b083',0,.99),stitch=accent('#8b734e',0,1);
+ const bagMat=barracksPropMaterial('linen');
+ const darker=barracksPropMaterial('linenShade'),stitch=barracksPropMaterial('stitching');
  const shape=new THREE.SphereGeometry(1,16,10),p=shape.attributes.position;
  for(let i=0;i<p.count;i++)p.setXYZ(i,p.getX(i)*.97,p.getY(i)*.77,p.getZ(i)*.95);
  shape.computeVertexNormals();
@@ -68,8 +41,8 @@ function addSandbags(root){
 }
 function addCrates(root){
  const group=new THREE.Group();group.name='BarracksPolishedCrates';
- const olive=accent('#6d7650',.07,.82),oliveLight=accent('#88916b',.08,.82);
- const wood=accent('#927755',0,.96),steel=accent('#343a32',.58,.58);
+ const olive=barracksPropMaterial('olivePaint'),oliveLight=barracksPropMaterial('oliveLid');
+ const wood=barracksPropMaterial('supplyWood'),steel=barracksPropMaterial('darkSteel');
  const placements=[
   {x:6.18,z:2.30,s:.84,wood:false},
   {x:6.18,z:1.23,s:.67,wood:true},
@@ -99,8 +72,8 @@ function addCrates(root){
 }
 function addRadar(root){
  const group=new THREE.Group();group.name='BarracksPolishedDish';
- const dark=accent('#454e4c',.73,.46),rim=accent('#aab1aa',.68,.34);
- const inside=accent('#788481',.66,.43);
+ const dark=barracksPropMaterial('darkSteel'),rim=barracksPropMaterial('brightSteel');
+ const inside=barracksPropMaterial('dishMetal');
  const center=new THREE.Vector3(-3.85,5.52,-2.58);
  const facing=new THREE.Vector3(.72,.18,.67).normalize();
  const right=new THREE.Vector3(0,1,0).cross(facing).normalize();
@@ -119,8 +92,8 @@ function addRadar(root){
  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
  geometry.setIndex(indices);geometry.computeVertexNormals();
- inside.side=THREE.DoubleSide;
- const bowl=shadow(new THREE.Mesh(geometry,inside));bowl.name='ParabolicReflector';group.add(bowl);
+ const dishFace=inside.clone();dishFace.side=THREE.DoubleSide;
+ const bowl=shadow(new THREE.Mesh(geometry,dishFace));bowl.name='ParabolicReflector';group.add(bowl);
  const edge=shadow(new THREE.Mesh(new THREE.TorusGeometry(radius,.018,8,40),rim));
  edge.position.copy(center);edge.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),facing);group.add(edge);
  cylinderBetween(group,'RadarMast',new THREE.Vector3(-3.6,4.50,-2.60),
