@@ -525,7 +525,9 @@ export class Simulation {
     if(s.phase==='taxi'){
       s.elapsed=Math.min(AIRFIELD_TAXI_SECONDS,s.elapsed+dt);
       advance(airfieldTaxiPoint(base,s.bay,s.elapsed/AIRFIELD_TAXI_SECONDS),0);
-      if(s.elapsed>=AIRFIELD_TAXI_SECONDS){s.phase=u.orders.length?'takeoff':'repair';s.elapsed=0;}
+      if(s.elapsed>=AIRFIELD_TAXI_SECONDS){
+       s.phase=u.orders.length||u.transport?.task==='load'?'takeoff':'repair';s.elapsed=0;
+      }
       return;
     }
     if(s.phase==='repair'){
