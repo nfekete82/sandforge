@@ -98,7 +98,9 @@ test('independent buildings animate concurrently; repeated releases reuse a clos
  const tick=age=>{second.actor.node.visible=true;f.tick(age);};tick(0);
  assert.equal(f.controller.active.size,2);tick(.75);
  assert.equal(f.entry.gate.door.scale.y,second.entry.gate.door.scale.y);
- tick(5.9);assert.equal(f.controller.active.size,0);
+ const finalAge=Math.max(...[...f.controller.active.values()].map(s=>
+  GATE_TIMING.warning+GATE_TIMING.opening+s.duration+GATE_TIMING.closing))+.12;
+ tick(finalAge);assert.equal(f.controller.active.size,0);
  f.event={...f.event,at:f.game.time};f.game.productionReleases.push(f.event);
  f.controller.update();assert.equal(f.controller.active.size,1);
 });
