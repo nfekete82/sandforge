@@ -24,6 +24,8 @@ test('replaces named original PBR props without changing hull, gate or gameplay 
  const crate=root.getObjectByName('crate_0');
  const radar=root.getObjectByName('radar_dish');
  assert.equal(polishBarracksProps(root),true);
+ assert.equal(root.userData.sandforgeOriginalPBR,true,
+  'only the recognized final asset bypasses legacy building shaders');
  assert.equal(sandbag.visible,false);
  assert.equal(crate.visible,false);
  assert.equal(radar.visible,false);
