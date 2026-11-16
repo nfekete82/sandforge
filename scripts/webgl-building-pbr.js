@@ -176,7 +176,7 @@ export function finishDesertBuildingMaterials(model,kind){
    // barracks meshes are authored around 5 units. Keep the physical
    // camouflage splotch size similar across structures.
    const uvScale=kind==='airfield'?.055:config.scale;
-   if(!material.normalMapmaterial.normalMap=maps.normal;
+   if(!material.normalMap)material.normalMap=maps.normal;
    if(!material.roughnessMap)material.roughnessMap=maps.roughness;
    material.roughness=Math.max(material.roughness,config.roughness);
    if(role==='metal'||role==='trim')material.metalness=Math.max(material.metalness,config.metalness);
