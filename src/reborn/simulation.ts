@@ -27,7 +27,7 @@ import {bomberAttackWaypoints,BOMBER_BOMB_RELEASE_DISTANCE,BOMBER_RUN_WAYPOINT_D
 import {AttackAlerts} from './attack-alerts.js';
 import {airfieldPoint,airfieldLerp,airfieldTaxiPoint,validAirfieldService,AIRFIELD_BAYS,AIRFIELD_REPAIR_HP_PER_CREDIT,AIRFIELD_REPAIR_FRACTION_PER_SECOND,AIRFIELD_LANDING_SECONDS,AIRFIELD_TAXI_SECONDS,AIRFIELD_TAKEOFF_SECONDS,type AirfieldService} from './airfield-maintenance.js';
 import {factoryRepairPoint,validFactoryService,FACTORY_REPAIR_BAYS,FACTORY_REPAIR_HP_PER_CREDIT,FACTORY_REPAIR_FRACTION_PER_SECOND,type FactoryService} from './factory-maintenance.js';
-import {factoryDoorExitCandidates} from './production-exit.js';
+import {factoryDoorExitCandidates,infantryDoorExitCandidates} from './production-exit.js';
 import {eliminationOutcome} from './match-outcome.js';
 import {formationSlotPitch,vehicleSpacingGap,preservesVehicleProgress,vehicleYieldWaypoint} from './vehicle-spacing.js';
 import {UPGRADES,UPGRADE_KINDS,newResearchState,canResearchUpgrade,researchModifiers,
@@ -1910,7 +1910,18 @@ export class Simulation {
             if(clear&&distance(clear,candidate)<1){spawn=clear;break;}
           }
         }
-        if(!spawn)spawn=spec.flying?exit:this.world.nearest(exit,spawnObstacles,this.units,undefined,clearance);
+        // When a rally is set, infantry exits the actual front gate first and
+         // immediately heads for that rally. No forced excursion to the old
+         // right-hand/default waiting spot. Non-rally units retain that spot.
+         if(!spawn&&this.stageWebGLProduction&&b.rally&&
+            (b.kind==='barracks'||(b.kind==='headquarters'&&kind==='engineer'))){
+           for(const candidate of infantryDoorExitCandidates(b)){
+             if(!this.world.walkable(candidate,spawnObstacles,clearance))continue;
+             const clear=this.world.nearest(candidate,spawnObstacles,this.units,undefined,clearance);
+             if(clear&&distance(clear,candidate)<1){spawn=clear;break;}
+           }
+         }
+         if(!spawn)spawn=spec.flying?exit:this.world.nearest(exit,spawnObstacles,this.units,undefined,clearance);
         if(spawn&&this.count(b.owner)<RULES.capacity){const u=this.spawn(b.owner,spawn,kind);
           // The actual spawn remains authoritative; the renderer performs only a
           // short exterior arrival fade. Never fake an opening in the baked facade.
