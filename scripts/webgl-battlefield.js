@@ -510,6 +510,8 @@ export class SandforgeBattlefield {
       (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
     entry.modelHeight=dims.y*visualScale;
     entry.modelFootprint=Math.max(dims.x,dims.z)*visualScale;
+    if(type==='building'&&model.userData.sandforgeOriginalPBR&&entry.kind==='factory')
+     finishDesertBuildingMaterials(model,'factory');
     if(!model.userData.sandforgeOriginalPBR){
      applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,
       entry.modelFootprint,entry.modelHeight);
@@ -812,7 +814,8 @@ export class SandforgeBattlefield {
    if(kind!=='airfield'||!model.getObjectByName('SF_Airfield_PBR_Root'))
     tint(model,false,.50);
    if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksDesertPalette(model);
-   if(!model.userData.sandforgeOriginalPBR)finishDesertBuildingMaterials(model,kind);
+   if(!model.userData.sandforgeOriginalPBR||kind==='factory')
+    finishDesertBuildingMaterials(model,kind);
    model.visible=!(kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root')); // no duplicate hangar
    group.remove(placeholder);disposeOwnedMeshes(placeholder);
    group.userData.previewPlaceholder=null;group.userData.previewDetail=model;
