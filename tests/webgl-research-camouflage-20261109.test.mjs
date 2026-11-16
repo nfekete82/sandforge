@@ -21,8 +21,8 @@ test('research lab uses authored beige/olive three-tone PBR camouflage for both 
   assert.equal(model.name,'Strategic_research');
   assert.ok(model.getObjectByName('Research_Radar'),'radar silhouette must remain');
   assert.equal(model.userData.compactResearch,true);
-  assert.ok(model.scale.x<.76&&model.scale.z<.76&&model.scale.y<.80,
-   'research lab should occupy a clearly smaller area');
+  assert.ok(model.scale.x>=.85&&model.scale.x<.90&&model.scale.z>=.85&&model.scale.y>=.85,
+   'research lab must match the enlarged, consistent PBR base scale');
   const skins=[];
   model.traverse(o=>{if(o.isMesh&&o.material?.userData?.sandforgeColorMapCamo)
    skins.push(o.material)});
