@@ -255,8 +255,9 @@ function crc32(buffer){let c=0xffffffff;for(const b of buffer)c=crcTable[(c^b)&2
 const be=n=>{const b=Buffer.alloc(4);b.writeUInt32BE(n);return b};
 function pngChunk(type,data){const name=Buffer.from(type);return Buffer.concat([be(data.length),name,data,be(crc32(Buffer.concat([name,data])))]);}
 function png(color,key){
- const corrugated=key==='roof_corrugated';
- const width=corrugated?256:48,height=corrugated?256:48;
+ const corrugated=key==='roof_corrugated',shutter=key==='door_corrugated',
+  frame=key==='gate_frame';
+ const width=corrugated||shutter||frame?256:48,height=corrugated||shutter||frame?256:48;
  let state=(color[0]*2161+color[1]*3191+color[2]*5779)>>>0;
  const scan=Buffer.alloc((width*4+1)*height);
  const random=()=>{state=(1664525*state+1013904223)>>>0;return state/4294967296};
@@ -278,7 +279,21 @@ function png(color,key){
    const patina=crest+seam+weather;
    rgb=color.map((v,ch)=>v+patina*(ch===1?1:.83));
   }
-  for(let c=0;c<3;c++)scan[i+c]=Math.max(0,Math.min(255,rgb[c]+(corrugated?0:noise)));scan[i+3]=key==='glass'?210:255;
+  if(shutter){
+   // Dedicated pressed-steel shutter skin, with horizontal seams, edge
+   // oxidation and fine stamped lines; no featureless tan/grey cuboids.
+   const rib=Math.cos(y*TAU*6/height),highlight=24*((1+rib)*.5)**3;
+   const seam=-21*((1-rib)*.5)**9,weather=5*Math.sin(x*.044+y*.075);
+   rgb=color.map((v,k)=>v+highlight+seam+weather+(k===1?3:0));
+  }
+  if(frame){
+   const brushed=7*Math.sin(x*.044)+4*Math.cos(y*.084);
+   const seam=y%48<4?-14:0;
+   rgb=color.map(v=>v+brushed+seam);
+  }
+  for(let c=0;c<3;c++)scan[i+c]=Math.max(0,Math.min(255,
+   rgb[c]+(corrugated||shutter||frame?0:noise)));
+  scan[i+3]=key==='glass'?142:255;
  }
  const hdr=Buffer.alloc(13);hdr.writeUInt32BE(width,0);hdr.writeUInt32BE(height,4);hdr[8]=8;hdr[9]=6;
  return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),pngChunk('IHDR',hdr),pngChunk('IDAT',deflateSync(scan,{level:8})),pngChunk('IEND',Buffer.alloc(0))]);
@@ -307,6 +322,12 @@ function exportTeam(owner){
    array.forEach((v,i)=>{const k=i%dimensions;a.min[k]=Math.min(a.min[k],v);a.max[k]=Math.max(a.max[k],v)});}
   const id=gltf.accessors.length;gltf.accessors.push(a);return id;
  }
+ // Separate transform pivot for the roof-mounted radar; multiple PBR
+ // material meshes share ONE animation target, never duplicate node names.
+ gltf._dishPivot=gltf.nodes.length;
+ gltf.nodes.push({name:AIRFIELD_DISH_PIVOT,
+  translation:[-269,128,-81],children:[]});
+ gltf.nodes[0].children.push(gltf._dishPivot);
  const names=new Map();for(const g of groups.values()){
   if(!names.has(g.name)){
    const mat=gltf.materials.length,color=pal[g.name],image=gltf.images.length;
@@ -330,16 +351,16 @@ function exportTeam(owner){
   gltf.meshes.push({name:partName,
    primitives:[{attributes:{POSITION:pos,NORMAL:norm,TEXCOORD_0:uv},indices,material:names.get(g.name)}]});
   const node=gltf.nodes.length;
-  const slat=partName.match(/^HangarRollupSlat_0_(\\d{2})$/);
+  const slat=partName.match(/^HangarRollupSlat_0_(\d{2})$/);
   const drum=partName==='HangarRollupDrum_0';
-  const rotor=partName===AIRFIELD_DISH_PIVOT;
-  gltf.nodes.push({name:partName,mesh,
+  const rotor=g.part===AIRFIELD_DISH_PIVOT;
+  gltf.nodes.push({name:rotor?'AirfieldTowerDishPart_'+g.name:partName,mesh,
    ...(slat?{translation:[AIRFIELD_HANGAR_CENTER_X,6+Number(slat[1])*4,
-     AIRFIELD_HANGAR_FRONT_Z+8]}:
-     drum?{translation:[AIRFIELD_HANGAR_CENTER_X,75,AIRFIELD_HANGAR_FRONT_Z+14]}:
-     rotor?{translation:[-269,128,-81]}:{})});
-  gltf.nodes[0].children.push(node);
+      AIRFIELD_HANGAR_FRONT_Z+8]}:
+     drum?{translation:[AIRFIELD_HANGAR_CENTER_X,75,AIRFIELD_HANGAR_FRONT_Z+14]}:{})});
+  gltf.nodes[rotor?gltf._dishPivot:0].children.push(node);
  }
+ delete gltf._dishPivot;
  const bin=Buffer.concat(chunks);gltf.buffers[0].byteLength=bin.length;
  const json=Buffer.from(JSON.stringify(gltf)),jp=(4-json.length%4)%4,bp=(4-bin.length%4)%4;
  const total=12+8+json.length+jp+8+bin.length+bp,out=Buffer.alloc(total);
