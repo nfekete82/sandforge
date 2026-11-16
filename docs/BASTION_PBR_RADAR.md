@@ -8,12 +8,20 @@ Das bisherige Bastion-Modell in GitHub war noch die alte, schwarze, mehrstöckig
 
 ## Design / technische Daten
 
-- Kompakte, deutlich flachere achteckige Bastion mit sandfarbenem Sockel, grünen Wüstentarnflächen, Metallverstrebungen, Stern-Banner, kleinen Lüftungsgittern und Schutzelementen
+- Deutlich **höhere, etwa 60 % gestreckte** achteckige Bastion mit sandfarbenem breiten Sockel, grünen Wüstentarnflächen, Metallverstrebungen, Stern-Banner, Lüftungsgittern und Schutzelementen; Grundfläche bleibt unverändert
 - Eindeutig **rechteckiges** drehendes Radar statt der großen runden Schüssel
 - Drei GLB-2.0-Dateien: `bastion--1.glb` (neutral), `bastion-0.glb` (blau), `bastion-1.glb` (rot)
-- Jeweils **19 Material-Meshes, 14 eingebettete PNG-Albedo-PBR-Texturen und 2340 Dreiecke**, etwa **303 KB je Datei**
+- Jeweils **21 Material-Meshes und 16 eingebettete PNG-Albedo-PBR-Texturen**, rund **332 KiB je Datei**. Gegenüber der ersten Version nur zwei zusätzliche Material-Batches für Radarplattform und Warnleuchte
 - `BastionRadarRotor` als eigenständiger glTF-Knoten mit `RadarSpin`-Animation (360° in 8 Sekunden). Im vorhandenen `webgl-battlefield.js` wird der Clip automatisch über `THREE.AnimationMixer` abgespielt.
 - Originales Gameplay: Eroberung, Teamwechsel, Sektoreinkommen, KI, Fog of War und Capture-UI bleiben unverändert
+
+## Update: höhere Bastion, echter Radarsockel, kollisionsfreies Warnlicht
+
+- Der **Bastionskörper ist 60 % höher** als die vorherige PBR-Variante; der breit abgestützte Eroberungssockel bleibt gleich groß. Die Seitenstützen, Fenster und Sternflagge werden mit gestreckt. Nach der nichtuniformen Verlängerung werden die Normalen neu berechnet, damit das Wüstentarn-Material sauber ausgeleuchtet wird.
+- Oben trägt eine **massive achteckige Stahl-/Bronzeplattform** mit Verstrebungen und zylindrischem Lager den Radarmotor. Die statische Plattform schneidet sich geringfügig mit dem unteren Teil des rotierenden Sockels; es gibt weder schwebenden Kopf noch Bodenlücke.
+- Die blau/rot/neutral leuchtende **Warnleuchte besitzt ein eigenes Fundament und einen eigenen Haltemast** am äußeren Dachrand. Sie ist nicht Teil des rotierenden `BastionRadarRotor`, und ihr nächster Punkt liegt auch beim vollen 360°-Schwenk etwa **0,96 Modelleinhheiten** außerhalb des gesamten Radar-Schwenkkreises.
+- Alle drei Fraktionsmodelle werden automatisch durch `npm run build` neu generiert. Der GLB-Marker lautet `sandforge-bastion-radar-v3-tall-platform`.
+- Die GLB-Regressionsprüfung misst tatsächliche Grenzen von Turm, Plattform und Warnleuchte und verifiziert ihren Abstand zum vollen Radar-Drehkreis. Zusätzlich prüft sie die bereits vorhandene Eroberungs-/Teamwechsel-Logik. Spielsimulation, KI, Kollisionen, Gebietskontrolle und Fog of War bleiben unverändert.
 
 ## Auf dem Mac – ohne Download
 
@@ -32,6 +40,6 @@ PORT=8111 npm run preview
 
 ## Tests / Freigabe
 
-`tests/webgl-bastion-pbr-radar.test.mjs` meldet jetzt einen Fehler, wenn noch die alte GLB im Worktree liegt. Der Test prüft zusätzlich den Generator-Marker `sandforge-bastion-radar-v2`, drei Fraktionsvarianten, die eigenen Radarrotoren und Animationskanäle. Der komplette Build erzeugt die drei benötigten GLBs deterministisch vor dem Test. Ohne erfolgreiche Node-Tests oder Sichtprüfung im Browser PR #324 noch nicht mergen.
+`tests/webgl-bastion-pbr-radar.test.mjs` meldet jetzt einen Fehler, wenn noch die alte GLB im Worktree liegt. Der Test prüft zusätzlich den Generator-Marker `sandforge-bastion-radar-v3-tall-platform`, drei Fraktionsvarianten, die eigenen Radarrotoren und Animationskanäle. Der komplette Build erzeugt die drei benötigten GLBs deterministisch vor dem Test. Ohne erfolgreiche Node-Tests oder Sichtprüfung im Browser PR #324 noch nicht mergen.
 
 Die generierten GLBs sind Arbeitskopie-Artefakte und noch nicht als Binärdateien committed; **der zur Erzeugung notwendige Sourcecode ist vollständig auf GitHub**.
