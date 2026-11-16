@@ -76,6 +76,14 @@ test('sandsacks, crates and radar use separate grounded model-space groups',()=>
  const bags=[];
  sandbags.traverse(x=>{if(x.name==='BarracksLinenSandbag')bags.push(x);});
  assert.equal(bags.length,10);
+ assert.equal(sandbags.getObjectByName('BarracksSandbagStitch'),undefined,
+  'no raised stripe/stitch meshes should float across the linen sacks');
+ assert.equal(sandbags.children.length,10,
+  'sandbag group must contain sacks only, without artificial bar-shaped seams');
+ assert.ok(bags.every(b=>b.material.map?.isDataTexture &&
+  b.material.normalMap?.isDataTexture &&
+  b.material.roughnessMap?.isDataTexture),
+ 'the removal must keep the textured linen PBR surfaces');
  assert.equal(crates.children.length,4);
  for(const b of crates.children){
   assert.ok(Math.abs(b.position.x)<=6.5);
