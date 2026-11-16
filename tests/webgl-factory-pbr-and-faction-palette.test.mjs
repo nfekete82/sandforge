@@ -71,8 +71,9 @@ test('factory is a complete procedural authored-style PBR model for both teams',
    assert.ok(names.has(part),'factory '+owner+' missing '+part);
   assert.ok(doc.meshes.length>=12&&doc.meshes.length<=22);
   assert.ok(file.data.length<1_200_000,'factory GLB must remain compact');
-  assert.deepEqual(texturePixel(file,'Sandforge_Bastion_team'.replace('Bastion','Factory')),
-   factionRgb8(owner));
+  assert.deepEqual(texturePixel(file,'Sandforge_Factory_team'),factionRgb8(owner));
+  assert.ok(doc.materials.every(m=>!m.name.startsWith('Sandforge_Bastion_')),
+   'factory must never ship material names copied from Bastion');
   const door=doc.nodes.find(n=>n.name==='FactoryRollupDoor');
   const mesh=doc.meshes[door.mesh];
   const accessor=doc.accessors[mesh.primitives[0].attributes.POSITION];
