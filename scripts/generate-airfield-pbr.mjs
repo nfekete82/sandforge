@@ -74,25 +74,39 @@ function rollerDrum(part='HangarRollupDrum_0'){
    [56,R*Math.cos(b),R*Math.sin(b)],[-56,R*Math.cos(b),R*Math.sin(b)]);
  }
 }
-// 24-sided concave satellite reflector (plus real mast/feed boom). The whole
-// reflector is one GLB node, centered over the round airfield control tower.
-function satelliteDish(part=AIRFIELD_DISH_PIVOT){
- const g=material('steel_light',part),n=24,R=11;
- const v=(r,a)=>{
-  const yy=r*Math.sin(a),d=2.5*(r/R)**2;
-  return [r*Math.cos(a),11+yy*.84+d*.36,2+yy*.36-d*.84];
- };
- for(let j=0;j<5;j++)for(let i=0;i<n;i++){
-  const a=i*TAU/n,b=(i+1)*TAU/n,r0=j*R/5,r1=(j+1)*R/5;
-  quad(g,v(r0,a),v(r1,a),v(r1,b),v(r0,b));
- }
+// The Bastion's broad, flat, rotating military radar panel - NOT a concave
+// satellite bowl. All geometry is pivot-local, and the old GLB rotor node
+// name remains intact for save/animation compatibility.
+export const AIRFIELD_RADAR_STYLE='bastion-flat-rectangular-scanner-v1';
+function bastionStyleRadar(part=AIRFIELD_DISH_PIVOT){
+ const n=16,R=4.8;
+ // A real round steel spindle seated firmly into the stationary roof bearing.
+ const base=material('steel_dark',part);
  for(let i=0;i<n;i++){
   const a=i*TAU/n,b=(i+1)*TAU/n;
-  quad(g,v(R,a),v(R+1,a),v(R+1,b),v(R,b));
+  quad(base,[R*Math.cos(a),-1,R*Math.sin(a)],
+   [R*Math.cos(b),-1,R*Math.sin(b)],
+   [R*Math.cos(b),5,R*Math.sin(b)],
+   [R*Math.cos(a),5,R*Math.sin(a)]);
  }
- box('steel_light',[0,3.1,0],[3.2,6.2,3.2],0,part);
- box('steel_light',[0,10.2,7.2],[1.1,1.2,12.5],0,part);
- box('steel_light',[0,10.2,13],[3,3,3],0,part);
+ box('steel',[0,5.8,0],[6.6,2.5,6.6],0,part);
+ box('steel_light',[0,8.2,0],[2.8,5.2,2.8],0,part);
+ // Wide but LOW scanner, matching the Bastion's upright radar rectangle.
+ // Steel rear casing, bronze/khaki front surface and exposed grille bars.
+ box('steel_dark',[0,15.0,0],[27.5,13.2,1.6],0,part);
+ box('steel',[0,15.0,1.0],[25.1,10.9,.55],0,part);
+ box('sand',[0,15.0,1.32],[22.8,8.9,.22],0,part);
+ for(let i=0;i<9;i++)
+  box('steel_dark',[-10.8+i*2.7,15,1.49],[.20,9.0,.30],0,part);
+ for(let j=0;j<5;j++)
+  box('steel_dark',[0,11.4+j*1.8,1.5],[23.4,.18,.30],0,part);
+ for(const x of [-12.9,12.9])
+  box('steel_light',[x,15,1.14],[.78,12.4,.55],0,part);
+ for(const x of [-7.2,7.2])
+  box('steel',[x,8.9,-.9],[1.25,6.5,1.8],0,part);
+ // A small faction identification strip echoes the Bastion's team palette
+ // without turning the entire dish into an over-bright colored screen.
+ box('team',[0,20.95,1.03],[7.4,.48,.28],0,part);
 }
 // A continuous barrel vault, with physical corrugation running lengthwise.
 // Roof panels are NOT a row of disconnected, tilted rectangular boxes.
@@ -243,9 +257,12 @@ function buildParts(){
  // Single circular canopy, subtle olive roof and a small obstruction beacon.
  cylindricalShell('roof',towerX,towerZ,27.0,27.0,119.5,124,{caps:true});
  cylindricalShell('steel_light',towerX,towerZ,27.3,27.3,122.5,124.1);
- satelliteDish();
- box('steel_dark',[towerX+10,133,towerZ-8],[2.9,19,2.9]);
- box('warning',[towerX+10,143,towerZ-8],[5.5,3.2,5.5]);
+ // A stationary circular bearing overlaps the dynamic radar spindle.
+ cylindricalShell('steel_dark',towerX,towerZ,6.1,6.1,123.5,130,{caps:true});
+ bastionStyleRadar();
+ // Keep a small warning beacon OUTSIDE the panel's rotating footprint.
+ box('steel_dark',[towerX+20,129,towerZ-15],[1.8,9,1.8]);
+ box('warning',[towerX+20,134,towerZ-15],[3.0,2.4,3.0]);
  box('team',[towerX,112,towerZ+23.8],[12,7,.85]);
  // Near hangar and tower use neutral service accessories; the runway
  // remains untouched and terrain-draped by webgl-airfield-service.js.
