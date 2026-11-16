@@ -1935,6 +1935,14 @@ export class Simulation {
           this.productionReleases.push({unitId:u.id,baseId:b.id,kind,owner:b.owner,at:this.time,from:{x:b.x,y:b.y},to:{...spawn}});
           if(this.productionReleases.length>24)this.productionReleases.shift();
           countProduced(this.stats,b.owner);if(b.owner===0)this.notices.push(`Einheit bereit: ${spec.name}.`);b.queue.shift();b.queueTypes.shift();b.queueCosts?.shift();b.production=0;if(b.rally)this.command([u.id],{...b.rally,kind:'attackMove'});
+           if(footFrontExit&&u.orders[0]&&
+              ['move','attackMove'].includes(u.orders[0].kind)){
+             // A rally facing is known at production time. The presenter
+             // turns gradually to it while approaching the outside waypoint,
+             // making the ordinary movement heading continuous at handoff.
+             const goal=u.orders[0],dx=goal.x-u.x,dy=goal.y-u.y;
+             if(Math.hypot(dx,dy)>12)u.angle=Math.atan2(dy,dx);
+           }
            if(this.stageWebGLProduction&&(b.kind==='factory'||b.kind==='barracks'||(b.kind==='headquarters'&&kind==='engineer'))){
              // Minimum until the door is fully open and the real vehicle has
              // cleared the hall. The 3D presenter extends this for longer
