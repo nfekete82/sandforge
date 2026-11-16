@@ -827,7 +827,7 @@ export class Simulation {
     if(this.units.some(u=>{
       if(u.hp<=0||u.carrier||unitSpec(u).flying)return false;
       const facade=unitSpec(u).group==='Fahrzeuge'?vehicleFacade:infantryFacade;
-      const colliders=kind==='wall'?wallColliderSamples(p,facing,facade.radius):[facade];
+      const colliders=[facade]; // walls returned from wallPlacementError() above
       return colliders.some(c=>distance(u,c)<c.radius+unitSpec(u).radius);
     }))return 'Einheiten blockieren die Baustelle.';
     return null;
