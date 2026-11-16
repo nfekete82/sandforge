@@ -27,7 +27,9 @@ function styleGhost(model){
   // Never alter shared imported glTF material instances, also when the
   // construction preview disappears during a pending network request.
   const copy=m=>{const c=m.clone();c.transparent=true;c.opacity=.48;
-   c.depthWrite=false;mats.add(c);return c;};
+   c.depthWrite=false;
+   c.userData={...c.userData,sandforgePreviewMaterial:true};
+   mats.add(c);return c;};
   node.material=Array.isArray(node.material)?node.material.map(copy):copy(node.material);
  });
  model.userData.airfieldGhostMaterials=mats;
@@ -67,10 +69,6 @@ export function ensureAirfieldPbr(group,owner=0,{ghost=false}={}){
    throw new Error('Airfield PBR missing roll-up slats, roof or satellite rotor');
   model.name='SandforgeAirfieldPBR_'+owner;
   model.userData.sandforgeOriginalPBR=true;
-  // Paint only the original batched hangar WALL mesh using the same
-  // shared desert camouflage as the barracks. Keep the corrugated roof
-  // and moving hangar slats on their own PBR materials.
-  finishDesertBuildingMaterials(model,'airfield');
   model.traverse(node=>{
    if(node.isMesh){
     node.receiveShadow=true;
@@ -78,6 +76,10 @@ export function ensureAirfieldPbr(group,owner=0,{ghost=false}={}){
    }
   });
   if(ghost)styleGhost(model);
+  // Three.js does not copy onBeforeCompile in Material.clone(). Apply the
+  // wall texture AFTER making ghost materials so the construction preview
+  // renders identical camouflage without leaking owned resources.
+  finishDesertBuildingMaterials(model,'airfield');
   const gate=group.userData.bay0;
   // Preserve fallback shutters until the entire replacement GLB is loaded.
   if(gate&&!group.userData.airfieldLegacyDoors)
