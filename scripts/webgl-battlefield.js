@@ -389,9 +389,11 @@ export class SandforgeBattlefield {
     const {entry,type}=task;
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
-    if(type==='building'&&entry.kind==='headquarters'&&
-      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls')){
-     // Keep original textured walls/roof instead of broad faction recolors.
+    if(type==='building'&&((entry.kind==='headquarters'&&
+      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
+      (entry.kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
+       model.getObjectByName('FactoryRollupDoor')))){
+     // Preserve authored HQ and factory desert PBR albedo, not legacy recolors.
      model.userData.sandforgeOriginalPBR=true;
      model.traverse(mesh=>{if(mesh.isMesh){
       mesh.castShadow=true;mesh.receiveShadow=true;
@@ -693,8 +695,10 @@ export class SandforgeBattlefield {
   this.getModel(this.asset(kind,0,'building')).then(data=>{
    if(this.buildPreview!==group||this.buildKind!==kind)return;
    const model=cloneSkeleton(data.scene);
-   if(kind==='headquarters'&&
-     model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))
+   if((kind==='headquarters'&&
+     model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
+     (kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
+      model.getObjectByName('FactoryRollupDoor')))
     model.userData.sandforgeOriginalPBR=true;
    if(kind==='barracks')polishBarracksProps(model);
    if(kind==='barracks'||kind==='headquarters'){
