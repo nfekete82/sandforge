@@ -105,12 +105,12 @@ function renderModelPortrait(model,renderer,{width=320,height=220,research=false
  scene.add(model);
  // Dedicated bright studio for building tiles, not the main game scene.
  const studioBuilding=buildingCard||headquartersCard;
- const hemi=new THREE.HemisphereLight('#fff3e2','#576e73',
+ const hemi=new THREE.HemisphereLight(studioBuilding?'#fffaf2':'#fff3e2','#576e73',
   headquartersCard?3.1:studioBuilding?2.60:research?2.15:2.0);
  scene.add(hemi);
- const key=new THREE.DirectionalLight('#ffedcd',headquartersCard?3.35:studioBuilding?3.05:research?2.9:2.6);
+ const key=new THREE.DirectionalLight(studioBuilding?'#fff9f2':'#ffedcd',headquartersCard?3.35:studioBuilding?3.05:research?2.9:2.6);
  key.position.set(210,390,290);scene.add(key);
- const fill=new THREE.DirectionalLight('#b6dce5',headquartersCard?1.5:studioBuilding?1.45:.95);
+ const fill=new THREE.DirectionalLight(studioBuilding?'#dce6ea':'#b6dce5',headquartersCard?1.5:studioBuilding?1.45:.95);
  fill.position.set(-280,170,-170);scene.add(fill);
  // Extra bounce is confined to the isolated HUD scene, never the battlefield.
  if(studioBuilding)scene.add(new THREE.AmbientLight('#fff2dc',headquartersCard?.85:.56));
