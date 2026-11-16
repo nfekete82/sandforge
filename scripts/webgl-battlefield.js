@@ -341,6 +341,15 @@ export class SandforgeBattlefield {
    }
   }
   if(entry.kind==='headquarters'){
+   // Final HQ PBR has 3 authored pivot nodes. Rotate the actual radar
+   // assemblies instead of attaching a fake hovering fallback antenna.
+   const rotors=['HQ_Radar_01_LargeDish_Rotor',
+    'HQ_Radar_02_PhasedArray_Rotor','HQ_Radar_03_MiniDish_Rotor']
+    .map(name=>entry.detail?.getObjectByName(name)).filter(Boolean);
+   if(rotors.length===3){
+    entry.motion={kind:'headquarters',rotors,mode:'authored-pbr-rotors'};
+    return;
+   }
    const clip=data.animations?.find(c=>c.name==='RadarSpin');
    if(clip?.tracks?.length){
     const mixer=new THREE.AnimationMixer(entry.detail),action=mixer.clipAction(clip);
@@ -363,7 +372,10 @@ export class SandforgeBattlefield {
    const angle=Number.isFinite(base.turretAngle)?base.turretAngle:0;
    if(motion.rotor)motion.rotor.rotation.y=turretAimLocalYaw(angle,base.facing,motion.mode==='fallback');
   }else if(active){
-   if(motion.mixer)motion.mixer.update(dt);
+   if(motion.rotors){
+    const speeds=[.18,-.13,.24];
+    motion.rotors.forEach((rotor,i)=>rotor.rotation.y+=dt*speeds[i]);
+   }else if(motion.mixer)motion.mixer.update(dt);
    else if(motion.rotor)motion.rotor.rotation.y+=dt*.52;
   }
  }
@@ -374,6 +386,14 @@ export class SandforgeBattlefield {
     const {entry,type}=task;
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
+    if(type==='building'&&entry.kind==='headquarters'&&
+      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls')){
+     // Keep original textured walls/roof instead of broad faction recolors.
+     model.userData.sandforgeOriginalPBR=true;
+     model.traverse(mesh=>{if(mesh.isMesh){
+      mesh.castShadow=true;mesh.receiveShadow=true;
+     }});
+    }
     if(type==='building'&&entry.kind==='barracks')polishBarracksProps(model);
     if(type==='unit'&&entry.kind==='engineer')
      entry.engineerTools=equipEngineerTools(model);
@@ -428,7 +448,7 @@ export class SandforgeBattlefield {
     entry.visualBaseY=model.position.y;entry.visualBaseZ=model.position.z;
     if(type==='building'){
      this.attachBuildingMotion(entry,data);
-     if(entry.kind==='factory'||entry.kind==='barracks')this.productionGates.prepare(entry);
+     if(['factory','barracks','headquarters'].includes(entry.kind))this.productionGates.prepare(entry);
     }
     if(type==='unit'&&['tank','artillery'].includes(entry.kind))this.installTankRig(entry,model);
     if(type==='unit'&&data.animations.length){
@@ -666,6 +686,9 @@ export class SandforgeBattlefield {
   this.getModel(this.asset(kind,0,'building')).then(data=>{
    if(this.buildPreview!==group||this.buildKind!==kind)return;
    const model=cloneSkeleton(data.scene);
+   if(kind==='headquarters'&&
+     model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))
+    model.userData.sandforgeOriginalPBR=true;
    if(kind==='barracks')polishBarracksProps(model);
    const bounds=new THREE.Box3().setFromObject(model);
    const size=bounds.getSize(new THREE.Vector3());

@@ -247,17 +247,17 @@ function addSiteDecor(root,kind,width){
  g.userData={visualOnly:true,nonPlayable:true,siteDecor:true};
  root.add(g);
  const large=width>=155;
- if(kind==='barracks')perimeterBarracksWire(g,width);
+ if(kind==='barracks'||kind==='headquarters')perimeterBarracksWire(g,width);
  else if(fencedSites.has(kind))perimeterFence(g,width);
  const supplies=new THREE.Group();
  // The original depot was centered at x=.55*width while its pallet
  // extended another 30+ units into the wire-fence line (x=.65*width).
  // Keep the barracks-only cache compact and clearly inside the perimeter.
  supplies.name='BaseSupplyCache';
- supplies.position.set(kind==='barracks'?width*.49:width*.55,0,-width*.2);
+ supplies.position.set(kind==='barracks'?width*.49:kind==='headquarters'?width*.50:width*.55,0,-width*.2);
  g.add(supplies);
  // Different silhouettes per facility, all deterministic and inexpensive.
- if(kind==='barracks'){
+ if(kind==='barracks'||kind==='headquarters'){
   // Fit all boxes, wood pallet and drum between the building facade
   // and side wire. Preserve crate/metal texture roles and visual shadows.
   storageCrate(supplies,0,0,14);
@@ -297,7 +297,7 @@ function addSiteDecor(root,kind,width){
   if(!object.isMesh)return;
   // Only the larger barracks-yard objects need an actual sunlight shadow.
   // Tiny fence wires/straps stay shadow-free to avoid shadow-map aliasing.
-  const majorBarracksProp=kind==='barracks'&&
+  const majorBarracksProp=(kind==='barracks'||kind==='headquarters')&&
    /^(CrateBody|CrateLid|SupplyPallet|BarrelShell|LampPost|LampHead)$/.test(object.name);
   object.castShadow=majorBarracksProp;
   object.receiveShadow=majorBarracksProp;
@@ -352,7 +352,7 @@ export function createBuildingYard(kind,width=160){
   }
  }
  addSiteDecor(root,kind,width);
- if(kind==='barracks')textureBarracksYard(root);
+ if(kind==='barracks'||kind==='headquarters')textureBarracksYard(root);
  return root;
 }
 
