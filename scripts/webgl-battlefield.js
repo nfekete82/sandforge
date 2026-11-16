@@ -1687,7 +1687,10 @@ export class SandforgeBattlefield {
    if(action==='stop'){
     const units=this.game.units.filter(u=>this.selected.has(u.id)&&u.hp>0&&u.owner===0&&!u.carrier);
     // Manually holding a position overrides return-to-workshop autopilot.
-    for(const unit of units){unit.autoFactoryRepair=false;unit.autoAirfieldRepair=false;}
+    for(const unit of units){
+     if(['rover','tank','artillery'].includes(unit.kind))unit.autoFactoryRepair=false;
+     if(['scout','bomber'].includes(unit.kind))unit.autoAirfieldRepair=false;
+    }
     this.game.stop(units.map(u=>u.id),true,true);
     this.attackMode=false;
     this.message(units.length?units.length+' Einheit(en): Position halten und Umkreis bewachen':'Keine Einheiten gewählt');
