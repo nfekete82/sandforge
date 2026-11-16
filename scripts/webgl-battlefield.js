@@ -990,7 +990,7 @@ export class SandforgeBattlefield {
   this.productionGates.update(active,blend);
   // Run AFTER authoritative unit/base sync, BEFORE actor presentation.
   // Airfield departures override only the current aircraft's visual node.
-  this.airfieldLaunch.update(active);
+  this.airfieldLaunch.update(active,blend);
   this.presentation.consumeShots(this.units,this.bases);
   for(const u of this.game.units){
    const entry=this.units.get(u.id);
