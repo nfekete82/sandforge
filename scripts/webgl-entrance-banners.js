@@ -6,7 +6,7 @@ import {FACTION_PAINT} from './sandforge-faction-palette.js';
  * Placement is calculated from the current glTF door/facade geometry,
  * so the same code works for both final blue/red building assets and HUD.
  */
-export const ENTRANCE_BANNER_REVISION='sf-facade-pennants-v1-20261116';
+export const ENTRANCE_BANNER_REVISION='facade-faction-star-plaques-v2-20261116';
 export const ENTRANCE_BANNER_COLORS=FACTION_PAINT;
 const MARK='SF_FactionEntranceBanners';
 const FRONT_OFFSET=.028;
@@ -49,10 +49,10 @@ function starShape(radius){
  shape.closePath();return shape;
 }
 function pennantShape(w,h){
+ // Energy-core-style rectangular star plaque instead of loose pennants.
  const s=new THREE.Shape();
  s.moveTo(-w/2,h/2);s.lineTo(w/2,h/2);
- s.lineTo(w/2,-h*.37);s.lineTo(0,-h*.52);
- s.lineTo(-w/2,-h*.37);s.closePath();
+ s.lineTo(w/2,-h/2);s.lineTo(-w/2,-h/2);s.closePath();
  return s;
 }
 function freeMaterials(root){
@@ -127,15 +127,21 @@ export function paintFactionEntranceBanners(model,kind,owner){
  const pennantGeometry=new THREE.ShapeGeometry(pennantShape(width,height));
  const starGeometry=new THREE.ShapeGeometry(starShape(width*.25));
  const barGeometry=new THREE.BoxGeometry(width+.07,.045,.065);
+ const shieldGeometry=new THREE.BoxGeometry(width+.095,height+.095,.055);
  for(const [i,position] of placements.entries()){
   const mount=new THREE.Group();
   mount.name='SF_EntranceBanner_'+(i===0?'Left':'Right');
   mount.position.copy(position);
+  const backing=new THREE.Mesh(shieldGeometry,steel);
+  backing.name='SF_FactionStarPlaqueBacking';
+  backing.position.z=-.019;
+  backing.castShadow=false;backing.receiveShadow=false;mount.add(backing);
   const fabric=new THREE.Mesh(pennantGeometry,cloth);
   fabric.name='SF_FactionPennant';
+  fabric.position.z=.018;
   fabric.castShadow=false;fabric.receiveShadow=false;mount.add(fabric);
   const star=new THREE.Mesh(starGeometry,ivory);
-  star.name='SF_PennantStar';star.position.set(0,height*.01,.009);
+  star.name='SF_PennantStar';star.position.set(0,height*.01,.031);
   star.castShadow=false;star.receiveShadow=false;mount.add(star);
   const rail=new THREE.Mesh(barGeometry,steel);
   rail.name='SF_FacadeBannerRail';
