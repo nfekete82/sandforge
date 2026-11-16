@@ -390,7 +390,11 @@ test('tower glass wraps 360 degrees and Bastion-style radar rotates only when ac
  const pbr=src('webgl-airfield-pbr.js');
  const generator=src('generate-airfield-pbr.mjs');
  assert.match(generator,/cylindricalShell\('glass',towerX,towerZ,23,23,97\.5,117\.5\)/);
- assert.match(generator,/satelliteDish\(\)/);
+ assert.match(generator,/export const AIRFIELD_RADAR_STYLE='bastion-flat-rectangular-scanner-v1'/);
+ assert.match(generator,/bastionStyleRadar\(\)/);
+ assert.doesNotMatch(generator,/satelliteDish\(/);
+ assert.match(generator,/box\('steel_dark',\[0,15\.0,0\],\[27\.5,13\.2,1\.6\],0,part\)/);
+ assert.match(generator,/for\(let i=0;i<9;i\+\+\)/);
  assert.match(pbr,/group\.userData\.airfieldDishRotor=rotor/);
  assert.match(service,/if\(rotor&&active&&dt>0\)rotor\.rotation\.y\+=dt\*\.44/);
  assert.match(src('webgl-battlefield.js'),/updateAirfieldServiceYard\(entry,b,this\.game\.units,this\.game\.time,dt,active\)/);
