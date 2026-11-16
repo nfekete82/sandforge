@@ -203,7 +203,7 @@ export class SandforgeProductionGates {
    // Infantry should leave at a believable running pace, not spend 1.65s
    // taking two short steps and abruptly accelerate after the threshold.
    // Vehicle rollouts keep their original smooth clearance.
-   const clearFraction=Math.min(.95,(infantry?.50:GATE_TIMING.drive*.62)/state.duration);
+   const clearFraction=Math.min(.95,(infantry ? 0.50 : GATE_TIMING.drive*.62)/state.duration);
    let p,yaw;
    const facing=buildingFacingAngle(base.facing);
    if(fraction<clearFraction){
