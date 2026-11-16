@@ -317,6 +317,69 @@ function addSiteDecor(root,kind,width){
  return g;
 }
 
+/** Small, optional-looking military camo shade. NOT a roof replacement:
+ * it shelters a little rear-side kit only, leaving main roof, flags, radar,
+ * ventilation, entrance and production path completely clear.
+ * Vertex colours and intentional perforations provide lightweight visual
+ * fabric without a new downloaded texture or a separate terrain pass.
+ */
+export const CAMO_NET_DETAIL_VERSION='limited-rear-side-camo-mesh-v1';
+export const CAMO_NET_BUILDING_KINDS=Object.freeze(['headquarters','barracks','research']);
+const netPaint=new THREE.MeshStandardMaterial({
+ color:'#e2ddce',vertexColors:true,roughness:1,metalness:0,
+ side:THREE.DoubleSide,transparent:true,opacity:.83,depthWrite:false
+});
+function attachSmallCamouflageNet(root,width){
+ const net=new THREE.Group();net.name='SmallDesertCamouflageNet';
+ net.userData={visualOnly:true,nonPlayable:true,decorativeNet:true,
+  version:CAMO_NET_DETAIL_VERSION};
+ const w=Math.min(width*.30,58),d=Math.min(width*.24,40);
+ // Offset to the REAR LEFT. Building access doors at local +Z stay clear.
+ net.position.set(-width*.50,0,-width*.21);
+ const geometry=new THREE.PlaneGeometry(w,d,12,9);
+ const positions=geometry.getAttribute('position'),colors=[];
+ const sandCol=new THREE.Color('#a99c76');
+ const oliveCol=new THREE.Color('#747f60');
+ const shadowCol=new THREE.Color('#7f806f');
+ for(let i=0;i<positions.count;i++){
+  const x=positions.getX(i),y=positions.getY(i);
+  const nx=x/(w*.5),ny=y/(d*.5);
+  const droop=2.1*(1-nx*nx)*(1-ny*ny);
+  positions.setZ(i,-droop+.24*Math.sin(x*.52+y*.40));
+  const n=Math.sin(Math.floor((x+w*.5)/9)*2.4+
+   Math.floor((y+d*.5)/7)*3.17);
+  const col=n>.32?oliveCol:n<-.34?sandCol:shadowCol;
+  colors.push(col.r,col.g,col.b);
+ }
+ geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+ // One open weave with small intentional diamond/triangle holes. Avoid
+ // dense solid-looking camouflage tarps that obscure the building model.
+ const original=Array.from(geometry.index.array),faces=[];
+ for(let i=0;i<original.length;i+=3){
+  const tri=i/3;
+  if(tri%13===0||tri%19===7)continue;
+  faces.push(original[i],original[i+1],original[i+2]);
+ }
+ geometry.setIndex(faces);geometry.computeVertexNormals();
+ const fabric=new THREE.Mesh(geometry,netPaint);
+ fabric.name='PartialCamouflageMesh';fabric.rotation.x=-Math.PI/2;
+ fabric.position.y=27;
+ fabric.castShadow=false;fabric.receiveShadow=true;fabric.raycast=()=>{};
+ fabric.userData={visualOnly:true,nonPlayable:true,camoNetFabric:true};
+ net.add(fabric);
+ // Only two thin supports at the outer edge; the inner edge is attached
+ // to the side of the building, not held by a forest of posts.
+ for(const z of [-d*.46,d*.46]){
+  const pole=mesh(net,'CamoNetOuterPole',
+   new THREE.CylinderGeometry(.67,.86,26,6),fencePost,-w*.48,13,z);
+  pole.raycast=()=>{};pole.castShadow=false;
+ }
+ // A minimal, low-cost net perimeter (two cords) gives a sagging silhouette.
+ for(const z of [-d*.49,d*.49])
+  box(net,'CamouflageNetRope',[w,.40,.55],fenceRail,0,27.0,z).raycast=()=>{};
+ root.add(net);
+ return net;
+}
 // Airfield has its own service yard with a true runway, apron and hangar.
 // The generic crate cache was positioned at (+width*.55,-width*.2), which
 // falls DIRECTLY on that runway and left visible boxes in the landing lane.
@@ -362,6 +425,9 @@ export function createBuildingYard(kind,width=160){
   }
  }
  addSiteDecor(root,kind,width);
+ // Only three selected facilities get ONE small side awning; most buildings
+ // have no camouflage fabric at all. Never cover doors or active roof gear.
+ if(CAMO_NET_BUILDING_KINDS.includes(kind))attachSmallCamouflageNet(root,width);
  if(kind==='barracks'||kind==='headquarters'||kind==='factory')textureBarracksYard(root);
  return root;
 }
