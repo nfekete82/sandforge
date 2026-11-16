@@ -195,10 +195,10 @@ export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
   sparkGroup.visible=false;
   group.userData['bay'+bay]={left,right,cx,open:0,sparks:sparkGroup};
  }
- // Scuffed touchdown marks and pavement expansion joints.
- for(const x of [-11,33])for(const z of [-116,24,128,201])
-  box(group,'AirfieldTouchdownRubber',4,.12,18,x,2.76,z,dark);
- for(const x of [-195,-110,-45,29])for(const z of [-143,-72,8])
+ // No raised black rubber bars or debris on the runway: the only
+ // markings inside the aircraft corridor are flat painted lines/thresholds.
+ // Expansion joints remain on the concrete service apron outside the runway.
+ for(const x of [-195,-110,-45])for(const z of [-143,-72,8])
   box(group,'AirfieldApronExpansionJoint',24,.11,1.5,x,1.65,z,steel);
  for(const x of [-216,45]){
   box(group,'HangarMaintenanceToolCabinet',15,26,19,x,14,-109,ribbedSteel);
@@ -302,7 +302,7 @@ export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
  * The same function is called for the ghost at its prospective location and
  * for the built site, including every cardinal facing.
  */
-const AIRFIELD_GROUND_SURFACE=/^(AirfieldFuelServicePad|AirfieldFuelConcreteJoint|AirfieldParkingRampGrip|AirfieldParkingRampEdge|AirfieldParkingRampTread|AirfieldConcreteJoint|AirfieldParkingWearMark|AirfieldExpandedConcreteApron|AirfieldRunwaySandShoulder|AirfieldExtendedRunway|AirfieldAircraftParking(?:Pad|Centerline|Edge|Stop|Number)|AirfieldRunwayCenterDash|AirfieldRunwayEdgeLine|AirfieldRunwayThreshold|AirfieldRunwayLandingBars|AirfieldTouchdownRubber|AirfieldTaxiCrossGuide|AirfieldTaxiGuideDash|HangarCenterGuide|HangarApronStop|HangarSafetyChevron|AirfieldApronExpansionJoint)/;
+const AIRFIELD_GROUND_SURFACE=/^(AirfieldFuelServicePad|AirfieldFuelConcreteJoint|AirfieldParkingRampGrip|AirfieldParkingRampEdge|AirfieldParkingRampTread|AirfieldConcreteJoint|AirfieldParkingWearMark|AirfieldExpandedConcreteApron|AirfieldRunwaySandShoulder|AirfieldExtendedRunway|AirfieldAircraftParking(?:Pad|Centerline|Edge|Stop|Number)|AirfieldRunwayCenterDash|AirfieldRunwayEdgeLine|AirfieldRunwayThreshold|AirfieldRunwayLandingBars|AirfieldTaxiCrossGuide|AirfieldTaxiGuideDash|HangarCenterGuide|HangarApronStop|HangarSafetyChevron|AirfieldApronExpansionJoint)/;
 const AIRFIELD_GROUND_PROPS=/^(AirfieldRunwayLamp|AirfieldAircraftParkingChock)$/;
 export function conformAirfieldSurface(group,base,heightAt,{force=false}={}){
  if(!group||typeof heightAt!=='function'||!Number.isFinite(base?.x)||!Number.isFinite(base?.y))return 0;
