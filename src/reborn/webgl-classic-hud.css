@@ -2940,3 +2940,46 @@
  #sf-classic-root .sf-confirm-actions{padding:12px 14px 16px}
  #sf-classic-root .sf-confirm-actions button{flex:1;min-width:0!important}
 }
+
+/* Fine tactical HUD pictograms, left of tab/command labels. Respect existing
+ * tabs, shortcuts, responsive dock and disabled/hidden states. */
+#sf-classic-root #sf-tabs button[data-tab],
+#sf-classic-root #sf-command-buttons button[data-action]{
+ display:inline-flex!important;
+ align-items:center!important;
+ justify-content:center!important;
+ gap:5px!important;
+}
+#sf-classic-root .sf-hud-label-icon{
+ display:inline-block!important;
+ flex:0 0 14px!important;
+ width:14px!important;
+ height:14px!important;
+ min-width:14px!important;
+ color:#dbbf89;
+ opacity:.94;
+ overflow:visible;
+ pointer-events:none;
+ vertical-align:middle;
+}
+#sf-classic-root #sf-tabs button[aria-pressed="true"] .sf-hud-label-icon{
+ color:#f2d697;
+}
+#sf-classic-root #sf-tabs button:disabled .sf-hud-label-icon,
+#sf-classic-root #sf-command-buttons button:disabled .sf-hud-label-icon{
+ opacity:.46;
+}
+#sf-classic-root #sf-tabs button[hidden],
+#sf-classic-root #sf-command-buttons button[hidden]{
+ display:none!important;
+}
+@media(max-width:900px){
+ #sf-classic-root .sf-hud-label-icon{
+  width:12px!important;height:12px!important;
+  min-width:12px!important;flex-basis:12px!important;
+ }
+ #sf-classic-root #sf-tabs button[data-tab],
+ #sf-classic-root #sf-command-buttons button[data-action]{
+  gap:3px!important;
+ }
+}
