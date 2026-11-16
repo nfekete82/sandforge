@@ -4,6 +4,7 @@
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {deflateSync} from 'node:zlib';
+import {factionRgb8} from './sandforge-faction-palette.js';
 const OUT=process.argv[2]||'src/assets/reborn/buildings-3d';
 const PI=Math.PI,TAU=2*PI;
 // Lift the octagonal tower by 60% above its unchanged capture foundation.
@@ -12,7 +13,7 @@ const TOWER_STRETCH=1.60,TOWER_STRETCH_START=1.31,RADAR_PIVOT_Y=6.14;
 const BEACON_X=-2.45,BEACON_Z=-.94;
 const liftedY=y=>y<=TOWER_STRETCH_START?y:
  TOWER_STRETCH_START+(y-TOWER_STRETCH_START)*TOWER_STRETCH;
-const colors={sandstone:[190,157,116],sand_light:[214,181,133],sand_shadow:[125,112,90],olive:[95,104,75],metal:[63,67,65],metal_light:[112,119,112],metal_dark:[26,34,36],amber:[231,159,69],blue:[60,171,208],white:[227,225,209],camo:[189,158,113],fabric:[44,103,153],sandbag:[178,158,123],bronze:[124,105,69],gunmetal:[41,45,44],radar_base:[82,80,70],beacon:[60,171,208]};
+const colors={sandstone:[190,157,116],sand_light:[214,181,133],sand_shadow:[125,112,90],olive:[95,104,75],metal:[63,67,65],metal_light:[112,119,112],metal_dark:[26,34,36],amber:[231,159,69],blue:factionRgb8(0),white:[227,225,209],camo:[189,158,113],fabric:factionRgb8(0),sandbag:[178,158,123],bronze:[124,105,69],gunmetal:[41,45,44],radar_base:[82,80,70],beacon:factionRgb8(0)};
 const add=(a,b)=>a.map((x,i)=>x+b[i]);
 const sub=(a,b)=>a.map((x,i)=>x-b[i]);
 const mul=(a,t)=>a.map(x=>x*t);
@@ -135,7 +136,8 @@ function png(color,key){
  const scan=Buffer.alloc((width*4+1)*height);
  const random=()=>{state=(1664525*state+1013904223)>>>0;return state/4294967296};
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-  const i=y*(width*4+1)+1+x*4,noise=Math.round((random()-.5)*17);
+  // Uniform paint: same sRGB as the team roof stripes and the static flags.
+  const i=y*(width*4+1)+1+x*4,noise=['blue','fabric','beacon'].includes(key)?0:Math.round((random()-.5)*17);
   let rgb=color;
   if(key==='camo'){const blob=Math.sin(x*.27+Math.cos(y*.31)*2.1)+Math.cos(y*.28-x*.12);
    if(blob>.73)rgb=[82,91,64];else if(blob<-.80)rgb=[128,134,96];}
@@ -146,11 +148,12 @@ function png(color,key){
 }
 function exportTeam(owner){
  const pal=JSON.parse(JSON.stringify(colors));
- if(owner===1){pal.blue=[218,91,77];pal.fabric=[140,64,57];}
+ if(owner===1){pal.blue=factionRgb8(1);pal.fabric=factionRgb8(1);}
  if(owner===-1){pal.blue=[165,152,120];pal.fabric=[109,104,88];}
  pal.beacon=pal.blue.slice();
  buildParts();
- const gltf={asset:{version:'2.0',generator:'sandforge-bastion-radar-v3-tall-platform'},scene:0,
+ const gltf={asset:{version:'2.0',generator:'sandforge-bastion-radar-v3-tall-platform'},
+ extensionsUsed:['KHR_materials_unlit'],scene:0,
  scenes:[{nodes:[0]}],nodes:[{name:'BastionRoot',children:[1]},{name:'BastionRadarRotor',translation:[0,liftedY(RADAR_PIVOT_Y),0],children:[]}],
  meshes:[],materials:[],images:[],textures:[],samplers:[{magFilter:9729,minFilter:9987,wrapS:10497,wrapT:10497}],
  buffers:[{byteLength:0}],bufferViews:[],accessors:[],animations:[]};
@@ -170,12 +173,15 @@ function exportTeam(owner){
  const names=new Map();for(const g of groups.values()){
   if(!names.has(g.name)){
    const mat=gltf.materials.length,color=pal[g.name],image=gltf.images.length;
+   const factionSurface=['blue','fabric','beacon'].includes(g.name);
    gltf.images.push({bufferView:append(png(color,g.name)),mimeType:'image/png'});
    gltf.textures.push({sampler:0,source:image});
    gltf.materials.push({name:'Sandforge_Bastion_'+g.name,pbrMetallicRoughness:{
     baseColorTexture:{index:image},metallicFactor:/metal|bronze|gunmetal/.test(g.name)?.45:.07,
-    roughnessFactor:.83},emissiveFactor:(g.name==='blue'||g.name==='beacon')?
-    (owner===0?[.05,.16,.25]:owner===1?[.24,.07,.06]:[.10,.1,.07]):[0,0,0],doubleSided:true});
+    roughnessFactor:.83},
+    ...(factionSurface?{extensions:{KHR_materials_unlit:{}}}:{}),
+    // No cyan emissive boost on painted team identifiers.
+    emissiveFactor:[0,0,0],doubleSided:true});
    names.set(g.name,mat);
   }
   const pos=accessor(g.p,'VEC3',3,5126,true),norm=accessor(g.n,'VEC3',3,5126),
