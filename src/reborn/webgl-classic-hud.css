@@ -2984,3 +2984,50 @@
   gap:3px!important;
  }
 }
+
+/* Single selection: exactly three tactical commands. Ship/unload stays in
+ * the cargo roster; factory/repair/research controls are contextual panels. */
+#sf-classic-root #sidebar > #sf-selection-panel .commands{
+ grid-template-columns:repeat(3,minmax(0,1fr))!important;
+ gap:5px!important;
+}
+#sf-classic-root #sidebar > #sf-selection-panel .commands button{
+ min-width:0!important;
+ white-space:nowrap!important;
+ font-size:10px!important;
+ letter-spacing:.01em!important;
+}
+#sf-classic-root #sf-command-buttons [data-action="return-base"]{
+ border-color:#7e8e78!important;
+}
+#sf-classic-root .sf-passenger-heading{
+ flex-wrap:wrap;
+ align-items:center;
+}
+#sf-classic-root .sf-passenger-unload-all{
+ border:1px solid #a38a56;
+ background:#3d4d42;
+ color:#ead4a9;
+ padding:3px 6px;
+ font:700 9px/1.1 var(--display);
+ border-radius:3px;
+ cursor:pointer;
+ white-space:nowrap;
+}
+#sf-classic-root .sf-passenger-unload-all:hover{
+ background:#526852;
+}
+@media(max-width:800px){
+ #sf-classic-root #sidebar > #sf-selection-panel .commands{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:3px!important;
+ }
+ #sf-classic-root #sidebar > #sf-selection-panel .commands button{
+  font-size:8px!important;
+  padding:2px!important;
+ }
+ #sf-classic-root #sf-command-buttons .sf-hud-label-icon{
+  width:10px!important;height:10px!important;
+  min-width:10px!important;flex-basis:10px!important;
+ }
+}
