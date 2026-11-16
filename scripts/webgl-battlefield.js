@@ -557,6 +557,12 @@ export class SandforgeBattlefield {
   const height=unit?(['infantry','medic','engineer','heavy','rocket'].includes(entity.kind)?43:55)*visualUnitScale(entity.kind):
    Math.max(65,footprint*.55);
   applyFactionAccents(entry,entity,type,footprint,height);
+  // The lab's anchored mechanical pivot rotates without moving the roof.
+  // Its placeholder is also the final strategic 3D model.
+  if(type==='building'&&entity.kind==='research'){
+   const rotor=placeholder.getObjectByName('Research_RadarMount');
+   if(rotor)entry.motion={kind:'research',rotor,mode:'anchored-dish'};
+  }
   if(type==='building')finishBuildingFacadeShading(placeholder);
   if(unit)attachTeamMarkings(entry,entity.owner,entity.kind,footprint,height);
   if(type==='unit'&&['tank','artillery'].includes(entity.kind))this.installTankRig(entry,placeholder);
