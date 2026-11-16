@@ -8,7 +8,7 @@ import {isSmallRuin,makeSmallRuinFragments,SMALL_RUIN_REVISION}
  from '../scripts/webgl-ruin-fragments.js';
 
 const file=p=>readFileSync(p,'utf8');
-const modern=seed=>generateCanyonFeatures(seed,9200,8,4,[],[]);
+const modern=seed=>generateCanyonFeatures(seed,9200,8,4,[],[],true);
 
 test('spacious desert maps are less cluttered and keep large ruins recognizable',()=>{
  for(const seed of [11,2074,3622192284]){
@@ -110,7 +110,23 @@ test('small sites remain clean of full-size supply clutter and stone carpets',()
  assert.match(art,/micro\?\(random\(\)<\.25\?1:0\)/);
  assert.match(art,/available\.filter\(a=>a\.kind==='sandbags'\)/);
  const canyon=file('src/reborn/canyon-front.ts');
- assert.match(canyon,/for\(let n=0;n<\(spacious\?1:3\);n\+\+\)/);
- assert.match(canyon,/spacious\?265:55/);
+ assert.match(canyon,/for\(let n=0;n<\(sparseModern\?1:spacious\?1\+\(index%3===0\?1:0\):3\);n\+\+\)/);
+ assert.match(canyon,/sparseModern\?265:spacious\?195:55/);
  assert.match(canyon,/variant===1\?162:59\+random\(\)\*19/);
+ assert.match(file('src/reborn/world-generation.ts'),
+  /generateCanyonFeatures\(streamSeed\(seed,'ruins',candidate\),size,cols,rows,sites,corridors,true\)/);
+});
+
+
+test('v19–v22 seeded spacious Canyon geometry stays on the old full-house generator',()=>{
+ const legacyWide=generateCanyonFeatures(2074,9200,8,4,[],[]);
+ assert.ok(legacyWide.ruins.length>10&&legacyWide.ruins.length<=14,
+  'historic Canyon map still allows its extra 4 structures');
+ assert.ok(legacyWide.ruins.every(r=>r.height>=46),
+  'historic 3D ruins remain their original building size');
+ assert.ok(legacyWide.ruins.every(r=>r.width>=108));
+ assert.ok(legacyWide.ruins.every(r=>!isSmallRuin(r)));
+ const gen=file('src/reborn/world-generation.ts');
+ assert.match(gen,/const canyon=!modern&&version>=15\?generateCanyonFeatures\(seed,size,cols,rows,sites,corridors\)/,
+  'legacy call must not opt into the new fragmentation');
 });
