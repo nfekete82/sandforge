@@ -1,9 +1,10 @@
 import * as THREE from 'three';
+import {FACTION_PAINT,factionRgb8} from './sandforge-faction-palette.js';
 
 /** Strong blue/red unit identification without replacing desert camouflage.
  * One shared procedural emblem texture per team. Render-only; no save changes.
  */
-export const TEAM_MARKING_COLORS=Object.freeze({0:'#198fe0',1:'#e34e43'});
+export const TEAM_MARKING_COLORS=FACTION_PAINT;
 const infantryKinds=new Set(['infantry','medic','engineer','heavy','rocket']);
 const kinds=new Set([...infantryKinds,'tank','rover','artillery','scout','bomber']);
 const materials=new Map();
@@ -12,12 +13,14 @@ const poleGeo=new THREE.CylinderGeometry(1,1,1,7);
 const poleMat=new THREE.MeshBasicMaterial({color:'#7e725f'});
 function mat(owner){
  if(materials.has(owner))return materials.get(owner);
- const n=64,rgba=new Uint8Array(n*n*4),color=new THREE.Color(TEAM_MARKING_COLORS[owner]);
+ const n=64,rgba=new Uint8Array(n*n*4),rgb8=factionRgb8(owner);
  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
   const at=(y*n+x)*4,border=x<3||y<3||x>60||y>60;
   const emblem=Math.abs(x-32)<4&&y>13&&y<49||y>27&&y<34&&Math.abs(x-32)<17;
-  const rgb=border?[.8,.72,.52]:emblem?[.96,.95,.87]:[color.r,color.g,color.b];
-  for(let k=0;k<3;k++)rgba[at+k]=Math.round(rgb[k]*255);
+  // The DataTexture is sRGB. Write sRGB bytes directly, NOT THREE.Color's
+  // linear-light components (which make patches look much darker).
+  const rgb=border?[204,184,133]:emblem?[245,242,222]:rgb8;
+  for(let k=0;k<3;k++)rgba[at+k]=rgb[k];
   rgba[at+3]=255;
  }
  const texture=new THREE.DataTexture(rgba,n,n,THREE.RGBAFormat);
