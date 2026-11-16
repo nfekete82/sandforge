@@ -381,7 +381,8 @@ export function updateAirfieldServiceYard(entry,base,units,time,dt){
   const phase=aircraft?.airfieldService?.phase;
   // Start opening while the bomber is still landing. The shutters must
   // be fully clear before ground taxi reaches the entrance.
-  const target=phase&&phase!=='approach'||group.userData.airfieldProductionOpen>0?1:0;
+  const target=phase&&phase!=='approach'?1:
+   Math.max(0,Math.min(1,group.userData.airfieldProductionOpen??0));
   gate.open+=(target-gate.open)*Math.min(1,Math.max(0,dt)*2.5);
   // The two halves physically slide sideways into reinforced wall pockets.
   gate.left.position.x=gate.cx-27-28*gate.open;
