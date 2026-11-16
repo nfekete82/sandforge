@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import {factionRgb8} from '../scripts/sandforge-faction-palette.js';
 import {servicePaint} from '../scripts/webgl-service-materials.js';
 import {airfieldLaunchDuration,airfieldLaunchPose,airfieldLaunchLeg} from '../scripts/webgl-airfield-launch-path.js';
+import {applyAirfieldRollup,AIRFIELD_ROLLUP_SLATS} from '../scripts/webgl-airfield-rollup.js';
 
 const root='src/assets/reborn/buildings-3d/';
 const src=name=>readFileSync('scripts/'+name,'utf8');
@@ -34,31 +35,35 @@ function rgbTexture({file,doc,binStart},name){
  return Array.from(raw.subarray(p,p+3));
 }
 
-test('both faction GLBs contain one hangar, two independent shutters and tower',()=>{
+test('both faction GLBs contain one hangar, 16 vertical shutter slats and a radar tower',()=>{
  for(const owner of [0,1]){
   const model=glb(owner),{doc,file}=model;
-  assert.equal(doc.asset.generator,'sandforge-airfield-pbr-v1-20261116');
+  assert.equal(doc.asset.generator,'sandforge-airfield-pbr-v2-rollup-satellite-20261116');
   assert.ok(file.byteLength>80_000&&file.byteLength<500_000);
-  assert.equal(doc.nodes.filter(n=>n.name==='HangarDoorLeft_0').length,1);
-  assert.equal(doc.nodes.filter(n=>n.name==='HangarDoorRight_0').length,1);
+  assert.equal(doc.nodes.filter(n=>/^HangarRollupSlat_0_\d{2}$/.test(n.name)).length,16);
+  assert.equal(doc.nodes.filter(n=>n.name==='HangarRollupDrum_0').length,1);
+  assert.equal(doc.nodes.filter(n=>n.name==='AirfieldTowerDishRotor').length,1);
   assert.ok(doc.nodes.some(n=>n.name==='SF_Airfield_PBR_roof'));
   assert.ok(doc.nodes.some(n=>n.name==='SF_Airfield_PBR_glass'));
   assert.ok(doc.nodes.some(n=>n.name==='SF_Airfield_PBR_camo'));
   assert.equal(doc.scenes[doc.scene].nodes.length,1);
-  assert.ok(doc.meshes.length<=20,'one GLB should stay light at RTS zoom');
+  assert.ok(doc.meshes.length<=40,'textured single curtain plus dish stays light at RTS zoom');
   assert.deepEqual(rgbTexture(model,'Sandforge_Airfield_team'),factionRgb8(owner));
-  const left=doc.nodes.find(n=>n.name==='HangarDoorLeft_0');
-  const right=doc.nodes.find(n=>n.name==='HangarDoorRight_0');
-  assert.deepEqual(left.translation,[-178,36,23]);
-  assert.deepEqual(right.translation,[-124,36,23]);
-  assert.notEqual(left.mesh,right.mesh);
-  for(const node of [left,right]){
+  const slats=doc.nodes.filter(n=>/^HangarRollupSlat_0_\d{2}$/.test(n.name));
+  assert.equal(slats.length,AIRFIELD_ROLLUP_SLATS);
+  for(const [i,node] of slats.entries()){
+   assert.deepEqual(node.translation,[-151,6+i*4,26]);
    const p=doc.meshes[node.mesh].primitives[0].attributes.POSITION;
    const acc=doc.accessors[p];
-   assert.ok(acc.min[0]<=-26&&acc.max[0]>=26);
-   assert.ok(acc.min[1]<=-32&&acc.max[1]>=32);
-   assert.ok(acc.min[2]<=-2.5&&acc.max[2]>=4.1-1e-5);
+   assert.ok(acc.min[0]<=-54.5&&acc.max[0]>=54.5);
+   assert.ok(acc.max[1]-acc.min[1]<4.01);
+   assert.ok(acc.max[2]-acc.min[2]>=3.79);
   }
+  const rotor=doc.nodes.find(n=>n.name==='AirfieldTowerDishRotor');
+  assert.deepEqual(rotor.translation,[-269,128,-81]);
+  assert.ok(rotor.children.length>=1);
+  assert.ok(doc.materials.some(m=>m.name==='Sandforge_Airfield_door_corrugated'));
+  assert.ok(doc.materials.some(m=>m.name==='Sandforge_Airfield_gate_frame'));
  }
 });
 
@@ -82,9 +87,10 @@ test('flightline swaps PBR shutter references and keeps a safe fallback',()=>{
  const loader=src('webgl-airfield-pbr.js');
  assert.match(loader,/new GLTFLoader\(\)\.loadAsync\(url\)/);
  assert.match(loader,/data\.scene\.clone\(true\)/);
- assert.match(loader,/getObjectByName\('HangarDoorLeft_0'\)/);
- assert.match(loader,/getObjectByName\('HangarDoorRight_0'\)/);
- assert.match(loader,/gate\.left=left;gate\.right=right/);
+ assert.match(loader,/getObjectByName\('HangarRollupSlat_0_'/);
+ assert.match(loader,/getObjectByName\('HangarRollupDrum_0'\)/);
+ assert.match(loader,/getObjectByName\('AirfieldTowerDishRotor'\)/);
+ assert.match(loader,/gate\.slats=slats;gate\.drum=drum/);
  assert.match(loader,/gate\.open=Math\.max\(0,Math\.min\(1,gate\.open\)\)/);
  assert.match(loader,/group\.userData\.airfieldPbrDisposed/);
  assert.match(loader,/group\.userData\.airfieldPbrToken!==token/);
@@ -94,7 +100,8 @@ test('flightline swaps PBR shutter references and keeps a safe fallback',()=>{
  assert.match(yard,/ensureAirfieldPbr\(group,owner,\{ghost\}\)/);
  assert.match(yard,/ensureAirfieldPbr\(group,base\.owner\)/);
  assert.match(yard,/detachAirfieldPbr\(root\)/);
- assert.match(yard,/gate\.left\.position\.x=gate\.cx-27-28\*gate\.open/);
+ assert.match(yard,/applyAirfieldRollup\(gate,gate\.open\)/);
+ assert.match(yard,/gate\.left\.position\.x=gate\.cx-27;/);
  assert.match(yard,/gate\.left\.scale\.y=gate\.right\.scale\.y=1-\.94\*gate\.open/);
  assert.match(yard,/entry\.detail\.visible=false/);
 });
@@ -233,7 +240,7 @@ test('tower has a circular shaft, 360-degree glazing and a round roof',()=>{
  assert.match(generator,/cylindricalShell\('roof',towerX,towerZ,27\.0,27\.0,119\.5,124/);
  assert.match(generator,/for\(let i=0;i<AIRFIELD_TOWER_SIDES;i\+\+\)/);
  assert.match(generator,/alphaMode:'BLEND'/);
- assert.match(generator,/scan\[i\+3\]=key==='glass'\?210:255/);
+ assert.match(generator,/scan\[i\+3\]=key==='glass'\?142:255/);
  assert.doesNotMatch(generator,/box\('glass',\[towerX,106,z\]/);
  assert.doesNotMatch(generator,/box\('roof',\[towerX,120,towerZ\]/);
 });
@@ -357,4 +364,35 @@ test('real launch presenter freezes during Space pause and resumes at exact Simu
  assert.deepEqual(released,[unit.id]);
  assert.equal(unit.x,spawn.x,'Simulation never rewrites unit position for animation');
  assert.equal(unit.y,spawn.y);
+});
+
+test('roll-up stays centered, opens UP to full bomber clearance and closes symmetrically',()=>{
+ const gate={cx:-151,open:0,slats:Array.from({length:16},()=>({
+   position:{x:0,y:0},scale:{y:1},visible:true
+  })),drum:{rotation:{x:0}}};
+ applyAirfieldRollup(gate,0);
+ assert.ok(gate.slats.every((s,i)=>s.position.x===-151&&s.position.y===6+i*4));
+ assert.equal(gate.slats.filter(s=>s.visible).length,16);
+ applyAirfieldRollup(gate,.5);
+ assert.ok(gate.slats[0].position.y>6&&gate.slats[0].position.y<70);
+ assert.ok(gate.slats.filter(s=>s.visible).length<16);
+ assert.ok(gate.slats.every(s=>s.position.x===-151&&s.scale.y===1));
+ applyAirfieldRollup(gate,1);
+ assert.ok(gate.slats.every(s=>!s.visible),'all 16 metal slats are rolled up');
+ assert.ok(gate.drum.rotation.x<0,'top drum rotates with rising door');
+ applyAirfieldRollup(gate,0);
+ assert.ok(gate.slats.every(s=>s.visible));
+ assert.equal(gate.drum.rotation.x,0);
+});
+test('tower glass wraps 360 degrees and the satellite rotates only when active',()=>{
+ const service=src('webgl-airfield-service.js');
+ const pbr=src('webgl-airfield-pbr.js');
+ const generator=src('generate-airfield-pbr.mjs');
+ assert.match(generator,/cylindricalShell\('glass',towerX,towerZ,23,23,97\.5,117\.5\)/);
+ assert.match(generator,/satelliteDish\(\)/);
+ assert.match(pbr,/group\.userData\.airfieldDishRotor=rotor/);
+ assert.match(service,/if\(rotor&&active&&dt>0\)rotor\.rotation\.y\+=dt\*\.44/);
+ assert.match(src('webgl-battlefield.js'),/updateAirfieldServiceYard\(entry,b,this\.game\.units,this\.game\.time,dt,active\)/);
+ const build=src('build.mjs');
+ assert.match(build,/dist\/webgl-airfield-rollup\.js/);
 });
