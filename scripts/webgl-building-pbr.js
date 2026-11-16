@@ -138,7 +138,7 @@ export function finishDesertBuildingMaterials(model,kind){
  if(!model||!DESERT_BUILDING_KINDS.includes(kind))return 0;
  const instances=new Map();let painted=0;
  model.traverse(mesh=>{
-  if(!mesh.isMesh)return;
+  if(!mesh.isMesh||mesh.userData?.sandforgeBarracksPropPolish)return;
   const materials=Array.isArray(mesh.material)?mesh.material:[mesh.material];
   const result=materials.map(source=>{
    if(!source?.isMeshStandardMaterial)return source;
