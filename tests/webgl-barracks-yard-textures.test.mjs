@@ -63,3 +63,38 @@ test('other building perimeter fences retain their previous design and materials
  assert.equal(perimeter.userData.barracksWireFence,undefined);
  disposeBuildingYard(hq);
 });
+
+
+test('barracks supply cache stays fully clear of the side wire and rear fence',()=>{
+ for(const width of [158,160,184]){
+  const yard=createBuildingYard('barracks',width);
+  const supplies=yard.getObjectByName('BaseSupplyCache');
+  const fence=yard.getObjectByName('BarracksWireFencePosts');
+  assert.ok(supplies&&fence);
+  yard.updateMatrixWorld(true);
+  const bounds=new THREE.Box3().setFromObject(supplies);
+  const sideFence=width*.65;
+  const rearFence=-width*.53;
+  assert.ok(bounds.max.x<=sideFence-4,
+   'crate/pallet extends into the right-side wire at width '+width+
+   ': maxX='+bounds.max.x+' fence='+sideFence);
+  assert.ok(bounds.min.x>width*.36,
+   'barracks depot should stay at the exterior flank');
+  assert.ok(bounds.min.z>=rearFence+4,
+   'depot extends into the rear fence at width '+width);
+  assert.ok(bounds.max.z<width*.28-4,
+   'depot extends into the front fence/gate at width '+width);
+  assert.equal(supplies.children.filter(c=>c.name==='SupplyCrate').length,2);
+  assert.ok(supplies.getObjectByName('SupplyPallet'));
+  disposeBuildingYard(yard);
+ }
+});
+
+test('headquarters depot keeps previous size and placement',()=>{
+ const width=160,yard=createBuildingYard('headquarters',width);
+ const cache=yard.getObjectByName('BaseSupplyCache');
+ assert.ok(cache);
+ assert.equal(cache.position.x,width*.55);
+ assert.equal(cache.getObjectByName('SupplyPallet').geometry.parameters.width,43);
+ disposeBuildingYard(yard);
+});
