@@ -131,7 +131,19 @@ test('compact Energiekern has actual barbed wire on three sides, with a clear en
  assert.ok(perimeter.getObjectByName('BarracksWireFenceStrands')?.isInstancedMesh);
  assert.ok(perimeter.getObjectByName('BarracksWireFenceBarbs')?.isInstancedMesh);
  const code=readFileSync('scripts/webgl-building-yard.js','utf8');
- assert.match(code,/const front=width\*\(generator\?\.45:\.28\)/);
+ assert.match(code,/const front=generator\?Math\.max\(width\*\.53,/);
+ const bounds=perimeter.userData.generatorFenceBounds;
+ const cache=perimeter.getObjectByName('BaseSupplyCache');
+ assert.ok(cache,'the fence must measure the actual cache before placement');
+ const actual=new THREE.Box3().setFromObject(cache);
+ const relative=actual.applyMatrix4(perimeter.matrixWorld.clone().invert());
+ assert.ok(bounds.rightX>=relative.max.x+14,
+  'right-side supply crates stay >=14 units inside the wire');
+ assert.ok(bounds.front>=relative.max.z+13,
+  'front-right pallet does not poke under the fence');
+ assert.ok(bounds.rear<=relative.min.z-13,
+  'rear inventory remains entirely inside');
+ assert.ok(bounds.rightX>112*.70+12,'the generator fence expands only to the RIGHT');
  assert.match(code,/const gateHalf=width\*\(generator\?\.28:\.23\)/);
  assert.match(code,/if\(\['barracks','headquarters','factory','generator'\]\.includes\(kind\)\)/);
  disposeBuildingYard(yard);
