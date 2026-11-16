@@ -43,6 +43,25 @@ function box(mat,at,size,rotation=0,part=''){
  const p=[[-sx,-sy,-sz],[sx,-sy,-sz],[sx,sy,-sz],[-sx,sy,-sz],[-sx,-sy,sz],[sx,-sy,sz],[sx,sy,sz],[-sx,sy,sz]].map(([x,y,z])=>[(at[0]+x*co+z*si)*FACTORY_WIDTH_FACTOR,at[1]+y,at[2]+z*co-x*si]);
  for(const [a,b,c,d] of [[0,3,2,1],[4,5,6,7],[0,4,7,3],[1,2,6,5],[3,7,6,2],[0,1,5,4]])quad(g,p[a],p[b],p[c],p[d]);
 }
+// A genuine 360-degree, 20-facet circular tower. Generated directly into
+// the authored GLB so construction ghost, live scene and HUD use one shape.
+export const AIRFIELD_TOWER_SIDES=20;
+function cylindricalShell(mat,cx,cz,rBottom,rTop,bottom,top,{caps=false}={}){
+ const g=material(mat);
+ for(let i=0;i<AIRFIELD_TOWER_SIDES;i++){
+  const a=i*TAU/AIRFIELD_TOWER_SIDES,b=(i+1)*TAU/AIRFIELD_TOWER_SIDES;
+  const lowerA=[cx+Math.cos(a)*rBottom,bottom,cz+Math.sin(a)*rBottom];
+  const lowerB=[cx+Math.cos(b)*rBottom,bottom,cz+Math.sin(b)*rBottom];
+  const upperA=[cx+Math.cos(a)*rTop,top,cz+Math.sin(a)*rTop];
+  const upperB=[cx+Math.cos(b)*rTop,top,cz+Math.sin(b)*rTop];
+  // Winding faces outward. Cabin glazing has NO opaque interior filler.
+  quad(g,lowerA,upperA,upperB,lowerB);
+  if(caps){
+   tri(g,[cx,top,cz],upperB,upperA);
+   tri(g,[cx,bottom,cz],lowerA,lowerB);
+  }
+ }
+}
 // A continuous barrel vault, with physical corrugation running lengthwise.
 // Roof panels are NOT a row of disconnected, tilted rectangular boxes.
 export const AIRFIELD_ROOF_SEGMENTS=108;
@@ -167,33 +186,32 @@ function buildParts(){
  }
  box('steel',[cx-73,19,-119],[17,34,18]);
  box('sand',[cx-73,35,-119],[17,4,19]);
- // Compact control tower on the far LEFT of the hangar, not on the taxiway.
+ // Rounded military control tower to the LEFT of the hangar, outside
+ // aircraft paths. The shaft, observation room and canopy are all 20-sided.
  const towerX=-269,towerZ=-81;
- box('concrete',[towerX,3,towerZ],[44,6,47]);
- box('camo',[towerX,45,towerZ],[35,81,34]);
+ cylindricalShell('concrete',towerX,towerZ,22,22,0,6,{caps:true});
+ cylindricalShell('camo',towerX,towerZ,17.5,17.5,6,93,{caps:true});
  for(const y of [24,54,79])
-  box('steel',[towerX,y,towerZ],[40,3.3,38]);
- // Four true panoramic window walls; do not fill the cabin with an opaque
- // solid glass block. Structural corners and narrow mullions frame each view.
- box('steel_dark',[towerX,94,towerZ],[47,5,43]);
- box('steel_dark',[towerX,118,towerZ],[47,3,43]);
- for(const z of [towerZ-20,towerZ+20]){
-  box('glass',[towerX,106,z],[41,21,1.5]);
-  for(const x of [towerX-13,towerX+13])
-   box('steel',[x,106,z+Math.sign(z-towerZ)*1.1],[1.4,21,1.8]);
+  cylindricalShell('steel',towerX,towerZ,19.1,19.1,y-1.65,y+1.65);
+ // Broad round observation deck with a slim circular safety apron.
+ cylindricalShell('steel_dark',towerX,towerZ,25,25,92,97,{caps:true});
+ // Panoramic glazing covers ALL 360 degrees, not four rectangular walls.
+ // Each facet is a large vertical glass window with a thin steel mullion.
+ cylindricalShell('glass',towerX,towerZ,23,23,97.5,117.5);
+ for(let i=0;i<AIRFIELD_TOWER_SIDES;i++){
+  const a=i*TAU/AIRFIELD_TOWER_SIDES;
+  const x=towerX+23.25*Math.cos(a),z=towerZ+23.25*Math.sin(a);
+  box('steel_dark',[x,107.5,z],[1.05,21.2,1.55],-a);
  }
- for(const x of [towerX-22,towerX+22]){
-  box('glass',[x,106,towerZ],[1.5,21,37]);
-  for(const z of [towerZ-12,towerZ+12])
-   box('steel',[x+Math.sign(x-towerX)*1.1,106,z],[1.8,21,1.4]);
- }
- for(const x of [towerX-22,towerX+22])for(const z of [towerZ-20,towerZ+20])
-  box('steel_dark',[x,106,z],[2.5,23,2.5]);
- box('steel_dark',[towerX,96,towerZ],[39,2,35]);
- box('roof',[towerX,120,towerZ],[53,5.5,49]);
- box('steel_dark',[towerX+15,130,towerZ-12],[3,21,3]);
- box('warning',[towerX+15,140,towerZ-12],[6,2.7,6]);
- box('team',[towerX,112,towerZ+21],[13,7,.8]);
+ // Continuous round lower and upper glazing rings prevent floating panes.
+ cylindricalShell('steel',towerX,towerZ,23.9,23.9,96,98);
+ cylindricalShell('steel_dark',towerX,towerZ,23.9,23.9,117,119.5);
+ // Single circular canopy, subtle olive roof and a small obstruction beacon.
+ cylindricalShell('roof',towerX,towerZ,27.0,27.0,119.5,124,{caps:true});
+ cylindricalShell('steel_light',towerX,towerZ,27.3,27.3,122.5,124.1);
+ box('steel_dark',[towerX+10,133,towerZ-8],[2.9,19,2.9]);
+ box('warning',[towerX+10,143,towerZ-8],[5.5,3.2,5.5]);
+ box('team',[towerX,112,towerZ+23.8],[12,7,.85]);
  // Near hangar and tower use neutral service accessories; the runway
  // remains untouched and terrain-draped by webgl-airfield-service.js.
 }
