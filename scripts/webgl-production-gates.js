@@ -64,20 +64,25 @@ export class SandforgeProductionGates {
   const door=entry.detail.getObjectByName('FactoryRollupDoor');
   if(!door)return null;
   const root=door.parent,hall=new THREE.Group();hall.name='FactoryInterior';root.add(hall);
+  const finalFactory=Boolean(entry.detail.getObjectByName('SF_Factory_PBR_roof'));
+  const doorLiftHeight=finalFactory?1.70:1.48;
+  const garageWidth=finalFactory?2.20:1.52;
+  const centerX=finalFactory?.198:.18;
   const piece=(name,size,at,material=hallMaterial)=>{
    const mesh=new THREE.Mesh(box,material);mesh.name=name;mesh.scale.set(...size);mesh.position.set(...at);
    mesh.castShadow=true;mesh.receiveShadow=true;hall.add(mesh);return mesh;
   };
-  piece('HallFloor',[1.52,.03,2.50],[.18,.245,.30],floorMaterial);
-  piece('HallBack',[1.52,1.21,.025],[.18,.855,-.94]);
-  for(const x of [-.58,.94])piece('HallSide',[.025,1.21,2.52],[x,.855,.32]);
-  piece('HallCeiling',[1.52,.025,2.52],[.18,1.46,.32]);
-  const ramp=piece('ThresholdRamp',[1.52,.035,1.35],[.18,.14,2.16],floorMaterial);ramp.rotation.x=.18;root.add(ramp);
-  const dust=piece('RolloutDust',[1.2,.025,.55],[.18,.035,2.3],dustMaterial);dust.castShadow=false;dust.receiveShadow=false;
+  piece('HallFloor',[garageWidth,.03,2.50],[centerX,.245,.30],floorMaterial);
+  piece('HallBack',[garageWidth,finalFactory?1.45:1.21,.025],[centerX,finalFactory?.975:.855,-.94]);
+  for(const x of [centerX-garageWidth/2,centerX+garageWidth/2])
+   piece('HallSide',[.025,finalFactory?1.45:1.21,2.52],[x,finalFactory?.975:.855,.32]);
+  piece('HallCeiling',[garageWidth,.025,2.52],[centerX,finalFactory?1.71:1.46,.32]);
+  const ramp=piece('ThresholdRamp',[garageWidth,.035,1.35],[centerX,.14,2.16],floorMaterial);ramp.rotation.x=.18;root.add(ramp);
+  const dust=piece('RolloutDust',[garageWidth*.80,.025,.55],[centerX,.035,2.3],dustMaterial);dust.castShadow=false;dust.receiveShadow=false;
   const lampMaterial=new THREE.MeshStandardMaterial({color:'#6a2d0c',emissive:'#ff6a13',emissiveIntensity:0});
-  const lamp=new THREE.Mesh(bulbGeometry,lampMaterial);lamp.position.set(.18,1.53,1.67);root.add(lamp);lamp.visible=false;
+  const lamp=new THREE.Mesh(bulbGeometry,lampMaterial);lamp.position.set(centerX,finalFactory?1.78:1.53,1.67);root.add(lamp);lamp.visible=false;
   hall.visible=false;
-  entry.gate={kind:'factory',root,door,hall,lamp,dust,ramp};return entry.gate;
+  entry.gate={kind:'factory',root,door,hall,lamp,dust,ramp,doorLiftHeight};return entry.gate;
  }
  reset(entry){
   const gate=entry?.gate;if(!gate)return;
@@ -189,7 +194,7 @@ export class SandforgeProductionGates {
    }else if(gate.kind==='headquarters')setHeadquartersDoorOpen(gate.portal,pose.open);
    else{
     gate.door.scale.y=1-pose.open*.96;
-    gate.door.position.y=1.48*pose.open*.96;
+    gate.door.position.y=(gate.doorLiftHeight??1.48)*pose.open*.96;
    }
    gate.hall.visible=age>=GATE_TIMING.warning&&pose.open>.01;
    gate.lamp.visible=true;
