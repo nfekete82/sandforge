@@ -5,6 +5,7 @@ import {inflateSync} from 'node:zlib';
 import vm from 'node:vm';
 import {factionRgb8} from '../scripts/sandforge-faction-palette.js';
 import {servicePaint} from '../scripts/webgl-service-materials.js';
+import {createAirfieldServiceYard,disposeAirfieldServiceYard} from '../scripts/webgl-airfield-service.js';
 import {airfieldLaunchDuration,airfieldLaunchPose,airfieldLaunchLeg} from '../scripts/webgl-airfield-launch-path.js';
 import {applyAirfieldRollup,AIRFIELD_ROLLUP_SLATS} from '../scripts/webgl-airfield-rollup.js';
 
@@ -244,6 +245,23 @@ test('tower has a circular shaft, 360-degree glazing and a round roof',()=>{
  assert.match(generator,/scan\[i\+3\]=key==='glass'\?142:255/);
  assert.doesNotMatch(generator,/box\('glass',\[towerX,106,z\]/);
  assert.doesNotMatch(generator,/box\('roof',\[towerX,120,towerZ\]/);
+});
+
+test('three dark transverse parking-apron strokes are absent in built and ghost airfields',()=>{
+ const source=src('webgl-airfield-service.js');
+ assert.doesNotMatch(source,/AirfieldConcreteJoint/,'old three apron stripes must not be regenerated');
+ // The parking pad, taxi guide and runway remain usable; only three dark
+ // cosmetic cross-bars go away. The ghost uses this exact same generator.
+ for(const ghost of [false,true]){
+  const yard=createAirfieldServiceYard(0,{ghost});
+  const names=[];
+  yard.traverse(node=>{if(node.isMesh)names.push(node.name);});
+  assert.ok(names.some(name=>name.startsWith('AirfieldAircraftParkingPad_')));
+  assert.ok(names.some(name=>name==='AirfieldExtendedRunway'));
+  assert.ok(names.some(name=>name==='AirfieldTaxiCrossGuide'));
+  assert.equal(names.filter(name=>name.startsWith('AirfieldConcreteJoint')).length,0);
+  disposeAirfieldServiceYard({airfieldServiceYard:yard});
+ }
 });
 
 test('runway has no raised black rubber/debris strips, but retains safe markings',()=>{
