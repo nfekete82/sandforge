@@ -41,6 +41,7 @@ import {attackBlinkAlpha} from '/src/reborn/attack-alerts.js';
 import {UPGRADES,UPGRADE_KINDS,canResearchUpgrade,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
 import {createStrategicBuilding,isStrategicBuilding} from '/webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry,disposeRocketLauncher} from '/webgl-rocket-infantry.js';
+import {paintFactionRoofStripes} from '/webgl-building-roof-stripes.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
@@ -395,6 +396,8 @@ export class SandforgeBattlefield {
      }});
     }
     if(type==='building'&&entry.kind==='barracks')polishBarracksProps(model);
+    if(type==='building'&&['barracks','headquarters'].includes(entry.kind))
+     paintFactionRoofStripes(model,entry.kind,entry.owner);
     if(type==='unit'&&entry.kind==='engineer')
      entry.engineerTools=equipEngineerTools(model);
     if(type==='unit'&&entry.kind==='rocket')
@@ -690,6 +693,7 @@ export class SandforgeBattlefield {
      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))
     model.userData.sandforgeOriginalPBR=true;
    if(kind==='barracks')polishBarracksProps(model);
+   if(kind==='barracks'||kind==='headquarters')paintFactionRoofStripes(model,kind,0);
    const bounds=new THREE.Box3().setFromObject(model);
    const size=bounds.getSize(new THREE.Vector3());
    if(size.y>0&&Math.max(size.x,size.z)>0){
@@ -881,7 +885,11 @@ export class SandforgeBattlefield {
    aliveBases.add(b.id);
    let entry=this.bases.get(b.id);
    if(!entry){entry=this.spawnNode(b,'building');this.bases.set(b.id,entry);this.grounding.attachBuilding(entry,b);}
-   if(entry.factionOwner!==b.owner)applyFactionAccents(entry,b,'building');
+   if(entry.factionOwner!==b.owner){
+    applyFactionAccents(entry,b,'building');
+    if(entry.detail&&['barracks','headquarters'].includes(b.kind))
+     paintFactionRoofStripes(entry.detail,b.kind,b.owner);
+   }
    entry.node.position.copy(this.entityPosition(b));
    entry.node.visible=b.owner===0||this.game.canSee(0,b);
    entry.node.scale.y=1;
@@ -2413,11 +2421,14 @@ export class SandforgeBattlefield {
      this.selectedBase=null;
      this.panel.dataset.tab='buildings';
      this.sound?.command?.();
-     if(!event.shiftKey)this.clearPlacement();
+     // Walls are laid in a series: keep their ghost AND the building tab
+     // armed after each successful placement. RMB / Escape still cancel.
+     if(!event.shiftKey&&kind!=='wall')this.clearPlacement();
      this.sync(true);
      this.message(BUILDINGS[kind].name+
       (order.append?' in Baufolge eingereiht':' beauftragt')+
-      ' · Nächstes Gebäude direkt im Baumenü auswählen');
+      (kind==='wall'?' · Nächstes Mauersegment platzieren · Rechtsklick beendet':
+       ' · Nächstes Gebäude direkt im Baumenü auswählen'));
     }else{
      this.message(order.reason+
       ' · '+(order.tried??0)+' Pionier-Zuweisung(en) geprüft');
