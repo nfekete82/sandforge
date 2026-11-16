@@ -185,12 +185,35 @@ function perimeterFence(group,width){
  * has slim steel posts and horizontal wire/barbs, no bulky rail or X braces.
  * Three sides plus two front sections keep the actual infantry exit clear. */
 function perimeterBarracksWire(group,width,{factory=false,generator=false}={}){
- // Generator: small scaled perimeter with enough clearance for its front
- // service door, a shallow yard and no wire across the entrance.
- const x=width*(generator?.70:.65);
- const rear=-width*(generator?.54:.53);
- const front=width*(generator?.45:.28);
- const gateHalf=width*(generator?.28:.23);
+ // Fit the generator's REAL supply cache rather than estimating its size.
+ // A symmetric x=width*.70 fence previously intersected the far-right
+ // wooden pallet; on generated models, wire actually passed through props.
+ let cacheBounds=null;
+ if(generator){
+  const cache=group.getObjectByName('BaseSupplyCache');
+  if(cache){
+   group.updateWorldMatrix(true,true);
+   const worldBounds=new THREE.Box3().setFromObject(cache);
+   if(!worldBounds.isEmpty()){
+    // Convert the real mesh bounds back into the scaled fence group's local
+    // coordinates: the generator yard has an intentional .66 visual scale.
+    cacheBounds=worldBounds.applyMatrix4(group.matrixWorld.clone().invert());
+   }
+  }
+ }
+ const leftX=-width*(generator?.70:.65);
+ const rightX=generator?Math.max(width*.96,
+  cacheBounds?cacheBounds.max.x+15:width*.96):width*.65;
+ const rear=generator?Math.min(-width*.56,
+  cacheBounds?cacheBounds.min.z-14:-width*.56):-width*.53;
+ const front=generator?Math.max(width*.53,
+  cacheBounds?cacheBounds.max.z+14:width*.53):width*.28;
+ const gateHalf=width*(generator?.30:.23);
+ if(generator)group.userData.generatorFenceBounds={
+  leftX,rightX,rear,front,gateHalf,
+  cacheMinX:cacheBounds?.min.x??null,cacheMaxX:cacheBounds?.max.x??null,
+  cacheMinZ:cacheBounds?.min.z??null,cacheMaxZ:cacheBounds?.max.z??null
+ };
  const posts=[],strands=[],barbs=[],seen=new Set();
  function segment(x0,z0,x1,z1){
   const dx=x1-x0,dz=z1-z0,dist=Math.hypot(dx,dz);
@@ -218,13 +241,13 @@ function perimeterBarracksWire(group,width,{factory=false,generator=false}={}){
    }
   }
  }
- segment(-x,rear,x,rear);
- segment(-x,rear,-x,front);
+ segment(leftX,rear,rightX,rear);
+ segment(leftX,rear,leftX,front);
  // The separate vehicle repair deck starts at the factory's RIGHT side.
  // Keep the right front open instead of crossing its drive-on ramp with wire.
- segment(x,rear,x,factory?-width*.13:front);
- segment(-x,front,-gateHalf,front);
- if(!factory)segment(gateHalf,front,x,front);
+ segment(rightX,rear,rightX,factory?-width*.13:front);
+ segment(leftX,front,-gateHalf,front);
+ if(!factory)segment(gateHalf,front,rightX,front);
  instanceBoxes(group,'BarracksWireFencePosts',fencePost,posts);
  instanceFenceWires(group,strands,{radius:.18,name:'BarracksWireFenceStrands'});
  instanceFenceWires(group,barbs,{radius:.12,name:'BarracksWireFenceBarbs'});
@@ -266,9 +289,6 @@ function addSiteDecor(root,kind,width){
  if(kind==='generator')g.scale.setScalar(.66);
  root.add(g);
  const large=width>=155;
- if(['barracks','headquarters','factory','generator'].includes(kind))
-  perimeterBarracksWire(g,width,{factory:kind==='factory',generator:kind==='generator'});
- else if(fencedSites.has(kind))perimeterFence(g,width);
  const supplies=new THREE.Group();
  // The original depot was centered at x=.55*width while its pallet
  // extended another 30+ units into the wire-fence line (x=.65*width).
@@ -299,6 +319,12 @@ function addSiteDecor(root,kind,width){
     supplyBarrel(supplies,-3,-19);
   }
  }
+ // Build perimeter AFTER props so Energiekern can calculate their real
+ // dimensions and reserve clearance on the right and in front. All other
+ // military building perimeters keep their original geometry.
+ if(['barracks','headquarters','factory','generator'].includes(kind))
+  perimeterBarracksWire(g,width,{factory:kind==='factory',generator:kind==='generator'});
+ else if(fencedSites.has(kind))perimeterFence(g,width);
  // Place masts near the side fencing, never along the open front door/spawn.
  const lampHeight=Math.min(60,Math.max(43,width*.29));
  securityLamp(g,-width*.56,width*.20,lampHeight);
