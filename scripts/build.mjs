@@ -36,6 +36,7 @@ cpSync('scripts/webgl-sand-surface-detail.js','dist/webgl-sand-surface-detail.js
 cpSync('scripts/webgl-desert-village.js','dist/webgl-desert-village.js');
 cpSync('scripts/webgl-rock-materials.js','dist/webgl-rock-materials.js');
 cpSync('scripts/webgl-ruin-fragments.js','dist/webgl-ruin-fragments.js');
+cpSync('scripts/webgl-scenic-desert-houses.js','dist/webgl-scenic-desert-houses.js');
 for(const module of ['webgl-oases','webgl-oasis-generation','webgl-oasis-materials'])cpSync(`scripts/${module}.js`,`dist/${module}.js`);
 cpSync('scripts/webgl-map-edges.js','dist/webgl-map-edges.js');
 cpSync('scripts/webgl-title-menu.js','dist/webgl-title-menu.js');
