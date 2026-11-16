@@ -41,7 +41,7 @@ import {attackBlinkAlpha} from '/src/reborn/attack-alerts.js';
 import {UPGRADES,UPGRADE_KINDS,canResearchUpgrade,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
 import {createStrategicBuilding,isStrategicBuilding} from '/webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry,disposeRocketLauncher} from '/webgl-rocket-infantry.js';
-import {paintFactionRoofStripes} from '/webgl-building-roof-stripes.js';
+import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building-roof-stripes.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
@@ -726,6 +726,7 @@ export class SandforgeBattlefield {
     disposeOwnedMeshes(preview.userData.previewService);
    }
    if(preview.userData.previewDetail){
+    disposeFactionRoofStripes(preview.userData.previewDetail);
     disposeBarracksSides(preview.userData.previewDetail);
     disposeTaggedMaterials(preview.userData.previewDetail,'sandforgeBarracksPalette');
     disposeTaggedMaterials(preview.userData.previewDetail,'sandforgeBuildingPBROwned');
@@ -933,7 +934,8 @@ export class SandforgeBattlefield {
     if(e.yard){disposeBuildingYard(e.yard);e.yard=null;}
     disposeAirfieldServiceYard(e);disposeFactoryServiceYard(e);
     if(e.placeholder){disposeOwnedMeshes(e.placeholder);e.placeholder=null;}
-    if(e.detail){disposeBarracksSides(e.detail);
+    if(e.detail){disposeFactionRoofStripes(e.detail);
+     disposeBarracksSides(e.detail);
      disposeTaggedMaterials(e.detail,'sandforgeBarracksPalette');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingPBROwned');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingFacadeOwned');
