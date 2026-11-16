@@ -61,9 +61,23 @@ test('pause uses simulation clock; stale events and missing models do not hide u
 for(const owner of [0,1])test(`GLB faction ${owner} has a real opening; UVs and PBR textures survive`,()=>{
  const raw=readFileSync(new URL(`../src/assets/reborn/buildings-3d/factory-${owner}.glb`,import.meta.url));
  const len=raw.readUInt32LE(12),j=JSON.parse(raw.subarray(20,20+len)),bin=raw.subarray(28+len);
- const door=j.nodes.find(n=>n.name==='FactoryRollupDoor');assert.ok(door?.children.length>=2);
+ const doorIndex=j.nodes.findIndex(n=>n.name==='FactoryRollupDoor');
+ const door=j.nodes[doorIndex];
+ assert.ok(door,'an authored moving roll-up shutter must exist for production');
+ // The FINAL PBR asset merges all metal shutter ribs into one mesh/node.
+ // Older imported factory GLBs instead used a parent with moving children.
+ const doorNodes=new Set([...(door.children??[]),
+  ...(door.mesh!==undefined?[doorIndex]:[])]);
+ assert.ok(doorNodes.size>0,'the garage door needs movable geometry');
+ const doorPrimitives=door.mesh===undefined?[]:j.meshes[door.mesh].primitives;
+ for(const p of doorPrimitives){
+  const a=j.accessors[p.attributes.POSITION];
+  assert.ok(a.max[1]-a.min[1]>=1.68,'full-height steel roll-up door');
+  assert.ok(a.max[0]-a.min[0]>=2,'front factory opening is vehicle-width');
+  assert.ok(p.attributes.TEXCOORD_0!==undefined,'door preserves its PBR UV map');
+ }
  assert.ok(j.images.length>0);assert.ok(j.materials.some(m=>m.pbrMetallicRoughness?.baseColorTexture));
- const moving=new Set(door.children),ray=new THREE.Raycaster(new THREE.Vector3(.18,.75,1.7),new THREE.Vector3(0,0,-1),0,2.5);
+ const moving=doorNodes,ray=new THREE.Raycaster(new THREE.Vector3(.18,.75,1.7),new THREE.Vector3(0,0,-1),0,2.5);
  const scene=new THREE.Group();
  for(const [ni,n]of j.nodes.entries()){
   if(n.mesh===undefined||moving.has(ni))continue;
@@ -85,8 +99,10 @@ for(const owner of [0,1])test(`GLB faction ${owner} has a real opening; UVs and 
   }
  }
  scene.updateMatrixWorld(true);assert.equal(ray.intersectObjects(scene.children).length,0,'closed fixed facade remains behind the door');
- const roofRay=new THREE.Raycaster(new THREE.Vector3(.18,2,.9),new THREE.Vector3(0,-1,0),0,.7);
- assert.ok(roofRay.intersectObjects(scene.children).length>0,'the portal roof must remain closed before the first production');
+ // The new factory roof is at y~2.5, not below the old 2.0 m probe.
+ // Shoot DOWN from above the actual model roof, ignoring the moving door.
+ const roofRay=new THREE.Raycaster(new THREE.Vector3(.18,3.05,.9),new THREE.Vector3(0,-1,0),0,.9);
+ assert.ok(roofRay.intersectObjects(scene.children).length>0,'the fixed roof remains closed above the vehicle portal');
 });
 test('independent buildings animate concurrently; repeated releases reuse a closed gate',()=>{
  const f=fixture(),second=fixture(2,1);
