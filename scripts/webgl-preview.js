@@ -238,10 +238,10 @@ function sandMicroNormalTexture(){
   return ((h^(h>>>16))>>>0)/4294967296;
  };
  const sample=(x,y)=>{
-  const cell=12,u=x/cell,v=y/cell;
+  const cell=256/24,u=x/cell,v=y/cell;
   const a=Math.floor(u),b=Math.floor(v);
   const fx=(u-a)**2*(3-2*(u-a)),fy=(v-b)**2*(3-2*(v-b));
-  const rnd=(i,j)=>tile((i+22)%22,(j+22)%22);
+  const rnd=(i,j)=>tile((i+24)%24,(j+24)%24);
   const n0=rnd(a,b)*(1-fx)+rnd(a+1,b)*fx;
   const n1=rnd(a,b+1)*(1-fx)+rnd(a+1,b+1)*fx;
   return n0*(1-fy)+n1*fy;
