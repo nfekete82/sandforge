@@ -30,14 +30,14 @@ test('visual infantry resizing never changes authoritative gameplay dimensions',
   assert.ok(UNITS[kind].range>0);
   assert.ok(UNITS[kind].speed>0);
  }
- const source=readFileSync(new URL('../scripts/webgl-battlefield.js',import.meta.url),'utf8');
+ const source=readFileSync('scripts/webgl-battlefield.js','utf8');
  assert.match(source,/model\.scale\.multiplyScalar\(scale\)/);
  assert.match(source,/visualUnitScale\(entry\.kind\)/);
  assert.match(source,/entry\.node\.position\.copy\(this\.pos\(x,z,visualGround/);
 });
 
 test('infantry HP bar and muzzle flash follow the corrected proportions',()=>{
- const source=readFileSync(new URL('../scripts/webgl-actor-presentation.js',import.meta.url),'utf8');
+ const source=readFileSync('scripts/webgl-actor-presentation.js','utf8');
  assert.match(source,/infantry\.has\(kind\)\?22:air\.has\(kind\)\?44:36/);
  assert.match(source,/infantry\.has\(kind\)\?43:air\.has\(kind\)\?49:56/);
  assert.match(source,/infantry\.has\(kind\)\?17:air\.has\(kind\)\?36:kind==='tank'\?40:35/);
