@@ -8,6 +8,7 @@ import {tintFactionMaterials} from './webgl-faction-accents.js';
 import {finishBarracksSides,finishBarracksDesertPalette} from './webgl-barracks-shell.js';
 import {finishBuildingFacadeShading} from './webgl-building-shading.js';
 import {finishDesertBuildingMaterials,waitForDesertBuildingTextures,DESERT_BUILDING_KINDS} from './webgl-building-pbr.js';
+import {hasAuthoredHeadquartersPBR,prepareAuthoredHeadquartersPortrait} from './webgl-hq-portrait.js';
 
 /** Sprite-sheet portrait extraction shared by the WebGL HUD.
  * The classic game crops one idle frame rather than scaling down the entire
@@ -94,18 +95,20 @@ export function researchIconMarkup(kind){
  * research objects, using the actual scene meshes. PNG generation happens
  * once per kind and never on the animation/render loop.
  */
-function renderModelPortrait(model,renderer,{width=320,height=220,research=false,infantryCard=false}={}){
+function renderModelPortrait(model,renderer,{width=320,height=220,research=false,infantryCard=false,headquartersCard=false}={}){
  // Atlas heavy infantry uses direction index 1: yaw PI/4 with camera (0,8,12).
  // Apply that exact view to the rocket portrait only, never to its game model.
  if(infantryCard)model.rotation.y+=Math.PI/4;
  const scene=new THREE.Scene();
  scene.add(model);
- const hemi=new THREE.HemisphereLight('#fff3e2','#576e73',research?2.15:2.0);
+ const hemi=new THREE.HemisphereLight('#fff3e2','#576e73',headquartersCard?3.1:research?2.15:2.0);
  scene.add(hemi);
- const key=new THREE.DirectionalLight('#ffedcd',research?2.9:2.6);
+ const key=new THREE.DirectionalLight('#ffedcd',headquartersCard?3.35:research?2.9:2.6);
  key.position.set(210,390,290);scene.add(key);
- const fill=new THREE.DirectionalLight('#b6dce5',.95);
+ const fill=new THREE.DirectionalLight('#b6dce5',headquartersCard?1.5:.95);
  fill.position.set(-280,170,-170);scene.add(fill);
+ // Extra bounce is confined to the isolated HUD scene, never the battlefield.
+ if(headquartersCard)scene.add(new THREE.AmbientLight('#fff2dc',.85));
  const bounds=new THREE.Box3().setFromObject(model);
  const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
  const aspect=width/height;
@@ -353,12 +356,20 @@ async function rasterizeBuildingIcon(kind,renderer){
     node.material=Array.isArray(node.material)?
      node.material.map(m=>m.clone()):node.material.clone();
    });
-   if(kind==='barracks')finishBarracksSides(model);
-   tintFactionMaterials(model,0,kind,'building');
-   if(kind==='barracks')finishBarracksDesertPalette(model);
-   finishDesertBuildingMaterials(model,kind);
-   finishBuildingFacadeShading(model);
-   return renderModelPortrait(model,renderer);
+   const authoredHQ=kind==='headquarters'&&hasAuthoredHeadquartersPBR(model);
+   if(authoredHQ){
+    // Match the actual in-game HQ: the original 3D glTF keeps its embedded
+    // desert camouflage, rather than receiving the old synthetic building
+    // paint and aggressive metallic factor in the small HUD capture.
+    prepareAuthoredHeadquartersPortrait(model);
+   }else{
+    if(kind==='barracks')finishBarracksSides(model);
+    tintFactionMaterials(model,0,kind,'building');
+    if(kind==='barracks')finishBarracksDesertPalette(model);
+    finishDesertBuildingMaterials(model,kind);
+    finishBuildingFacadeShading(model);
+   }
+   return renderModelPortrait(model,renderer,{headquartersCard:authoredHQ});
   }catch(error){
    console.warn('Desert building PBR portrait fallback:',kind,error);
   }

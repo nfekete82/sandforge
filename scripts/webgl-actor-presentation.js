@@ -337,7 +337,9 @@ export class SandforgeActorPresentation {
     if(action)action.setEffectiveTimeScale(
      ['rover','tank','artillery'].includes(entity.kind)&&!moving&&desired===clips.idle
       ?0:entry.productionMotion&&moving
-       ?clamp((entity.driveSpeed??80)/80,.15,3):1);
+       // Foot units use the same walk animation cadence as normal play.
+       // The former driveSpeed/80 made the first steps ~31% faster.
+       ?infantry.has(entity.kind)?1:clamp((entity.driveSpeed??80)/80,.15,3):1);
     clips.mixer.update(Math.min(.08,dt));
    }
   }

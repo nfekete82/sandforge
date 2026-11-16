@@ -54,14 +54,16 @@ test('all visible barracks yard props use texture maps (except emissive lamp gla
  disposeBuildingYard(yard);
 });
 
-test('other building perimeter fences retain their previous design and materials',()=>{
- const hq=createBuildingYard('headquarters',160);
- const perimeter=hq.getObjectByName('BasePerimeter_headquarters');
- assert.ok(perimeter.getObjectByName('YardFenceRails'));
- assert.ok(perimeter.getObjectByName('YardFenceMesh'));
- assert.equal(perimeter.getObjectByName('BarracksWireFenceStrands'),undefined);
- assert.equal(perimeter.userData.barracksWireFence,undefined);
- disposeBuildingYard(hq);
+test('non-PBR building perimeter fences retain their previous design and materials',()=>{
+ for(const kind of ['factory','research']){
+  const yard=createBuildingYard(kind,160);
+  const perimeter=yard.getObjectByName('BasePerimeter_'+kind);
+  assert.ok(perimeter.getObjectByName('YardFenceRails'),kind+' keeps wooden rails');
+  assert.ok(perimeter.getObjectByName('YardFenceMesh'),kind+' keeps cross-bracing');
+  assert.equal(perimeter.getObjectByName('BarracksWireFenceStrands'),undefined);
+  assert.equal(perimeter.userData.barracksWireFence,undefined);
+  disposeBuildingYard(yard);
+ }
 });
 
 
@@ -90,11 +92,33 @@ test('barracks supply cache stays fully clear of the side wire and rear fence',(
  }
 });
 
-test('headquarters depot keeps previous size and placement',()=>{
- const width=160,yard=createBuildingYard('headquarters',width);
- const cache=yard.getObjectByName('BaseSupplyCache');
- assert.ok(cache);
- assert.equal(cache.position.x,width*.55);
- assert.equal(cache.getObjectByName('SupplyPallet').geometry.parameters.width,43);
- disposeBuildingYard(yard);
+test('headquarters PBR depot keeps real crate geometry clear of its wire fence',()=>{
+ // Covers both the compact test yard and the production-sized HQ (225).
+ for(const width of [160,225]){
+  const hq=createBuildingYard('headquarters',width);
+  const cache=hq.getObjectByName('BaseSupplyCache');
+  const perimeter=hq.getObjectByName('BasePerimeter_headquarters');
+  assert.ok(cache&&perimeter?.userData.barracksWireFence);
+  assert.equal(cache.position.x,width*.47,'HQ depot is shifted inside wire');
+  assert.equal(cache.getObjectByName('SupplyPallet').geometry.parameters.width,28);
+  assert.equal(cache.getObjectByName('CrateBody').material.map?.isDataTexture,true);
+  hq.updateMatrixWorld(true);
+  const bounds=new THREE.Box3().setFromObject(cache);
+  const clearance=width*.65-bounds.max.x;
+  assert.ok(clearance>=8,
+   'HQ crate/pallet overlaps side fence at width '+width+
+   ': right edge='+bounds.max.x+', wire='+width*.65+
+   ', clearance='+clearance);
+  assert.ok(bounds.min.z>-width*.53+8,
+   'HQ depot must not overlap rear fence at width '+width);
+  assert.ok(bounds.max.z<width*.28-8,
+   'HQ depot must not block engineer gate at width '+width);
+  disposeBuildingYard(hq);
+ }
+ const width=160;
+ const factory=createBuildingYard('factory',width);
+ const legacy=factory.getObjectByName('BaseSupplyCache');
+ assert.equal(legacy.position.x,width*.55,'factory keeps original cache placement');
+ assert.equal(legacy.getObjectByName('SupplyPallet').geometry.parameters.width,43);
+ disposeBuildingYard(factory);
 });

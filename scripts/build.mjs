@@ -65,6 +65,7 @@ cpSync('scripts/webgl-perf-watch.js','dist/webgl-perf-watch.js');
 cpSync('scripts/webgl-classic-hud.js','dist/webgl-classic-hud.js');
 cpSync('scripts/webgl-global-catalog.js','dist/webgl-global-catalog.js');
 cpSync('scripts/webgl-portraits.js','dist/webgl-portraits.js');
+cpSync('scripts/webgl-hq-portrait.js','dist/webgl-hq-portrait.js');
 cpSync('scripts/webgl-research-artworks.js','dist/webgl-research-artworks.js');
 cpSync('scripts/webgl-perimeter.js','dist/webgl-perimeter.js');
 cpSync('scripts/webgl-edge-cliffs.js','dist/webgl-edge-cliffs.js');

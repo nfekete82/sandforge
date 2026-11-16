@@ -52,6 +52,7 @@ test('both HQ team assets use the same geometry and preserve team selection',t=>
  const all=filenames.map(x=>metadata('src/assets/reborn/buildings-3d/'+x));
  if(!all[0].nodes.some(x=>x.name==='HQ_Radar_02_PhasedArray_Rotor'))
   return t.skip('HQ PBR models not yet copied to both team asset slots');
- assert.deepEqual(all.map(x=>x.meshes.length),[35,35]);
+ assert.deepEqual(all.map(x=>x.meshes.length),[43,43],
+  '35 original HQ meshes + three rear PBR vent batches + five dome surfaces');
  for(const g of all)assert.ok(g.materials.some(m=>m.name?.startsWith('HQ_PBR_')));
 });

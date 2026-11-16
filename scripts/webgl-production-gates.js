@@ -149,16 +149,29 @@ export class SandforgeProductionGates {
    const targetAngle=Math.atan2(target.x-center.x,target.z-center.z);
    const turn=Math.abs(Math.atan2(Math.sin(targetAngle-exitAngle),Math.cos(targetAngle-exitAngle)));
    const radius=Math.max(headquarters?145:barracks?90:160,Math.hypot(exit.x-center.x,exit.z-center.z));
-   const length=start.distanceTo(exit)+turn*radius+Math.abs(radius-Math.hypot(target.x-center.x,target.z-center.z));
+   const frontRadius=Math.hypot(exit.x-center.x,exit.z-center.z);
+   const targetRadius=Math.hypot(target.x-center.x,target.z-center.z);
+   // For real frontal infantry exits travel exactly along the physical
+   // doorway and then the lawful simulation point, at constant foot speed.
+   const directFoot=infantry&&turn<.72&&targetRadius>=frontRadius-8;
+   const doorLength=start.distanceTo(exit);
+   const exteriorLength=exit.distanceTo(target);
+   const length=directFoot?doorLength+exteriorLength:
+    doorLength+turn*radius+Math.abs(radius-targetRadius);
    // Rear-facing exits need more travel time around the footprint, rather
    // than accelerating a tank to Humvee speed to meet a fixed deadline.
-   const duration=Math.max(infantry?2.8:GATE_TIMING.drive,length/(infantry?105:95));
+   const footSpeed=unit.kind==='heavy'?78:unit.kind==='rocket'?92:105;
+   const duration=directFoot?Math.max(.30,length/footSpeed):
+    Math.max(infantry?2.8:GATE_TIMING.drive,length/(infantry?footSpeed:95));
    // Freeze only the real simulation actor's departure, NOT production or
    // its paid rally order. At the exact portal hand-off it resumes ordinary
    // 20 Hz movement from the same lawful spawn with no visual teleport.
    const visualAt=age>.15&&game.stageWebGLProduction===true?game.time:event.at;
    game.extendProductionDeparture?.(unit.id,visualAt+GATE_TIMING.warning+GATE_TIMING.opening+duration+.05);
-   this.active.set(base.id,{event,visualAt,duration,orders:orderKey(unit),hp:unit.hp,baseHp:base.hp});
+   this.active.set(base.id,{event,visualAt,duration,directFoot,doorLength,
+    exteriorLength,walkStart:start.clone(),walkExit:exit.clone(),
+    hasRally:unit.orders?.some(o=>o.kind==='move'||o.kind==='attackMove')===true,
+    orders:orderKey(unit),hp:unit.hp,baseHp:base.hp});
   }
   for(const [id,state] of this.active){
    const {event}=state,base=bases.get(id),entry=bf.bases.get(id),u=entities.get(event.unitId),actor=bf.units.get(event.unitId);
@@ -187,7 +200,24 @@ export class SandforgeProductionGates {
    }
    const driveStart=GATE_TIMING.warning+GATE_TIMING.opening;
    const fraction=clamp((age-driveStart)/state.duration);
-   if(fraction>=1){actor.productionMotion=null;continue;}
+   if(fraction>=1){
+    // Finish at the exact Simulation spawn and release the paid rally
+    // immediately, while the doors close independently in the background.
+    // Previously one extra stationary second caused an obvious stop/start.
+    if((gate.kind==='barracks'||gate.kind==='headquarters')&&!state.released){
+     game.cancelProductionDeparture?.(event.unitId);
+     state.released=true;
+     state.releaseTime=game.time;
+    }
+    // The authoritative rally starts on the next 20Hz tick. Keep the
+    // SAME foot walk clip for at most two ticks, instead of flashing idle
+    // between visual clearance and the first real path step.
+    const keepWalking=Boolean(state.released&&state.hasRally&&!u.moving&&
+     game.time-(state.releaseTime??game.time)<.12);
+    actor.productionMotion=keepWalking&&state.lastMotion?
+     {...state.lastMotion,moving:true,hideHealth:false}:null;
+    continue;
+   }
    entry.node.updateWorldMatrix(true,true);
    // First clear the entire hull and barrel past the real threshold. Only
    // outside the gate may the actor turn toward Simulation's actual exit.
@@ -200,16 +230,37 @@ export class SandforgeProductionGates {
    const root=gate.root;
    root.localToWorld(outside);
    const target=actor.node.position.clone();
-   const clearFraction=(infantry?1.65:GATE_TIMING.drive*.62)/state.duration;
+   // Infantry should leave at a believable running pace, not spend 1.65s
+   // taking two short steps and abruptly accelerate after the threshold.
+   // Vehicle rollouts keep their original smooth clearance.
+   const clearFraction=state.directFoot?
+    clamp(state.doorLength/Math.max(.001,state.doorLength+state.exteriorLength)):
+    Math.min(.95,(infantry ? 0.50 : GATE_TIMING.drive*.62)/state.duration);
    let p,yaw;
    const facing=buildingFacingAngle(base.facing);
    if(fraction<clearFraction){
-    const t=smooth(fraction/clearFraction);
-    const z=headquarters?4.12+2.23*t:infantry?(pbrBarracks?3.23+1.97*t:.9+1.20*t):-.03+2.93*t;
-    const y=headquarters?(.61-.47*t):infantry?(pbrBarracks?(0.58-0.03*t):(0.275*(1-t))):
-     (z<=1.5?0.265:Math.max(0,0.265*(2.9-z)/1.4));
-    p=root.localToWorld(new THREE.Vector3(headquarters?0:infantry?(pbrBarracks?0:-.18):.18,y,z));
+    if(state.directFoot){
+     // Physical distance divided by authoritative foot speed, without
+     // the previous acceleration/deceleration at the portal.
+     p=state.walkStart.clone().lerp(state.walkExit,clamp(fraction/clearFraction));
+    }else{
+     const t=infantry?clamp(fraction/clearFraction):smooth(fraction/clearFraction);
+     const z=headquarters?4.12+2.23*t:infantry?(pbrBarracks?3.23+1.97*t:.9+1.20*t):-.03+2.93*t;
+     const y=headquarters?(.61-.47*t):infantry?(pbrBarracks?(0.58-0.03*t):(0.275*(1-t))):
+      (z<=1.5?0.265:Math.max(0,0.265*(2.9-z)/1.4));
+     p=root.localToWorld(new THREE.Vector3(headquarters?0:infantry?(pbrBarracks?0:-.18):.18,y,z));
+    }
     yaw=facing;
+   }else if(state.directFoot){
+    const t=clamp((fraction-clearFraction)/Math.max(.00001,1-clearFraction));
+    p=state.walkExit.clone().lerp(target,t);
+    const tangent=target.clone().sub(state.walkExit);tangent.y=0;
+    yaw=tangent.lengthSq()>.0001?Math.atan2(tangent.x,tangent.z):facing;
+    if(state.hasRally){
+     const heading=Math.PI/2-(u.hullAngle??u.angle);
+     const blend=smooth((fraction-.72)/.28);
+     yaw+=Math.atan2(Math.sin(heading-yaw),Math.cos(heading-yaw))*blend;
+    }
    }else{
     // Route around the footprint for every cardinal facing. The simulation's
     // legacy spawn search is independent of building rotation, so a direct
@@ -246,7 +297,10 @@ export class SandforgeProductionGates {
     bf.world.walkable?.(worldPoint,obstacles,24)===false;
    if(pose.moving)for(const [otherId,other] of bf.units){
     if(otherId===u.id||!other.node.visible)continue;
-    if(Math.hypot(p.x-other.node.position.x,p.z-other.node.position.z)<48){blocked=true;break;}
+    // Use real infantry spacing instead of vehicle-sized 48-unit aborts,
+    // which made freshly produced soldiers pop near the default idle spot.
+    const safeDistance=infantry?24:48;
+    if(Math.hypot(p.x-other.node.position.x,p.z-other.node.position.z)<safeDistance){blocked=true;break;}
    }
    if(blocked){
     this.reset(entry);actor.productionMotion=null;
@@ -263,6 +317,7 @@ export class SandforgeProductionGates {
    // Gate state does not imply physical wheel rotation.
    const actuallyRolling=infantry?moving&&speed>.25:rolloutWheelsShouldRoll(moving,speed);
    actor.productionMotion={moving:actuallyRolling,hideHealth:fraction<clearFraction*.64,driveSpeed:speed,walkDistance:distance,angle:Math.PI/2-yaw,hullAngle:Math.PI/2-yaw};
+   if(infantry&&state.directFoot)state.lastMotion=actor.productionMotion;
    if(age<GATE_TIMING.warning)actor.node.visible=false; // hidden by the closed shutter
   }
  }
