@@ -99,6 +99,7 @@ test('build regenerates factory GLBs before copying assets, not user-local binar
  const gen=readFileSync('scripts/generate-factory-pbr.mjs','utf8');
  assert.match(gen,/for\(const owner of \[0,1\]\)exportTeam\(owner\)/);
  assert.match(gen,/FactoryRollupDoor/);
+ assert.match(gen,/width=key==='roof'\?256:48/,'roof should have fine PBR paint, not magnified 48px grooves');
  assert.doesNotMatch(gen,/sandforge-pbr-gesamt-test/);
  const game=readFileSync('scripts/webgl-battlefield.js','utf8');
  assert.match(game,/entry.kind==='factory'.*SF_Factory_PBR_roof/);
