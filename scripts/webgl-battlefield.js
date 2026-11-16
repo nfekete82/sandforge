@@ -958,7 +958,7 @@ export class SandforgeBattlefield {
      conformAirfieldSurface(entry.airfieldServiceYard,b,(x,z)=>this.heightAt(x,z));
     }
     hideOldAirfieldHangar(entry);
-    if(b.buildRemaining<=0)updateAirfieldServiceYard(entry,b,this.game.units,this.game.time,dt);
+    if(b.buildRemaining<=0)updateAirfieldServiceYard(entry,b,this.game.units,this.game.time,dt,active);
    }
    if(b.kind==='factory'){
     if(!entry.factoryServiceYard){
