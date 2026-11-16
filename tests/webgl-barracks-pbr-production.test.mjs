@@ -71,7 +71,7 @@ test('finished infantry actually walks through final PBR front at z≈4 instead 
   orders:[],angle:0,fire:0,combatTarget:null};
  const event={baseId:501,unitId:801,kind:'infantry',owner:0,at:10,
   from:{x:base.x,y:base.y},to:{x:soldier.x,y:soldier.y}};
- const game={time:10,bases:[base],units:[soldier],productionReleases:[event],
+ const game={time:10,bases:[base],units:[soldier],productionReleases:[],
   stageWebGLProduction:true,extendProductionDeparture(){},cancelProductionDeparture(){}};
  const battlefield={
   game,world:{size:2000,walkable:()=>true,obstacles:()=>[]},
@@ -82,6 +82,7 @@ test('finished infantry actually walks through final PBR front at z≈4 instead 
   entityPosition:()=>new THREE.Vector3(100,0,80)
  };
  const gates=new SandforgeProductionGates(battlefield);
+ game.productionReleases.push(event); // fresh event arrives after controller initialization
  function step(age){
   game.time=10+age;
   // The real battlefield does this before the cosmetic gate pass.
