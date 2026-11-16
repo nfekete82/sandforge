@@ -50,6 +50,7 @@ cpSync('scripts/webgl-bastion-capture.js','dist/webgl-bastion-capture.js');
 cpSync('scripts/webgl-actor-presentation.js','dist/webgl-actor-presentation.js');
 cpSync('scripts/webgl-faction-accents.js','dist/webgl-faction-accents.js');
 cpSync('scripts/webgl-team-markings.js','dist/webgl-team-markings.js');
+cpSync('scripts/sandforge-faction-palette.js','dist/sandforge-faction-palette.js');
 cpSync('scripts/webgl-building-roof-stripes.js','dist/webgl-building-roof-stripes.js');
 cpSync('scripts/webgl-entrance-banners.js','dist/webgl-entrance-banners.js');
 cpSync('scripts/webgl-building-shading.js','dist/webgl-building-shading.js');
