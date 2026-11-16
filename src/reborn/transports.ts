@@ -34,9 +34,13 @@ export class Transports {
   const obstacles=this.landingObstacles();
   const accepted=g.units.filter(u=>ids.includes(u.id)&&u.owner===h.owner&&u.hp>0&&!u.carrier&&
    unitSpec(u).group==='Infanterie'&&!existing?.pickup.includes(u.id)&&
-   distance(u,site)<900&&
-   g.world.path(u,site,obstacles,Math.max(0,unitSpec(u).radius-10),
-    undefined,false,true).length>0).slice(0,room);
+   distance(u,site)<900&&(
+    // Older saves may already have infantry inside an expanded hangar
+    // collision. Normal movement knows how to exit that existing overlap;
+    // do not reject the boarding order before it can perform the escape.
+    !g.world.walkable(u,obstacles,Math.max(0,unitSpec(u).radius-10))||
+    g.world.path(u,site,obstacles,Math.max(0,unitSpec(u).radius-10),
+     undefined,false,true).length>0)).slice(0,room);
   if(!accepted.length)return 0;
   if(!existing||existing.phase==='cruise'||existing.phase==='takeoff'||existing.task!=='load'){
    h.transport={phase:h.kind==='rover'?'loading':distance(h,site)>12?'approach':'landing',task:'load',site:{...site},cargo:[...cargo],pickup:[],clock:0,transfer:0,resume:structuredClone(h.orders)};h.orders=[];h.path=[];h.repath=0;if(h.kind==='scout')h.flightHeight??=1;
