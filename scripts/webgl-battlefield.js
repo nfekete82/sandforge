@@ -1479,6 +1479,7 @@ export class SandforgeBattlefield {
    const available=globalCatalogAvailability(this.game);
    if(!available[event.detail.tab])return;
    this.panel.querySelector('#sf-actions').scrollTop=0;
+   if(event.detail.tab==='research')this.researchDeck?.reopen();
    const descriptions={
     buildings:'Gebäude auswählen und einen freien Bauplatz auf der Karte anklicken.',
     infantry:'Soldaten und Pioniere direkt aus dem globalen Menü ausbilden.',
