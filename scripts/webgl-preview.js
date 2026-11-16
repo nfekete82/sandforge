@@ -1335,7 +1335,7 @@ async function main(){
   // The 3D battlefield is live immediately; heavyweight PBR assets stream in.
   battlefield.sync(true);
   status.dataset.ready='true';
-  setStatus((terrain.battlefield?TERRAIN_LABELS[terrain.battlefield.profile]+' · Seed '+seed+' · ':'')+'WebGL2 aktiv · '+chunks+' Terrain-Chunks · '+stones+' Felsen · '+ruins+' glTF-Ruinen · 3D-Spielmechanik aktiv.');
+  setStatus((terrain.battlefield?TERRAIN_LABELS[terrain.battlefield.profile]+' · Seed '+seed+' · ':'')+'WebGL2 aktiv · '+chunks+' Terrain-Chunks · '+stones+' Felsen · '+ruins+' 3D-Ruinen · 3D-Spielmechanik aktiv.');
  }catch(error){
   console.error(error);errorNode.textContent='3D-Assets konnten nicht geladen werden: '+String(error);
   status.dataset.ready='false';setStatus('WebGL-Szene verfügbar; Asset-Ladevorgang fehlgeschlagen');
