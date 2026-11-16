@@ -396,7 +396,8 @@ export class SandforgeBattlefield {
       model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
       (entry.kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
        model.getObjectByName('FactoryRollupDoor'))||
-      (entry.kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root')))){
+      (entry.kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root'))||
+      (entry.kind==='generator'&&model.getObjectByName('SF_EnergyCore_PBR_Housing')))){
      // Preserve authored HQ and factory desert PBR albedo, not legacy recolors.
      model.userData.sandforgeOriginalPBR=true;
      model.traverse(mesh=>{if(mesh.isMesh){
