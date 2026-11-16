@@ -35,7 +35,7 @@ import {selectedInfantryForTransport,selectedLoadedTransports,selectedTransportM
 import {pointerGestureIntent,submitConstruction,nearestEngineer,keepPlacementAfterBuild,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
 import {validatedWallDrag,WALL_CHAIN_DRAG_THRESHOLD,WALL_CHAIN_MAX} from '/webgl-wall-drag.js';
 import {sameKindVisibleUnits,visibleFriendlyUnits} from '/webgl-double-click-select.js';
-import {FIELD_UNIT_COMMANDS,orderReturnToBase,returnBaseForUnit} from '/webgl-unit-commands.js';
+import {FIELD_UNIT_COMMANDS,orderReturnToBase} from '/webgl-unit-commands.js';
 import {tracerWindow} from '/webgl-hit-response.js';
 import {applyFactionAccents} from '/webgl-faction-accents.js';
 import {finishBuildingFacadeShading} from '/webgl-building-shading.js';
@@ -2081,15 +2081,14 @@ export class SandforgeBattlefield {
   const damagedAtBase=servicingFacility?g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
     (base.kind==='airfield'?['bomber','scout']:['rover','tank','artillery']).includes(u.kind)&&
     u.hp<g.maxUnitHp(u)&&!(base.kind==='airfield'?u.airfieldService:u.factoryService)).length:0;
+  // Troop HUD has only the three main commands. Garage/flight maintenance
+  // controls remain on selected FACTORY/AIRFIELD, not every selected vehicle.
+  // Current service status is informational; right-clicking the facility
+  // remains available for repair without an extra troop command.
   const serviceMarkup=serviceGroup?
    '<div class="sf-strategic-meter">⚙ '+(serviceState?
-     'PLATZ '+(serviceState.bay+1)+' · '+statusNames[serviceState.phase]: 'WARTUNG / '+serviceGroup.toUpperCase())+
-   '</div><div class="sf-service-controls">'+
-   '<button type="button" data-action="'+serviceGroup+'-repair" '+(!free.length?'disabled':'')+'>⬇ REPARIEREN</button>'+
-   '<button type="button" data-action="'+(serviceGroup==='hangar'?'hangar-launch':'factory-release')+
-     '" '+(!ready.length?'disabled':'')+'>↑ '+(serviceGroup==='hangar'?'STARTEN':'FREIGEBEN')+'</button>'+
-   '<button type="button" data-action="'+serviceGroup+'-auto" aria-pressed="'+Boolean(auto)+'">'+
-   'AUTO &lt;30 % '+(auto?'AN':'AUS')+'</button></div>':
+     'PLATZ '+(serviceState.bay+1)+' · '+statusNames[serviceState.phase]:
+     'WARTUNG / '+serviceGroup.toUpperCase())+'</div>':
    servicingFacility?'<div class="sf-strategic-meter">⚙ WARTUNGSPLÄTZE '+occupancy+' / 2</div>'+
     '<div class="sf-service-controls">'+
     '<button type="button" data-action="'+(base.kind==='airfield'?'hangar-repair-all':'factory-repair-all')+
