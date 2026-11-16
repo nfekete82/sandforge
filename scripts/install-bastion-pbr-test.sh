@@ -9,19 +9,19 @@ if [[ ! -f scripts/generate-bastion-radar.mjs ]]; then
  exit 1
 fi
 BACKUP="$(mktemp -d /tmp/sandforge-bastion-backup.XXXXXX)"
-# Back up all seven assets, not just the Bastion: this combined preview
-# replaces four older building GLBs as well.
-for file in bastion--1.glb bastion-0.glb bastion-1.glb \
-            barracks-0.glb barracks-1.glb \
-            headquarters-0.glb headquarters-1.glb; do
- cp "$ASSETS/$file" "$BACKUP/$file"
+# Save every affected building GLB. Fresh clones may not have new
+# generated factory/airfield assets yet, so copy only existing originals.
+ASSET_LIST=(bastion--1.glb bastion-0.glb bastion-1.glb
+            barracks-0.glb barracks-1.glb
+            headquarters-0.glb headquarters-1.glb
+            factory-0.glb factory-1.glb airfield-0.glb airfield-1.glb)
+for file in "${ASSET_LIST[@]}"; do
+ if [[ -f "$ASSETS/$file" ]]; then cp "$ASSETS/$file" "$BACKUP/$file"; fi
 done
 rollback(){
- echo "Bastion-Build/Test fehlgeschlagen; alte GLBs werden zurückkopiert: $BACKUP" >&2
- for file in bastion--1.glb bastion-0.glb bastion-1.glb \
-             barracks-0.glb barracks-1.glb \
-             headquarters-0.glb headquarters-1.glb; do
-  cp "$BACKUP/$file" "$ASSETS/$file"
+ echo "Bastion-Build/Test fehlgeschlagen; gesicherte GLBs werden zurückkopiert: $BACKUP" >&2
+ for file in "${ASSET_LIST[@]}"; do
+  if [[ -f "$BACKUP/$file" ]]; then cp "$BACKUP/$file" "$ASSETS/$file"; fi
  done
 }
 trap rollback ERR
