@@ -3,6 +3,10 @@ import {disposeOwnedMeshes} from './webgl-resource-lifecycle.js';
 import {servicePaint,disposeServicePaint} from './webgl-service-materials.js';
 import {ensureAirfieldPbr,detachAirfieldPbr} from './webgl-airfield-pbr.js';
 
+// Only the visual runway length changes (+15.2%); aircraft docking, flight
+// times and saved airfield coordinates remain simulation-owned.
+export const AIRFIELD_RUNWAY_LENGTH=484;
+export const AIRFIELD_RUNWAY_CENTER_Z=35;
 // Explicit, single-bay 3D service hangar on the simulation's local flightline.
 // All meshes are presentation-only; the actual bomber remains one Simulation unit.
 const paint={
@@ -55,8 +59,10 @@ export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
  // hangars; the old short cross-runway ahead of the building is gone.
  // Painted taxi directions are not a second black asphalt runway.
  box(group,'AirfieldExpandedConcreteApron',255,1.5,260,-145,.75,-5,wornPaving);
- box(group,'AirfieldRunwaySandShoulder',154,.7,438,12,1.05,35,wornPaving);
- box(group,'AirfieldExtendedRunway',141,1.6,420,12,1.85,35,runwayWear);
+ box(group,'AirfieldRunwaySandShoulder',154,.7,AIRFIELD_RUNWAY_LENGTH+18,
+  12,1.05,AIRFIELD_RUNWAY_CENTER_Z,wornPaving);
+ box(group,'AirfieldExtendedRunway',141,1.6,AIRFIELD_RUNWAY_LENGTH,
+  12,1.85,AIRFIELD_RUNWAY_CENTER_Z,runwayWear);
  // One aircraft stand outside the single hangar.
  for(const bay of [0]){
   const cx=bay===0?-151:-26;
@@ -84,21 +90,22 @@ export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
   box(group,'AirfieldAircraftParkingStop_'+bay,93,.15,3,cx,1.96,54,yellow);
   box(group,'AirfieldAircraftParkingNumber_'+bay,14,.12,8,cx,1.98,184,markings);
  }
- for(let z=-154;z<=232;z+=42)
+ for(let z=-190;z<=270;z+=42)
   box(group,'AirfieldRunwayCenterDash',3,.12,27,12,2.80,z,markings);
  // Runway lights are flush insets OUTSIDE the usable asphalt, not tall
  // yellow cuboids across the aircraft's landing path. The old lamp positions
  // (-56,80) sit on the runway edges (-58.5,82.5), and their 2m height
  // makes them look like stray obstacles at tactical camera distance.
  for(const [lineX,lampX] of [[-56,-69],[80,93]]){
-  box(group,'AirfieldRunwayEdgeLine',2,.12,416,lineX,2.80,35,markings);
-  for(let z=-164;z<=236;z+=42)
+  box(group,'AirfieldRunwayEdgeLine',2,.12,AIRFIELD_RUNWAY_LENGTH-4,
+   lineX,2.80,AIRFIELD_RUNWAY_CENTER_Z,markings);
+  for(let z=-196;z<=270;z+=42)
    box(group,'AirfieldRunwayLamp',3,.28,6,lampX,2.80,z,yellow);
  }
  // Clear runway thresholds and staggered military landing-zone stripes.
- for(const z of [-161,-150,-139])for(const x of [-32,-13,37,56])
+ for(const z of [-193,-182,-171])for(const x of [-32,-13,37,56])
   box(group,'AirfieldRunwayThreshold',11,.16,5,x,2.83,z,markings);
- for(const z of [190,202,214,226])for(const x of [-33,57])
+ for(const z of [222,234,246,258])for(const x of [-33,57])
   box(group,'AirfieldRunwayLandingBars',19,.15,7,x,2.84,z,markings);
  // One simple taxi guideline connects the wide stands with the long runway.
  // It does not cover the apron as the old short black runway did.
@@ -199,10 +206,11 @@ export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
    box(group,'HangarCabinetDrawer',12,1.4,2,x,yy,-98,dark);
  }
  // Wartime workshop details that read at tactical camera distance.
- for(const x of [-204,28]){
-  box(group,'HangarSecurityLampMast',5,60,5,x,32,32,steel);
-  box(group,'HangarSecurityLamp',18,7,12,x,64,32,yellow);
- }
+ // The old mast at x=28,z=32 was INSIDE the runway, blocking the approach.
+ // Keep only the service-yard lamp, well away from the landing strip.
+ const serviceLampX=-204;
+ box(group,'HangarSecurityLampMast',5,60,5,serviceLampX,32,32,steel);
+ box(group,'HangarSecurityLamp',18,7,12,serviceLampX,64,32,yellow);
  // Keep both aircraft door approaches fully empty. The control tower,
  // fuel tanks and ancillary equipment occupy the outside LEFT service strip.
  // The right maintenance bay is as unobstructed as the first.
