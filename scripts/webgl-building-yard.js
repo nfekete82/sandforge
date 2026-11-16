@@ -184,12 +184,12 @@ function perimeterFence(group,width){
 /** Barracks-only military wire perimeter. Unlike the old wooden fence, this
  * has slim steel posts and horizontal wire/barbs, no bulky rail or X braces.
  * Three sides plus two front sections keep the actual infantry exit clear. */
-function perimeterBarracksWire(group,width,{factory=false,generator=false,research=false}={}){
+function perimeterBarracksWire(group,width,{factory=false,generator=false,research=false,silo=false}={}){
  // Measure the ACTUAL outdoor crates, barrel rims and pallet. Their
  // footprints can extend beyond a proportional fence line on both the
  // Energiekern and the enlarged Forschungzentrum. Never run wire through kit.
  let cacheBounds=null;
- if(generator||research){
+ if(generator||research||silo){
   const cache=group.getObjectByName('BaseSupplyCache');
   if(cache){
    group.updateWorldMatrix(true,true);
@@ -201,21 +201,25 @@ function perimeterBarracksWire(group,width,{factory=false,generator=false,resear
    }
   }
  }
- const leftX=-width*(generator?.70:research?.74:.65);
+ const leftX=-width*(generator?.70:research?.74:silo?.73:.65);
  const rightX=generator?Math.max(width*.96,
   cacheBounds?cacheBounds.max.x+15:width*.96):
   research?Math.max(width*.86,cacheBounds?cacheBounds.max.x+18:width*.86):
+  silo?Math.max(width*.72,cacheBounds?cacheBounds.max.x+20:width*.72):
   width*.65;
  const rear=generator?Math.min(-width*.56,
   cacheBounds?cacheBounds.min.z-14:-width*.56):
   research?Math.min(-width*.59,cacheBounds?cacheBounds.min.z-16:-width*.59):
+  silo?Math.min(-width*.57,cacheBounds?cacheBounds.min.z-20:-width*.57):
   -width*.53;
  const front=generator?Math.max(width*.53,
   cacheBounds?cacheBounds.max.z+14:width*.53):
   research?Math.max(width*.56,cacheBounds?cacheBounds.max.z+18:width*.56):
+  silo?Math.max(width*.52,cacheBounds?cacheBounds.max.z+20:width*.52):
   width*.28;
- const gateHalf=width*(generator?.30:research?.28:.23);
- if(generator||research)group.userData[generator?'generatorFenceBounds':'researchFenceBounds']={
+ const gateHalf=width*(generator?.30:research?.28:silo?.24:.23);
+ if(generator||research||silo)group.userData[
+  generator?'generatorFenceBounds':research?'researchFenceBounds':'siloFenceBounds']={
   leftX,rightX,rear,front,gateHalf,
   cacheMinX:cacheBounds?.min.x??null,cacheMaxX:cacheBounds?.max.x??null,
   cacheMinZ:cacheBounds?.min.z??null,cacheMaxZ:cacheBounds?.max.z??null
@@ -263,6 +267,7 @@ function perimeterBarracksWire(group,width,{factory=false,generator=false,resear
  group.userData.barracksWireFence=true;
  group.userData.factoryWireFence=factory;
  group.userData.generatorWireFence=generator;
+ group.userData.siloWireFence=silo;
 }
 
 const barracksYardPaint=new Map([
@@ -328,8 +333,8 @@ function addSiteDecor(root,kind,width){
  // Build perimeter AFTER props so Energiekern can calculate their real
  // dimensions and reserve clearance on the right and in front. All other
  // military building perimeters keep their original geometry.
- if(['barracks','headquarters','factory','generator','research'].includes(kind))
-  perimeterBarracksWire(g,width,{factory:kind==='factory',generator:kind==='generator',research:kind==='research'});
+ if(['barracks','headquarters','factory','generator','research','silo'].includes(kind))
+  perimeterBarracksWire(g,width,{factory:kind==='factory',generator:kind==='generator',research:kind==='research',silo:kind==='silo'});
  else if(fencedSites.has(kind))perimeterFence(g,width);
  // Place masts near the side fencing, never along the open front door/spawn.
  const lampHeight=Math.min(60,Math.max(43,width*.29));
@@ -478,7 +483,7 @@ export function createBuildingYard(kind,width=160){
  if(CAMO_NET_BUILDING_KINDS.includes(kind))attachSmallCamouflageNet(root,width);
  // The generator's side crates, pallet and barrels need the same authored
  // wood/steel/cloth PBR mapping as HQ supplies, not plain colored blocks.
- if(['barracks','headquarters','factory','generator','research'].includes(kind))
+ if(['barracks','headquarters','factory','generator','research','silo'].includes(kind))
   textureBarracksYard(root);
  return root;
 }
