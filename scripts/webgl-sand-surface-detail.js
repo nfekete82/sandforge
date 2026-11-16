@@ -13,14 +13,14 @@ import * as THREE from 'three';
  * moving pattern on model/building previews.
  */
 export const DESERT_SURFACE_DETAIL=Object.freeze({
- revision:'wind-relief-layered-sand-v3-20261116',
- size:256,
- windTileMetres:900,
- siltTileMetres:305,
- gritTileMetres:70,
- coverageTileMetres:1850,
- coverageStrength:.29,
- gritStrength:.065
+ revision:'multiscale-natural-desert-sediment-v4-20261116',
+ size:512,
+ windTileMetres:540,
+ siltTileMetres:235,
+ gritTileMetres:48,
+ coverageTileMetres:1780,
+ coverageStrength:.43,
+ gritStrength:.11
 });
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
 const mix=(a,b,t)=>a+(b-a)*t;
@@ -73,21 +73,23 @@ export function createDesertSurfaceDetail(renderer){
   const ripples=.5+.5*wavy;
   const dust=.56*broad+.29*medium+.15*fine;
   // Silt is a mildly more compact and striated sand; no dark crust islands.
-  const s=clamp((dust-.5)*1.10+.15*(ripples-.5),-.27,.27);
+  // Sand/silt/powder alternation is genuinely visible at RTS scale,
+  // unlike the old +/-3 RGB texture hidden under the terrain albedo.
+  const s=clamp((dust-.5)*1.5+.30*(ripples-.5),-.45,.45);
   rgba(silt,index,
-   219+13*s+8*(tiny-.5),
-   203+13*s+7*(tiny-.5),
-   174+11*s+5*(tiny-.5));
+   207+38*s+10*(tiny-.5),
+   187+33*s+8*(tiny-.5),
+   155+30*s+6*(tiny-.5));
   // Subtle dense grain with very small occluded quartz/mineral specks.
-  const fleck=tiny>.83?-.055:tiny<.16?-.045:0;
-  const g=(fine-.5)*.22+(medium-.5)*.1+fleck;
+  const fleck=tiny>.83?-.075:tiny<.16?-.060:0;
+  const g=(fine-.5)*.35+(medium-.5)*.13+fleck;
   rgba(grit,index,
-   216+63*g,201+56*g,177+51*g);
+   212+67*g,193+63*g,166+60*g);
   // World-size sediment pockets appear through a low-frequency,
   // seamless coverage mask rather than painted white cloud overlays.
   const patch=.61*tiledNoise(u,v,4,0x8ac361)+
    .27*tiledNoise(u,v,9,0x207bec)+.12*tiledNoise(u,v,21,0x4923dc);
-  const m=clamp(.5+1.18*(patch-.49));
+  const m=clamp(.58+1.45*(patch-.49));
   // Independent wind/ridge envelopes stored in spare texture channels;
   // PBR uses one sampled mask and only the original terrain mesh.
   const wind=clamp(.55+.40*(tiledNoise(u,v,6,0x917ab1)-.5)+.15*(ripples-.5));
@@ -122,15 +124,20 @@ export function installDesertSurfaceDetail(material,renderer){
    '#include <map_fragment>',
    '// Single surface, three physical colour textures; no second mesh.',
    'vec3 sfDesertZoning=texture2D(sfDesertMask,sfDesertGround/'+DESERT_SURFACE_DETAIL.coverageTileMetres.toFixed(1)+').rgb;',
-   'float sfBedMask=smoothstep(.43,.75,sfDesertZoning.r);',
+   'float sfBedMask=smoothstep(.30,.76,sfDesertZoning.r);',
    'float sfDuneZone=clamp(.16+sfDesertZoning.b*.75+smoothstep(.012,.17,sfDesertRelief)*.24,0.0,1.0);',
    'float sfWindZone=clamp(.22+sfDesertZoning.g*.58+sfDuneZone*.22,0.0,1.0);',
+   '// Two scales at different rotations break the straight, repeating photo-tile look.',
+   'vec2 sfSandTwist=vec2(.8660254*sfDesertGround.x-.5*sfDesertGround.y,.5*sfDesertGround.x+.8660254*sfDesertGround.y);',
    'vec3 sfSediment=texture2D(sfDesertSilt,sfDesertGround/'+DESERT_SURFACE_DETAIL.siltTileMetres.toFixed(1)+').rgb;',
+   'sfSediment=mix(sfSediment,texture2D(sfDesertSilt,sfSandTwist/'+(DESERT_SURFACE_DETAIL.siltTileMetres*1.61).toFixed(1)+').rgb,.32);',
    'vec3 sfMineral=texture2D(sfDesertGrain,sfDesertGround/'+DESERT_SURFACE_DETAIL.gritTileMetres.toFixed(1)+').rgb;',
+   'sfMineral=mix(sfMineral,texture2D(sfDesertGrain,sfSandTwist/'+(DESERT_SURFACE_DETAIL.gritTileMetres*.47).toFixed(1)+').rgb,.22);',
+   'float sfWindDrift=texture2D(sfDesertMask,sfSandTwist/'+DESERT_SURFACE_DETAIL.windTileMetres.toFixed(1)+').g;',
    'diffuseColor.rgb=mix(diffuseColor.rgb,sfSediment,sfBedMask*'+DESERT_SURFACE_DETAIL.coverageStrength.toFixed(2)+');',
-   'diffuseColor.rgb=mix(diffuseColor.rgb,sfMineral,'+DESERT_SURFACE_DETAIL.gritStrength.toFixed(3)+'*(.45+.45*sfBedMask));',
+   'diffuseColor.rgb=mix(diffuseColor.rgb,sfMineral,'+DESERT_SURFACE_DETAIL.gritStrength.toFixed(3)+'*(.42+.5*sfBedMask));',
    '// Soft broad dune/hollow shading, continuous over all terrain chunks.',
-   'diffuseColor.rgb*=1.0+(.5-sfDesertZoning.r)*.055+(sfDuneZone-.5)*.023;'
+   'diffuseColor.rgb*=1.0+(.5-sfDesertZoning.r)*.063+(sfDuneZone-.5)*.034+(sfWindDrift-.5)*.044;'
   ].join('\n'));
   // Wind ripple bump relief fades naturally in sheltered/flat areas while
   // staying visible on exposed dunes. Keep the physical Three.js normal map.
