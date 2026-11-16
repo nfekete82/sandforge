@@ -36,13 +36,16 @@ export class SandforgeAirfieldLaunch {
   }
   this.game.cancelProductionDeparture?.(state.event.unitId);
  }
- update(active=true){
-  const bf=this.battlefield,game=this.game,time=game.time;
-  if(time<this.lastTime){
+ update(active=true,alpha=1){
+  const bf=this.battlefield,game=this.game;
+  // Interpolate the same 20Hz fixed-step snapshots as the rest of the 3D
+  // scene, so taxiing and takeoff are smooth at 60-120Hz screen refresh.
+  const time=game.time-(active?.05*(1-clamp(alpha)):0);
+  if(game.time<this.lastTime){
    for(const [id,state] of this.active)this.release(id,state);
    this.seen=new WeakSet(game.productionReleases);
   }
-  this.lastTime=time;
+  this.lastTime=game.time;
   // Paused RAF still refreshes model positions. Reapply the frozen rollout
   // pose or the actor would briefly teleport to its real runway handoff.
   // Only receipt of NEW release events pauses; existing animations remain
