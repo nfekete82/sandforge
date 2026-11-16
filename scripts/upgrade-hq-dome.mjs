@@ -2,7 +2,9 @@
 // Sandforge HQ: PBR command dome for both HQ GLBs. Pure Node.js.
 import {readFileSync,writeFileSync,renameSync} from 'node:fs';
 import {resolve} from 'node:path';
-const N=36,PI=Math.PI,cx=-.52,cz=.78,R=1.92,base=4.75,collar=5.35,top=6.63;
+// Tall, centered observation dome makes the command centre distinct from
+// the barracks. Radius +64%, height +~90%, atop the EXISTING larger HQ roof.
+const N=48,PI=Math.PI,cx=0,cz=-.12,R=3.15,base=4.75,collar=5.50,top=8.12;
 const surfaces=[['Shell','SF_OriginalPBR_roof'],['Base','SF_OriginalPBR_concrete'],
  ['Glazing','HQ_PBR_antireflective_window'],['Armour','HQ_PBR_radar_steel'],['Frame','HQ_PBR_black_grill']];
 const vec=(a,r,y)=>[cx+r*Math.cos(a),y,cz+r*Math.sin(a)];
