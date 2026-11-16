@@ -67,16 +67,13 @@ export function installClassicHud(){
  <div class="command-group">
   <div class="section-label">KOMMANDOS</div>
   <div class="commands" id="sf-command-buttons">
-   <button data-action="select-engineer" title="Lebenden Pionier auswählen (P)">PIONIER</button>
-   <button data-action="select-all" title="Alle Truppen auswählen">ALLE</button>
-   <button data-action="attack" title="Angriffsbewegung (F)">ANGRIFF</button>
-   <button data-action="rally" id="sf-rally" title="Sammelpunkt für neue Einheiten setzen">SAMMELPUNKT</button>
-   <button data-action="stop" title="Einheiten anhalten (X)">STOPP</button>
+   <button data-action="stop" title="Stellung halten und Gegner im Waffenradius automatisch bekämpfen (X)">STOPP</button>
+   <button data-action="return-base" title="Zur eigenen Basis marschieren und dort Stellung halten (G)">ZUR BASIS</button>
+   <button data-action="select-all" title="Alle sichtbaren eigenen Einheiten auf diesem Bildschirm auswählen (H)">ALLE</button>
+   <button data-action="rally" id="sf-rally" title="Sammelpunkt für neue Einheiten setzen" hidden>SAMMELPUNKT</button>
    <button data-action="demolish" title="Eigenes Gebäude abreißen (nicht rückgängig)" hidden>ABREISSEN</button>
-   <button data-action="unload" title="Alle Passagiere aus Humvee oder Transporthubschrauber ausladen (U)" hidden>ALLE AUSLADEN</button>
    <button data-action="missile-target" id="sf-strategic-fire" title="Langstreckenrakete: Ziel auf der Karte markieren" hidden>RAKETE STARTEN</button>
    <button data-action="interceptor-rearm" id="sf-interceptor-rearm" title="Drei Abwehrraketen für 650 Credits nachladen" hidden>ABWEHR LADEN</button>
-   <button data-action="cancel" title="Auswahl oder Bauplatz abbrechen (Esc)">ZURÜCK</button>
   </div>
  </div>
 </section>
@@ -100,6 +97,7 @@ export function installClassicHud(){
   attack:'<path d="m4 20 6-6m-5-8 13 13m-1-15L4 17m1 4 4-4m6-9 5-5 1 4-5 5"/>',
   rally:'<path d="M5 22V3m0 1c5-3 8 3 15 0v11c-6 3-10-3-15 0"/>',
   stop:'<rect x="5" y="5" width="14" height="14" rx="1"/>',
+  'return-base':'<path d="m3 11 9-8 9 8M5 10v11h14V10M9 21v-7h6v7"/><path d="M9 7H3m0 0 2-2m-2 2 2 2"/>',
   demolish:'<path d="M4 7h16M9 7V4h6v3m-9 0 1 14h10l1-14M10 11v7m4-7v7"/>',
   unload:'<path d="M12 3v13m-5-5 5 5 5-5M4 18v3h16v-3"/>',
   'missile-target':'<path d="M12 2c3 3 5 6 5 11v3H7v-3c0-5 2-8 5-11Z"/><path d="M7 11 4 15v4l3-2m10-6 3 4v4l-3-2M10 21v-3m4 3v-3"/>',
