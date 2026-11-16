@@ -37,6 +37,8 @@ test('adds only visual contact decals to the recognized final barracks',()=>{
   assert.ok(obj.isMesh);
   assert.equal(obj.userData.visualOnly,true);
   assert.equal(obj.userData.nonPlayable,true);
+  assert.equal(obj.userData.factionAccent,true,
+   'ownership repaint must not recolor contact shadow maps');
   assert.equal(obj.castShadow,false);
   assert.equal(obj.receiveShadow,false);
   assert.equal(obj.material.transparent,true);
