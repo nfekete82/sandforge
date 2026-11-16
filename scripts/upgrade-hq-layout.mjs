@@ -3,11 +3,11 @@
 // and radar pivots. Runs before upgrade-hq-dome.mjs on the original 35-mesh GLB.
 import {readFileSync,writeFileSync,renameSync} from 'node:fs';
 import {resolve} from 'node:path';
-const VERSION='centered-command-dome-roof-v3-20261116';
+const VERSION='centered-command-dome-roof-v4-canopy-20261116';
 const pad=n=>(4-n%4)%4;
 const ROOF_RADARS=Object.freeze({
  'HQ_Radar_01_LargeDish_Rotor':[-4.90,5.79,-3.15],
- 'HQ_Radar_02_PhasedArray_Rotor':[5.32,5.23,.20],
+ 'HQ_Radar_02_PhasedArray_Rotor':[5.87,5.23,.20],
  'HQ_Radar_03_MiniDish_Rotor':[5.42,5.45,3.08]
 });
 const mastMove=[5.12,-.65];
@@ -92,6 +92,15 @@ function upgrade(path){
   (x,y,z)=>x>7.0&&y<4.25&&z>1.05&&z<4.55,(x,y,z)=>[x,y,awningZ(z)]);
  changeVertices('HQ_Static_SF_OriginalPBR_crates',
   (x,y,z)=>x>7.05&&z>1.05&&z<4.55,(x,y,z)=>[x,y,awningZ(z)]);
+ // Some of the original steel support rods were coplanar with the stretched
+ // fabric. They z-fought with the canvas and appeared as black diagonal cuts.
+ // Keep the rods, but recess the parts under the actual sloped fabric plane.
+ // Only the awning steel is affected, not the HQ walls, door or roof dishes.
+ const fabricY=x=>3.4542+(x-6.9426)*(2.9184-3.4542)/(8.7318-6.9426);
+ changeVertices('HQ_Static_SF_OriginalPBR_steel',
+  (x,y,z)=>x>=6.93&&x<=8.75&&z>=-2.09&&z<=2.45&&
+    y>fabricY(x)-.11&&y<fabricY(x)+.24,
+  (x,y,z)=>[x,Math.min(y,fabricY(x)-.17),z]);
  json.asset.extras.sandforgeHQRoofLayout=VERSION;
  writeGlb(path,json,bin);
  console.log('HQ roof/awning/radars updated: '+path+' ('+shifted+' vertices)');
