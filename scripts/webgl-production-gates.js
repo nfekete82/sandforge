@@ -206,8 +206,16 @@ export class SandforgeProductionGates {
     if((gate.kind==='barracks'||gate.kind==='headquarters')&&!state.released){
      game.cancelProductionDeparture?.(event.unitId);
      state.released=true;
+     state.releaseTime=game.time;
     }
-    actor.productionMotion=null;continue;
+    // The authoritative rally starts on the next 20Hz tick. Keep the
+    // SAME foot walk clip for at most two ticks, instead of flashing idle
+    // between visual clearance and the first real path step.
+    const keepWalking=Boolean(state.released&&base?.rally&&!u.moving&&
+     game.time-(state.releaseTime??game.time)<.12);
+    actor.productionMotion=keepWalking&&state.lastMotion?
+     {...state.lastMotion,moving:true,hideHealth:false}:null;
+    continue;
    }
    entry.node.updateWorldMatrix(true,true);
    // First clear the entire hull and barrel past the real threshold. Only
@@ -247,6 +255,11 @@ export class SandforgeProductionGates {
     p=state.walkExit.clone().lerp(target,t);
     const tangent=target.clone().sub(state.walkExit);tangent.y=0;
     yaw=tangent.lengthSq()>.0001?Math.atan2(tangent.x,tangent.z):facing;
+    if(base.rally){
+     const heading=Math.PI/2-(u.hullAngle??u.angle);
+     const blend=smooth((fraction-.72)/.28);
+     yaw+=Math.atan2(Math.sin(heading-yaw),Math.cos(heading-yaw))*blend;
+    }
    }else{
     // Route around the footprint for every cardinal facing. The simulation's
     // legacy spawn search is independent of building rotation, so a direct
@@ -303,6 +316,7 @@ export class SandforgeProductionGates {
    // Gate state does not imply physical wheel rotation.
    const actuallyRolling=infantry?moving&&speed>.25:rolloutWheelsShouldRoll(moving,speed);
    actor.productionMotion={moving:actuallyRolling,hideHealth:fraction<clearFraction*.64,driveSpeed:speed,walkDistance:distance,angle:Math.PI/2-yaw,hullAngle:Math.PI/2-yaw};
+   if(infantry&&state.directFoot)state.lastMotion=actor.productionMotion;
    if(age<GATE_TIMING.warning)actor.node.visible=false; // hidden by the closed shutter
   }
  }
