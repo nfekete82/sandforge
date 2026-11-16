@@ -715,12 +715,50 @@ export class Simulation {
     const at=index===undefined?b.queue.length-1:index;if(at<0||at>=b.queue.length)return;
     b.queue.splice(at,1);const kind=b.queueTypes.splice(at,1)[0]??'infantry';this.credits[b.owner]+=b.queueCosts?.splice(at,1)[0]??UNITS[kind].cost;if(at===0||!b.queue.length)b.production=0;
   }
+  /** A wall is long and narrow (109×30), not a circular 24-radius
+   * building. Check the actual rotated footprint all the way to map borders
+   * and never let a mesh pass over a blocked cliff/rock or an existing site.
+   * Exploration and artificial sector polygon edges do not clip a perimeter.
+   */
+  private wallPlacementError(p:Point,facing:SiteFacing):string|null{
+    const yaw=[0,Math.PI,Math.PI/2,Math.PI*1.5][facing];
+    const c=Math.cos(yaw),s=Math.sin(yaw);
+    const ground=this.world;
+    let minHeight=Infinity,maxHeight=-Infinity;
+    for(let x=-53;x<=53;x+=10.6)for(const z of [-14,0,14]){
+      const q={x:p.x+x*c+z*s,y:p.y-x*s+z*c};
+      if(!ground.walkable(q))return 'Felsen oder Kartenrand blockieren dieses Mauerstück.';
+      if(ground.generated?.battlefield){
+        const h=ground.terrainHeight(q.x,q.y);
+        minHeight=Math.min(minHeight,h);maxHeight=Math.max(maxHeight,h);
+        if(!Number.isFinite(h)||ground.terrainSlope(q.x,q.y)>.24||
+           maxHeight-minHeight>24)return 'Mauerstück liegt auf zu steilem Gelände.';
+      }
+    }
+    // Walls may TOUCH end-to-end. Overlapping foundations and all other
+    // real building/repair footprints remain strictly forbidden.
+    if(this.obstacles().some(b=>sitesVisuallyOverlap(
+        'wall',p,facing,b.kind,b,b.facing??0)))
+      return 'Ein Gebäude oder eine vorhandene Mauer blockiert die Strecke.';
+    if(this.territories.some(t=>siteNearBastion('wall',p,facing,t.point)))
+      return 'Bastion oder Kontrollpunkt blockiert die Strecke.';
+    const segments=wallColliderSamples(p,facing,24);
+    if(this.units.some(u=>u.hp>0&&!u.carrier&&!unitSpec(u).flying&&
+       segments.some(c=>distance(u,c)<c.radius+unitSpec(u).radius)))
+      return 'Eine Einheit steht im Mauerverlauf.';
+    return null;
+  }
   buildError(owner:Faction,kind:BuildingKind,p:Point,facing:SiteFacing=0):string|null {
     const spec=BUILDINGS[kind];
     if(!Number.isFinite(p.x)||!Number.isFinite(p.y))return 'Ungültiger Kartenbereich.';
     if(!spec||this.status!=='playing')return 'Dieses Gebäude kann hier nicht errichtet werden.';
     if(kind==='interceptor'&&!INTERCEPTOR_ENABLED)return 'Raketenabwehr derzeit deaktiviert.';
-    if(this.bases.filter(b=>b.hp>0).length>=40)return 'Gebäudelimit erreicht.';
+    // Walls are individual inexpensive, destructible segments. The old
+    // global 40-building cap prevented drawing even half a long map border.
+    // Bound the separate wall budget to protect saves and rendering instead.
+    if(kind==='wall'?this.bases.filter(b=>b.kind==='wall'&&b.hp>0).length>=200:
+      this.bases.filter(b=>b.kind!=='wall'&&b.hp>0).length>=40)
+      return 'Gebäudelimit erreicht.';
     if(kind==='generator'&&this.bases.filter(b=>b.owner===owner&&b.kind==='generator'&&b.hp>0).length>=MAX_GENERATORS_PER_FACTION)
       return `Maximal ${MAX_GENERATORS_PER_FACTION} Energiekerne pro Fraktion.`;
     if(['barracks','factory','airfield','research','silo'].includes(kind)&&
@@ -733,6 +771,10 @@ export class Simulation {
       if(this.bases.some(b=>b.owner===owner&&b.kind==='headquarters'&&b.hp>0))return 'Ein Hauptquartier oder seine Baustelle existiert bereits.';
     }else if(!this.hasHeadquarters(owner))return 'Ein fertiggestelltes Hauptquartier ist erforderlich.';
     if(this.credits[owner]<spec.cost)return 'Zu wenig Credits.';
+    // A dragged perimeter is allowed in any navigable part of the map,
+    // including non-sector border bands. The individual wall footprint is
+    // still tested against actual rocks, buildings, units and terrain.
+    if(kind==='wall')return this.wallPlacementError(p,facing);
     if(kind!=='headquarters'&&!this.hasExplored(owner,p))return 'Dieser Bauplatz ist noch nicht erforscht.';
     if(!this.world.walkable(p))return 'Felsen blockieren die Baustelle.';
     // build() later resolves the containing territory. A valid-looking
@@ -792,7 +834,9 @@ export class Simulation {
     if(this.buildError(owner,kind,p,facing))return null;
     const workers=this.units.filter(u=>u.owner===owner&&u.kind==='engineer'&&u.hp>0&&!u.carrier&&(!workerIds||workerIds.includes(u.id)));
     if(!workers.length)return null;
-    const spec=BUILDINGS[kind],territory=this.territories.find(t=>inside(p,t.polygon));
+    const spec=BUILDINGS[kind],territory=this.territories.find(t=>inside(p,t.polygon))??
+      (kind==='wall'?[...this.territories].sort((a,b)=>
+       distance(a.point,p)-distance(b.point,p))[0]:undefined);
     if(!territory){this.notices.push('Bauplatz liegt außerhalb eines Sektors.');return null;}
     let id=1000;while(this.bases.some(b=>b.id===id)||this.units.some(u=>u.id===id))id++;
     const instant=owner===0&&this.testMode;
@@ -2134,7 +2178,7 @@ export class Simulation {
       (s.strategicMissiles!==undefined&&(!Array.isArray(s.strategicMissiles)||
         s.strategicMissiles.length>12||
         s.strategicMissiles.some(m=>!validStrategicMissile(m,mapWorldSize(s.mapVersion??0),s.time))))||
-       !validMatchStatisticsOrLegacy(s.stats)||!Array.isArray(s.units)||s.units.length>96||!Array.isArray(s.bases)||s.bases.length<(s.bootstrapVersion===1?0:2)||s.bases.length>64||
+       !validMatchStatisticsOrLegacy(s.stats)||!Array.isArray(s.units)||s.units.length>96||!Array.isArray(s.bases)||s.bases.length<(s.bootstrapVersion===1?0:2)||s.bases.length>260||
       s.units.some(u=>u.exactPath!==undefined&&typeof u.exactPath!=='boolean')||
       !Array.isArray(s.territories)||s.territories.length!==mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows||!Array.isArray(s.explored)||s.explored.length!==2||
       s.explored.some(a=>!Array.isArray(a)||![120**2,RULES.grid**2].includes(a.length)||a.some(v=>v!==0&&v!==1))||
