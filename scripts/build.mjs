@@ -82,6 +82,7 @@ cpSync('scripts/webgl-barracks-props.js','dist/webgl-barracks-props.js');
 cpSync('scripts/webgl-barracks-contact-shadows.js','dist/webgl-barracks-contact-shadows.js');
 cpSync('scripts/webgl-barracks-prop-materials.js','dist/webgl-barracks-prop-materials.js');
 cpSync('scripts/webgl-airfield-service.js','dist/webgl-airfield-service.js');
+cpSync('scripts/webgl-airfield-pbr.js','dist/webgl-airfield-pbr.js');
 cpSync('scripts/webgl-factory-service.js','dist/webgl-factory-service.js');
 cpSync('scripts/webgl-service-materials.js','dist/webgl-service-materials.js');
 cpSync('scripts/webgl-maintenance-input.js','dist/webgl-maintenance-input.js');
@@ -121,6 +122,9 @@ execFileSync(process.execPath,['scripts/generate-bastion-radar.mjs'],{stdio:'inh
 // Factory GLBs are deterministic, checked-in as a generator rather than 10MB binaries.
 // Both teams share the same PBR topology and real animated FactoryRollupDoor.
 execFileSync(process.execPath,['scripts/generate-factory-pbr.mjs'],{stdio:'inherit'});
+// Both airfield factions are deterministic low-poly PBR assets in Git source.
+// Real flightline service still animates doors and controls aircraft docking.
+execFileSync(process.execPath,['scripts/generate-airfield-pbr.mjs'],{stdio:'inherit'});
 cpSync('src/assets', 'dist/src/assets', {recursive:true});
 // Incremental local builds must also discard the retired aircraft assets.
 for(const team of [0,1])for(const extension of ['glb','png','json'])rmSync(`dist/src/assets/reborn/animation/gunship-${team}.${extension}`,{force:true});
