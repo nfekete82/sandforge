@@ -152,7 +152,13 @@ export class SandforgeProductionGates {
    const length=start.distanceTo(exit)+turn*radius+Math.abs(radius-Math.hypot(target.x-center.x,target.z-center.z));
    // Rear-facing exits need more travel time around the footprint, rather
    // than accelerating a tank to Humvee speed to meet a fixed deadline.
-   const duration=Math.max(infantry?2.8:GATE_TIMING.drive,length/(infantry?105:95));
+   // An assigned rally must NOT make the soldier crawl to a fixed right-side
+   // holding position. Run directly out at foot-unit pace; without a rally,
+   // keep the existing deliberate right-side arrival/wait animation.
+   const footSpeed=unit.kind==='heavy'?78:unit.kind==='rocket'?92:105;
+   const duration=infantry&&base.rally
+    ?Math.max(1.4,length/footSpeed)
+    :Math.max(infantry?2.8:GATE_TIMING.drive,length/(infantry?105:95));
    // Freeze only the real simulation actor's departure, NOT production or
    // its paid rally order. At the exact portal hand-off it resumes ordinary
    // 20 Hz movement from the same lawful spawn with no visual teleport.
