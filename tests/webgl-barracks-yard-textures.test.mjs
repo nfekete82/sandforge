@@ -37,7 +37,7 @@ test('all visible barracks yard props use texture maps (except emissive lamp gla
  const yard=createBuildingYard('barracks',160);
  const inspected=[];
  yard.traverse(mesh=>{
-  if(!mesh.isMesh||mesh.material.name==='')return;
+  if(!mesh.isMesh)return;
   if(mesh.name==='LampDiffuser')return;
   inspected.push(mesh.name);
   const mat=mesh.material;
