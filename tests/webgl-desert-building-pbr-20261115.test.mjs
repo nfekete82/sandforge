@@ -110,7 +110,7 @@ test('authored factory and airfield only repaint wall shells with barracks camou
   };
   painted.material.onBeforeCompile(shader,{});
   assert.ok(shader.fragmentShader.includes('sfBuildingAlbedo'),'shared barracks texture');
-  if(kind==='airfield')assert.ok(shader.fragmentShader.includes('sfBuildingLocal*0.055'),
+  if(kind==='airfield')assert.ok(shader.fragmentShader.includes('sfBuildingLocal*0.027'),
    'authored hangar uses correct physical-scale camouflage');
   assert.strictEqual(model.getObjectByName(roof).material,originalRoof);
   assert.strictEqual(model.getObjectByName(gate).material,originalGate);
