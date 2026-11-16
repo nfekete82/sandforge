@@ -11,6 +11,7 @@ import {finishDesertBuildingMaterials,waitForDesertBuildingTextures,DESERT_BUILD
 import {hasAuthoredHeadquartersPBR,prepareAuthoredHeadquartersPortrait} from './webgl-hq-portrait.js';
 import {hasFinalBarracksPBR,prepareFinalBarracksPortrait} from './webgl-pbr-barracks-portrait.js';
 import {polishBarracksProps} from './webgl-barracks-props.js';
+import {paintFactionRoofStripes} from './webgl-building-roof-stripes.js';
 
 /** Sprite-sheet portrait extraction shared by the WebGL HUD.
  * The classic game crops one idle frame rather than scaling down the entire
@@ -105,12 +106,13 @@ function renderModelPortrait(model,renderer,{width=320,height=220,research=false
  scene.add(model);
  // Dedicated bright studio for building tiles, not the main game scene.
  const studioBuilding=buildingCard||headquartersCard;
- const hemi=new THREE.HemisphereLight(studioBuilding?'#fffaf2':'#fff3e2','#576e73',
-  headquartersCard?3.1:studioBuilding?2.60:research?2.15:2.0);
+ const hemi=new THREE.HemisphereLight(studioBuilding?'#fffaf2':infantryCard?'#f8fbfd':'#fff3e2',
+  infantryCard?'#788b95':'#576e73',
+  headquartersCard?3.1:studioBuilding?2.60:infantryCard?2.35:research?2.15:2.0);
  scene.add(hemi);
- const key=new THREE.DirectionalLight(studioBuilding?'#fff9f2':'#ffedcd',headquartersCard?3.35:studioBuilding?3.05:research?2.9:2.6);
+ const key=new THREE.DirectionalLight(studioBuilding?'#fff9f2':infantryCard?'#f6faff':'#ffedcd',headquartersCard?3.35:studioBuilding?3.05:infantryCard?2.70:research?2.9:2.6);
  key.position.set(210,390,290);scene.add(key);
- const fill=new THREE.DirectionalLight(studioBuilding?'#dce6ea':'#b6dce5',headquartersCard?1.5:studioBuilding?1.45:.95);
+ const fill=new THREE.DirectionalLight(studioBuilding?'#dce6ea':infantryCard?'#d5e8f4':'#b6dce5',headquartersCard?1.5:studioBuilding?1.45:infantryCard?1.18:.95);
  fill.position.set(-280,170,-170);scene.add(fill);
  // Extra bounce is confined to the isolated HUD scene, never the battlefield.
  if(studioBuilding)scene.add(new THREE.AmbientLight('#fff2dc',headquartersCard?.85:.56));
@@ -390,6 +392,8 @@ async function rasterizeBuildingIcon(kind,renderer){
     finishDesertBuildingMaterials(model,kind);
     finishBuildingFacadeShading(model);
    }
+   // Same flush roof insignia in the actual battle, placement ghost and HUD.
+   if(authoredHQ||authoredBarracks)paintFactionRoofStripes(model,kind,0);
    return renderModelPortrait(model,renderer,{buildingCard:true,headquartersCard:authoredHQ});
   }catch(error){
    console.warn('Desert building PBR portrait fallback:',kind,error);
