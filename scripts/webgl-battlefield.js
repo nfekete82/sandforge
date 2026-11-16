@@ -390,8 +390,10 @@ export class SandforgeBattlefield {
       -box0.min.y*scale,-box0.getCenter(new THREE.Vector3()).z*scale);
     }
     if(type==='building'){
-     this.lightBuildingMeshes(model);
-     if(entry.kind==='barracks')finishBarracksSides(model);
+     if(!model.userData.sandforgeOriginalPBR){
+      this.lightBuildingMeshes(model);
+      if(entry.kind==='barracks')finishBarracksSides(model);
+     }
     }else model.traverse(o=>{
      if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}
     });
@@ -413,11 +415,13 @@ export class SandforgeBattlefield {
       (type==='unit'?visualUnitScale(entry.kind):1);
     entry.modelHeight=dims.y*visualScale;
     entry.modelFootprint=Math.max(dims.x,dims.z)*visualScale;
-    applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,
-     entry.modelFootprint,entry.modelHeight);
-    if(type==='building'&&entry.kind==='barracks')finishBarracksDesertPalette(model);
-    if(type==='building')finishDesertBuildingMaterials(model,entry.kind);
-    if(type==='building')finishBuildingFacadeShading(model);
+    if(!model.userData.sandforgeOriginalPBR){
+     applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,
+      entry.modelFootprint,entry.modelHeight);
+     if(type==='building'&&entry.kind==='barracks')finishBarracksDesertPalette(model);
+     if(type==='building')finishDesertBuildingMaterials(model,entry.kind);
+     if(type==='building')finishBuildingFacadeShading(model);
+    }
     if(type==='unit')attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
     entry.visualBaseY=model.position.y;entry.visualBaseZ=model.position.z;
     if(type==='building'){
@@ -670,10 +674,10 @@ export class SandforgeBattlefield {
       -bounds.min.y*scale,-bounds.getCenter(new THREE.Vector3()).z*scale);
    }
    if(kind==='airfield')hideOldAirfieldHangar({detail:model});
-   if(kind==='barracks')finishBarracksSides(model);
+   if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksSides(model);
    tint(model,false,.50);
-   if(kind==='barracks')finishBarracksDesertPalette(model);
-   finishDesertBuildingMaterials(model,kind);
+   if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksDesertPalette(model);
+   if(!model.userData.sandforgeOriginalPBR)finishDesertBuildingMaterials(model,kind);
    model.visible=true; // final authored shape and its actual entrances
    group.remove(placeholder);disposeOwnedMeshes(placeholder);
    group.userData.previewPlaceholder=null;group.userData.previewDetail=model;
