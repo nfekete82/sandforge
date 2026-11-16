@@ -131,7 +131,11 @@ sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
 sun.shadow.camera.left=-1250;sun.shadow.camera.right=1250;
 sun.shadow.camera.top=1250;sun.shadow.camera.bottom=-1250;
 sun.shadow.camera.near=1;sun.shadow.camera.far=3000;
-sun.shadow.bias=-.00006;sun.shadow.normalBias=.038;
+// Grazing sunset light is susceptible to terrain self-shadow "acne":
+// slightly larger normal bias stops dark pixel rows without losing the
+// building/unit silhouettes. Daytime retains its existing precise bias.
+sun.shadow.bias=goldenHour?-.00018:-.00006;
+sun.shadow.normalBias=goldenHour?.13:.038;
 sun.target.position.set(0,0,0);scene.add(sun,sun.target);
 const fill=new THREE.DirectionalLight(
  sunset?.fillColor??biomeStyle.fill,sunset?.fillIntensity??.40);
@@ -223,12 +227,28 @@ function sandTexture(){
 function sandMicroNormalTexture(){
  const canvas=document.createElement('canvas');canvas.width=canvas.height=256;
  const ctx=canvas.getContext('2d'),pixels=ctx.createImageData(256,256);
+ // Seamlessly repeating low-amplitude NON-periodic grains. The old
+ // explicit cosine waves in the fallback normal map looked like parallel
+ // LCD scanlines, particularly under the low sunset sun and zoomed-out RTS
+ // camera. Smooth stochastic slopes do not introduce coherent bands.
+ const tile=(x,y)=>{
+  const xi=(x+256)%256,yi=(y+256)%256;
+  let h=(Math.imul(xi,374761393)+Math.imul(yi,668265263)+seed)|0;
+  h=Math.imul(h^(h>>>13),1274126177);
+  return ((h^(h>>>16))>>>0)/4294967296;
+ };
+ const sample=(x,y)=>{
+  const cell=12,u=x/cell,v=y/cell;
+  const a=Math.floor(u),b=Math.floor(v);
+  const fx=(u-a)**2*(3-2*(u-a)),fy=(v-b)**2*(3-2*(v-b));
+  const rnd=(i,j)=>tile((i+22)%22,(j+22)%22);
+  const n0=rnd(a,b)*(1-fx)+rnd(a+1,b)*fx;
+  const n1=rnd(a,b+1)*(1-fx)+rnd(a+1,b+1)*fx;
+  return n0*(1-fy)+n1*fy;
+ };
  for(let y=0;y<256;y++)for(let x=0;x<256;x++){
-  const ripple=Math.cos(x*.19+y*.048)*.16+
-   Math.cos(x*.57-y*.12)*.06+
-   Math.cos(y*.41+x*.06)*.04;
-  const cross=Math.sin(x*.19+y*.048)*.035+
-   Math.sin(y*.41+x*.06)*.018;
+  const ripple=(sample(x+2,y)-sample(x-2,y))*.12;
+  const cross=(sample(x,y+2)-sample(x,y-2))*.12;
   const inv=1/Math.hypot(ripple,1,cross);
   const k=(y*256+x)*4;
   pixels.data[k]=Math.round(127.5*(1-ripple*inv));
