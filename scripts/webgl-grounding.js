@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {BUILDINGS} from '/src/reborn/catalog.js';
+import {createBuildingFoundation,disposeBuildingFoundation} from '/webgl-foundation-slabs.js';
 
 /** Soft, low-contrast contact shading to integrate models into desert sand.
  * Rendering only; never changes collision, navigation, visibility or saves. */
@@ -64,14 +65,20 @@ export class SandforgeGroundingPass{
   apron.rotation.x=-Math.PI/2;apron.position.y=.35;
   apron.scale.set(diameter*1.52,diameter*1.16,1);
   apron.renderOrder=2;
-  // Each building owns the pair so deletion removes both in one operation.
+  // Add a real but VERY THIN poured-concrete footing. Existing fog, erosion
+  // aprons and terrain height samples remain authoritative.
+  const foundation=createBuildingFoundation(entity.kind,diameter);
   const group=new THREE.Group();
   group.name='grounding-'+entity.kind+'-'+entity.id;
   group.userData={decoration:true,nonPlayable:true};
+  if(foundation){group.userData.foundation=foundation;group.add(foundation);}
   group.add(apron,base);entry.node.add(group);this.items.set(entity.id,group);
  }
  detachBuilding(id){
   const item=this.items.get(id);
-  if(item){item.parent?.remove(item);this.items.delete(id);}
+  if(item){
+   if(item.userData.foundation)disposeBuildingFoundation(item.userData.foundation);
+   item.parent?.remove(item);this.items.delete(id);
+  }
  }
 }
