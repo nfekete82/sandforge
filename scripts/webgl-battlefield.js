@@ -42,6 +42,7 @@ import {UPGRADES,UPGRADE_KINDS,canResearchUpgrade,INTERCEPTOR_ENABLED,SILO_CHARG
 import {createStrategicBuilding,isStrategicBuilding} from '/webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry,disposeRocketLauncher} from '/webgl-rocket-infantry.js';
 import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building-roof-stripes.js';
+import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
@@ -396,8 +397,10 @@ export class SandforgeBattlefield {
      }});
     }
     if(type==='building'&&entry.kind==='barracks')polishBarracksProps(model);
-    if(type==='building'&&['barracks','headquarters'].includes(entry.kind))
+    if(type==='building'&&['barracks','headquarters'].includes(entry.kind)){
      paintFactionRoofStripes(model,entry.kind,entry.owner);
+     paintFactionEntranceBanners(model,entry.kind,entry.owner);
+    }
     if(type==='unit'&&entry.kind==='engineer')
      entry.engineerTools=equipEngineerTools(model);
     if(type==='unit'&&entry.kind==='rocket')
@@ -693,7 +696,10 @@ export class SandforgeBattlefield {
      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))
     model.userData.sandforgeOriginalPBR=true;
    if(kind==='barracks')polishBarracksProps(model);
-   if(kind==='barracks'||kind==='headquarters')paintFactionRoofStripes(model,kind,0);
+   if(kind==='barracks'||kind==='headquarters'){
+    paintFactionRoofStripes(model,kind,0);
+    paintFactionEntranceBanners(model,kind,0);
+   }
    const bounds=new THREE.Box3().setFromObject(model);
    const size=bounds.getSize(new THREE.Vector3());
    if(size.y>0&&Math.max(size.x,size.z)>0){
@@ -727,6 +733,7 @@ export class SandforgeBattlefield {
    }
    if(preview.userData.previewDetail){
     disposeFactionRoofStripes(preview.userData.previewDetail);
+    disposeFactionEntranceBanners(preview.userData.previewDetail);
     disposeBarracksSides(preview.userData.previewDetail);
     disposeTaggedMaterials(preview.userData.previewDetail,'sandforgeBarracksPalette');
     disposeTaggedMaterials(preview.userData.previewDetail,'sandforgeBuildingPBROwned');
@@ -888,8 +895,10 @@ export class SandforgeBattlefield {
    if(!entry){entry=this.spawnNode(b,'building');this.bases.set(b.id,entry);this.grounding.attachBuilding(entry,b);}
    if(entry.factionOwner!==b.owner){
     applyFactionAccents(entry,b,'building');
-    if(entry.detail&&['barracks','headquarters'].includes(b.kind))
+    if(entry.detail&&['barracks','headquarters'].includes(b.kind)){
      paintFactionRoofStripes(entry.detail,b.kind,b.owner);
+     paintFactionEntranceBanners(entry.detail,b.kind,b.owner);
+    }
    }
    entry.node.position.copy(this.entityPosition(b));
    entry.node.visible=b.owner===0||this.game.canSee(0,b);
@@ -935,6 +944,7 @@ export class SandforgeBattlefield {
     disposeAirfieldServiceYard(e);disposeFactoryServiceYard(e);
     if(e.placeholder){disposeOwnedMeshes(e.placeholder);e.placeholder=null;}
     if(e.detail){disposeFactionRoofStripes(e.detail);
+     disposeFactionEntranceBanners(e.detail);
      disposeBarracksSides(e.detail);
      disposeTaggedMaterials(e.detail,'sandforgeBarracksPalette');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingPBROwned');
