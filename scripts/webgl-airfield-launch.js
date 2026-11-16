@@ -43,10 +43,13 @@ export class SandforgeAirfieldLaunch {
    this.seen=new WeakSet(game.productionReleases);
   }
   this.lastTime=time;
-  if(!active)return;
+  // Paused RAF still refreshes model positions. Reapply the frozen rollout
+  // pose or the actor would briefly teleport to its real runway handoff.
+  // Only receipt of NEW release events pauses; existing animations remain
+  // displayed at the same Simulation time.
   const entities=new Map(game.units.map(u=>[u.id,u]));
   const bases=new Map(game.bases.map(b=>[b.id,b]));
-  for(const event of game.productionReleases){
+  for(const event of active?game.productionReleases:[]){
    if(this.seen.has(event)||!flightKinds.has(event.kind))continue;
    const base=bases.get(event.baseId);
    if(!base||base.kind!=='airfield'){this.seen.add(event);continue;}
