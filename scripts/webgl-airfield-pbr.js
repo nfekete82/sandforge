@@ -40,6 +40,11 @@ function releaseGhost(model){
 export function ensureAirfieldPbr(group,owner=0,{ghost=false}={}){
  if(!group||group.userData.airfieldPbrDisposed||owner!==0&&owner!==1)
   return Promise.resolve(false);
+ // Node/unit tests render the legacy yard without a browser asset server.
+ if(typeof window==='undefined')return Promise.resolve(false);
+ // Missing local asset? Keep the old hangar without retrying/flooding logs
+ // every frame. A fresh page load can retry after a corrected build.
+ if(group.userData.airfieldPbrFailedOwner===owner)return Promise.resolve(false);
  if(group.userData.airfieldPbrOwner===owner&&group.userData.airfieldPbrModel)
   return Promise.resolve(true);
  if(group.userData.airfieldPbrPendingOwner===owner)
@@ -58,6 +63,12 @@ export function ensureAirfieldPbr(group,owner=0,{ghost=false}={}){
    throw new Error('Airfield PBR missing animated shutters / roof');
   model.name='SandforgeAirfieldPBR_'+owner;
   model.userData.sandforgeOriginalPBR=true;
+  model.traverse(node=>{
+   if(node.isMesh&&node.name!=='HangarDoorLeft_0'&&node.name!=='HangarDoorRight_0'){
+    node.receiveShadow=true;
+    node.castShadow=/^SF_Airfield_PBR_(?:camo|roof|stone)$/.test(node.name);
+   }
+  });
   if(ghost)styleGhost(model);
   const gate=group.userData.bay0;
   // Preserve old door references to restore them on teardown or older saves.
@@ -68,6 +79,7 @@ export function ensureAirfieldPbr(group,owner=0,{ghost=false}={}){
   group.add(model);
   group.userData.airfieldPbrModel=model;
   group.userData.airfieldPbrOwner=owner;
+  group.userData.airfieldPbrFailedOwner=null;
   if(!group.userData.airfieldHiddenLegacy){
    group.userData.airfieldHiddenLegacy=[];
    for(const child of group.children){
@@ -90,8 +102,10 @@ export function ensureAirfieldPbr(group,owner=0,{ghost=false}={}){
   }
   return true;
  }).catch(error=>{
-  if(group.userData.airfieldPbrToken===token&&!group.userData.airfieldPbrDisposed)
+  if(group.userData.airfieldPbrToken===token&&!group.userData.airfieldPbrDisposed){
+   group.userData.airfieldPbrFailedOwner=owner;
    console.warn('Airfield PBR: legacy 3D hangar remains available',error);
+  }
   return false;
  }).finally(()=>{
   if(group.userData.airfieldPbrToken===token)
