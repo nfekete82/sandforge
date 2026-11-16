@@ -250,16 +250,29 @@ function addSiteDecor(root,kind,width){
  if(kind==='barracks')perimeterBarracksWire(g,width);
  else if(fencedSites.has(kind))perimeterFence(g,width);
  const supplies=new THREE.Group();
- supplies.name='BaseSupplyCache';supplies.position.set(width*.55,0,-width*.2);
+ // The original depot was centered at x=.55*width while its pallet
+ // extended another 30+ units into the wire-fence line (x=.65*width).
+ // Keep the barracks-only cache compact and clearly inside the perimeter.
+ supplies.name='BaseSupplyCache';
+ supplies.position.set(kind==='barracks'?width*.49:width*.55,0,-width*.2);
  g.add(supplies);
  // Different silhouettes per facility, all deterministic and inexpensive.
- storageCrate(supplies,0,0,large?19:13);
- storageCrate(supplies,large?18:13,12,large?14:11,sand);
- if(kind!=='airfield'){
-  box(supplies,'SupplyPallet',[43,3.2,27],wood,9,1.6,4);
-  supplyBarrel(supplies,-16,-11);
-  if(kind==='factory'||kind==='research'||kind==='headquarters')
-   supplyBarrel(supplies,-3,-19);
+ if(kind==='barracks'){
+  // Fit all boxes, wood pallet and drum between the building facade
+  // and side wire. Preserve crate/metal texture roles and visual shadows.
+  storageCrate(supplies,0,0,14);
+  storageCrate(supplies,14,9,10,sand);
+  box(supplies,'SupplyPallet',[28,3.2,22],wood,3,1.6,3);
+  supplyBarrel(supplies,-10,-11);
+ }else{
+  storageCrate(supplies,0,0,large?19:13);
+  storageCrate(supplies,large?18:13,12,large?14:11,sand);
+  if(kind!=='airfield'){
+   box(supplies,'SupplyPallet',[43,3.2,27],wood,9,1.6,4);
+   supplyBarrel(supplies,-16,-11);
+   if(kind==='factory'||kind==='research'||kind==='headquarters')
+    supplyBarrel(supplies,-3,-19);
+  }
  }
  // Place masts near the side fencing, never along the open front door/spawn.
  const lampHeight=Math.min(60,Math.max(43,width*.29));
