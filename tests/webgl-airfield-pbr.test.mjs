@@ -149,6 +149,8 @@ function meshPoints(model,nodeName){
 test('new barrel roof is continuous corrugated steel with its own embedded 256px texture',()=>{
  const gen=src('generate-airfield-pbr.mjs');
  assert.match(gen,/export const AIRFIELD_ROOF_SEGMENTS=108/);
+ assert.match(gen,/ROOF_BASE_Y=73,ROOF_RISE=35/);
+ assert.match(gen,/box\('stone',\[x,107,-105\]/,'vents must sit ON the curved roof');
  assert.match(gen,/barrelRoof\(cx\)/);
  assert.doesNotMatch(gen,/const panel= j%3/,'retired floating plate roof must stay removed');
  for(const owner of [0,1]){
@@ -157,8 +159,8 @@ test('new barrel roof is continuous corrugated steel with its own embedded 256px
   assert.ok(points.length>=600,'continuous curved roof surface');
   const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]),zs=points.map(p=>p[2]);
   assert.ok(Math.max(...xs)-Math.min(...xs)>=120,'full hangar width');
-  assert.ok(Math.max(...ys)-Math.min(...ys)>=11,'visible barrel vault crown');
-  assert.ok(Math.min(...ys)>82,'roof must be ABOVE the door frame');
+  assert.ok(Math.max(...ys)-Math.min(...ys)>=25,'pronounced rounded Quonset barrel vault, not a flat plate');
+  assert.ok(Math.min(...ys)>75,'curved eaves must clear the full-size hangar doorway');
   assert.ok(Math.min(...zs)<=-173&&Math.max(...zs)>=20);
   const teamPaint=meshPoints(model,'SF_Airfield_PBR_team')
    .filter(([x,y,z])=>y>84&&z<0&&x>-215&&x<-85);
