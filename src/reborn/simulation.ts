@@ -814,6 +814,49 @@ export class Simulation {
     for(const u of this.units){const active=u.orders[0]?.target===id;u.orders=u.orders.filter(o=>o.target!==id);if(active||u.workingTarget===id){u.workingTarget=null;u.path=[];u.repath=0;}}
     this.updateVision();return true;
   }
+  /** Explicit player demolition. This is NOT weapon damage: no artificial
+   * shot, kill XP, friendly-fire or combat AI reaction is introduced.
+   * Existing construction cancellations keep their original 75% refund.
+   * Completed structures have no refund and are removed from pathing/saves
+   * immediately, while WebGL presents the cosmetic collapse independently.
+   */
+  demolishBuilding(id:number,owner:Faction=0):boolean {
+    if(this.status!=='playing')return false;
+    const b=this.bases.find(site=>site.id===id&&site.owner===owner&&site.hp>0);
+    if(!b)return false;
+    if(b.buildRemaining>0){
+      const cancelled=this.cancelConstruction(id);
+      if(cancelled)this.notices.push('Baustelle abgebrochen: '+buildingSpec(b).name+'.');
+      return cancelled;
+    }
+    b.hp=0;b.queue=[];b.queueTypes=[];b.queueCosts=[];
+    b.production=0;b.rally=null;
+    this.bases=this.bases.filter(site=>site.id!==id);
+    // A destroyed factory/airfield must not keep the paid unit on its
+    // demolition site's invisible service deck or release a ghost aircraft.
+    for(let i=this.productionReleases.length-1;i>=0;i--)
+      if(this.productionReleases[i].baseId===id){
+        this.cancelProductionDeparture(this.productionReleases[i].unitId);
+        this.productionReleases.splice(i,1);
+      }
+    for(const u of this.units){
+      if(u.factoryService?.baseId===id||u.airfieldService?.baseId===id){
+        delete u.factoryService;delete u.airfieldService;
+        u.path=[];u.repath=0;
+      }
+      if(u.orders.some(o=>o.target===id)||u.workingTarget===id){
+        const active=u.orders[0]?.target===id;
+        u.orders=u.orders.filter(o=>o.target!==id);
+        if(active||u.workingTarget===id){
+          u.path=[];u.repath=0;u.workingTarget=null;
+        }
+      }
+    }
+    this.movementCollision=undefined;
+    this.updateVision();
+    this.notices.push('Gebäude abgerissen: '+buildingSpec(b).name+'.');
+    return true;
+  }
   command(ids:number[],order:Order,append=false):number {
     if(order.kind==='board')return this.transports.board(order.target??-1,ids);
     if(!Number.isFinite(order.x)||!Number.isFinite(order.y))return 0;
