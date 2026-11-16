@@ -176,7 +176,7 @@ function perimeterFence(group,width){
 /** Barracks-only military wire perimeter. Unlike the old wooden fence, this
  * has slim steel posts and horizontal wire/barbs, no bulky rail or X braces.
  * Three sides plus two front sections keep the actual infantry exit clear. */
-function perimeterBarracksWire(group,width){
+function perimeterBarracksWire(group,width,{factory=false}={}){
  const x=width*.65,rear=-width*.53,front=width*.28;
  const gateHalf=width*.23;
  const posts=[],strands=[],barbs=[],seen=new Set();
@@ -208,9 +208,11 @@ function perimeterBarracksWire(group,width){
  }
  segment(-x,rear,x,rear);
  segment(-x,rear,-x,front);
- segment(x,rear,x,front);
+ // The separate vehicle repair deck starts at the factory's RIGHT side.
+ // Keep the right front open instead of crossing its drive-on ramp with wire.
+ segment(x,rear,x,factory?-width*.13:front);
  segment(-x,front,-gateHalf,front);
- segment(gateHalf,front,x,front);
+ if(!factory)segment(gateHalf,front,x,front);
  instanceBoxes(group,'BarracksWireFencePosts',fencePost,posts);
  instanceFenceWires(group,strands,{radius:.18,name:'BarracksWireFenceStrands'});
  instanceFenceWires(group,barbs,{radius:.12,name:'BarracksWireFenceBarbs'});
@@ -218,6 +220,7 @@ function perimeterBarracksWire(group,width){
  group.userData.fenceRails=0;
  group.userData.fenceWires=strands.length+barbs.length;
  group.userData.barracksWireFence=true;
+ group.userData.factoryWireFence=factory;
 }
 
 const barracksYardPaint=new Map([
@@ -247,7 +250,8 @@ function addSiteDecor(root,kind,width){
  g.userData={visualOnly:true,nonPlayable:true,siteDecor:true};
  root.add(g);
  const large=width>=155;
- if(kind==='barracks'||kind==='headquarters')perimeterBarracksWire(g,width);
+ if(kind==='barracks'||kind==='headquarters'||kind==='factory')
+  perimeterBarracksWire(g,width,{factory:kind==='factory'});
  else if(fencedSites.has(kind))perimeterFence(g,width);
  const supplies=new THREE.Group();
  // The original depot was centered at x=.55*width while its pallet
@@ -258,7 +262,8 @@ function addSiteDecor(root,kind,width){
   // the outer crate lid reaches 20 units past the cache origin.
   // At width 160, .50 placed its edge at x=100: only 4 from the wire (x=104).
   // .47 leaves 8.8 clearance; real HQ width 225 has >20.
-  supplies.position.set(kind==='barracks'?width*.49:kind==='headquarters'?width*.47:width*.55,0,-width*.2);
+  supplies.position.set(kind==='barracks'?width*.49:kind==='headquarters'?width*.47:
+  kind==='factory'?width*.43:width*.55,0,-width*.2);
  g.add(supplies);
  // Different silhouettes per facility, all deterministic and inexpensive.
  if(kind==='barracks'||kind==='headquarters'){
@@ -325,7 +330,8 @@ export function createBuildingYard(kind,width=160){
  // doors or spawn lanes. Parent rotation follows the placed building.
  if(kind==='factory'){
   const g=new THREE.Group();g.name='VehicleSpareParts';
-  g.position.set(-width*.47,0,width*.30);root.add(g);
+  // Move spares behind the new left-front wire instead of straddling it.
+  g.position.set(-width*.43,0,width*.04);root.add(g);
   box(g,'RepairPallet',[63,4,45],wood,3,2,0);
   wheel(g,-17,-8,3);wheel(g,10,-10,2);
   box(g,'EngineBlock',[24,14,20],steel,30,12,2);
@@ -356,7 +362,7 @@ export function createBuildingYard(kind,width=160){
   }
  }
  addSiteDecor(root,kind,width);
- if(kind==='barracks'||kind==='headquarters')textureBarracksYard(root);
+ if(kind==='barracks'||kind==='headquarters'||kind==='factory')textureBarracksYard(root);
  return root;
 }
 
