@@ -8,7 +8,7 @@ import * as THREE from 'three';
  * are preserved. No meshes or draw calls are added.
  */
 export const DESERT_BUILDING_PBR_REVISION='sandforge-authored-building-pbr-v1-20261115';
-export const DESERT_BUILDING_KINDS=Object.freeze(['barracks','headquarters','factory']);
+export const DESERT_BUILDING_KINDS=Object.freeze(['barracks','headquarters','factory','airfield']);
 const root='/src/assets/reborn/buildings-3d/textures/';
 export const DESERT_BUILDING_IMAGES=Object.freeze({
  wall:root+'desert-wall-plaster.svg',
@@ -39,6 +39,12 @@ export function buildingSurfaceRole(kind,meshName='',materialName=''){
  const mesh=String(meshName).toLowerCase();
  const mat=String(materialName).toLowerCase();
  const name=mesh+' '+mat;
+ // Authored factory/hangar GLBs use batched mesh names per material.
+ // Repaint the exterior wall ONLY, not the roof, shutters, glass, factory
+ // production doors, hangar roof corrugation or mechanical equipment.
+ if(kind==='airfield')return mesh==='sf_airfield_pbr_camo'?'camo':null;
+ if(kind==='factory'&&mesh.startsWith('sf_factory_pbr_'))
+  return mesh==='sf_factory_pbr_camo'?'camo':null;
  if(exclude.test(mesh))return null;
  if(camouflage.test(mesh))return 'camo';
  if(roofing.test(mesh))return 'roof';
@@ -166,7 +172,11 @@ export function finishDesertBuildingMaterials(model,kind){
    const ghost=source.userData?.sandforgePreviewMaterial===true;
    const material=ghost?source:source.clone();
    const maps=roleMaps(role),config=settings[role];
-   if(!material.normalMap)material.normalMap=maps.normal;
+   // Hangar GLB uses genuine world-size 100-unit walls; factory and
+   // barracks meshes are authored around 5 units. Keep the physical
+   // camouflage splotch size similar across structures.
+   const uvScale=kind==='airfield'?.055:config.scale;
+   if(!material.normalMapmaterial.normalMap=maps.normal;
    if(!material.roughnessMap)material.roughnessMap=maps.roughness;
    material.roughness=Math.max(material.roughness,config.roughness);
    if(role==='metal'||role==='trim')material.metalness=Math.max(material.metalness,config.metalness);
@@ -203,7 +213,7 @@ export function finishDesertBuildingMaterials(model,kind){
      '#include <color_fragment>',
      'vec3 sfBP=abs(normalize(sfBuildingNormal))+.015;',
      'sfBP=pow(sfBP,vec3(4.));sfBP/=sfBP.x+sfBP.y+sfBP.z;',
-     'vec3 sfP=sfBuildingLocal*'+config.scale.toFixed(2)+';',
+     'vec3 sfP=sfBuildingLocal*'+uvScale.toFixed(3)+';',
      'vec3 sfPaint=texture2D(sfBuildingAlbedo,sfP.zy).rgb*sfBP.x',
      ' +texture2D(sfBuildingAlbedo,sfP.xz).rgb*sfBP.y',
      ' +texture2D(sfBuildingAlbedo,sfP.xy).rgb*sfBP.z;',
@@ -213,7 +223,7 @@ export function finishDesertBuildingMaterials(model,kind){
     ].join('\n');
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',coating);
    };
-   material.customProgramCacheKey=()=>DESERT_BUILDING_PBR_REVISION+'|'+role;
+   material.customProgramCacheKey=()=>DESERT_BUILDING_PBR_REVISION+'|'+kind+'|'+role;
    material.needsUpdate=true;
    instances.set(key,material);painted++;
    return material;
