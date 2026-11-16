@@ -127,7 +127,7 @@ export function sitesVisuallyOverlap(a:BuildingKind,pa:Point,fa:SiteFacing,
  // Preserve the calibrated legacy separation for ordinary buildings.
  if(a!=='wall'&&b!=='wall'&&a!=='research'&&b!=='research'&&a!=='airfield'&&b!=='airfield'&&a!=='factory'&&b!=='factory')
   return distance(pa,pb)<constructionVisualClearance(a,b);
- const pad=a==='wall'&&b==='wall'?3:a==='wall'||b==='wall'?15:round;
+ const pad=a==='wall'&&b==='wall'?0:a==='wall'||b==='wall'?15:round;
  return localShapes(a).some(sa=>localShapes(b).some(sb=>overlaps(sa,pa,fa,sb,pb,fb,pad)));
 }
 /** Static bastions and capture points retain a larger clear perimeter. */
