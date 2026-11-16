@@ -14,7 +14,8 @@ BACKUP="$(mktemp -d /tmp/sandforge-bastion-backup.XXXXXX)"
 ASSET_LIST=(bastion--1.glb bastion-0.glb bastion-1.glb
             barracks-0.glb barracks-1.glb
             headquarters-0.glb headquarters-1.glb
-            factory-0.glb factory-1.glb airfield-0.glb airfield-1.glb)
+            factory-0.glb factory-1.glb airfield-0.glb airfield-1.glb
+            generator-0.glb generator-1.glb)
 for file in "${ASSET_LIST[@]}"; do
  if [[ -f "$ASSETS/$file" ]]; then cp "$ASSETS/$file" "$BACKUP/$file"; fi
 done
@@ -40,7 +41,8 @@ node --test \
  tests/webgl-factory-pbr-and-faction-palette.test.mjs \
  tests/webgl-pause-resume-consistency.test.mjs \
  tests/webgl-airfield-pbr.test.mjs \
- tests/webgl-micro-ruins.test.mjs
+ tests/webgl-micro-ruins.test.mjs \
+ tests/webgl-energy-core-pbr.test.mjs
 trap - ERR
 echo "Bastion + finale PBR-Kaserne + PBR-Kommandozentrale geladen. Backup: $BACKUP"
 echo "Preview: PORT=8111 npm run preview"
