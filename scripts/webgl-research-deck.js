@@ -196,6 +196,9 @@ export function createSandforgeResearchDeck({
    if(!overlay.hidden)display();
   },
   close:hide,
+  // If a player closes the menu and clicks the same lab again, reopen it
+  // without forcing them to deselect the building or rebuild its 3D model.
+  reopen(){dismissed=false;},
   get open(){return !overlay.hidden;},
   get selectedKind(){return selectedKind;}
  };
