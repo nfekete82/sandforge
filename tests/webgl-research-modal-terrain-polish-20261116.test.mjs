@@ -10,7 +10,7 @@ import {DESERT_SURFACE_DETAIL,installDesertSurfaceDetail}
 
 const src=path=>readFileSync(path,'utf8');
 
-test('research lab has a compact roof-supported radar; yard and HUD share its shape',()=>{
+test('research lab has an enlarged roof-supported radar; yard and HUD share its shape',()=>{
  for(const owner of [0,1]){
   const model=createStrategicBuilding('research',owner);
   const mount=model.getObjectByName('Research_RadarMount');
@@ -23,10 +23,23 @@ test('research lab has a compact roof-supported radar; yard and HUD share its sh
   assert.ok(bounds.max.y>95&&bounds.max.y<150,'compact, not towering');
   assert.ok(model.getObjectByName('Research_SensorArray'),'retain laboratory character');
  }
- const yard=createBuildingYard('research',112);
+ const yard=createBuildingYard('research',170);
  const wire=yard.getObjectByName('BasePerimeter_research');
  assert.ok(wire?.getObjectByName('BarracksWireFenceStrands')?.isInstancedMesh);
  assert.ok(wire.getObjectByName('BarracksWireFenceBarbs')?.isInstancedMesh);
+ const cache=wire.getObjectByName('BaseSupplyCache');
+ assert.ok(cache,'research right-side supplies are present');
+ const bounds=wire.userData.researchFenceBounds;
+ assert.ok(bounds,'the enlarged lab uses adaptive, measured fence geometry');
+ wire.updateWorldMatrix(true,true);
+ const box=new THREE.Box3().setFromObject(cache);
+ box.applyMatrix4(wire.matrixWorld.clone().invert());
+ assert.ok(bounds.rightX>=box.max.x+17,
+  'entire right pallet, supply crates and barrel rims are inside fence with clearance');
+ assert.ok(bounds.rear<=box.min.z-15,'rear wire clears the supplies');
+ assert.ok(bounds.front>=box.max.z+17,'front wire clears the supplies');
+ assert.ok(bounds.rightX>170*.8,'research wire extends distinctly to the right');
+ assert.equal(bounds.gateHalf,170*.28,'building entrance stays open');
  disposeBuildingYard(yard);
 });
 
