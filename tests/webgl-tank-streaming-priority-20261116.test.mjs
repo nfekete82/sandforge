@@ -19,7 +19,7 @@ test('real authored combat tank model ships for blue/red factions',()=>{
   assert.ok(names.has('Tank_Gun'),'real tank needs an independent cannon rig');
  }
  assert.match(build,/cpSync\('src\/assets', 'dist\/src\/assets', \{recursive:true\}\)/);
- assert.match(battlefield,/animation\/'\)\+kind\+'-'\+owner\+'\.glb'/);
+ assert.match(battlefield,/\['rover','tank','artillery','scout','bomber'\]\.includes\(kind\)\?'animation\/'/);
 });
 
 test('tank model streams in lite mode with high priority and a bounded error retry',()=>{
