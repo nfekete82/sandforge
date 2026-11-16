@@ -1,11 +1,12 @@
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {applyAirfieldRollup,AIRFIELD_ROLLUP_SLATS} from './webgl-airfield-rollup.js';
 
 // Rendering-only swap: the actual runway, taxi/landing path, serviced aircraft,
 // fuel props, crew animations and one-bay game rules are never touched.
 const assetCache=new Map();
 const legacyHangar=/^(?:Hangar(?:Bay|Camo|Vertical|Roof|Side|Rear|Entry|Door|Center|Apron|Recessed|Hazard|Maintenance|Safety|Security|Angled|Service|Repair|Fuel)|AirfieldLeftControlTower)/;
 const keepGround=/^(?:HangarCenterGuide|HangarApronStop|HangarSafetyChevron|HangarRepairSparks|HangarSecurityLamp)/;
-export const AIRFIELD_PBR_REVISION='sandforge-airfield-pbr-v1-20261116';
+export const AIRFIELD_PBR_REVISION='sandforge-airfield-pbr-v2-rollup-satellite-20261116';
 
 function assetFor(owner){
  if(owner!==0&&owner!==1)return null;
@@ -56,24 +57,28 @@ export function ensureAirfieldPbr(group,owner=0,{ghost=false}={}){
   if(group.userData.airfieldPbrDisposed||group.userData.airfieldPbrToken!==token)
    return false;
   const model=data.scene.clone(true);
-  const left=model.getObjectByName('HangarDoorLeft_0');
-  const right=model.getObjectByName('HangarDoorRight_0');
+  const slats=Array.from({length:AIRFIELD_ROLLUP_SLATS},(_,i)=>
+   model.getObjectByName('HangarRollupSlat_0_'+String(i).padStart(2,'0')));
+  const drum=model.getObjectByName('HangarRollupDrum_0');
+  const rotor=model.getObjectByName('AirfieldTowerDishRotor');
   const roof=model.getObjectByName('SF_Airfield_PBR_roof');
-  if(!left?.isMesh||!right?.isMesh||!roof?.isMesh)
-   throw new Error('Airfield PBR missing animated shutters / roof');
+  if(slats.some(s=>!s?.isMesh)||!drum?.isMesh||!rotor||!roof?.isMesh)
+   throw new Error('Airfield PBR missing roll-up slats, roof or satellite rotor');
   model.name='SandforgeAirfieldPBR_'+owner;
   model.userData.sandforgeOriginalPBR=true;
   model.traverse(node=>{
-   if(node.isMesh&&node.name!=='HangarDoorLeft_0'&&node.name!=='HangarDoorRight_0'){
+   if(node.isMesh){
     node.receiveShadow=true;
     node.castShadow=/^SF_Airfield_PBR_(?:camo|roof|stone)$/.test(node.name);
    }
   });
   if(ghost)styleGhost(model);
   const gate=group.userData.bay0;
-  // Preserve old door references to restore them on teardown or older saves.
+  // Preserve fallback shutters until the entire replacement GLB is loaded.
   if(gate&&!group.userData.airfieldLegacyDoors)
-   group.userData.airfieldLegacyDoors={left:gate.left,right:gate.right};
+   group.userData.airfieldLegacyDoors={
+    left:gate.left,right:gate.right,slats:gate.slats,drum:gate.drum
+   };
   const old=group.userData.airfieldPbrModel;
   if(old){old.removeFromParent();releaseGhost(old);}
   group.add(model);
@@ -91,15 +96,13 @@ export function ensureAirfieldPbr(group,owner=0,{ghost=false}={}){
     }
    }
   }
-  // Only a single pair of doors participates in the existing animation.
+  // One vertically rolling curtain; the original two halves are hidden
+  // together with legacy hangar meshes once the GLB is ready.
   if(gate){
-   gate.left=left;gate.right=right;
-   gate.open=Math.max(0,Math.min(1,gate.open));
-   left.position.x=gate.cx-27-28*gate.open;
-   right.position.x=gate.cx+27+28*gate.open;
-   left.scale.y=right.scale.y=1-.94*gate.open;
-   left.position.y=right.position.y=36+42*gate.open;
+   gate.slats=slats;gate.drum=drum;
+   applyAirfieldRollup(gate,gate.open);
   }
+  group.userData.airfieldDishRotor=rotor;
   return true;
  }).catch(error=>{
   if(group.userData.airfieldPbrToken===token&&!group.userData.airfieldPbrDisposed){
@@ -124,7 +127,11 @@ export function detachAirfieldPbr(group){
  if(model){model.removeFromParent();releaseGhost(model);}
  group.userData.airfieldPbrModel=null;
  const gate=group.userData.bay0,old=group.userData.airfieldLegacyDoors;
- if(gate&&old){gate.left=old.left;gate.right=old.right;}
+ if(gate&&old){
+  gate.left=old.left;gate.right=old.right;
+  gate.slats=old.slats??null;gate.drum=old.drum??null;
+ }
+ group.userData.airfieldDishRotor=null;
  for(const child of group.userData.airfieldHiddenLegacy||[])child.visible=true;
  group.userData.airfieldHiddenLegacy=null;
 }
