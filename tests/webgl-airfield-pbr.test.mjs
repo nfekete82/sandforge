@@ -5,7 +5,8 @@ import {inflateSync} from 'node:zlib';
 import vm from 'node:vm';
 import {factionRgb8} from '../scripts/sandforge-faction-palette.js';
 import {servicePaint} from '../scripts/webgl-service-materials.js';
-import {createAirfieldServiceYard,disposeAirfieldServiceYard} from '../scripts/webgl-airfield-service.js';
+import * as THREE from 'three';
+import {createAirfieldServiceYard,disposeAirfieldServiceYard,hideOldAirfieldHangar} from '../scripts/webgl-airfield-service.js';
 import {airfieldLaunchDuration,airfieldLaunchPose,airfieldLaunchLeg} from '../scripts/webgl-airfield-launch-path.js';
 import {applyAirfieldRollup,AIRFIELD_ROLLUP_SLATS} from '../scripts/webgl-airfield-rollup.js';
 
@@ -157,6 +158,51 @@ function meshPoints(model,nodeName){
  }
  return points;
 }
+
+test('runway black trio was three buried taxi dashes: no cosmetic guide now crosses asphalt',()=>{
+ const yard=createAirfieldServiceYard(0);
+ const runway=yard.getObjectByName('AirfieldExtendedRunway');
+ assert.ok(runway?.isMesh);
+ const leftEdge=runway.position.x-runway.geometry.parameters.width/2;
+ assert.equal(leftEdge,-58.5);
+ const guides=yard.children.filter(m=>m.name==='AirfieldTaxiCrossGuide'||
+  m.name==='AirfieldTaxiGuideDash');
+ assert.equal(guides.length,4,'only one clipped yellow guide and three dashes OUTSIDE the runway');
+ for(const guide of guides){
+  const right=guide.position.x+guide.geometry.parameters.width/2;
+  assert.ok(right<leftEdge-1,guide.name+' must stop BEFORE the asphalt edge');
+ }
+ const srcText=src('webgl-airfield-service.js');
+ assert.match(srcText,/for\(const x of \[-158,-126,-94\]\)/);
+ assert.doesNotMatch(srcText,/for\(const x of \[-158,-126,-94,-62,-30,2\]\)/);
+ assert.doesNotMatch(srcText,/AirfieldConcreteJoint/);
+ // The original imported GLB must not layer old unlabelled black skids
+ // above the actual service-yard runway, even if it has newer mesh names.
+ const detail=new THREE.Group();
+ detail.name='OriginalAirfieldDetail';
+ detail.add(new THREE.Mesh(new THREE.BoxGeometry(10,2,4),
+  new THREE.MeshBasicMaterial({color:'#101513'})));
+ const entry={detail};
+ hideOldAirfieldHangar(entry);
+ assert.equal(detail.visible,false,'hide entire duplicate airfield GLB, not only a few named parts');
+ assert.equal(entry.airfieldOldHidden,true);
+ detail.children[0].geometry.dispose();detail.children[0].material.dispose();
+ disposeAirfieldServiceYard({airfieldServiceYard:yard});
+});
+
+test('tower window has NO colored badge, but hangar keeps blue/red faction markings',()=>{
+ const source=src('generate-airfield-pbr.mjs');
+ assert.doesNotMatch(source,/box\('team',\[towerX,112,towerZ\+23\.8\]/);
+ assert.doesNotMatch(source,/if\(key==='camo'\)\{const blob=Math\.sin/);
+ for(const owner of [0,1]){
+  const model=glb(owner);
+  const points=meshPoints(model,'SF_Airfield_PBR_team');
+  assert.ok(points.length>=24,'hangar must retain team stripes and gate flags');
+  assert.equal(points.filter(([x,y,z])=>
+   Math.abs(x+269)<35&&y>95&&Math.abs(z+81)<35).length,0,
+   'tower observation deck must stay clear of faction-blue/red rectangles');
+ }
+});
 
 test('new barrel roof is continuous corrugated steel with its own embedded 256px texture',()=>{
  const gen=src('generate-airfield-pbr.mjs');
