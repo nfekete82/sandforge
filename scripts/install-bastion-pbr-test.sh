@@ -42,6 +42,7 @@ node --test \
  tests/webgl-factory-repair-supplies-20261116.test.mjs \
  tests/webgl-concrete-foundations-and-icons-20261116.test.mjs \
  tests/webgl-tank-streaming-priority-20261116.test.mjs \
+ tests/webgl-helicopter-boarding-building-routes-20261116.test.mjs \
  tests/webgl-pause-resume-consistency.test.mjs \
  tests/webgl-airfield-pbr.test.mjs \
  tests/webgl-micro-ruins.test.mjs \
