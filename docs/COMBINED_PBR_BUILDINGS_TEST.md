@@ -38,3 +38,11 @@ Der Installer prüft **alle vier** GLBs (Blau/Rot für beide Gebäude) vor dem K
 3. Beide parallel verwenden und auf freie Wege, Schattierung, Zaunkollisionen und FPS achten.
 
 Die GLB-Binärdateien werden für den ersten Test **nur lokal in den neuen Worktree kopiert**, noch nicht auf GitHub committed. Den Branch erst nach dem Test zusammenführen.
+
+## Kommandozentrale mit gepanzerter Dachkuppel
+
+- Die Kommandozentrale bleibt gegenüber der Kaserne größer (ursprüngliche HQ-Konstruktion etwa 26 % breiter und 23 % tiefer); mit der zusätzlichen Dachkuppel wirkt auch der Gebäudekörper höher und deutlich massiver.
+- Die runde Kommandokuppel besitzt echte 3D-Geometrie, beigefarbene Dach-/Wüstentarnung, eine betonierte Basis, ringsum schmale dunkle Aussichtsfenster und metallene Segmente.
+- Die Kuppel belegt nur fünf zusätzliche Draw Calls und nutzt die **bereits eingebetteten** BaseColor-/Normal-/Roughness-Texturen des finalen HQ-Modells. Radarrotoren, Antennen, Doppeltor, Infanterieproduktion, Fundament und Kollision bleiben unverändert.
+- `scripts/install-combined-pbr-test.sh` kopiert die beiden originalen HQ-GLBs aus dem vorhandenen lokalen Worktree und führt danach automatisch `node scripts/upgrade-hq-dome.mjs` für Blau und Rot aus. Kein neuer Download nötig.
+- `tests/webgl-hq-dome.test.mjs` prüft beide Teammodelle, UV-/Normal-Daten, die vorhandenen PBR-Bildtexturen, freibleibende Radar- und Tür-Knoten sowie erneute idempotente Ausführung des Upgrade-Skripts.
