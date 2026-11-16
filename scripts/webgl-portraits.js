@@ -95,20 +95,23 @@ export function researchIconMarkup(kind){
  * research objects, using the actual scene meshes. PNG generation happens
  * once per kind and never on the animation/render loop.
  */
-function renderModelPortrait(model,renderer,{width=320,height=220,research=false,infantryCard=false,headquartersCard=false}={}){
+function renderModelPortrait(model,renderer,{width=320,height=220,research=false,infantryCard=false,headquartersCard=false,buildingCard=false}={}){
  // Atlas heavy infantry uses direction index 1: yaw PI/4 with camera (0,8,12).
  // Apply that exact view to the rocket portrait only, never to its game model.
  if(infantryCard)model.rotation.y+=Math.PI/4;
  const scene=new THREE.Scene();
  scene.add(model);
- const hemi=new THREE.HemisphereLight('#fff3e2','#576e73',headquartersCard?3.1:research?2.15:2.0);
+ // Dedicated bright studio for building tiles, not the main game scene.
+ const studioBuilding=buildingCard||headquartersCard;
+ const hemi=new THREE.HemisphereLight('#fff3e2','#576e73',
+  headquartersCard?3.1:studioBuilding?2.60:research?2.15:2.0);
  scene.add(hemi);
- const key=new THREE.DirectionalLight('#ffedcd',headquartersCard?3.35:research?2.9:2.6);
+ const key=new THREE.DirectionalLight('#ffedcd',headquartersCard?3.35:studioBuilding?3.05:research?2.9:2.6);
  key.position.set(210,390,290);scene.add(key);
- const fill=new THREE.DirectionalLight('#b6dce5',headquartersCard?1.5:.95);
+ const fill=new THREE.DirectionalLight('#b6dce5',headquartersCard?1.5:studioBuilding?1.45:.95);
  fill.position.set(-280,170,-170);scene.add(fill);
  // Extra bounce is confined to the isolated HUD scene, never the battlefield.
- if(headquartersCard)scene.add(new THREE.AmbientLight('#fff2dc',.85));
+ if(studioBuilding)scene.add(new THREE.AmbientLight('#fff2dc',headquartersCard?.85:.56));
  const bounds=new THREE.Box3().setFromObject(model);
  const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
  const aspect=width/height;
@@ -120,10 +123,14 @@ function renderModelPortrait(model,renderer,{width=320,height=220,research=false
  const target=new THREE.WebGLRenderTarget(width,height,{format:THREE.RGBAFormat,depthBuffer:true});
  const oldTarget=renderer.getRenderTarget(),oldColor=renderer.getClearColor(new THREE.Color()).clone();
  const oldAlpha=renderer.getClearAlpha();
+ // Portrait-only exposure; always restore after render/readback.
+ const oldExposure=renderer.toneMappingExposure;
  const oldViewport=renderer.getViewport(new THREE.Vector4()).clone();
  const oldScissor=renderer.getScissor(new THREE.Vector4()).clone();
  const oldScissorTest=renderer.getScissorTest();
  try{
+  if(studioBuilding&&Number.isFinite(oldExposure))
+   renderer.toneMappingExposure=Math.max(oldExposure,1.28);
   renderer.setRenderTarget(target);
   renderer.setScissorTest(false);
   renderer.setClearColor('#000000',0);
@@ -173,6 +180,7 @@ function renderModelPortrait(model,renderer,{width=320,height=220,research=false
   ctx.drawImage(raw,left,top,w,h,drawX,infantryCard?119-dh:(height-dh)/2,dw,dh);
   return output.toDataURL('image/png');
  }finally{
+  renderer.toneMappingExposure=oldExposure;
   renderer.setRenderTarget(oldTarget);
   renderer.setViewport(oldViewport);
   renderer.setScissor(oldScissor);
@@ -193,7 +201,7 @@ function renderStrategicPortrait(kind,renderer){
  const model=createStrategicBuilding(kind,0);
  if(!model)return strategicBuildingIcon(kind);
  tintFactionMaterials(model,0,kind,'building');
- return renderModelPortrait(model,renderer);
+ return renderModelPortrait(model,renderer,{buildingCard:true});
 }
 const researchArtworkCache=new Map();
 export function researchArtwork(kind,renderer){
@@ -369,7 +377,7 @@ async function rasterizeBuildingIcon(kind,renderer){
     finishDesertBuildingMaterials(model,kind);
     finishBuildingFacadeShading(model);
    }
-   return renderModelPortrait(model,renderer,{headquartersCard:authoredHQ});
+   return renderModelPortrait(model,renderer,{buildingCard:true,headquartersCard:authoredHQ});
   }catch(error){
    console.warn('Desert building PBR portrait fallback:',kind,error);
   }
