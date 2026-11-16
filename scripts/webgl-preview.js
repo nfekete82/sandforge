@@ -156,7 +156,6 @@ const models=new Map(),ruinMeshes=[];
 game.paused=false;
 let groundMeshes=[],running=query.get('pause')!=='1',accumulator=0,elapsed=0;
 let pauseSource=query.get('pause')==='1'?'URL-Parameter pause=1':'';
-let pauseFromKeyboard=false;
 // Distinguish a deliberate pause or an ended battle from an animation stall.
 // Previously all three looked identical: stationary soldiers on screen.
 const simulationBanner=document.createElement('div');
@@ -171,7 +170,9 @@ function updateSimulationBanner(){
  const reason=game.status!=='playing'?'':!running?
   'SIMULATION PAUSIERT'+(pauseSource?' ('+pauseSource+')':'')+' · ▶ zum Fortsetzen':
   game.paused?'SIMULATION INTERN PAUSIERT':'';
- simulationBanner.hidden=!reason;
+ // The tactical menu already explains the pause. Do not show a second,
+ // stale "Leertaste" banner behind its modal overlay.
+ simulationBanner.hidden=!reason||document.getElementById('sf3d-pause-dialog')?.open===true;
  if(reason&&simulationBanner.textContent!==reason)simulationBanner.textContent=reason;
 }
 updateSimulationBanner();
@@ -787,17 +788,31 @@ async function addRuins(){
  }
  return ruinMeshes.length;
 }
-$('simulation').onclick=event=>{
- running=!running;
- // Native keyboard activation of a focused button emits detail=0. A
- // pointer click carries detail>=1. This also handles Playwright/keyboard
- // focus without relying on the order of button and window key handlers.
- if(!running)pauseSource=pauseFromKeyboard||event?.detail===0?'Leertaste':'Pause-Schaltfläche';
- pauseFromKeyboard=false;
+// One explicit, idempotent state setter for the toolbar and tactical menu.
+ // Calling .click() to drive pause used to race the browser's native Space
+ // activation and could leave the menu closed while the sim stayed paused.
+function setSimulationRunning(shouldRun,source='Pause-Schaltfläche'){
+ const next=Boolean(shouldRun);
+ if(next===running){
+  updateSimulationBanner();
+  return running;
+ }
+ running=next;
+ accumulator=0; // never replay old frame debt when the game resumes
+ if(running){
+  game.paused=false;
+  pauseSource='';
+ }else{
+  pauseSource=source;
+  sound.pause();
+ }
  $('simulation').textContent=running?'Simulation pausieren':'Simulation starten';
- if(!running)sound.pause();
  $('simulation').setAttribute('aria-pressed',String(running));
  updateSimulationBanner();
+ return running;
+}
+$('simulation').onclick=event=>{
+ setSimulationRunning(!running,event?.detail===0?'Tastatur':'Pause-Schaltfläche');
 };
 $('rotate-left').onclick=()=>spin(-Math.PI/4);
 $('rotate-right').onclick=()=>spin(Math.PI/4);
@@ -884,7 +899,12 @@ addEventListener('keydown',event=>{
  }
  if(event.code==='KeyQ'){event.preventDefault();spin(-Math.PI/8);}
  if(event.code==='KeyE'){event.preventDefault();spin(Math.PI/8);}
- if(event.code==='Space'){event.preventDefault();pauseFromKeyboard=true;$('simulation').click();}
+ // The title-menu owns Space while installed. Never run a second toggle
+ // in the gameplay listener (including when a toolbar button has focus).
+ if(event.code==='Space'&&!window.Sandforge3DMenu){
+  event.preventDefault();
+  setSimulationRunning(!running,'Leertaste');
+ }
 });
 addEventListener('keyup',event=>panKeys.delete(event.code));
 addEventListener('blur',()=>panKeys.clear());
@@ -1289,6 +1309,7 @@ window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,ba
  get desertArtReady(){return desertArtReady;},
  get loaded(){return status.dataset.ready==='true';},
  get simulationRunning(){return running;},
+ setSimulationRunning,
  sampleGround:(x,z)=>heightAt(x,z)};
 async function main(){
  try{
