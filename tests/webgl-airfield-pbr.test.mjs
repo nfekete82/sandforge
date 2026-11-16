@@ -269,11 +269,15 @@ test('real paid air units use one animation event and a lawful exterior handoff'
  assert.match(launch,/const actor=bf\.units\.get\(event\.unitId\)/);
  assert.match(launch,/this\.seen=new WeakSet\(this\.game\.productionReleases\)/);
  assert.match(launch,/this\.active\.has\(base\.id\)/);
+ assert.match(launch,/for\(const event of active\?game\.productionReleases:\[\]\)/,
+  'tactical pause may render existing launch but never begin another');
+ assert.match(launch,/const time=game\.time-\(active\?\.05\*\(1-clamp\(alpha\)\):0\)/,
+  'taxi route should interpolate smoothly at high display refresh rates');
  assert.match(launch,/actor\.node\.position\.copy\(worldPoint\)/);
  assert.match(launch,/this\.game\.cancelProductionDeparture\?\.\(state\.event\.unitId\)/);
  assert.doesNotMatch(launch,/\.spawn\(/,'no second dummy unit may be created');
  assert.match(battle,/this\.airfieldLaunch=new SandforgeAirfieldLaunch\(this\)/);
- assert.match(battle,/this\.airfieldLaunch\.update\(active\)/);
+ assert.match(battle,/this\.airfieldLaunch\.update\(active,blend\)/);
  assert.match(build,/dist\/webgl-airfield-launch\.js/);
  assert.match(build,/dist\/webgl-airfield-launch-path\.js/);
  const service=src('webgl-airfield-service.js');
