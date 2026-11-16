@@ -22,7 +22,8 @@ trap rollback ERR
 npm run build
 node --test \
  tests/webgl-bastion-pbr-radar.test.mjs \
- tests/sandforge-bastion-navigation.test.mjs
+ tests/sandforge-bastion-navigation.test.mjs \
+ tests/webgl-building-portrait-readability.test.mjs
 trap - ERR
 echo "Alle drei Bastionen aus Git-Code generiert, ohne ZIP. Backup: $BACKUP"
 echo "Preview: PORT=8111 npm run preview"
