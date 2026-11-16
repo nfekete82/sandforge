@@ -67,3 +67,11 @@ bash scripts/install-combined-pbr-test.sh && PORT=8110 npm run preview
 ```
 
 Browser: http://localhost:8110/webgl-preview.html (nach dem Beenden des alten Servers, danach Cmd+Shift+R). Den gesamten RTS-Test und Browser-Sichttest vor Merge nach `develop` abschließen.
+
+## Korrektur: feste schwarze Lüftungsgitter statt überlagerter Klappen
+
+- `scripts/upgrade-hq-vents.mjs` ersetzt das doppelte Seitenfenster-/Rahmen-Overlay der HQ-GLB: die vier überlagernden, weit herausragenden dunklen Platten werden hinter die Fassaden versenkt, während die sechs bereits eingebauten Kasernenstil-Lüftungsgitter der beiden Seitenwände bündig sichtbar bleiben.
+- Zwei neue dunkle Lüftungseinheiten auf der HQ-Rückwand flankieren den bereits vorhandenen mittigen Lüftungsschacht. Sie bestehen aus realen 3D-PBR-Meshes für Einsätze, Lamellen und Rahmen, mit eingebetteten bestehenden Farb-, Normal- und Metall/Roughness-Maps.
+- Drei zusätzliche GPU-Meshes für die gesamte Rückseite statt vieler einzelner Lüfter: `35+3+5=43` HQ-Meshes inklusive Dachkuppel; die Kaserne und die Eingangstor-/Pionierlogik sind unberührt.
+- Der gemeinsame Installer nutzt beide Original-GLBs aus den Quell-Worktrees, führt `upgrade-hq-layout.mjs`, `upgrade-hq-vents.mjs` und `upgrade-hq-dome.mjs` nacheinander aus und prüft mit `tests/webgl-hq-vents.test.mjs` auch Blau und Rot. Kein erneuter Download erforderlich.
+- Die umgebaute Kombinations-GLB wurde lokal für beide Fraktionen erzeugt und auf Mesh-Namen, Material-Maps, Binär-Header und Stückzahl geprüft. Der vollständige lokale Sandforge-Browserlauf erfolgt anschließend über `PORT=8110 npm run preview`.
