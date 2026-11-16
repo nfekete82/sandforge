@@ -95,13 +95,13 @@ test('camouflage nets cover only small, partial REAR yard sections on selected m
 });
 
 test('terrain Sand PBR masks wind, dunes and grain on original terrain mesh only',()=>{
- assert.equal(DESERT_SURFACE_DETAIL.revision,'wind-relief-layered-sand-v3-20261116');
- assert.ok(DESERT_SURFACE_DETAIL.coverageStrength<=.30);
- assert.ok(DESERT_SURFACE_DETAIL.gritStrength<=.08);
+ assert.equal(DESERT_SURFACE_DETAIL.revision,'multiscale-natural-desert-sediment-v4-20261116');
+ assert.ok(DESERT_SURFACE_DETAIL.coverageStrength>=.40&&DESERT_SURFACE_DETAIL.coverageStrength<=.50);
+ assert.ok(DESERT_SURFACE_DETAIL.gritStrength>=.10&&DESERT_SURFACE_DETAIL.gritStrength<=.13);
  const renderer={capabilities:{getMaxAnisotropy:()=>8}};
  const mat=new THREE.MeshStandardMaterial({roughness:.98});
  const maps=installDesertSurfaceDetail(mat,renderer);
- assert.ok(maps.mask.image.data.length===256*256*4);
+ assert.ok(maps.mask.image.data.length===DESERT_SURFACE_DETAIL.size**2*4);
  let nonGrey=0;
  const data=maps.mask.image.data;
  for(let i=0;i<data.length;i+=4)if(data[i]!==data[i+1])nonGrey++;
@@ -130,7 +130,7 @@ test('sand update is visual-only: gameplay terrain generation and building PBR s
  assert.match(base,/const chunks=4,segments=56,patch=size\/chunks/);
  assert.match(base,/normalMap,normalScale:new THREE\.Vector2/);
  const pbr=txt('scripts/webgl-sand-pbr.js');
- assert.match(pbr,/normalStrength:\.59/);
+ assert.match(pbr,/normalStrength:\.83/);
  assert.match(pbr,/material\.roughnessMap=maps\.roughness/);
  assert.match(pbr,/installDesertSurfaceDetail\(material,renderer\)/);
  const shader=txt('scripts/webgl-sand-surface-detail.js');
