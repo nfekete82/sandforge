@@ -401,7 +401,12 @@ export class SandforgeBattlefield {
      // Preserve authored HQ and factory desert PBR albedo, not legacy recolors.
      model.userData.sandforgeOriginalPBR=true;
      model.traverse(mesh=>{if(mesh.isMesh){
-      mesh.castShadow=true;mesh.receiveShadow=true;
+      // Transparent reactor glass should not cast an opaque cylinder shadow.
+      const glass=entry.kind==='generator'&&(
+       Array.isArray(mesh.material)?
+        mesh.material.some(m=>m?.transparent):mesh.material?.transparent);
+      mesh.castShadow=!glass;
+      mesh.receiveShadow=true;
      }});
     }
     if(type==='building'&&entry.kind==='barracks')polishBarracksProps(model);
@@ -713,7 +718,8 @@ export class SandforgeBattlefield {
      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
      (kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
       model.getObjectByName('FactoryRollupDoor'))||
-     (kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root')) )
+     (kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root'))||
+     (kind==='generator'&&model.getObjectByName('SF_EnergyCore_PBR_Housing')) )
     model.userData.sandforgeOriginalPBR=true;
    if(kind==='barracks')polishBarracksProps(model);
    if(kind==='barracks'||kind==='headquarters'){
