@@ -61,9 +61,15 @@ for owner in 0 1; do
  cp "$BARRACKS_SOURCE/$ASSET_DIR/barracks-$owner.glb" "$ASSET_DIR/barracks-$owner.glb"
  cp "$HQ_SOURCE/$ASSET_DIR/headquarters-$owner.glb" "$ASSET_DIR/headquarters-$owner.glb"
 done
+# Build the armored HQ observation dome from the already downloaded model;
+# the original PBR UV maps, radar assemblies and door leaves stay untouched.
+node scripts/upgrade-hq-dome.mjs \
+ "$ASSET_DIR/headquarters-0.glb" \
+ "$ASSET_DIR/headquarters-1.glb"
 npm run build
 node --test \
  tests/webgl-unified-pbr-buildings.test.mjs \
+ tests/webgl-hq-dome.test.mjs \
  tests/webgl-barracks-props.test.mjs \
  tests/webgl-barracks-yard-textures.test.mjs \
  tests/webgl-barracks-pbr-production.test.mjs \
