@@ -22,6 +22,6 @@ export function applyAirfieldRollup(gate,progress=gate?.open??0){
   slat.scale.y=1;
  }
  // The roller follows the precise amount of curtain fed into the fascia.
- if(gate.drum)gate.drum.rotation.x=-p*Math.PI*4.4;
+ if(gate.drum)gate.drum.rotation.x=p===0?0:-p*Math.PI*4.4;
  gate.open=p;
 }
