@@ -25,6 +25,7 @@ const colors={
  concrete:[131,128,112],stone:[169,156,130],
  steel:[93,105,100],steel_dark:[42,51,51],steel_light:[151,158,140],
  door:[79,89,83],vent:[39,49,49],glass:[41,60,64],
+ roof_corrugated:[110,120,96],
  warning:[196,165,101],team:factionRgb8(0),white:[226,216,184]
 };
 const add=(a,b)=>a.map((x,i)=>x+b[i]);
@@ -41,6 +42,50 @@ function box(mat,at,size,rotation=0,part=''){
  const g=material(mat,part),[sx,sy,sz]=size.map(x=>x/2),co=Math.cos(rotation),si=Math.sin(rotation);
  const p=[[-sx,-sy,-sz],[sx,-sy,-sz],[sx,sy,-sz],[-sx,sy,-sz],[-sx,-sy,sz],[sx,-sy,sz],[sx,sy,sz],[-sx,sy,sz]].map(([x,y,z])=>[(at[0]+x*co+z*si)*FACTORY_WIDTH_FACTOR,at[1]+y,at[2]+z*co-x*si]);
  for(const [a,b,c,d] of [[0,3,2,1],[4,5,6,7],[0,4,7,3],[1,2,6,5],[3,7,6,2],[0,1,5,4]])quad(g,p[a],p[b],p[c],p[d]);
+}
+// A continuous barrel vault, with physical corrugation running lengthwise.
+// Roof panels are NOT a row of disconnected, tilted rectangular boxes.
+export const AIRFIELD_ROOF_SEGMENTS=108;
+const ROOF_HALF_WIDTH=61,ROOF_BASE_Y=75,ROOF_RISE=22;
+const roofHeight=x=>ROOF_BASE_Y+ROOF_RISE*Math.sqrt(Math.max(0,1-(x/68)**2))+
+ .65*Math.cos(x*TAU/6.7);
+function barrelRoof(cx,front=20,back=-173){
+ const roof=material('roof_corrugated');
+ const face=material('camo'),rim=material('steel_light');
+ const from=-ROOF_HALF_WIDTH,to=ROOF_HALF_WIDTH;
+ for(let j=0;j<AIRFIELD_ROOF_SEGMENTS;j++){
+  const x0=from+(to-from)*j/AIRFIELD_ROOF_SEGMENTS;
+  const x1=from+(to-from)*(j+1)/AIRFIELD_ROOF_SEGMENTS;
+  const y0=roofHeight(x0),y1=roofHeight(x1);
+  const a=[cx+x0,y0,back],b=[cx+x0,y0,front];
+  const d=[cx+x1,y1,back],e=[cx+x1,y1,front];
+  const u0=(x0-from)/(to-from),u1=(x1-from)/(to-from);
+  // Continuous UVs: one coherent corrugated-metal PBR texture over the vault.
+  tri(roof,a,b,e,[[u0,0],[u0,3],[u1,3]]);
+  tri(roof,a,e,d,[[u0,0],[u1,3],[u1,0]]);
+  // Solid barrel-shaped gables close the void above the rectangular doors.
+  quad(face,[cx+x0,73.5,front-.5],[cx+x1,73.5,front-.5],
+   [cx+x1,y1,front-.5],[cx+x0,y0,front-.5]);
+  quad(face,[cx+x1,73.5,back+.5],[cx+x0,73.5,back+.5],
+   [cx+x0,y0,back+.5],[cx+x1,y1,back+.5]);
+  // Reinforcing ribs follow the SAME curvature; no straight bars pierce it.
+  for(const z of [back+2,-107,-43,front-2]){
+   const offset=1.15;
+   quad(rim,[cx+x0,y0+offset,z-1],[cx+x0,y0+offset,z+1],
+    [cx+x1,y1+offset,z+1],[cx+x1,y1+offset,z-1]);
+  }
+ }
+ // Two team markings: flush against the arch and interrupted at the vents.
+ const team=material('team');
+ for(const side of [-1,1])for(const [z0,z1] of [[-153,-126],[-74,-15]]){
+  const x0=side*40-1.4,x1=side*40+1.4;
+  const sampleCount=4;
+  for(let j=0;j<sampleCount;j++){
+   const x=x0+(x1-x0)*j/sampleCount,n=x0+(x1-x0)*(j+1)/sampleCount;
+   quad(team,[cx+x,roofHeight(x)+.55,z0],[cx+x,roofHeight(x)+.55,z1],
+    [cx+n,roofHeight(n)+.55,z1],[cx+n,roofHeight(n)+.55,z0]);
+  }
+ }
 }
 // All coordinates are in AIRFIELD SERVICE YARD local space (before the
 // existing .90/.84/.82 compact transform). No collision/physics is generated.
@@ -69,34 +114,17 @@ function buildParts(){
   box('steel_dark',[x+side*5,58,-73],[2.5,10,57]);
   box('steel_light',[x+side*6,57,-73],[3,2.5,52]);
  }
- // Roof: low, ribbed camouflaged industrial arch with matte PBR panels.
- const count=10,halfWidth=61;
- const arc=x=>76+17*Math.sqrt(Math.max(0,1-(x/68)**2));
- for(let j=0;j<count;j++){
-  const x0=-halfWidth+j*2*halfWidth/count;
-  const x1=-halfWidth+(j+1)*2*halfWidth/count;
-  const y0=arc(x0),y1=arc(x1);
-  const panel= j%3===0?'khaki':j%3===1?'roof':'olive';
-  box(panel,[cx+(x0+x1)/2,(y0+y1)/2,-77],
-   [Math.hypot(x1-x0,y1-y0)+1.5,2.8,192],
-   Math.atan2(y1-y0,x1-x0));
-  for(const z of [-147,-94,-40,13])
-   box('steel',[cx+(x0+x1)/2,(y0+y1)/2+2.2,z],
-    [Math.hypot(x1-x0,y1-y0)+1.6,1.6,2.7],
-    Math.atan2(y1-y0,x1-x0));
- }
+ // The actual corrugated steel barrel shell replaces the entire row of
+ // disconnected rectangular roof plates seen in the previous build.
+ barrelRoof(cx);
  // Dark roof ventilators, none overlapped by the blue identification strips.
  for(const side of [-1,1]){
   const x=cx+side*33;
   box('stone',[x,93,-105],[19,6.5,25]);
   box('vent',[x,98,-105],[16,3.6,22]);
   for(let i=0;i<5;i++)box('steel_dark',[x-6.0+i*3,100.7,-105],[1.3,1.5,21]);
-  // Two longitudinal PBR-painted strips, INTERRUPTED before the vents.
-  for(const [z0,z1] of [[-153,-125],[-73,-14]]){
-   // Match the curved roof height at x +/-40; paint is flush, not floating.
-   const x=40,roofY=76+17*Math.sqrt(1-(x/68)**2)+1.5;
-   box('team',[cx+side*x,roofY,(z0+z1)/2],[3,.35,z1-z0]);
-  }
+  // Curved faction strips are generated together with barrelRoof(), never
+  // through the raised ventilation housings or as hovering cuboids.
  }
  // True doorway opening is kept empty behind the moving shutter.
  box('steel_dark',[cx,79,front],[122,7,10]);
@@ -157,7 +185,9 @@ function crc32(buffer){let c=0xffffffff;for(const b of buffer)c=crcTable[(c^b)&2
 const be=n=>{const b=Buffer.alloc(4);b.writeUInt32BE(n);return b};
 function pngChunk(type,data){const name=Buffer.from(type);return Buffer.concat([be(data.length),name,data,be(crc32(Buffer.concat([name,data])))]);}
 function png(color,key){
- const width=48,height=48;let state=(color[0]*2161+color[1]*3191+color[2]*5779)>>>0;
+ const corrugated=key==='roof_corrugated';
+ const width=corrugated?256:48,height=corrugated?256:48;
+ let state=(color[0]*2161+color[1]*3191+color[2]*5779)>>>0;
  const scan=Buffer.alloc((width*4+1)*height);
  const random=()=>{state=(1664525*state+1013904223)>>>0;return state/4294967296};
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
@@ -166,7 +196,19 @@ function png(color,key){
   let rgb=color;
   if(key==='camo'){const blob=Math.sin(x*.27+Math.cos(y*.31)*2.1)+Math.cos(y*.28-x*.12);
    if(blob>.73)rgb=[82,91,64];else if(blob<-.80)rgb=[128,134,96];}
-  for(let c=0;c<3;c++)scan[i+c]=Math.max(0,Math.min(255,rgb[c]+noise));scan[i+3]=255;
+  if(corrugated){
+   // Embedded, tileable olive/khaki corrugated-sheet texture; 18
+   // longitudinal folds, sun-faded crowns, dark seams and dusty streaks.
+   // No third-party texture, network download or non-deterministic noise.
+   const fold=Math.cos(x*TAU*18/width);
+   const crest=Math.pow((1+fold)/2,4)*15;
+   const seam=Math.pow((1-fold)/2,10)*-17;
+   const weather=4*Math.sin(y*.055+Math.sin(x*.09))+
+    3*Math.cos(y*.19+x*.035)+(random()-.5)*10;
+   const patina=crest+seam+weather;
+   rgb=color.map((v,ch)=>v+patina*(ch===1?1:.83));
+  }
+  for(let c=0;c<3;c++)scan[i+c]=Math.max(0,Math.min(255,rgb[c]+(corrugated?0:noise)));scan[i+3]=255;
  }
  const hdr=Buffer.alloc(13);hdr.writeUInt32BE(width,0);hdr.writeUInt32BE(height,4);hdr[8]=8;hdr[9]=6;
  return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),pngChunk('IHDR',hdr),pngChunk('IDAT',deflateSync(scan,{level:8})),pngChunk('IEND',Buffer.alloc(0))]);
@@ -202,8 +244,9 @@ function exportTeam(owner){
    gltf.images.push({bufferView:append(png(color,g.name)),mimeType:'image/png'});
    gltf.textures.push({sampler:0,source:image});
    gltf.materials.push({name:'Sandforge_Airfield_'+g.name,pbrMetallicRoughness:{
-    baseColorTexture:{index:image},metallicFactor:/metal|bronze|gunmetal/.test(g.name)?.45:.07,
-    roughnessFactor:.83},
+    baseColorTexture:{index:image},metallicFactor:g.name==='roof_corrugated'?.21:
+     /metal|bronze|gunmetal/.test(g.name)?.45:.07,
+    roughnessFactor:g.name==='roof_corrugated'?.90:.83},
     ...(factionSurface?{extensions:{KHR_materials_unlit:{}}}:{}),
     // No cyan emissive boost on painted team identifiers.
     emissiveFactor:[0,0,0],doubleSided:true});
