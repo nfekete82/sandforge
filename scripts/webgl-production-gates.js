@@ -347,7 +347,9 @@ export class SandforgeProductionGates {
    // Gate state does not imply physical wheel rotation.
    const actuallyRolling=infantry?moving&&speed>.25:rolloutWheelsShouldRoll(moving,speed);
    actor.productionMotion={moving:actuallyRolling,hideHealth:fraction<clearFraction*.64,driveSpeed:speed,walkDistance:distance,angle:Math.PI/2-yaw,hullAngle:Math.PI/2-yaw};
-   if(infantry&&state.directFoot)state.lastMotion=actor.productionMotion;
+   // Keep the rolling wheels/track clip for the first 0.12 s of the
+   // authoritative rally transition, preventing an idle-frame flicker.
+   if(state.hasRally)state.lastMotion=actor.productionMotion;
    actor.node.visible=age>=GATE_TIMING.warning; // hidden only during warning
   }
  }
