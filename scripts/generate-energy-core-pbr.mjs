@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Reproducible Sandforge Energy Core PBR GLBs: compact single-floor desert
-// power modules with a restrained circular core, matching blue/red surfaces.
+// Reproducible Sandforge Energy Core GLBs: a genuinely small desert housing
+// underneath one tall, wide, translucent glass energy cylinder. All faction
+// energy accents use the exact central blue/red faction palette.
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {deflateSync} from 'node:zlib';
@@ -8,14 +9,16 @@ import {factionRgb8} from './sandforge-faction-palette.js';
 const OUT=process.argv[2]||'src/assets/reborn/buildings-3d';
 const PI=Math.PI,TAU=2*PI;
 // Gameplay/placement/collision live entirely in Simulation, not this GLB.
-export const ENERGY_CORE_VERSION='compact-desert-energy-v1-20261116';
+export const ENERGY_CORE_VERSION='small-glass-energy-cylinder-v2-20261116';
+export const ENERGY_GLASS_CYLINDER=Object.freeze({radius:1.15,bottom:1.98,top:4.22,sides:24});
 const FACTORY_WIDTH_FACTOR=1;
 const colors={
  camo:[198,177,137],sand:[211,193,157],sand_light:[224,204,170],
  khaki:[148,144,113],olive:[92,107,82],roof:[90,95,77],
  concrete:[132,130,111],stone:[177,165,138],
  steel:[91,98,91],steel_dark:[45,51,50],steel_light:[142,146,128],
- door:[73,81,76],vent:[41,49,48],glass:[42,60,62],
+ door:[73,81,76],vent:[41,49,48],glass:[150,192,201],
+ energy:factionRgb8(0),
  warning:[201,161,89],team:factionRgb8(0),white:[226,216,184]
 };
 const add=(a,b)=>a.map((x,i)=>x+b[i]);
@@ -63,58 +66,72 @@ function star(x,y,z,r=.105){
   points.push([(x+d*Math.cos(a))*FACTORY_WIDTH_FACTOR,y+d*Math.sin(a),z]);}
  for(let i=0;i<10;i++)tri(g,center,points[i],points[(i+1)%10]);
 }
-/** Clean low-rise sand/olive power unit, with a modest circular core.
- * All faction-painted parts use the same shared sRGB blue/red palette.
+/** Deliberately lower, narrower desert bunker with a large, framed glass
+ * reactor tube taking centre stage ABOVE the roof. The original energy-core
+ * building has been replaced, not piled with more free-standing decoration.
+ *
+ * Local units remain small and source-controlled. webgl-scale.js gives this
+ * specific building a smaller render footprint without modifying collision.
  */
 function buildParts(){
  groups.clear();
- box('concrete',[0,.11,0],[5.00,.22,4.65]);
- box('stone',[0,.27,0],[4.76,.24,4.42]);
- box('camo',[0,1.27,0],[4.42,1.98,4.10]);
+ // Low single-storey shell, materially smaller than the previous 5.0m hall.
+ box('concrete',[0,.10,0],[3.80,.20,3.37]);
+ box('stone',[0,.23,0],[3.64,.18,3.22]);
+ box('camo',[0,.95,0],[3.38,1.38,2.92]);
+ // Shallow side panels, never enough attachments to hide the glass.
  for(const side of [-1,1]){
-  box('sand',[side*2.25,1.34,0],[.20,2.13,4.31]);
-  box('steel_dark',[side*2.39,1.66,0],[.07,.18,3.9]);
+  box('sand',[side*1.70,.99,0],[.10,1.46,3.02]);
+  box('steel_dark',[side*1.77,1.25,0],[.05,.11,2.76]);
  }
- box('steel_dark',[0,2.34,0],[4.92,.18,4.52]);
- box('roof',[0,2.47,0],[4.72,.12,4.30]);
- for(const z of [-2.18,2.18])
-  box('steel_light',[0,2.51,z],[4.73,.13,.10]);
- // Two low profile roof identification stripes, outside the core machinery.
- for(const x of [-1.65,1.65])
-  box('team',[x,2.544,-.05],[.18,.014,3.22]);
- // Octagonal reactor module: compact instead of a giant luminescent ball.
- frustum('steel_dark',2.53,2.67,.91,.83,12);
- frustum('olive',2.67,3.03,.73,.54,12);
- ring('team',2.94,.74,.86,.09,16);
- cylinder('vent',.48,3.02,3.08,12);
- ring('steel_light',3.10,.45,.58,.045,16);
- for(const side of [-1,1]){
-  box('steel',[side*.95,2.72,0],[.21,.37,.93]);
-  box('steel',[0,2.72,side*.95],[.93,.37,.21]);
+ box('steel_dark',[0,1.72,0],[3.71,.15,3.26]);
+ box('roof',[0,1.82,0],[3.57,.09,3.12]);
+ for(const z of [-1.62,1.62])
+  box('steel_light',[0,1.85,z],[3.61,.09,.08]);
+ // The slender faction roof lines run well OUTSIDE the glass cylinder.
+ for(const x of [-1.52,1.52])
+  box('team',[x,1.879,0],[.12,.014,2.48]);
+
+ // Actual translucent glass reactor casing with a prominent vertical
+ // silhouette, 24 true sides, no opaque cylinder passing for glass.
+ const tube=ENERGY_GLASS_CYLINDER;
+ frustum('steel_dark',1.87,2.04,1.29,1.18,tube.sides);
+ ring('team',2.04,1.16,1.28,.072,tube.sides);
+ cylinder('glass',tube.radius,tube.bottom,tube.top,tube.sides);
+ // Real inner energy column visible THROUGH the glass, in exact team blue
+ // (or red). Narrow so the glass remains the main visual object.
+ cylinder('energy',.42,2.16,4.09,20);
+ ring('steel_light',2.27,.44,.59,.06,20);
+ ring('team',3.96,.44,.59,.055,20);
+ // Four slim supporting struts with zero clipping into the casing.
+ for(let i=0;i<4;i++){
+  const a=Math.PI/4+i*Math.PI/2;
+  const r=1.18,x=r*Math.cos(a),z=r*Math.sin(a);
+  beam('steel',[x,2.02,z],[x,4.22,z],.075);
  }
- for(const x of [-1.16,1.16]){
-  box('stone',[x,2.64,-1.41],[.75,.27,.54]);
-  box('steel_dark',[x,2.83,-1.41],[.67,.13,.45]);
-  for(let i=0;i<3;i++)
-   box('vent',[x-.23+i*.23,2.903,-1.41],[.075,.018,.36]);
+ ring('steel_light',4.19,1.13,1.25,.065,tube.sides);
+ frustum('steel_dark',4.25,4.39,1.25,1.15,tube.sides);
+ ring('team',4.26,1.11,1.25,.055,tube.sides);
+ // Small round upper valve cap; no large turret, lamps or extra spires.
+ cylinder('steel_light',.25,4.39,4.48,16);
+
+ // One simple stationary service door on the FRONT (+Z).
+ box('steel_dark',[0,.91,1.493],[.77,1.15,.07]);
+ box('door',[0,.90,1.54],[.66,1.04,.045]);
+ box('vent',[0,1.30,1.57],[.43,.09,.029]);
+ box('steel_light',[.23,.86,1.58],[.040,.09,.028]);
+ // Two small, firmly mounted team stars. Same sRGB as Bastion / HQ flags.
+ for(const x of [-1.15,1.15]){
+  box('steel_dark',[x,1.04,1.493],[.39,.49,.048]);
+  box('team',[x,1.05,1.530],[.29,.39,.025]);
+  star(x,1.05,1.554,.105);
  }
- // Service door only. Generator never produces soldiers or vehicles.
- box('steel_dark',[0,1.17,2.112],[1.07,1.72,.10]);
- box('steel',[0,1.13,2.173],[.91,1.51,.05]);
- box('vent',[0,1.76,2.214],[.53,.15,.04]);
- box('steel_light',[.32,1.15,2.232],[.055,.13,.035]);
- for(const x of [-1.64,1.64]){
-  box('steel_dark',[x,1.37,2.124],[.55,.74,.075]);
-  box('team',[x,1.39,2.18],[.40,.60,.024]);
-  star(x,1.39,2.199,.13);
+ // Two slim rear cooling grills. Keep all roof space around the cylinder.
+ for(const x of [-1.34,1.34]){
+  box('vent',[x,1.14,-1.499],[.35,.51,.040]);
+  for(let k=0;k<3;k++)
+   box('steel',[x,1.02+k*.14,-1.529],[.28,.028,.024]);
  }
- for(const side of [-1,1]){
-  box('steel_dark',[side*2.34,1.30,-.9],[.10,.64,.93]);
-  for(const z of [-1.18,-.91,-.64])
-   box('vent',[side*2.41,1.31,z],[.035,.43,.095]);
- }
- box('khaki',[-2.06,.61,1.58],[.41,.62,.38]);
- box('steel_dark',[-2.06,.89,1.78],[.36,.075,.03]);
 }
 const crcTable=Array.from({length:256},(_,n)=>{let c=n;for(let i=0;i<8;i++)c=c&1?0xedb88320^(c>>>1):c>>>1;return c>>>0});
 function crc32(buffer){let c=0xffffffff;for(const b of buffer)c=crcTable[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0}
@@ -130,18 +147,27 @@ function png(color,key){
   let rgb=color;
   if(key==='camo'){const blob=Math.sin(x*.27+Math.cos(y*.31)*2.1)+Math.cos(y*.28-x*.12);
    if(blob>.73)rgb=[82,91,64];else if(blob<-.80)rgb=[128,134,96];}
-  for(let c=0;c<3;c++)scan[i+c]=Math.max(0,Math.min(255,rgb[c]+noise));scan[i+3]=255;
+  // Embedded optical glass map: faint vertical streaks, translucent center
+  // and brighter rim, not the old opaque dark glass color.
+  if(key==='glass'){
+   const edge=Math.pow(Math.abs((x-width*.5)/(width*.5)),2);
+   const reflection=8*Math.sin(x*.32+y*.055);
+   rgb=color.map((v,k)=>Math.min(255,v+reflection+(k===2?8:0)+edge*8));
+  }
+  for(let c=0;c<3;c++)scan[i+c]=Math.max(0,Math.min(255,rgb[c]+noise));
+  scan[i+3]=key==='glass'?Math.round(111+17*Math.sin(x*.35)+
+   12*Math.cos(y*.16)):255;
  }
  const hdr=Buffer.alloc(13);hdr.writeUInt32BE(width,0);hdr.writeUInt32BE(height,4);hdr[8]=8;hdr[9]=6;
  return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),pngChunk('IHDR',hdr),pngChunk('IDAT',deflateSync(scan,{level:8})),pngChunk('IEND',Buffer.alloc(0))]);
 }
 function exportTeam(owner){
  const pal=JSON.parse(JSON.stringify(colors));
- if(owner===1)pal.team=factionRgb8(1);
+ if(owner===1){pal.team=factionRgb8(1);pal.energy=factionRgb8(1);}
  
  
  buildParts();
- const gltf={asset:{version:'2.0',generator:'sandforge-energy-core-pbr-v1-20261116'},
+ const gltf={asset:{version:'2.0',generator:'sandforge-energy-core-pbr-v2-glass-20261116'},
  extensionsUsed:['KHR_materials_unlit'],scene:0,
  scenes:[{nodes:[0]}],nodes:[{name:'SF_EnergyCore_PBR_Root',children:[]}],
  meshes:[],materials:[],images:[],textures:[],samplers:[{magFilter:9729,minFilter:9987,wrapS:10497,wrapT:10497}],
@@ -162,14 +188,18 @@ function exportTeam(owner){
  const names=new Map();for(const g of groups.values()){
   if(!names.has(g.name)){
    const mat=gltf.materials.length,color=pal[g.name],image=gltf.images.length;
-   const factionSurface=g.name==='team';
+   const factionSurface=g.name==='team'||g.name==='energy';
+   const opticalGlass=g.name==='glass';
    gltf.images.push({bufferView:append(png(color,g.name)),mimeType:'image/png'});
    gltf.textures.push({sampler:0,source:image});
-   gltf.materials.push({name:'Sandforge_EnergyCore_'+g.name,pbrMetallicRoughness:{
-    baseColorTexture:{index:image},metallicFactor:/metal|bronze|gunmetal/.test(g.name)?.45:.07,
-    roughnessFactor:.83},
+   gltf.materials.push({name:'Sandforge_EnergyCore_'+g.name,
+    ...(opticalGlass?{alphaMode:'BLEND'}:{}),
+    pbrMetallicRoughness:{
+     baseColorTexture:{index:image},
+     metallicFactor:opticalGlass?.08:/metal|bronze|gunmetal/.test(g.name)?.45:.07,
+     roughnessFactor:opticalGlass?.13:.84
+    },
     ...(factionSurface?{extensions:{KHR_materials_unlit:{}}}:{}),
-    // No cyan emissive boost on painted team identifiers.
     emissiveFactor:[0,0,0],doubleSided:true});
    names.set(g.name,mat);
   }
@@ -193,6 +223,6 @@ function exportTeam(owner){
  const name='generator-'+owner+'.glb';
  writeFileSync(join(OUT,name),out);
  console.log('Generated '+name+': '+out.length+' bytes, '+gltf.meshes.length+' meshes, '+
-  gltf.images.length+' textures, compact 3D power core');
+  gltf.images.length+' textures, a large translucent 24-side energy cylinder');
 }
 mkdirSync(OUT,{recursive:true});for(const owner of [0,1])exportTeam(owner);
