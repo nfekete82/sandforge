@@ -46,8 +46,10 @@ function box(mat,at,size,rotation=0,part=''){
 // A continuous barrel vault, with physical corrugation running lengthwise.
 // Roof panels are NOT a row of disconnected, tilted rectangular boxes.
 export const AIRFIELD_ROOF_SEGMENTS=108;
-const ROOF_HALF_WIDTH=61,ROOF_BASE_Y=75,ROOF_RISE=22;
-const roofHeight=x=>ROOF_BASE_Y+ROOF_RISE*Math.sqrt(Math.max(0,1-(x/68)**2))+
+// Tall semi-elliptic Quonset-style vault. Eaves meet the 73m side walls,
+// while the 108m crown forms a clearly readable round hangar silhouette.
+const ROOF_HALF_WIDTH=61,ROOF_BASE_Y=73,ROOF_RISE=35;
+const roofHeight=x=>ROOF_BASE_Y+ROOF_RISE*Math.sqrt(Math.max(0,1-(x/61.5)**2))+
  .65*Math.cos(x*TAU/6.7);
 function barrelRoof(cx,front=20,back=-173){
  const roof=material('roof_corrugated');
@@ -120,9 +122,10 @@ function buildParts(){
  // Dark roof ventilators, none overlapped by the blue identification strips.
  for(const side of [-1,1]){
   const x=cx+side*33;
-  box('stone',[x,93,-105],[19,6.5,25]);
-  box('vent',[x,98,-105],[16,3.6,22]);
-  for(let i=0;i<5;i++)box('steel_dark',[x-6.0+i*3,100.7,-105],[1.3,1.5,21]);
+  // Vent plinths follow the higher curved roof rather than being buried.
+  box('stone',[x,107,-105],[19,6.5,25]);
+  box('vent',[x,112,-105],[16,3.6,22]);
+  for(let i=0;i<5;i++)box('steel_dark',[x-6.0+i*3,114.7,-105],[1.3,1.5,21]);
   // Curved faction strips are generated together with barrelRoof(), never
   // through the raised ventilation housings or as hovering cuboids.
  }
