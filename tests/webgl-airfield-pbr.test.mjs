@@ -385,7 +385,7 @@ test('roll-up stays centered, opens UP to full bomber clearance and closes symme
  assert.ok(gate.slats.every(s=>s.visible));
  assert.equal(gate.drum.rotation.x,0);
 });
-test('tower glass wraps 360 degrees and the satellite rotates only when active',()=>{
+test('tower glass wraps 360 degrees and Bastion-style radar rotates only when active',()=>{
  const service=src('webgl-airfield-service.js');
  const pbr=src('webgl-airfield-pbr.js');
  const generator=src('generate-airfield-pbr.mjs');
