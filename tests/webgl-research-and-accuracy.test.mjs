@@ -34,7 +34,7 @@ test('new contextual tech tree groups all 9 real upgrades without duplicates',()
  assert.match(menu,/overlay\.hidden=id===null\|\|dismissed/);
  assert.match(battlefield,/createSandforgeResearchDeck\(\{/);
  assert.match(battlefield,/this\.researchDeck\?\.update\(\{/);
- assert.match(battlefield,/base,state:techState,credits:g\.credits\[0\],online:researchOnline/);
+ assert.match(battlefield,/base:clickedLab\?base:null,state:techState,credits:g\.credits\[0\],online:researchOnline/);
  assert.match(build,/dist\/webgl-research-deck\.js/);
  assert.match(css,/#sf-classic-root \.sf-research-workspace/);
  assert.match(css,/#sf-classic-root \.sf-research-overlay\[hidden\]/);
@@ -111,7 +111,7 @@ test('WebGL rifle misses deal zero damage and produce actual sand miss shots',()
  assert.ok(misses>30&&misses<70,'25% deterministic misses over 200 rounds');
  assert.ok(target.hp<hp);
  const simSource=src('src/reborn/simulation.ts');
- assert.match(simSource,/if\(this\.stageWebGLProduction&&'orders' in source\)/);
+ assert.match(simSource,/if\(this\.stageWebGLProduction&&\(unitShooter\|\|weapon==='turret'\)\)/);
  assert.match(simSource,/for\(const target of missile\.miss\?\[\]:\[/);
  assert.match(simSource,/\(m\.miss!==undefined&&typeof m\.miss!=='boolean'\)/,
   'missed projectiles validate in persisted save files');
