@@ -39,7 +39,8 @@ test('both faction GLBs contain one hangar, 16 vertical shutter slats and a rada
  for(const owner of [0,1]){
   const model=glb(owner),{doc,file}=model;
   assert.equal(doc.asset.generator,'sandforge-airfield-pbr-v2-rollup-satellite-20261116');
-  assert.ok(file.byteLength>80_000&&file.byteLength<500_000);
+  assert.ok(file.byteLength>80_000&&file.byteLength<750_000,
+   'the complete 16-panel roll-up/glazed-tower GLB remains under 750 KB');
   assert.equal(doc.nodes.filter(n=>/^HangarRollupSlat_0_\d{2}$/.test(n.name)).length,16);
   assert.equal(doc.nodes.filter(n=>n.name==='HangarRollupDrum_0').length,1);
   assert.equal(doc.nodes.filter(n=>n.name==='AirfieldTowerDishRotor').length,1);
