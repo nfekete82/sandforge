@@ -256,6 +256,9 @@ function addSiteDecor(root,kind,width){
  const g=new THREE.Group();
  g.name='BasePerimeter_'+kind;
  g.userData={visualOnly:true,nonPlayable:true,siteDecor:true};
+ // Keep a small generator's props and side lamp proportional to its new
+ // compact reactor model. Rendering only: no navigation or collision change.
+ if(kind==='generator')g.scale.setScalar(.66);
  root.add(g);
  const large=width>=155;
  if(kind==='barracks'||kind==='headquarters'||kind==='factory')
