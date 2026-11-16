@@ -50,6 +50,7 @@ node --test \
  tests/webgl-building-demolition.test.mjs \
  tests/webgl-research-and-accuracy.test.mjs \
  tests/webgl-turret-sand-misses-20261116.test.mjs \
+ tests/webgl-sunken-silo-golden-hour-20261116.test.mjs \
  tests/webgl-research-modal-terrain-polish-20261116.test.mjs \
  tests/webgl-airfield-security-fence.test.mjs
 trap - ERR
