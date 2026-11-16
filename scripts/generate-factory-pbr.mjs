@@ -173,12 +173,17 @@ function crc32(buffer){let c=0xffffffff;for(const b of buffer)c=crcTable[(c^b)&2
 const be=n=>{const b=Buffer.alloc(4);b.writeUInt32BE(n);return b};
 function pngChunk(type,data){const name=Buffer.from(type);return Buffer.concat([be(data.length),name,data,be(crc32(Buffer.concat([name,data])))]);}
 function png(color,key){
- const width=48,height=48;let state=(color[0]*2161+color[1]*3191+color[2]*5779)>>>0;
+ // Roof paint needs fine quiet mineral grain, not a magnified 48px pattern
+ // that looks like deep parallel grooves under golden-hour grazing light.
+ const width=key==='roof'?256:48,height=key==='roof'?256:48;
+ let state=(color[0]*2161+color[1]*3191+color[2]*5779)>>>0;
  const scan=Buffer.alloc((width*4+1)*height);
  const random=()=>{state=(1664525*state+1013904223)>>>0;return state/4294967296};
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
   // Uniform paint: same sRGB as the team roof stripes and the static flags.
-  const i=y*(width*4+1)+1+x*4,noise=(key==='team'||key==='white')?0:Math.round((random()-.5)*17);
+  const i=y*(width*4+1)+1+x*4,
+  noise=(key==='team'||key==='white')?0:
+   Math.round((random()-.5)*(key==='roof'?7:17));
   let rgb=color;
   if(key==='camo'){const blob=Math.sin(x*.27+Math.cos(y*.31)*2.1)+Math.cos(y*.28-x*.12);
    if(blob>.73)rgb=[82,91,64];else if(blob<-.80)rgb=[128,134,96];}
