@@ -2853,3 +2853,90 @@
 @media(prefers-reduced-motion:reduce){
  #sf-classic-root .sf-research-overlay *{transition:none!important}
 }
+
+
+/* Centered Sandforge confirmation: real HTML <dialog>, no OS/browser popup.
+ * The top layer blocks HUD/map interaction and provides native focus trapping. */
+#sf-classic-root dialog.sf-confirm-dialog:not([open]){display:none!important}
+#sf-classic-root dialog.sf-confirm-dialog{
+ position:fixed!important;
+ inset:0!important;
+ box-sizing:border-box!important;
+ margin:auto!important;
+ width:min(480px,calc(100vw - 28px))!important;
+ max-width:calc(100vw - 28px)!important;
+ max-height:calc(100dvh - 32px)!important;
+ overflow:auto!important;
+ border:1px solid #b5a078!important;
+ border-radius:4px!important;
+ padding:0!important;
+ background:#202b29!important;
+ color:#e8e3d2!important;
+ box-shadow:0 22px 65px #000b,inset 0 0 0 3px #35423b!important;
+ pointer-events:auto!important;
+ font-family:var(--display,system-ui)!important;
+ z-index:2400!important;
+}
+#sf-classic-root dialog.sf-confirm-dialog::backdrop{
+ background:rgba(4,10,12,.77);
+ backdrop-filter:blur(3px);
+}
+#sf-classic-root .sf-confirm-heading{
+ padding:20px 24px 14px;
+ border-bottom:1px solid #766f54;
+ background:linear-gradient(120deg,#30423c,#202e2d);
+}
+#sf-classic-root .sf-confirm-heading small{
+ display:block;
+ color:#b3c6b9;
+ font:800 10px/1.4 var(--mono,monospace);
+ letter-spacing:1.3px;
+}
+#sf-classic-root .sf-confirm-heading h2{
+ margin:5px 0 0!important;
+ color:#f0dca9!important;
+ font:900 23px/1.15 var(--display,system-ui)!important;
+ letter-spacing:.8px;
+}
+#sf-classic-root dialog.sf-confirm-dialog p{
+ margin:0!important;
+ padding:21px 24px!important;
+ font:500 14px/1.55 var(--display,system-ui)!important;
+ color:#e9e5d7!important;
+}
+#sf-classic-root .sf-confirm-actions{
+ display:flex;justify-content:flex-end;gap:10px;
+ padding:13px 23px 20px;
+}
+#sf-classic-root .sf-confirm-actions button{
+ min-height:42px!important;
+ width:auto!important;
+ min-width:125px!important;
+ padding:9px 16px!important;
+ border:1px solid #718078!important;
+ border-radius:2px!important;
+ background:#33413d!important;
+ color:#f3edda!important;
+ font:800 12px/1.2 var(--display,system-ui)!important;
+ cursor:pointer!important;
+}
+#sf-classic-root .sf-confirm-actions button[data-sf-confirm="approve"]{
+ border-color:#c3ac75!important;
+ background:#77633c!important;
+ color:#fff2d0!important;
+}
+#sf-classic-root .sf-confirm-danger .sf-confirm-actions button[data-sf-confirm="approve"]{
+ border-color:#be7d70!important;
+ background:#79473b!important;
+ color:#fff2e8!important;
+}
+#sf-classic-root .sf-confirm-actions button:hover{filter:brightness(1.15)!important}
+#sf-classic-root .sf-confirm-actions button:focus-visible{
+ outline:2px solid #e4c987!important;outline-offset:3px;
+}
+@media(max-width:460px){
+ #sf-classic-root .sf-confirm-heading{padding:16px 15px 12px}
+ #sf-classic-root dialog.sf-confirm-dialog p{padding:17px 15px!important}
+ #sf-classic-root .sf-confirm-actions{padding:12px 14px 16px}
+ #sf-classic-root .sf-confirm-actions button{flex:1;min-width:0!important}
+}
