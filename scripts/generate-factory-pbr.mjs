@@ -92,7 +92,7 @@ function buildParts(){
  box('steel_dark',[1.24,.96,2.35],[.14,1.65,.23]);
  // Independently animated door: SINGLE node FactoryRollupDoor and a
  // physically recessed black interior that remains visible as it opens.
- box('vent',[.18,1.0,2.07],[1.92,1.70,.09]);
+ // Leave the real doorway EMPTY behind the moving shutter.
  box('door',[.18,.78,2.24],[1.83,1.52,.15]);
  for(let i=0;i<8;i++)
   box('door',[.18,.115+i*.187,2.332],[1.81,.148,.035]);
