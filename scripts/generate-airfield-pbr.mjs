@@ -173,12 +173,23 @@ function buildParts(){
  box('camo',[towerX,45,towerZ],[35,81,34]);
  for(const y of [24,54,79])
   box('steel',[towerX,y,towerZ],[40,3.3,38]);
- box('steel_dark',[towerX,92,towerZ],[49,5,46]);
- box('glass',[towerX,106,towerZ],[44,22,40]);
- for(const x of [towerX-22,towerX+22])
-  box('steel',[x,107,towerZ],[3,21,44]);
- for(const z of [towerZ-19,towerZ+19])
-  box('steel',[towerX,107,z],[44,21,3]);
+ // Four true panoramic window walls; do not fill the cabin with an opaque
+ // solid glass block. Structural corners and narrow mullions frame each view.
+ box('steel_dark',[towerX,94,towerZ],[47,5,43]);
+ box('steel_dark',[towerX,118,towerZ],[47,3,43]);
+ for(const z of [towerZ-20,towerZ+20]){
+  box('glass',[towerX,106,z],[41,21,1.5]);
+  for(const x of [towerX-13,towerX+13])
+   box('steel',[x,106,z+Math.sign(z-towerZ)*1.1],[1.4,21,1.8]);
+ }
+ for(const x of [towerX-22,towerX+22]){
+  box('glass',[x,106,towerZ],[1.5,21,37]);
+  for(const z of [towerZ-12,towerZ+12])
+   box('steel',[x+Math.sign(x-towerX)*1.1,106,z],[1.8,21,1.4]);
+ }
+ for(const x of [towerX-22,towerX+22])for(const z of [towerZ-20,towerZ+20])
+  box('steel_dark',[x,106,z],[2.5,23,2.5]);
+ box('steel_dark',[towerX,96,towerZ],[39,2,35]);
  box('roof',[towerX,120,towerZ],[53,5.5,49]);
  box('steel_dark',[towerX+15,130,towerZ-12],[3,21,3]);
  box('warning',[towerX+15,140,towerZ-12],[6,2.7,6]);
@@ -214,7 +225,7 @@ function png(color,key){
    const patina=crest+seam+weather;
    rgb=color.map((v,ch)=>v+patina*(ch===1?1:.83));
   }
-  for(let c=0;c<3;c++)scan[i+c]=Math.max(0,Math.min(255,rgb[c]+(corrugated?0:noise)));scan[i+3]=255;
+  for(let c=0;c<3;c++)scan[i+c]=Math.max(0,Math.min(255,rgb[c]+(corrugated?0:noise)));scan[i+3]=key==='glass'?210:255;
  }
  const hdr=Buffer.alloc(13);hdr.writeUInt32BE(width,0);hdr.writeUInt32BE(height,4);hdr[8]=8;hdr[9]=6;
  return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),pngChunk('IHDR',hdr),pngChunk('IDAT',deflateSync(scan,{level:8})),pngChunk('IEND',Buffer.alloc(0))]);
@@ -249,10 +260,11 @@ function exportTeam(owner){
    const factionSurface=g.name==='team';
    gltf.images.push({bufferView:append(png(color,g.name)),mimeType:'image/png'});
    gltf.textures.push({sampler:0,source:image});
-   gltf.materials.push({name:'Sandforge_Airfield_'+g.name,pbrMetallicRoughness:{
+   gltf.materials.push({name:'Sandforge_Airfield_'+g.name,
+    ...(g.name==='glass'?{alphaMode:'BLEND'}:{}),pbrMetallicRoughness:{
     baseColorTexture:{index:image},metallicFactor:g.name==='roof_corrugated'?.21:
      /metal|bronze|gunmetal/.test(g.name)?.45:.07,
-    roughnessFactor:g.name==='roof_corrugated'?.90:.83},
+    roughnessFactor:g.name==='roof_corrugated'?.90:g.name==='glass'?.20:.83},
     ...(factionSurface?{extensions:{KHR_materials_unlit:{}}}:{}),
     // No cyan emissive boost on painted team identifiers.
     emissiveFactor:[0,0,0],doubleSided:true});
