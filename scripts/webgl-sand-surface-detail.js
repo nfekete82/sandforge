@@ -13,7 +13,7 @@ import * as THREE from 'three';
  * moving pattern on model/building previews.
  */
 export const DESERT_SURFACE_DETAIL=Object.freeze({
- revision:'multiscale-natural-desert-sediment-v4-20261116',
+ revision:'nonperiodic-natural-desert-sediment-v5-20261116',
  size:512,
  windTileMetres:540,
  siltTileMetres:235,
@@ -69,13 +69,14 @@ export function createDesertSurfaceDetail(renderer){
   const medium=tiledNoise(u,v,11,0x12881c);
   const fine=tiledNoise(u,v,42,0x4cab90);
   const tiny=tiledNoise(u,v,92,0x55aa91);
-  const wavy=Math.sin(2*Math.PI*(18*u+3*v)+.35*Math.sin(2*Math.PI*(2*u-1*v)));
-  const ripples=.5+.5*wavy;
+  // Multi-frequency non-directional sediment instead of the repeating
+  // 18-cycle sine bands that looked like display scanlines in the sand.
+  const softenedGrain=.56*medium+.44*fine;
   const dust=.56*broad+.29*medium+.15*fine;
   // Silt is a mildly more compact and striated sand; no dark crust islands.
   // Sand/silt/powder alternation is genuinely visible at RTS scale,
   // unlike the old +/-3 RGB texture hidden under the terrain albedo.
-  const s=clamp((dust-.5)*1.5+.30*(ripples-.5),-.45,.45);
+  const s=clamp((dust-.5)*1.32+.12*(softenedGrain-.5),-.40,.40);
   rgba(silt,index,
    207+38*s+10*(tiny-.5),
    187+33*s+8*(tiny-.5),
@@ -92,7 +93,7 @@ export function createDesertSurfaceDetail(renderer){
   const m=clamp(.58+1.45*(patch-.49));
   // Independent wind/ridge envelopes stored in spare texture channels;
   // PBR uses one sampled mask and only the original terrain mesh.
-  const wind=clamp(.55+.40*(tiledNoise(u,v,6,0x917ab1)-.5)+.15*(ripples-.5));
+  const wind=clamp(.55+.40*(tiledNoise(u,v,6,0x917ab1)-.5)+.08*(medium-.5));
   const dune=clamp(.48+.45*(tiledNoise(u,v,3,0x62b2e0)-.5)+.28*(broad-.5));
   rgba(mask,index,m*255,wind*255,dune*255);
  }
