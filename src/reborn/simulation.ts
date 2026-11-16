@@ -1932,7 +1932,11 @@ export class Simulation {
              // Minimum until the door is fully open and the real vehicle has
              // cleared the hall. The 3D presenter extends this for longer
              // exit routes (backward facings) before the next simulation tick.
-             this.productionDepartureHolds.set(u.id,this.time+4.85);
+             // Foot units with a rally use a shorter, direct front-door rollout.
+             // The presenter extends this for any longer valid exit route.
+             const directRallyFoot=b.rally&&
+              (b.kind==='barracks'||(b.kind==='headquarters'&&kind==='engineer'));
+             this.productionDepartureHolds.set(u.id,this.time+(directRallyFoot?2.65:4.85));
            }
          }
       }
