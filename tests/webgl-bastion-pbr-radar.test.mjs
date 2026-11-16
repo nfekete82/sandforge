@@ -14,13 +14,20 @@ function parse(owner){
  return {doc,bytes};
 }
 
-test('the three PBR Bastions retain neutral/blue/red assets and real RadarSpin animation',t=>{
+test('the three PBR Bastions retain neutral/blue/red assets and real RadarSpin animation',()=>{
  const neutral=parse(-1).doc;
- if(!neutral.nodes.some(n=>n.name==='BastionRadarRotor'))
-  return t.skip('new capture Bastions not yet installed in this worktree');
+ assert.equal(neutral.asset.generator,'sandforge-bastion-radar-v2',
+  'ALTE Bastion geladen. npm run build muss die neuen GLBs generieren.');
  for(const owner of [-1,0,1]){
   const {doc,bytes}=parse(owner);
+  assert.equal(doc.asset.generator,'sandforge-bastion-radar-v2',
+   'Bastion '+owner+' ist noch der alte Rundturm');
   const pivot=doc.nodes.findIndex(n=>n.name==='BastionRadarRotor');
+  const camo=doc.nodes.find(n=>n.name==='BastionStatic_camo');
+  const primitive=doc.meshes[camo?.mesh]?.primitives?.[0];
+  const accessor=doc.accessors[primitive?.attributes?.POSITION];
+  assert.ok(accessor?.max?.[1]>=5&&accessor?.min?.[1]<=1.3,
+   'expected tapered desert-colour bastion, not the original black stacked tower');
   assert.ok(pivot>=0,'missing radar pivot '+owner);
   const clip=doc.animations?.find(a=>a.name==='RadarSpin');
   assert.ok(clip,'GLTFLoader must play the real radar clip '+owner);
@@ -35,6 +42,19 @@ test('the three PBR Bastions retain neutral/blue/red assets and real RadarSpin a
   const positions=doc.accessors.filter(a=>a.type==='VEC3'&&a.min&&a.max);
   assert.ok(positions.length>5,'real mesh geometry expected');
  }
+});
+
+test('build must generate actual new GLBs before copying assets to dist',()=>{
+ const build=readFileSync('scripts/build.mjs','utf8');
+ const generator=readFileSync('scripts/generate-bastion-radar.mjs','utf8');
+ const generate=build.indexOf('scripts/generate-bastion-radar.mjs');
+ const copy=build.indexOf("cpSync('src/assets', 'dist/src/assets'");
+ assert.ok(generate>=0&&copy>generate,
+  'normal Sandforge build must overwrite the old models before shipping');
+ assert.match(generator,/sandforge-bastion-radar-v2/);
+ assert.match(generator,/for\(const owner of \[-1,0,1\]\)exportTeam\(owner\)/);
+ assert.match(generator,/BastionRadarRotor/);
+ assert.match(generator,/RadarSpin/);
 });
 
 test('Bastion capture, team ownership, fog and animation remain separate from 3D art',()=>{
