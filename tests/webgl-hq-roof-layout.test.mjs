@@ -44,8 +44,12 @@ test('antenna is far right, small rotating mirror front right, awning centered a
   ];
   for(const [name,expected] of rotors)
    assert.deepEqual(pos(doc,name).map(n=>Math.round(n*100)/100),expected);
-  const mast=bounds(doc,'HQ_Static_HQ_PBR_blue_signal');
-  assert.ok(mast.min[0]>5.7&&mast.max[2]<-3.25,'mast beacon is now at far right rear roof edge');
+  // Material batching names the team lamps differently. Both mast beacons
+  // must physically move with the steel structure, not stay at the old roof.
+  const beacon=owner===0?'HQ_Static_HQ_PBR_blue_signal':'HQ_Static_HQ_PBR_red_status';
+  const mast=bounds(doc,beacon);
+  assert.ok(mast.min[0]>5.7&&mast.max[2]<-3.25,
+   'team '+owner+' mast beacon must be at the far-right rear roof edge');
   const awning=bounds(doc,'HQ_Static_SF_OriginalPBR_canvas');
   const foot=bounds(doc,'HQ_Static_SF_AwningSteelFoot');
   assert.ok(awning.min[2]<-2&&awning.max[2]>2.3,'side canopy has been centered and widened');
