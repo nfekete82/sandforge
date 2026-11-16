@@ -142,6 +142,14 @@ test('factory and hangar use the identical HQ/barracks WALL albedo without baked
  assert.match(hud,/if\(authoredFactory\|\|authoredAirfield\)finishDesertBuildingMaterials\(model,kind\)/);
 });
 
+test('generated factory and airfield walls no longer bake low-resolution checker camouflage',()=>{
+ const factory=readFileSync('scripts/generate-factory-pbr.mjs','utf8');
+ const airfield=readFileSync('scripts/generate-airfield-pbr.mjs','utf8');
+ assert.doesNotMatch(factory,/if\(key==='camo'\)\{const blob=Math\.sin/);
+ assert.doesNotMatch(airfield,/if\(key==='camo'\)\{const blob=Math\.sin/);
+ assert.match(factory,/\['roof','camo'\]\.includes\(key\)\?5:17/);
+});
+
 test('construction ghost keeps its material pointer and invalid site tint',()=>{
  const {root}=fixture(),mesh=root.getObjectByName('BarracksCamoSidePanel_1_0');
  const mat=mesh.material.clone();
