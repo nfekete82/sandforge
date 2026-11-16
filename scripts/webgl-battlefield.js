@@ -926,7 +926,7 @@ export class SandforgeBattlefield {
   if(!force&&drag.lastPreviewPoint&&Math.hypot(
     end.x-drag.lastPreviewPoint.x,end.y-drag.lastPreviewPoint.y)<14)return;
   drag.end=end;drag.lastPreviewPoint={...end};drag.lastRender=now;
-  const plan=validatedWallDrag(this.game,drag.origin,end,0,{axis:drag.axis});
+  const plan=validatedWallDrag(this.game,drag.origin,end,0,{axis:drag.axis,wallCost:BUILDINGS.wall.cost});
   const canBuild=this.game.units.some(u=>u.owner===0&&u.kind==='engineer'&&u.hp>0&&!u.carrier);
   if(!canBuild){
    plan.stopReason='Pionier erforderlich';plan.buildable=0;
@@ -968,7 +968,7 @@ export class SandforgeBattlefield {
   this.buildHint.style.top=Math.min(window.innerHeight-95,Math.max(4,event.clientY+14))+'px';
   this.buildHint.style.borderColor=plan.stopReason?'#f19784':'#9edfbe';
   this.buildHint.textContent='Mauer ziehen: '+plan.buildable+'/'+plan.segments.length+
-   ' Segmente · '+(plan.buildable*75)+' Credits'+
+   ' Segmente · '+(plan.buildable*BUILDINGS.wall.cost)+' Credits'+
    (plan.stopReason?' · Stopp: '+plan.stopReason:' · Loslassen: bauen');
  }
  finishWallDrag(event){
