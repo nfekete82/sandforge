@@ -66,6 +66,11 @@ done
 node scripts/upgrade-hq-layout.mjs \
  "$ASSET_DIR/headquarters-0.glb" \
  "$ASSET_DIR/headquarters-1.glb"
+# Replace double-layer side windows with flush original louvers, and add
+# matching rear ventilation from the already embedded PBR materials.
+node scripts/upgrade-hq-vents.mjs \
+ "$ASSET_DIR/headquarters-0.glb" \
+ "$ASSET_DIR/headquarters-1.glb"
 # Build the much larger centered dome from the original embedded PBR maps.
 node scripts/upgrade-hq-dome.mjs \
  "$ASSET_DIR/headquarters-0.glb" \
@@ -75,6 +80,7 @@ node --test \
  tests/webgl-unified-pbr-buildings.test.mjs \
  tests/webgl-hq-dome.test.mjs \
  tests/webgl-hq-roof-layout.test.mjs \
+ tests/webgl-hq-vents.test.mjs \
  tests/webgl-bastion-clearance.test.mjs \
  tests/webgl-infantry-rally-direct.test.mjs \
  tests/webgl-barracks-props.test.mjs \
