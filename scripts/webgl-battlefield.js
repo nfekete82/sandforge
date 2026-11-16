@@ -16,6 +16,7 @@ import {createBuildingYard,disposeBuildingYard} from '/webgl-building-yard.js';
 import {polishBarracksProps} from '/webgl-barracks-props.js';
 import {addBarracksContactShadows} from '/webgl-barracks-contact-shadows.js';
 import {createAirfieldServiceYard,conformAirfieldSurface,updateAirfieldServiceYard,hideOldAirfieldHangar,disposeAirfieldServiceYard} from '/webgl-airfield-service.js';
+import {detachAirfieldPbr} from '/webgl-airfield-pbr.js';
 import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '/webgl-factory-service.js';
 import {disposeServicePaint,previewServiceMaterial} from '/webgl-service-materials.js';
 import {createSegmentedSelectionRing} from '/webgl-selection-ring.js';
@@ -392,7 +393,8 @@ export class SandforgeBattlefield {
     if(type==='building'&&((entry.kind==='headquarters'&&
       model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
       (entry.kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
-       model.getObjectByName('FactoryRollupDoor')))){
+       model.getObjectByName('FactoryRollupDoor'))||
+      (entry.kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root')))){
      // Preserve authored HQ and factory desert PBR albedo, not legacy recolors.
      model.userData.sandforgeOriginalPBR=true;
      model.traverse(mesh=>{if(mesh.isMesh){
@@ -445,6 +447,10 @@ export class SandforgeBattlefield {
      disposeOwnedMeshes(entry.placeholder);
      entry.placeholder=null;
     }
+    // Modern airfield hangar/tower is loaded at its proper flightline anchor
+    // in createAirfieldServiceYard(). Never draw this normalized duplicate.
+    if(type==='building'&&entry.kind==='airfield'&&
+       model.getObjectByName('SF_Airfield_PBR_Root'))model.visible=false;
     entry.node.add(model);entry.detail=model;
     const visualScale=calibratedScale(entry.kind,type,dims,desired)*
       (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
@@ -681,7 +687,7 @@ export class SandforgeBattlefield {
    tint(yard,false,.34);
    group.add(yard);group.userData.previewYard=yard;
   }
-  const service=kind==='airfield'?createAirfieldServiceYard():
+  const service=kind==='airfield'?createAirfieldServiceYard(0,{ghost:true}):
    kind==='factory'?createFactoryServiceYard():null;
   if(service){
    tint(service,true,.38);
@@ -703,7 +709,8 @@ export class SandforgeBattlefield {
    if((kind==='headquarters'&&
      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
      (kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
-      model.getObjectByName('FactoryRollupDoor')))
+      model.getObjectByName('FactoryRollupDoor'))||
+     (kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root')) )
     model.userData.sandforgeOriginalPBR=true;
    if(kind==='barracks')polishBarracksProps(model);
    if(kind==='barracks'||kind==='headquarters'){
@@ -721,10 +728,13 @@ export class SandforgeBattlefield {
    }
    if(kind==='airfield')hideOldAirfieldHangar({detail:model});
    if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksSides(model);
-   tint(model,false,.50);
+   // The main airfield mesh is a portrait/identity asset only. Its real
+   // model (and semi-transparent ghost) lives in the service flightline.
+   if(kind!=='airfield'||!model.getObjectByName('SF_Airfield_PBR_Root'))
+    tint(model,false,.50);
    if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksDesertPalette(model);
    if(!model.userData.sandforgeOriginalPBR)finishDesertBuildingMaterials(model,kind);
-   model.visible=true; // final authored shape and its actual entrances
+   model.visible=!(kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root')); // no duplicate hangar
    group.remove(placeholder);disposeOwnedMeshes(placeholder);
    group.userData.previewPlaceholder=null;group.userData.previewDetail=model;
    group.add(model);
@@ -739,6 +749,8 @@ export class SandforgeBattlefield {
    if(preview.userData.previewCircle)disposeOwnedMeshes(preview.userData.previewCircle);
    if(preview.userData.previewYard)disposeOwnedMeshes(preview.userData.previewYard);
    if(preview.userData.previewService){
+    if(preview.userData.previewService.userData.hangarService)
+     detachAirfieldPbr(preview.userData.previewService);
     disposeServicePaint(preview.userData.previewService);
     disposeOwnedMeshes(preview.userData.previewService);
    }
@@ -932,7 +944,7 @@ export class SandforgeBattlefield {
    }
    if(b.kind==='airfield'){
     if(!entry.airfieldServiceYard){
-     entry.airfieldServiceYard=createAirfieldServiceYard();entry.node.add(entry.airfieldServiceYard);
+     entry.airfieldServiceYard=createAirfieldServiceYard(b.owner);entry.node.add(entry.airfieldServiceYard);
      conformAirfieldSurface(entry.airfieldServiceYard,b,(x,z)=>this.heightAt(x,z));
     }
     hideOldAirfieldHangar(entry);
