@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {disposeOwnedMeshes} from './webgl-resource-lifecycle.js';
+import {barracksPropMaterial} from './webgl-barracks-prop-materials.js';
 
 // Decorative props live next to authored buildings, independently of glTF
 // loading and without altering building collision, navigation or saves.
@@ -113,12 +114,11 @@ function instanceBoxes(group,name,paint,parts){
  instances.receiveShadow=true;
  group.add(instances);
 }
-function instanceFenceWires(group,parts){
+function instanceFenceWires(group,parts,{radius=.42,name='YardFenceMesh'}={}){
  if(!parts.length)return;
- // Cross-bracing reads like a light wire fence at strategic camera distance.
- const wires=new THREE.InstancedMesh(new THREE.CylinderGeometry(.42,.42,1,5),
+ const wires=new THREE.InstancedMesh(new THREE.CylinderGeometry(radius,radius,1,6),
   fenceRail,parts.length);
- wires.name='YardFenceMesh';
+ wires.name=name;
  wires.userData={visualOnly:true,nonPlayable:true,siteDecor:true};
  const helper=new THREE.Object3D(),up=new THREE.Vector3(0,1,0);
  const direction=new THREE.Vector3();
@@ -172,6 +172,73 @@ function perimeterFence(group,width){
  group.userData.fenceRails=rails.length;
  group.userData.fenceWires=wires.length;
 }
+
+/** Barracks-only military wire perimeter. Unlike the old wooden fence, this
+ * has slim steel posts and horizontal wire/barbs, no bulky rail or X braces.
+ * Three sides plus two front sections keep the actual infantry exit clear. */
+function perimeterBarracksWire(group,width){
+ const x=width*.65,rear=-width*.53,front=width*.28;
+ const gateHalf=width*.23;
+ const posts=[],strands=[],barbs=[],seen=new Set();
+ function segment(x0,z0,x1,z1){
+  const dx=x1-x0,dz=z1-z0,dist=Math.hypot(dx,dz);
+  const steps=Math.max(1,Math.ceil(dist/24));
+  for(let i=0;i<=steps;i++){
+   const t=i/steps,px=x0+dx*t,pz=z0+dz*t;
+   const key=px.toFixed(2)+':'+pz.toFixed(2);
+   if(!seen.has(key)){
+    seen.add(key);
+    posts.push({x:px,y:13.5,z:pz,w:1.45,h:27,d:1.45});
+   }
+   if(i===steps)continue;
+   const sx=dx/steps,sz=dz/steps,ux=sx/(dist/steps),uz=sz/(dist/steps);
+   const mx=px+sx*.5,mz=pz+sz*.5;
+   for(const y of [7.5,14.5,21.5])
+    strands.push({x:mx,y,z:mz,dx:sx,dy:0,dz:sz});
+   // An upper twisted strand and sparse barbs, all instanced.
+   barbs.push({x:mx,y:24.5,z:mz,dx:sx,dy:0,dz:sz});
+   for(const u of [.25,.50,.75]){
+    const bx=px+sx*u,bz=pz+sz*u;
+    barbs.push({x:bx,y:24.5,z:bz,
+     dx:uz*1.7,dy:2.9,dz:-ux*1.7});
+    barbs.push({x:bx,y:24.5,z:bz,
+     dx:-uz*1.7,dy:2.9,dz:ux*1.7});
+   }
+  }
+ }
+ segment(-x,rear,x,rear);
+ segment(-x,rear,-x,front);
+ segment(x,rear,x,front);
+ segment(-x,front,-gateHalf,front);
+ segment(gateHalf,front,x,front);
+ instanceBoxes(group,'BarracksWireFencePosts',fencePost,posts);
+ instanceFenceWires(group,strands,{radius:.18,name:'BarracksWireFenceStrands'});
+ instanceFenceWires(group,barbs,{radius:.12,name:'BarracksWireFenceBarbs'});
+ group.userData.fencePosts=posts.length;
+ group.userData.fenceRails=0;
+ group.userData.fenceWires=strands.length+barbs.length;
+ group.userData.barracksWireFence=true;
+}
+
+const barracksYardPaint=new Map([
+ [rubber,'rubber'],[tread,'trackMetal'],[steel,'brightSteel'],
+ [wood,'supplyWood'],[sand,'linen'],[olive,'helmetPaint'],
+ [dark,'darkSteel'],[fencePost,'fenceSteel'],[fenceRail,'fenceSteel'],
+ [crateBand,'darkSteel'],[barrelPaint,'olivePaint']
+]);
+/** Replace procedural single-color swatches in the barracks yard with real
+ * tiled PBR maps. Leave the other buildings and emissive lamp glass alone. */
+function textureBarracksYard(root){
+ root.traverse(obj=>{
+  if(!obj.isMesh)return;
+  const role=barracksYardPaint.get(obj.material);
+  if(role){
+   obj.material=barracksPropMaterial(role);
+   obj.userData.sandforgeBarracksPropPolish=true;
+  }
+ });
+}
+
 function addSiteDecor(root,kind,width){
  // Dedicated grouping avoids changing the legacy barracks/factory prop names
  // and lets renderer integration identify the decorations independently.
@@ -180,18 +247,32 @@ function addSiteDecor(root,kind,width){
  g.userData={visualOnly:true,nonPlayable:true,siteDecor:true};
  root.add(g);
  const large=width>=155;
- if(fencedSites.has(kind))perimeterFence(g,width);
+ if(kind==='barracks')perimeterBarracksWire(g,width);
+ else if(fencedSites.has(kind))perimeterFence(g,width);
  const supplies=new THREE.Group();
- supplies.name='BaseSupplyCache';supplies.position.set(width*.55,0,-width*.2);
+ // The original depot was centered at x=.55*width while its pallet
+ // extended another 30+ units into the wire-fence line (x=.65*width).
+ // Keep the barracks-only cache compact and clearly inside the perimeter.
+ supplies.name='BaseSupplyCache';
+ supplies.position.set(kind==='barracks'?width*.49:width*.55,0,-width*.2);
  g.add(supplies);
  // Different silhouettes per facility, all deterministic and inexpensive.
- storageCrate(supplies,0,0,large?19:13);
- storageCrate(supplies,large?18:13,12,large?14:11,sand);
- if(kind!=='airfield'){
-  box(supplies,'SupplyPallet',[43,3.2,27],wood,9,1.6,4);
-  supplyBarrel(supplies,-16,-11);
-  if(kind==='factory'||kind==='research'||kind==='headquarters')
-   supplyBarrel(supplies,-3,-19);
+ if(kind==='barracks'){
+  // Fit all boxes, wood pallet and drum between the building facade
+  // and side wire. Preserve crate/metal texture roles and visual shadows.
+  storageCrate(supplies,0,0,14);
+  storageCrate(supplies,14,9,10,sand);
+  box(supplies,'SupplyPallet',[28,3.2,22],wood,3,1.6,3);
+  supplyBarrel(supplies,-10,-11);
+ }else{
+  storageCrate(supplies,0,0,large?19:13);
+  storageCrate(supplies,large?18:13,12,large?14:11,sand);
+  if(kind!=='airfield'){
+   box(supplies,'SupplyPallet',[43,3.2,27],wood,9,1.6,4);
+   supplyBarrel(supplies,-16,-11);
+   if(kind==='factory'||kind==='research'||kind==='headquarters')
+    supplyBarrel(supplies,-3,-19);
+  }
  }
  // Place masts near the side fencing, never along the open front door/spawn.
  const lampHeight=Math.min(60,Math.max(43,width*.29));
@@ -214,8 +295,12 @@ function addSiteDecor(root,kind,width){
  // Keep shadows on the building and original production-yard props.
  g.traverse(object=>{
   if(!object.isMesh)return;
-  object.castShadow=false;
-  object.receiveShadow=false;
+  // Only the larger barracks-yard objects need an actual sunlight shadow.
+  // Tiny fence wires/straps stay shadow-free to avoid shadow-map aliasing.
+  const majorBarracksProp=kind==='barracks'&&
+   /^(CrateBody|CrateLid|SupplyPallet|BarrelShell|LampPost|LampHead)$/.test(object.name);
+  object.castShadow=majorBarracksProp;
+  object.receiveShadow=majorBarracksProp;
   // Decorative meshes must not compete with the building model when
   // recursive unit/building raycasts resolve game selection.
   object.raycast=()=>{};
@@ -267,6 +352,7 @@ export function createBuildingYard(kind,width=160){
   }
  }
  addSiteDecor(root,kind,width);
+ if(kind==='barracks')textureBarracksYard(root);
  return root;
 }
 

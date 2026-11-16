@@ -77,7 +77,7 @@ export function finishBarracksDesertPalette(model){
  const root=model.getObjectByName('Atlas_barracks')??model;
  const owned=new Map();let painted=0;
  root.traverse(mesh=>{
-  if(!mesh.isMesh)return;
+  if(!mesh.isMesh||mesh.userData?.sandforgeBarracksPropPolish)return;
   const convert=source=>{
    if(!source?.isMeshStandardMaterial)return source;
    const role=(mesh.name+' '+source.name).toLowerCase();

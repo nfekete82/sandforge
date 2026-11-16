@@ -53,10 +53,13 @@ export function turretMuzzleOffset(angle,barrel){
 // spacing and saved dimensions unchanged. Infantry read as humans beside
 // larger real structures, rather than as toy-sized buildings.
 export function visualUnitScale(kind){
- // Align all four foot soldiers with larger rocket artillery and Humvee.
- // This is a render-only factor: no change to move, weapon or capture radius.
- if(['infantry','medic','engineer','rocket'].includes(kind))return .56;
- if(kind==='heavy')return .58;
+ // The final PBR barracks' double door is shorter than the former Atlas
+ // doorway. With .56/.58 scaling, soldiers are taller than its opening and
+ // appear to bump their heads during the production exit.
+ // Target ~26 visual world units for every foot soldier at normal RTS zoom.
+ // Render-only: collision, navigation, weapon range and save data stay intact.
+ if(['infantry','medic','engineer','rocket'].includes(kind))return .42;
+ if(kind==='heavy')return .40;
  // Humvee needs a substantial visual presence beside full-scale buildings.
  // Only the rendered mesh changes; navigation/collision/save width stays 76.
  if(kind==='rover')return 1.34;

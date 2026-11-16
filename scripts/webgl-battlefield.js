@@ -13,6 +13,8 @@ import {SandforgeActorPresentation} from '/webgl-actor-presentation.js';
 import {calibratedScale,visualUnitScale,unitVisualYaw,unitRenderAltitude,buildingFacingAngle,nextBuildingFacing,buildingFacingDegrees,turretAimLocalYaw,selectionRingRadius} from '/webgl-scale.js';
 import {SandforgeGroundingPass} from '/webgl-grounding.js';
 import {createBuildingYard,disposeBuildingYard} from '/webgl-building-yard.js';
+import {polishBarracksProps} from '/webgl-barracks-props.js';
+import {addBarracksContactShadows} from '/webgl-barracks-contact-shadows.js';
 import {createAirfieldServiceYard,conformAirfieldSurface,updateAirfieldServiceYard,hideOldAirfieldHangar,disposeAirfieldServiceYard} from '/webgl-airfield-service.js';
 import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '/webgl-factory-service.js';
 import {disposeServicePaint,previewServiceMaterial} from '/webgl-service-materials.js';
@@ -261,6 +263,7 @@ export class SandforgeBattlefield {
   root.traverse(mesh=>{
    if(!mesh.isMesh)return;
    mesh.castShadow=true;mesh.receiveShadow=true;
+   if(mesh.userData?.sandforgeBarracksPropPolish)return;
    mesh.material=Array.isArray(mesh.material)
     ?mesh.material.map(brighten):brighten(mesh.material);
   });
@@ -371,6 +374,7 @@ export class SandforgeBattlefield {
     const {entry,type}=task;
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
+    if(type==='building'&&entry.kind==='barracks')polishBarracksProps(model);
     if(type==='unit'&&entry.kind==='engineer')
      entry.engineerTools=equipEngineerTools(model);
     if(type==='unit'&&entry.kind==='rocket')
@@ -387,8 +391,10 @@ export class SandforgeBattlefield {
       -box0.min.y*scale,-box0.getCenter(new THREE.Vector3()).z*scale);
     }
     if(type==='building'){
-     this.lightBuildingMeshes(model);
-     if(entry.kind==='barracks')finishBarracksSides(model);
+     if(!model.userData.sandforgeOriginalPBR){
+      this.lightBuildingMeshes(model);
+      if(entry.kind==='barracks')finishBarracksSides(model);
+     }
     }else model.traverse(o=>{
      if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}
     });
@@ -410,11 +416,14 @@ export class SandforgeBattlefield {
       (type==='unit'?visualUnitScale(entry.kind):1);
     entry.modelHeight=dims.y*visualScale;
     entry.modelFootprint=Math.max(dims.x,dims.z)*visualScale;
-    applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,
-     entry.modelFootprint,entry.modelHeight);
-    if(type==='building'&&entry.kind==='barracks')finishBarracksDesertPalette(model);
-    if(type==='building')finishDesertBuildingMaterials(model,entry.kind);
-    if(type==='building')finishBuildingFacadeShading(model);
+    if(!model.userData.sandforgeOriginalPBR){
+     applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,
+      entry.modelFootprint,entry.modelHeight);
+     if(type==='building'&&entry.kind==='barracks')finishBarracksDesertPalette(model);
+     if(type==='building')finishDesertBuildingMaterials(model,entry.kind);
+     if(type==='building')finishBuildingFacadeShading(model);
+    }
+    if(type==='building'&&entry.kind==='barracks')addBarracksContactShadows(model);
     if(type==='unit')attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
     entry.visualBaseY=model.position.y;entry.visualBaseZ=model.position.z;
     if(type==='building'){
@@ -656,7 +665,9 @@ export class SandforgeBattlefield {
   if(isStrategicBuilding(kind))return; // detailed procedural fallback is already ghosted
   this.getModel(this.asset(kind,0,'building')).then(data=>{
    if(this.buildPreview!==group||this.buildKind!==kind)return;
-   const model=cloneSkeleton(data.scene),bounds=new THREE.Box3().setFromObject(model);
+   const model=cloneSkeleton(data.scene);
+   if(kind==='barracks')polishBarracksProps(model);
+   const bounds=new THREE.Box3().setFromObject(model);
    const size=bounds.getSize(new THREE.Vector3());
    if(size.y>0&&Math.max(size.x,size.z)>0){
     const scale=calibratedScale(kind,'building',size,spec.width);
@@ -665,10 +676,10 @@ export class SandforgeBattlefield {
       -bounds.min.y*scale,-bounds.getCenter(new THREE.Vector3()).z*scale);
    }
    if(kind==='airfield')hideOldAirfieldHangar({detail:model});
-   if(kind==='barracks')finishBarracksSides(model);
+   if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksSides(model);
    tint(model,false,.50);
-   if(kind==='barracks')finishBarracksDesertPalette(model);
-   finishDesertBuildingMaterials(model,kind);
+   if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksDesertPalette(model);
+   if(!model.userData.sandforgeOriginalPBR)finishDesertBuildingMaterials(model,kind);
    model.visible=true; // final authored shape and its actual entrances
    group.remove(placeholder);disposeOwnedMeshes(placeholder);
    group.userData.previewPlaceholder=null;group.userData.previewDetail=model;

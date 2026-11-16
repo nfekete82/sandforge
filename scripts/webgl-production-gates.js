@@ -36,7 +36,8 @@ export class SandforgeProductionGates {
    const root=portal.root;
    const lampMaterial=new THREE.MeshStandardMaterial({color:'#7d3913',emissive:'#ff9f2a',emissiveIntensity:0});
    const lamp=new THREE.Mesh(bulbGeometry,lampMaterial);
-   lamp.position.set(-.18,1.42,1.65);lamp.visible=false;root.add(lamp);
+   lamp.position.set(...(portal.pbrDoor?[0,3.01,4.20]:[-.18,1.42,1.65]));
+   lamp.visible=false;root.add(lamp);
    entry.gate={kind:'barracks',root,portal,door:null,hall:portal.hall,lamp,dust:null,ramp:null};
    setBarracksDoorOpen(portal,0);
    return entry.gate;
@@ -113,8 +114,14 @@ export class SandforgeProductionGates {
    this.seen.add(event);
    entry.node.updateWorldMatrix(true,true);
    const barracks=base.kind==='barracks',root=entry.gate.root;
-   const exit=root.localToWorld(barracks?new THREE.Vector3(-.18,0,2.10):new THREE.Vector3(.18,0,2.9));
-   const start=root.localToWorld(barracks?new THREE.Vector3(-.18,.275,.9):new THREE.Vector3(.18,.265,-.03));
+   const pbrBarracks=barracks&&entry.gate.portal?.pbrDoor===true;
+   // New PBR gate sits at z≈4.0; Atlas legacy gate sat at z≈1.5.
+   const exit=root.localToWorld(barracks?
+    (pbrBarracks?new THREE.Vector3(0,.55,5.20):new THREE.Vector3(-.18,0,2.10)):
+    new THREE.Vector3(.18,0,2.9));
+   const start=root.localToWorld(barracks?
+    (pbrBarracks?new THREE.Vector3(0,.58,3.23):new THREE.Vector3(-.18,.275,.9)):
+    new THREE.Vector3(.18,.265,-.03));
    const target=bf.entityPosition(unit),center=entry.node.position;
    const exitAngle=Math.atan2(exit.x-center.x,exit.z-center.z);
    const targetAngle=Math.atan2(target.x-center.x,target.z-center.z);
@@ -162,7 +169,10 @@ export class SandforgeProductionGates {
    // First clear the entire hull and barrel past the real threshold. Only
    // outside the gate may the actor turn toward Simulation's actual exit.
    const infantry=gate.kind==='barracks';
-   const outside=infantry?new THREE.Vector3(-.18,0,2.10):new THREE.Vector3(.18,0,2.9);
+   const pbrBarracks=infantry&&gate.portal?.pbrDoor===true;
+   const outside=infantry?
+    (pbrBarracks?new THREE.Vector3(0,.55,5.20):new THREE.Vector3(-.18,0,2.10)):
+    new THREE.Vector3(.18,0,2.9);
    const root=gate.root;
    root.localToWorld(outside);
    const target=actor.node.position.clone();
@@ -171,9 +181,11 @@ export class SandforgeProductionGates {
    const facing=buildingFacingAngle(base.facing);
    if(fraction<clearFraction){
     const t=smooth(fraction/clearFraction);
-    const z=infantry ? .9+1.20*t : -.03+2.93*t;
-    const y=infantry ? .275*(1-t) : z<=1.5 ? .265 : Math.max(0,.265*(2.9-z)/1.4);
-    p=root.localToWorld(new THREE.Vector3(infantry?-.18:.18,y,z));yaw=facing;
+    const z=infantry?(pbrBarracks?3.23+1.97*t:.9+1.20*t):-.03+2.93*t;
+    const y=infantry?(pbrBarracks?(0.58-0.03*t):(0.275*(1-t))):
+     (z<=1.5?0.265:Math.max(0,0.265*(2.9-z)/1.4));
+    p=root.localToWorld(new THREE.Vector3(infantry?(pbrBarracks?0:-.18):.18,y,z));
+    yaw=facing;
    }else{
     // Route around the footprint for every cardinal facing. The simulation's
     // legacy spawn search is independent of building rotation, so a direct
