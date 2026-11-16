@@ -163,7 +163,6 @@ export function createSandforgeResearchDeck({
   q('[data-sf-tech-reason]').dataset.state=status.key;
   start.disabled=!status.canStart;
   start.textContent=status.canStart?'ERFORSCHEN · '+fmt(spec.cost)+' ◆':status.label;
-  start.dataset.sfTechKind=kind;
  }
  overlay.addEventListener('click',event=>{
   // Do not forward menu button clicks to combat/placement/HUD commands.
@@ -171,13 +170,16 @@ export function createSandforgeResearchDeck({
   if(event.target===overlay||event.target.closest('[data-sf-tech-close]')){
    hide();return;
   }
-  const card=event.target.closest('[data-sf-tech-kind]');
-  if(card){selectedKind=card.dataset.sfTechKind;display();return;}
+  // Start must be processed before card selection, and the action itself
+  // does not carry a data-sf-tech-kind (which would swallow the click).
   if(event.target.closest('[data-sf-tech-start]')&&selectedKind){
    const status=researchDeckTechStatus(last.state,selectedKind,upgrades,
     last.credits,last.online,last.playing);
    if(status.canStart)onResearch(selectedKind);
+   return;
   }
+  const card=event.target.closest('[data-sf-tech-kind]');
+  if(card){selectedKind=card.dataset.sfTechKind;display();return;}
  });
  return {
   root:overlay,
