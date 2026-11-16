@@ -540,10 +540,11 @@ export function createStrategicBuilding(kind,owner=0){
    box(10,11,10,'glow',x,66,z);
  }
  const batched=batchStaticParts(root,kind);
- // Compact lab: ~27% smaller horizontally and ~24% shorter. These scale
- // factors are for the STRATEGIC model only, not hit points or research.
+ // Lab enlarged to visually match the modern command centre and factory.
+ // All original components, roof radar, HUD portrait and placement ghost use
+ // the SAME root transform. Preserve costs, research timing and PBR textures.
  if(kind==='research'){
-  batched.scale.set(.73,.76,.73);
+  batched.scale.set(.86,.86,.86);
   batched.userData.compactResearch=true;
   batched.userData.referenceInspiredCamo=true;
  }
