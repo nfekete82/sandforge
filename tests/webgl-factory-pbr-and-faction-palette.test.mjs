@@ -104,7 +104,9 @@ test('build regenerates factory GLBs before copying assets, not user-local binar
  assert.match(game,/entry.kind==='factory'.*SF_Factory_PBR_roof/);
  const hud=readFileSync('scripts/webgl-portraits.js','utf8');
  assert.match(hud,/const authoredFactory=kind==='factory'/);
- assert.match(hud,/else if\(authoredFactory\)/);
+ assert.match(hud,/const authoredAirfield=kind==='airfield'/);
+ assert.match(hud,/else if\(authoredFactory\|\|authoredAirfield\)/);
+ assert.match(hud,/DESERT_BUILDING_KINDS\.includes\(kind\)\|\|kind==='airfield'/);
 });
 
 test('factory has one production gate; repair is still a separate OPEN platform',()=>{
