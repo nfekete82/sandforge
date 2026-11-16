@@ -42,14 +42,14 @@ export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
  const roofCamo=servicePaint(['#657258','#aa9c78','#c1ab86'],{seed:31,repeat:4});
  const wallCamo=servicePaint(['#918467','#b4a17d','#70765d'],{seed:15,repeat:3});
  const ribbedSteel=servicePaint(['#45514a','#69776e','#899083'],{pattern:'metal',seed:45,repeat:2,metalness:.57,roughness:.52});
- const wornPaving=servicePaint(['#77736b','#a49c86','#b3a892'],{pattern:'concrete',seed:39,repeat:5,roughness:.96});
- const runwayWear=servicePaint(['#3d4542','#515752','#64665e'],{pattern:'concrete',seed:49,repeat:5,roughness:.96});
+ const wornPaving=servicePaint(['#8e8c85','#a8a69e','#c2bcb0'],{pattern:'slab',seed:39,repeat:4,roughness:.97});
+ const runwayWear=servicePaint(['#3d4542','#525652','#62665d'],{pattern:'asphalt',seed:49,repeat:5,roughness:.97});
  // True weathered textures on the ramps and fuel depot. The old plain
  // tan/olive cubes read like missing-material placeholders at RTS zoom.
- const apronWear=servicePaint(['#918b7b','#aaa18e','#777a6d'],
-  {pattern:'concrete',seed:67,repeat:6,roughness:.94});
- const rampGrip=servicePaint(['#626b64','#454e4b','#929080'],
-  {pattern:'metal',seed:25,repeat:4,metalness:.3,roughness:.84});
+ const apronWear=servicePaint(['#8c8c85','#adaaa2','#c6c2b7'],
+  {pattern:'slab',seed:67,repeat:4,roughness:.96});
+ const rampGrip=servicePaint(['#787c78','#a29f96','#bbb7ad'],
+  {pattern:'slab',seed:25,repeat:4,metalness:.04,roughness:.95});
  const fuelPaint=servicePaint(['#788371','#aba68b','#626b64'],
   {pattern:'metal',seed:61,repeat:3,metalness:.42,roughness:.65});
  const fuelMetal=servicePaint(['#444f4d','#92998e','#65716c'],
@@ -381,7 +381,7 @@ export function updateAirfieldServiceYard(entry,base,units,time,dt){
   const phase=aircraft?.airfieldService?.phase;
   // Start opening while the bomber is still landing. The shutters must
   // be fully clear before ground taxi reaches the entrance.
-  const target=phase&&phase!=='approach'?1:0;
+  const target=phase&&phase!=='approach'||group.userData.airfieldProductionOpen>0?1:0;
   gate.open+=(target-gate.open)*Math.min(1,Math.max(0,dt)*2.5);
   // The two halves physically slide sideways into reinforced wall pockets.
   gate.left.position.x=gate.cx-27-28*gate.open;
