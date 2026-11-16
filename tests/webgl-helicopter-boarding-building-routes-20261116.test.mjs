@@ -75,6 +75,30 @@ test('partial helicopter load accepts more rocket soldiers in a second boarding 
  assert.ok(h.transport.cargo.includes(fresh[0].id));
 });
 
+test('helicopter parked for airfield maintenance departs safely before a new pickup',()=>{
+ const g=arena();
+ const original=new Simulation(261116,4).bases[0];
+ const hangar={...original,id:8900,kind:'airfield',owner:0,
+  x:1900,y:2000,facing:0,radius:BUILDINGS.airfield.radius,
+  hp:BUILDINGS.airfield.hp,buildRemaining:0,queue:[],queueTypes:[],
+  queueCosts:[],production:0,rally:null};
+ g.bases.push(hangar);
+ const dock=airfieldPoint(hangar,'dock');
+ const h=g.spawn(0,dock,'scout');
+ h.airfieldService={baseId:hangar.id,bay:0,phase:'ready',
+  elapsed:0,paidHp:0};
+ h.flightHeight=0;
+ const trooper=g.spawn(0,{x:hangar.x+260,y:hangar.y+160},'rocket');
+ const boarded=g.command([trooper.id],{kind:'board',target:h.id,x:h.x,y:h.y});
+ assert.equal(boarded,1,'free helicopter seat accepts rocket soldier while parked');
+ assert.equal(h.airfieldService.phase,'takeoff',
+  'flightline departure must finish before boarding takes control');
+ assert.equal(h.transport.task,'load');
+ for(let i=0;i<190&&h.airfieldService;i++)g.step(.05);
+ assert.equal(h.airfieldService,undefined,'actual authored takeoff completes');
+ assert.equal(h.transport.task,'load','pickup resumes after hangar departure');
+});
+
 test('all four rotated hangars block walking through roof, while runway remains traversable',()=>{
  const world=new World(261116,4);
  world.blocked.fill(0);world.components.fill(0);
