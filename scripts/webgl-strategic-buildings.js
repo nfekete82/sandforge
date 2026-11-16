@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from './sandforge-faction-palette.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 
 /** Zero-Hour-style recognizable strategic structures. Procedural originals,
@@ -83,7 +84,7 @@ function createDefensiveWall(owner){
  concrete.userData={sandforgeWallCamouflage:true,sandforgeColorMapCamo:true};
  const cap=new THREE.MeshStandardMaterial({color:'#817960',roughness:.84,metalness:.19,
   map:materialGrain,bumpMap:materialGrain,bumpScale:.1});
- const stripe=new THREE.MeshStandardMaterial({color:owner===0?'#3179a2':'#b35f4a',
+ const stripe=new THREE.MeshStandardMaterial({color:FACTION_PAINT[owner],
   roughness:.6,metalness:.25});
  const add=(w,h,d,x,y,z,mat,name)=>{
   const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
@@ -110,7 +111,7 @@ export function createStrategicBuilding(kind,owner=0){
  const root=new THREE.Group();
  root.name='Strategic_'+kind;
  root.userData.visualOnly=true;
- const faction=owner===0?'#487488':'#91594b';
+ const faction=FACTION_PAINT[owner];
  const researchCamo=kind==='research';
  const siloCamo=kind==='silo';
  const structuralCamo=researchCamo||siloCamo;
