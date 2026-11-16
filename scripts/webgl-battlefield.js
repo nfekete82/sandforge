@@ -899,7 +899,10 @@ export class SandforgeBattlefield {
    let entry=this.bases.get(b.id);
    if(!entry){entry=this.spawnNode(b,'building');this.bases.set(b.id,entry);this.grounding.attachBuilding(entry,b);}
    if(entry.factionOwner!==b.owner){
-    applyFactionAccents(entry,b,'building');
+    // Authored HQ/Factory team paint is already baked into its PBR texture.
+    // Never recolor its original camouflage in the sync tick.
+    if(entry.detail?.userData.sandforgeOriginalPBR)entry.factionOwner=b.owner;
+    else applyFactionAccents(entry,b,'building');
     if(entry.detail&&['barracks','headquarters'].includes(b.kind)){
      paintFactionRoofStripes(entry.detail,b.kind,b.owner);
      paintFactionEntranceBanners(entry.detail,b.kind,b.owner);
