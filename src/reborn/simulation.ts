@@ -1174,18 +1174,27 @@ export class Simulation {
     else this.workEffects.push({kind,source,sources:[source],target,amount,at:this.time});
   }
   private damage(source:Unit|Base,target:Unit|Base,damage:number,weapon:Weapon,from:Point,barrel?:number):void {
-    // Deterministic fixed-step accuracy applies to UNIT shots for both
-    // factions. Turret buildings and strategic weapons remain unchanged.
-    // A miss still emits a real Shot to render tracer, sand dust and dent.
-    if(this.stageWebGLProduction&&'orders' in source){
-      const ordinal=(source.burst?.index??0)+(weapon==='machinegun'?71:0);
+    // WebGL ballistics: every infantry/vehicle bullet AND defensive turret
+    // volley has the same deterministic 25% miss chance for both factions.
+    // Strategic missiles keep their independent delayed-impact rules.
+    // Misses must not damage/suppress or create AI hit reactions. Emit one
+    // ordinary Shot so the existing pooled sand dents, dust and tracers play.
+    const unitShooter='orders' in source;
+    if(this.stageWebGLProduction&&(unitShooter||weapon==='turret')){
+      // A turret's four alternating-barrel burst needs independent rolls even
+      // when several bullets are simulated in one fixed 20 Hz tick. Offset
+      // its ordinal from unit ballistics without mutable/random state.
+      const ordinal=(source.burst?.index??0)+(weapon==='machinegun'?71:
+        weapon==='turret'?211:0);
       if(unitShotMisses(this.seed,source.id,target.id,this.time,ordinal)){
         const targetRadius='queue' in target?target.radius:unitSpec(target).radius;
         const point=missedGroundPoint(from,target,targetRadius,this.world.size,
           unitShotRoll(this.seed,source.id,target.id,this.time,ordinal+891));
         this.shots.push({from,to:point,owner:source.owner,life:.65,hit:false,miss:true,
-          source:source.id,weapon,barrel,at:this.time,kind:source.kind,
-          angle:source.angle,flightHeight:source.flightHeight,
+          source:source.id,weapon,barrel,at:this.time,
+          ...(unitShooter?{kind:source.kind,angle:source.angle,
+            flightHeight:source.flightHeight}:{}),
+          projected:!unitShooter,
           groundFrom:{x:source.x,y:source.y},groundTo:point,impactElevation:0});
         return;
       }
