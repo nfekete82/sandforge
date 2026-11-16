@@ -182,8 +182,8 @@ export class SandforgeProductionGates {
    if(fraction<clearFraction){
     const t=smooth(fraction/clearFraction);
     const z=infantry?(pbrBarracks?3.23+1.97*t:.9+1.20*t):-.03+2.93*t;
-    const y=infantry?(pbrBarracks?.58-.03*t:.275*(1-t)):
-     z<=1.5?.265:Math.max(0,.265*(2.9-z)/1.4);
+    const y=infantry?(pbrBarracks?(0.58-0.03*t):(0.275*(1-t))):
+     (z<=1.5?0.265:Math.max(0,0.265*(2.9-z)/1.4));
     p=root.localToWorld(new THREE.Vector3(infantry?(pbrBarracks?0:-.18):.18,y,z));
     yaw=facing;
    }else{
