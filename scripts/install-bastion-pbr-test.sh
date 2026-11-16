@@ -37,6 +37,9 @@ node --test \
  tests/webgl-hq-dome.test.mjs \
  tests/webgl-hq-portrait-lighting.test.mjs \
  tests/webgl-roof-stripes-and-wall-placement.test.mjs \
+ tests/webgl-wall-drag-to-map-edge-20261116.test.mjs \
+ tests/sandforge-defensive-walls-20261111.test.mjs \
+ tests/webgl-wall-finish-20261115.test.mjs \
  tests/webgl-entrance-banners-and-hud-compact.test.mjs \
  tests/webgl-factory-pbr-and-faction-palette.test.mjs \
  tests/webgl-factory-repair-supplies-20261116.test.mjs \
