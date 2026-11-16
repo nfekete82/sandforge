@@ -115,7 +115,7 @@ function roleMaps(role){
  albedo.wrapS=albedo.wrapT=THREE.RepeatWrapping;
  albedo.minFilter=THREE.LinearMipmapLinearFilter;
  albedo.magFilter=THREE.LinearFilter;
- albedo.anisotropy=4;
+ albedo.anisotropy=8; // clearer oblique PBR facades at tactical camera angles
  const detail=makeMaps(role);
  const result={albedo,...detail};
  textures.set(role,result);
