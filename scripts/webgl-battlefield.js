@@ -153,16 +153,50 @@ export class SandforgeBattlefield {
   if(type==='unit'){
    if(['tank','rover','artillery'].includes(kind)){
     const length=kind==='tank'?77:kind==='artillery'?84:57;
-    make(new THREE.BoxGeometry(44,15,length),metal,0,16,0);
+    // A combat tank must never appear as a bright team-blue four-wheeled
+    // toy car while the 12 MB authored tank GLB streams in (or fails).
+    // Even the temporary rig has a desert hull, armoured turret and tracks.
+    const hullPaint=kind==='tank'?new THREE.MeshStandardMaterial({
+     color:'#9b9176',metalness:.24,roughness:.84}):metal;
+    const trackPaint=kind==='tank'?new THREE.MeshStandardMaterial({
+     color:'#3a3b34',metalness:.16,roughness:.92}):dark;
+    const hull=make(new THREE.BoxGeometry(kind==='tank'?48:44,15,length),hullPaint,0,16,0);
     if(kind==='tank'){
-     // Keep the turret and gun independently steerable while GLB is loading.
-     const turret=new THREE.Group();turret.name='Tank_Turret';group.add(turret);
-     const cap=new THREE.Mesh(new THREE.BoxGeometry(32,12,length*.45),dark);
-     cap.position.set(0,30,-2);cap.castShadow=true;turret.add(cap);
-     const gun=new THREE.Group();gun.name='Tank_Gun';group.add(gun);
-     const tube=new THREE.Mesh(new THREE.CylinderGeometry(2.5,3.2,37,10),dark);
-     tube.rotation.x=Math.PI/2;tube.position.set(0,29,27);
+     hull.name='Tank_HullArmour';
+     const nose=make(new THREE.BoxGeometry(45,9,20),hullPaint,0,24,25);
+     nose.name='Tank_SlopedFrontArmour';nose.rotation.x=-.20;
+     const rear=make(new THREE.BoxGeometry(44,7,20),hullPaint,0,25,-25);
+     rear.name='Tank_RearArmour';
+     // Continuous low-profile crawler belts instead of automobile wheels.
+     for(const side of [-1,1]){
+      const x=side*27;
+      const belt=make(new THREE.BoxGeometry(11,15,75),trackPaint,x,12,0);
+      belt.name='Tank_TrackBelt_'+side;
+      const tread=make(new THREE.BoxGeometry(12,4,71),dark,x,20,0);
+      tread.name='Tank_TrackUpperTread_'+side;
+      for(const z of [-27,-9,9,27]){
+       const wheel=make(new THREE.CylinderGeometry(7,7,1.5,10),
+        dark,x+side*6,11,z);
+       wheel.name='Tank_RoadWheel_'+side+'_'+z;
+       wheel.rotation.z=Math.PI/2;
+      }
+     }
+     const turret=new THREE.Group();turret.name='Tank_Turret';
+     turret.position.set(0,32,-3);group.add(turret);
+     const armor=new THREE.Mesh(new THREE.CylinderGeometry(21,23,13,8),
+      hullPaint);armor.name='Tank_TurretArmour';
+     armor.castShadow=true;armor.receiveShadow=true;turret.add(armor);
+     const hatch=new THREE.Mesh(new THREE.CylinderGeometry(9,10,3,10),dark);
+     hatch.name='Tank_CommandHatch';hatch.position.y=8;
+     hatch.castShadow=true;turret.add(hatch);
+     const gun=new THREE.Group();gun.name='Tank_Gun';turret.add(gun);
+     const tube=new THREE.Mesh(new THREE.CylinderGeometry(2.8,3.7,52,10),dark);
+     tube.name='Tank_MainCannon';
+     tube.rotation.x=Math.PI/2;tube.position.set(0,0,35);
      tube.castShadow=true;gun.add(tube);
+     const muzzle=new THREE.Mesh(new THREE.CylinderGeometry(4.2,4.2,5,10),
+      trackPaint);muzzle.name='Tank_MuzzleBrake';
+     muzzle.rotation.x=Math.PI/2;muzzle.position.z=59;gun.add(muzzle);
     }else if(kind==='artillery'){
      // The lite-mode rocket launcher must look and behave like a six-tube
      // launcher, not a generic MG truck while its authored GLB is absent.
@@ -180,7 +214,8 @@ export class SandforgeBattlefield {
       muzzle.position.set(x,y,26);gun.add(muzzle);
      }
     }else make(new THREE.BoxGeometry(32,12,length*.45),dark,0,30,0);
-    for(const x of [-22,22])for(const z of [-length*.33,length*.33])make(new THREE.CylinderGeometry(10,10,7,12),dark,x,9,z).rotation.z=Math.PI*.5;
+    if(kind!=='tank')for(const x of [-22,22])for(const z of [-length*.33,length*.33])
+     make(new THREE.CylinderGeometry(10,10,7,12),dark,x,9,z).rotation.z=Math.PI*.5;
    }else if(['scout','bomber'].includes(kind)){
     make(new THREE.CapsuleGeometry(13,36,4,8),metal,0,15,0).rotation.x=Math.PI*.5;
     make(new THREE.BoxGeometry(95,2,15),dark,0,18,0);
@@ -238,14 +273,20 @@ export class SandforgeBattlefield {
   // still appear. Falling back to primitive grey cubes would make the actual
   // player's base look markedly worse than the 2D game.
   // Medics always load their authored 3D soldier, even in lite mode.
-  if((this.lite&&type!=='building'&&entity.kind!=='medic'&&entity.kind!=='rocket')||
+  // The tank is visually indispensable: load its real authored GLB even in
+  // ?lite=1 mode. Queue pressure must not permanently demote a paid tank to
+  // the emergency cuboid geometry.
+  const priorityTank=type==='unit'&&entity.kind==='tank';
+  if((this.lite&&type!=='building'&&
+      !['medic','rocket','tank'].includes(entity.kind))||
      (type==='building'&&isStrategicBuilding(entity.kind))||entry.requested||
-     this.loadingCount+this.modelQueue.length>=this.maxModels)return;
+     (!priorityTank&&this.loadingCount+this.modelQueue.length>=this.maxModels))return;
   entry.requested=true;
   const url=this.asset(entity.kind,entity.owner,type);
   if(type==='building'&&['factory','barracks'].includes(entity.kind))
    this.modelQueue.unshift({url,entry,type});
-  else if(type==='unit'&&entity.kind==='medic')this.modelQueue.unshift({url,entry,type});
+  else if(type==='unit'&&['tank','medic'].includes(entity.kind))
+   this.modelQueue.unshift({url,entry,type});
   else this.modelQueue.push({url,entry,type});
   this.pumpModelQueue();
  }
@@ -483,6 +524,7 @@ export class SandforgeBattlefield {
      if(['factory','barracks','headquarters'].includes(entry.kind))this.productionGates.prepare(entry);
     }
     if(type==='unit'&&['tank','artillery'].includes(entry.kind))this.installTankRig(entry,model);
+    entry.modelLoadError=null;entry.modelLoadRetries=0;
     if(type==='unit'&&data.animations.length){
      const mixer=new THREE.AnimationMixer(model);
      const idle=data.animations.find(a=>/idle|stand|hover|engine/i.test(a.name))||data.animations[0];
@@ -496,6 +538,14 @@ export class SandforgeBattlefield {
     }
    }).catch(err=>{
     entry.modelLoadError=String(err.message);
+    // Transient 12 MB tank model failures used to leave entry.requested=true
+    // forever. Retry once via the normal bounded queue, then keep the proper
+    // tracked emergency tank rather than a blue cuboid.
+    if(type==='unit'&&entry.kind==='tank'&&entry.node.parent&&
+       (entry.modelLoadRetries??0)<1){
+     entry.modelLoadRetries=(entry.modelLoadRetries??0)+1;
+     entry.requested=false;
+    }
     console.warn('3D asset fallback:',task.url,err.message);
    }).finally(()=>{
     this.loadingCount--;this.pumpModelQueue();
@@ -515,7 +565,7 @@ export class SandforgeBattlefield {
      if(unit.hp<=0||unit.carrier)continue;
      const pending=this.units.get(unit.id);
      if(!pending||pending.requested||pending.detail)continue;
-     if(this.lite&&unit.kind!=='medic'&&unit.kind!=='rocket')continue;
+     if(this.lite&&!['medic','rocket','tank'].includes(unit.kind))continue;
      this.scheduleDetail(pending,unit,'unit');
      if(this.loadingCount+this.modelQueue.length>=4)break;
     }
