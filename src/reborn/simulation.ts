@@ -1922,6 +1922,21 @@ export class Simulation {
              if(clear&&distance(clear,candidate)<1){spawn=clear;footFrontExit=true;break;}
            }
          }
+         // Airfield craft must hand off where the visible departure ENDS:
+         // bombers at the far runway threshold, helicopters at the front apron.
+         // Classic/non-WebGL saves keep the original immediate diagonal spawn.
+         let stagedAirfield=false;
+         if(!spawn&&this.stageWebGLProduction&&b.kind==='airfield'&&
+            (kind==='bomber'||kind==='scout')){
+           const point=airfieldPoint(b,kind==='bomber'?'departure':'lineup');
+           // Near map edges or legacy layouts fall back safely; don't spawn
+           // a real actor beyond the playable world simply for visual polish.
+           const margin=12;
+           if(point.x>=margin&&point.y>=margin&&
+              point.x<=this.world.size-margin&&point.y<=this.world.size-margin){
+             spawn=point;stagedAirfield=true;
+           }
+         }
          if(!spawn)spawn=spec.flying?exit:this.world.nearest(exit,spawnObstacles,this.units,undefined,clearance);
         if(spawn&&this.count(b.owner)<RULES.capacity){const u=this.spawn(b.owner,spawn,kind);
            if(footFrontExit){
@@ -1943,14 +1958,15 @@ export class Simulation {
              const goal=u.orders[0],dx=goal.x-u.x,dy=goal.y-u.y;
              if(Math.hypot(dx,dy)>12)u.angle=Math.atan2(dy,dx);
            }
-           if(this.stageWebGLProduction&&(b.kind==='factory'||b.kind==='barracks'||(b.kind==='headquarters'&&kind==='engineer'))){
+           if(this.stageWebGLProduction&&(stagedAirfield||b.kind==='factory'||b.kind==='barracks'||(b.kind==='headquarters'&&kind==='engineer'))){
              // Minimum until the door is fully open and the real vehicle has
              // cleared the hall. The 3D presenter extends this for longer
              // exit routes (backward facings) before the next simulation tick.
              // The presenter releases foot units when the visible walk reaches
              // the lawful spawn, not after a second stationary door close.
              const foot=b.kind==='barracks'||(b.kind==='headquarters'&&kind==='engineer');
-             this.productionDepartureHolds.set(u.id,this.time+(foot?2.65:4.85));
+             this.productionDepartureHolds.set(u.id,this.time+(stagedAirfield?
+              (kind==='bomber'?11.7:8.0):foot?2.65:4.85));
            }
          }
       }
