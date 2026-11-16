@@ -45,7 +45,15 @@ export function createBuildingFoundation(kind,width){
  group.userData={visualOnly:true,nonPlayable:true,foundation:true,
   padWidth:shape.width,padDepth:shape.depth};
  const add=(name,w,h,d,y,mat)=>{
-  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat.clone());
+  // Do NOT Material.clone() the shared PBR source: Three.js serializes
+  // userData, and source owns two 256px DataTextures there. Reconstruct only
+  // the inexpensive material params while sharing the GPU texture atlases.
+  const owned=new THREE.MeshStandardMaterial({
+   color:mat.color,map:mat.map??null,normalMap:mat.normalMap??null,
+   normalScale:mat.normalScale?.clone(),metalness:mat.metalness,
+   roughness:mat.roughness,side:mat.side
+  });
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),owned);
   mesh.name=name;mesh.position.set(shape.x,y,shape.z);
   mesh.material.userData={sandforgeFoundationMaterial:true};
   mesh.userData={visualOnly:true,nonPlayable:true,foundation:true};
