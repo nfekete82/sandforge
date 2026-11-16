@@ -532,54 +532,10 @@ function instancedStone(){
  contacts.frustumCulled=false;scene.add(contacts);
  return counts.reduce((a,b)=>a+b,0);
 }
-function sandRoads(){
- // Discontinuous sandy tire marks share one GPU draw call, not thousands of
- // individual meshes. Gaps and imperfect widths imply old worn tracks.
- // Per-pixel alpha softens the old rectangular sticker appearance.
- const canvas=document.createElement('canvas');
- canvas.width=32;canvas.height=128;
- const ctx=canvas.getContext('2d'),pixels=ctx.createImageData(32,128);
- for(let y=0;y<128;y++)for(let x=0;x<32;x++){
-  const edge=Math.sin(Math.PI*x/31)**1.7*Math.sin(Math.PI*y/127)**1.25;
-  const noise=.8+.2*Math.sin(y*.73+x*1.91);
-  const k=(y*32+x)*4;
-  pixels.data[k]=126;pixels.data[k+1]=103;pixels.data[k+2]=75;
-  pixels.data[k+3]=Math.round(172*edge*noise);
- }
- ctx.putImageData(pixels,0,0);
- const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
- const material=new THREE.MeshBasicMaterial({
-  map:texture,transparent:true,opacity:.50,depthWrite:false,
-  polygonOffset:true,polygonOffsetFactor:-1,side:THREE.DoubleSide
- });
- const geometry=new THREE.PlaneGeometry(1,1);
- geometry.rotateX(-Math.PI/2);
- const r=rnd(seed^0x2023cb47),dummy=new THREE.Object3D();
- const tracks=new THREE.InstancedMesh(geometry,material,5000);
- let count=0;
- for(const [a,b] of terrain.corridors){
-  if(r()>.7)continue;
-  const dx=b.x-a.x,dz=b.y-a.y,d=Math.hypot(dx,dz),steps=Math.floor(d/36);
-  const heading=Math.atan2(dx,dz);
-  for(let i=0;i<steps;i++){
-   if(i%9===0||r()>.72||count>=4998)continue;
-   const t=(i+.5)/steps,x=a.x+dx*t,z=a.y+dz*t;
-   const index=world.index({x,y:z});
-   if(index<0||world.blocked[index])continue;
-   for(const offset of [-14,14]){
-    const px=x+offset*Math.cos(heading),pz=z-offset*Math.sin(heading);
-    dummy.position.set(px-half,heightAt(px,pz)+.46,pz-half);
-    dummy.scale.set(4+r()*3,1,16+r()*7);
-    dummy.rotation.set(0,heading,0);dummy.updateMatrix();
-    tracks.setMatrixAt(count++,dummy.matrix);
-   }
-  }
- }
- tracks.count=count;
- tracks.instanceMatrix.needsUpdate=true;
- tracks.frustumCulled=false;
- scene.add(tracks);
-}
+// No decorative corridor tracks between Bastions: the corridors remain
+// authoritative for map generation and pathfinding, but their old painted
+// parallel tyre marks are intentionally absent from the desert.
+
 function marker(position,color,radius=37){
  const ring=new THREE.Mesh(new THREE.TorusGeometry(radius,2.3,6,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.86}));
  ring.rotation.x=-Math.PI/2;ring.position.copy(position);ring.position.y+=2.1;
@@ -1002,7 +958,7 @@ new ResizeObserver(resize).observe(stage);resize();
 const chunks=buildTerrain();
 boundaryCliffs=addBoundaryCliffs({scene,size,heightAt,seed,lowQuality:query.get('lite')==='1',softRim:spacious,hardVoid:spacious});
 const stones=instancedStone();
-if(biome==='desert')sandRoads();
+// Desert corridors are navigation-only; no permanent tracks leading to Bastions.
 const biomeVegetation=addBiomeVegetation({THREE,scene,world,terrain,game,heightAt,seed,biome,
  lowQuality:query.get('lite')==='1'});
 // Small ground-level stones accent the winding dry wash from the reference.
