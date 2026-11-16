@@ -77,7 +77,13 @@ function upgrade(path){
  const mast=(x,y,z)=>x>-.5&&x<1.55&&y>4.40&&z>-3.60&&z<-2.02;
  for(const name of ['HQ_Static_HQ_PBR_radar_steel','HQ_Static_HQ_PBR_black_grill'])
   changeVertices(name,mast,(x,y,z)=>[x+mastMove[0],y,z+mastMove[1]]);
- changeVertices('HQ_Static_HQ_PBR_blue_signal',()=>true,(x,y,z)=>[x+mastMove[0],y,z+mastMove[1]]);
+ // The two teams name the same roof beacon differently after material
+ // batching: blue_signal for blue, red_status for red. Both have the same
+ // original upper-mast coordinates and must follow the moved lattice.
+ const beacon=['HQ_Static_HQ_PBR_blue_signal','HQ_Static_HQ_PBR_red_status']
+  .find(name=>nodes.has(name));
+ if(!beacon)throw Error('Missing team-specific HQ mast beacon in '+path);
+ changeVertices(beacon,()=>true,(x,y,z)=>[x+mastMove[0],y,z+mastMove[1]]);
  // Dedicated awning canopy and support footplates.
  for(const name of ['HQ_Static_SF_OriginalPBR_canvas','HQ_Static_SF_AwningSteelFoot'])
   changeVertices(name,()=>true,(x,y,z)=>[x,y,awningZ(z)]);
