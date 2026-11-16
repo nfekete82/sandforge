@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {disposeOwnedMeshes} from './webgl-resource-lifecycle.js';
 import {servicePaint,disposeServicePaint} from './webgl-service-materials.js';
 import {ensureAirfieldPbr,detachAirfieldPbr} from './webgl-airfield-pbr.js';
+import {applyAirfieldRollup} from './webgl-airfield-rollup.js';
 
 // Only the visual runway length changes (+15.2%); aircraft docking, flight
 // times and saved airfield coordinates remain simulation-owned.
@@ -193,13 +194,12 @@ export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
   for(let i=0;i<4;i++)box(sparkGroup,'MaintenanceSpark_'+i,2.1,2.1,2.1,
    -21+i*14,i%2?7:0,0,glow);
   sparkGroup.visible=false;
-  group.userData['bay'+bay]={left,right,cx,open:0,sparks:sparkGroup};
+  group.userData['bay'+bay]={left,right,cx,open:0,slats:null,drum:null,sparks:sparkGroup};
  }
  // No raised black rubber bars or debris on the runway: the only
  // markings inside the aircraft corridor are flat painted lines/thresholds.
- // Expansion joints remain on the concrete service apron outside the runway.
- for(const x of [-195,-110,-45])for(const z of [-143,-72,8])
-  box(group,'AirfieldApronExpansionJoint',24,.11,1.5,x,1.65,z,steel);
+ // No raised painted black dashes anywhere along the service apron.
+ // Real concrete joints already live in the subtle slab texture.
  for(const x of [-216,45]){
   box(group,'HangarMaintenanceToolCabinet',15,26,19,x,14,-109,ribbedSteel);
   for(const yy of [11,18,25])
@@ -369,7 +369,7 @@ export function conformAirfieldSurface(group,base,heightAt,{force=false}={}){
  return changed;
 }
 
-export function updateAirfieldServiceYard(entry,base,units,time,dt){
+export function updateAirfieldServiceYard(entry,base,units,time,dt,active=true){
  const group=entry.airfieldServiceYard;if(!group)return;
  // Owner changes swap the whole authored PBR atlas without recoloring camo.
  if(group.userData.airfieldPbrOwner!==base.owner)
@@ -384,14 +384,18 @@ export function updateAirfieldServiceYard(entry,base,units,time,dt){
   const target=phase&&phase!=='approach'?1:
    Math.max(0,Math.min(1,group.userData.airfieldProductionOpen??0));
   gate.open+=(target-gate.open)*Math.min(1,Math.max(0,dt)*2.5);
-  // The two halves physically slide sideways into reinforced wall pockets.
-  gate.left.position.x=gate.cx-27-28*gate.open;
-  gate.right.position.x=gate.cx+27+28*gate.open;
-  // A sideways split alone leaves only a 58-unit slot, narrower than
-  // the bomber's 107-unit wings. Retract both corrugated doors up into
-  // the fascia so the FULL physical entrance becomes unobstructed.
-  gate.left.scale.y=gate.right.scale.y=1-.94*gate.open;
-  gate.left.position.y=gate.right.position.y=36+42*gate.open;
+  if(gate.slats?.length){
+   // One continuous vertically winding PBR shutter. The door stays centered
+   // and its horizontal stamped ribs keep their normal thickness.
+   applyAirfieldRollup(gate,gate.open);
+  }else{
+   // Safe loading/legacy fallback: both old textures rise vertically; never
+   // split sideways while the new GLB is loading or when offline.
+   gate.left.position.x=gate.cx-27;
+   gate.right.position.x=gate.cx+27;
+   gate.left.scale.y=gate.right.scale.y=1-.94*gate.open;
+   gate.left.position.y=gate.right.position.y=36+42*gate.open;
+  }
   gate.sparks.visible=phase==='repair';
   if(gate.sparks.visible){
    gate.sparks.children.forEach((spark,i)=>{
@@ -401,6 +405,8 @@ export function updateAirfieldServiceYard(entry,base,units,time,dt){
    });
   }
  }
+ const rotor=group.userData.airfieldDishRotor;
+ if(rotor&&active&&dt>0)rotor.rotation.y+=dt*.44;
 }
 export function hideOldAirfieldHangar(entry){
  if(!entry.detail||entry.airfieldOldHidden)return;
