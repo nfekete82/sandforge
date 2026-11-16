@@ -72,10 +72,17 @@ for(const kind of ['barracks','headquarters'])for(const rally of [false,true]){
    'release the held unit when it reaches the real position, before shutter closes');
   assert.equal(f.gates.active.size,1,
    'door may still be closing; movement must no longer be held');
-  assert.equal(f.actor.productionMotion,null,
-   'normal animation/normal orders take over immediately');
+  if(rally)assert.equal(f.actor.productionMotion?.moving,true,
+   'walking clip must remain active during the first 20Hz rally step');
+  else assert.equal(f.actor.productionMotion,null,
+   'without rally, the unit idles immediately in front of the building');
   f.step(start+state.duration+.06);
   assert.deepEqual(f.canceled,[91],'handoff occurs only once');
+  if(rally)assert.equal(f.actor.productionMotion?.moving,true,
+   'rally foot cycle must not flash idle during handoff');
+  f.step(start+state.duration+.16);
+  assert.equal(f.actor.productionMotion,null,
+   'after two simulation ticks, the real unit controls its own movement');
   f.step(start+state.duration+GATE_TIMING.closing+.20);
   assert.equal(f.gates.active.size,0);
   f.gates.dispose();
