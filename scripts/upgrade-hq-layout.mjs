@@ -98,7 +98,7 @@ function upgrade(path){
  // Only the awning steel is affected, not the HQ walls, door or roof dishes.
  const fabricY=x=>3.4542+(x-6.9426)*(2.9184-3.4542)/(8.7318-6.9426);
  changeVertices('HQ_Static_SF_OriginalPBR_steel',
-  (x,y,z)=>x>=6.93&&x<=8.75&&z>=-2.09&&z<=2.45&&
+  (x,y,z)=>x>=6.91&&x<=8.75&&z>=-2.09&&z<=2.45&&
     y>fabricY(x)-.11&&y<fabricY(x)+.24,
   (x,y,z)=>[x,Math.min(y,fabricY(x)-.17),z]);
  json.asset.extras.sandforgeHQRoofLayout=VERSION;
