@@ -1,6 +1,7 @@
 import {BATTLEFIELD_GENERATOR,battlefieldStart,isTerrainProfile,type TerrainProfile,type BattlefieldGeneratorVersion} from './battlefield-terrain.js';
 import {Weather} from './weather.js';
 import {gainUnitXp,getVeterancyModifiers,sanitizeXp,XP_RULES} from './veterancy.js';
+import {unitShotRoll,unitShotMisses,missedGroundPoint} from './unit-accuracy.js';
 import {migrateTransportRoster} from './roster-migration.js';
 import {VisionCache} from './vision-cache.js';
 import {generateRollingHills,standsOnHill,HIGH_GROUND_SIGHT_MULTIPLIER,type RollingHill} from './rolling-hills.js';
@@ -92,8 +93,8 @@ export interface Base extends Point {
 }
 /** Transient on-screen release cue. Never serialized or used for collisions. */
 export interface ProductionRelease {unitId:number;baseId:number;kind:UnitKind;owner:Faction;at:number;from:Point;to:Point}
-export interface Shot { from:Point; to:Point; owner:Faction; life:number; hit:boolean; projected?:boolean; source?:number; weapon?:Weapon; barrel?:number; at?:number; groundFrom?:Point; groundTo?:Point; armored?:boolean; targetClass?:'armor'|'infantry'|'air'|'structure'; impactElevation?:number; kind?:UnitKind; angle?:number;flightHeight?:number }
-export interface Missile {id:number;source:number;owner:Faction;from:Point;to:Point;angle:number;at:number;impactAt:number;damage:number;type?:'antiArmor'|'bomb';target?:number}
+export interface Shot { from:Point; to:Point; owner:Faction; life:number; hit:boolean; miss?:boolean; projected?:boolean; source?:number; weapon?:Weapon; barrel?:number; at?:number; groundFrom?:Point; groundTo?:Point; armored?:boolean; targetClass?:'armor'|'infantry'|'air'|'structure'; impactElevation?:number; kind?:UnitKind; angle?:number;flightHeight?:number }
+export interface Missile {id:number;source:number;owner:Faction;from:Point;to:Point;angle:number;at:number;impactAt:number;damage:number;type?:'antiArmor'|'bomb';target?:number;miss?:boolean}
 export interface Blast extends Point {at:number;id:number}
 export type CaptureReadiness='owned'|'no-unit'|'out-of-range'|'contested'|'enemy-hq'|'capturing';
 export interface Memory extends Point { id:number; owner:Faction; hp:number; territory:number; kind?:BuildingKind }
@@ -1173,6 +1174,22 @@ export class Simulation {
     else this.workEffects.push({kind,source,sources:[source],target,amount,at:this.time});
   }
   private damage(source:Unit|Base,target:Unit|Base,damage:number,weapon:Weapon,from:Point,barrel?:number):void {
+    // Deterministic fixed-step accuracy applies to UNIT shots for both
+    // factions. Turret buildings and strategic weapons remain unchanged.
+    // A miss still emits a real Shot to render tracer, sand dust and dent.
+    if('orders' in source){
+      const ordinal=(source.burst?.index??0)+(weapon==='machinegun'?71:0);
+      if(unitShotMisses(this.seed,source.id,target.id,this.time,ordinal)){
+        const targetRadius='queue' in target?target.radius:unitSpec(target).radius;
+        const point=missedGroundPoint(from,target,targetRadius,this.world.size,
+          unitShotRoll(this.seed,source.id,target.id,this.time,ordinal+891));
+        this.shots.push({from,to:point,owner:source.owner,life:.65,hit:false,miss:true,
+          source:source.id,weapon,barrel,at:this.time,kind:source.kind,
+          angle:source.angle,flightHeight:source.flightHeight,
+          groundFrom:{x:source.x,y:source.y},groundTo:point,impactElevation:0});
+        return;
+      }
+    }
     this.strike(source,target,damage);
     if(weapon==='turret'&&'orders' in target&&target.hp>0)this.tactical.underTowerFire(target);
     const flying='orders' in target&&unitSpec(target).flying;
@@ -1245,11 +1262,16 @@ export class Simulation {
   /** A bomb is a real delayed projectile: visible fall and impact damage
    * derive from the same persisted missile, including after save/load. */
   private releaseBomb(u:Unit,target:Unit|Base):void{
-    const from={x:u.x,y:u.y},to={x:target.x,y:target.y};
+    const from={x:u.x,y:u.y};
+    const miss=unitShotMisses(this.seed,u.id,target.id,this.time,73);
+    const to=miss?missedGroundPoint(from,target,
+      'queue' in target?target.radius:unitSpec(target).radius,this.world.size,
+      unitShotRoll(this.seed,u.id,target.id,this.time,964)):
+      {x:target.x,y:target.y};
     this.missiles.push({
       id:this.nextId++,source:u.id,owner:u.owner,from,to,angle:u.angle,
       at:this.time,impactAt:this.time+BOMBER_BOMB_FALL_SECONDS,
-      damage:unitSpec(u).damage*getVeterancyModifiers(u).damage,type:'bomb'
+      damage:unitSpec(u).damage*getVeterancyModifiers(u).damage,type:'bomb',miss
     });
     this.shots.push({
       from,to,owner:u.owner,life:.45,hit:false,weapon:'bomb',source:u.id,
@@ -1263,10 +1285,16 @@ export class Simulation {
     u.path=[];u.repath=0;
   }
   private launch(u:Unit,target:Unit|Base):void{
-    const id=this.nextId++,antiArmor=u.kind==='tank'||u.kind==='rocket',offset=antiArmor?{x:0,y:0}:this.weather.artilleryOffset(id,u.id),from={x:u.x,y:u.y},
-      to={x:clamp(target.x+offset.x,0,this.world.size),y:clamp(target.y+offset.y,0,this.world.size)},
-      duration=Math.max(.24,distance(from,to)/(antiArmor?650:400));
-    this.missiles.push({id,source:u.id,owner:u.owner,from,to,angle:u.angle,at:this.time,impactAt:this.time+duration,damage:(u.kind==='rocket'?weaponDamage(u,target):unitSpec(u).damage)*getVeterancyModifiers(u).damage,...(antiArmor?{type:'antiArmor' as const}:{}),...(u.kind==='rocket'?{target:target.id}:{})});
+    const id=this.nextId++,antiArmor=u.kind==='tank'||u.kind==='rocket';
+    const miss=unitShotMisses(this.seed,u.id,target.id,this.time,u.burst?.index??0);
+    const offset=antiArmor?{x:0,y:0}:this.weather.artilleryOffset(id,u.id);
+    const from={x:u.x,y:u.y};
+    const to=miss?missedGroundPoint(from,target,
+      'queue' in target?target.radius:unitSpec(target).radius,
+      this.world.size,unitShotRoll(this.seed,u.id,target.id,this.time,509)):
+      {x:clamp(target.x+offset.x,0,this.world.size),y:clamp(target.y+offset.y,0,this.world.size)};
+    const duration=Math.max(.24,distance(from,to)/(antiArmor?650:400));
+    this.missiles.push({id,source:u.id,owner:u.owner,from,to,angle:u.angle,at:this.time,impactAt:this.time+duration,damage:(u.kind==='rocket'?weaponDamage(u,target):unitSpec(u).damage)*getVeterancyModifiers(u).damage,miss,...(antiArmor?{type:'antiArmor' as const}:{}),...(u.kind==='rocket'&&!miss?{target:target.id}:{})});
     this.shots.push({from:{x:u.x,y:u.y-18},to:{x:target.x,y:target.y-23},owner:u.owner,life:.65,hit:false,weapon:'rocket',source:u.id,kind:u.kind,barrel:antiArmor?0:id%6,angle:u.angle,at:this.time,groundFrom:from,groundTo:to});
   }
   canSee(owner:Faction,p:Point):boolean {const i=this.world.index(p);return i>=0&&this.visible[owner][i]===1;}
@@ -1618,7 +1646,9 @@ export class Simulation {
     for(const missile of this.missiles)if(missile.impactAt<=this.time){
       const antiArmor=missile.type==='antiArmor',guidedRocket=antiArmor&&missile.target!==undefined;
       const radius=guidedRocket?32:antiArmor?44:missile.type==='bomb'?94:60;
-      for(const target of [...this.units,...this.bases])if(target.owner!==missile.owner&&target.hp>0&&!('orders' in target&&(target.carrier||(unitSpec(target).flying&&missile.target===undefined)))&&distance(target,missile.to)<=radius){
+      // Missed shells/bombs still physically land and explode in the sand,
+      // but cannot apply splash, XP, suppression or damage to any unit.
+      for(const target of missile.miss?[]:[...this.units,...this.bases])if(target.owner!==missile.owner&&target.hp>0&&!('orders' in target&&(target.carrier||(unitSpec(target).flying&&missile.target===undefined)))&&distance(target,missile.to)<=radius){
         const armored='queue' in target||unitSpec(target).group!=='Infanterie';
         // A shoulder rocket is precision anti-armor, not a cheap cluster weapon:
         // the tracked primary receives full damage, adjacent targets only
@@ -2155,7 +2185,8 @@ export class Simulation {
       return Uint8Array.from({length:RULES.grid**2},(_,i)=>a[Math.floor(Math.floor(i/RULES.grid)*oldGrid/RULES.grid)*oldGrid+Math.floor((i%RULES.grid)*oldGrid/RULES.grid)]);
     });game.memories=structuredClone(s.memories??[[],[]]);game.aiClock=clamp(s.aiClock||0,0,RULES.aiInterval);
     if(!Transports.valid(game))throw Error('Ungültiger Transportzustand im Spielstand.');
-    if(s.missiles!==undefined&&(!Array.isArray(s.missiles)||s.missiles.length>96||s.missiles.some(m=>!Number.isSafeInteger(m.id)||!Number.isSafeInteger(m.source)||![0,1].includes(m.owner)||!point(m.from)||!point(m.to)||!finite(m.at)||m.at>s.time||!finite(m.impactAt)||m.impactAt<=s.time||m.impactAt>s.time+12||!finite(m.damage)||m.damage<=0||m.damage>Math.max(UNITS.artillery.damage,UNITS.tank.damage,UNITS.rocket.damage*1.24)*getVeterancyModifiers({kind:'tank',xp:500}).damage*1.151||(m.type!==undefined&&!['antiArmor','bomb'].includes(m.type))||(m.target!==undefined&&(!Number.isSafeInteger(m.target)||m.target<0))||!finite(m.angle))))throw Error('Ungültige Raketen im Spielstand.');
+    if(s.missiles!==undefined&&(!Array.isArray(s.missiles)||s.missiles.length>96||s.missiles.some(m=>!Number.isSafeInteger(m.id)||!Number.isSafeInteger(m.source)||![0,1].includes(m.owner)||!point(m.from)||!point(m.to)||!finite(m.at)||m.at>s.time||!finite(m.impactAt)||m.impactAt<=s.time||m.impactAt>s.time+12||!finite(m.damage)||m.damage<=0||m.damage>Math.max(UNITS.artillery.damage,UNITS.tank.damage,UNITS.rocket.damage*1.24)*getVeterancyModifiers({kind:'tank',xp:500}).damage*1.151||(m.type!==undefined&&!['antiArmor','bomb'].includes(m.type))||(m.target!==undefined&&(!Number.isSafeInteger(m.target)||m.target<0))||
+      (m.miss!==undefined&&typeof m.miss!=='boolean')||!finite(m.angle))))throw Error('Ungültige Raketen im Spielstand.');
     game.missiles=structuredClone(s.missiles??[]);
     game.strategicMissiles=structuredClone(s.strategicMissiles??[]);
     game.nextId=Math.max(game.nextId,...game.missiles.map(m=>m.id+1),
