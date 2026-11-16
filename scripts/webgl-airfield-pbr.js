@@ -1,5 +1,6 @@
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {applyAirfieldRollup,AIRFIELD_ROLLUP_SLATS} from './webgl-airfield-rollup.js';
+import {finishDesertBuildingMaterials} from './webgl-building-pbr.js';
 
 // Rendering-only swap: the actual runway, taxi/landing path, serviced aircraft,
 // fuel props, crew animations and one-bay game rules are never touched.
@@ -66,6 +67,10 @@ export function ensureAirfieldPbr(group,owner=0,{ghost=false}={}){
    throw new Error('Airfield PBR missing roll-up slats, roof or satellite rotor');
   model.name='SandforgeAirfieldPBR_'+owner;
   model.userData.sandforgeOriginalPBR=true;
+  // Paint only the original batched hangar WALL mesh using the same
+  // shared desert camouflage as the barracks. Keep the corrugated roof
+  // and moving hangar slats on their own PBR materials.
+  finishDesertBuildingMaterials(model,'airfield');
   model.traverse(node=>{
    if(node.isMesh){
     node.receiveShadow=true;
