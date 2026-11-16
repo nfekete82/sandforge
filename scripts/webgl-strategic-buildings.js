@@ -126,13 +126,13 @@ export function createStrategicBuilding(kind,owner=0){
    bumpMap:materialGrain,bumpScale:.48,roughness:.91,metalness:.02}),
   black:new THREE.MeshStandardMaterial({color:researchCamo?'#585345':'#252b29',map:materialGrain,
    bumpMap:materialGrain,bumpScale:.07,roughness:.68,metalness:.38}),
-  glow:new THREE.MeshStandardMaterial({color:owner===0?'#63b9de':'#ffab79',
-   emissive:owner===0?'#2d95c4':'#e96436',emissiveIntensity:.74,metalness:.25,roughness:.4}),
+  glow:new THREE.MeshStandardMaterial({color:FACTION_PAINT[owner],
+   emissive:FACTION_PAINT[owner],emissiveIntensity:.34,metalness:.25,roughness:.4}),
   trim:new THREE.MeshStandardMaterial({color:structuralCamo?'#d3bd91':'#c2ac84',map:materialGrain,
    bumpMap:materialGrain,bumpScale:.12,roughness:.62,metalness:.36}),
   vent:new THREE.MeshStandardMaterial({color:researchCamo?'#505249':'#343c3b',roughness:.77,metalness:.35}),
-  glass:new THREE.MeshStandardMaterial({color:owner===0?'#33677c':'#844e43',
-   emissive:owner===0?'#184c64':'#61352d',emissiveIntensity:.4,metalness:.26,roughness:.34})
+  glass:new THREE.MeshStandardMaterial({color:FACTION_PAINT[owner],
+   emissive:FACTION_PAINT[owner],emissiveIntensity:.18,metalness:.26,roughness:.34})
  };
  // Shared khaki/sand/olive PBR camouflage for research and missile silo.
  // Interceptor, dark metal, windows and faction signal beacons are untouched.
