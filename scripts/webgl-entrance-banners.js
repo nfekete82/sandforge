@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {FACTION_PAINT} from './sandforge-faction-palette.js';
 
 /** Two small, matte faction pennants fixed to the AUTHORED facade beside
  * the actual PBR door. Never attach them to animated door leaves.
@@ -6,7 +7,7 @@ import * as THREE from 'three';
  * so the same code works for both final blue/red building assets and HUD.
  */
 export const ENTRANCE_BANNER_REVISION='sf-facade-pennants-v1-20261116';
-export const ENTRANCE_BANNER_COLORS=Object.freeze({0:'#397fa1',1:'#aa514b'});
+export const ENTRANCE_BANNER_COLORS=FACTION_PAINT;
 const MARK='SF_FactionEntranceBanners';
 const FRONT_OFFSET=.028;
 
@@ -115,9 +116,10 @@ export function paintFactionEntranceBanners(model,kind,owner){
  const group=new THREE.Group();group.name=MARK;
  group.userData={owner,visualOnly:true,nonPlayable:true,entranceBanners:true,
   revision:ENTRANCE_BANNER_REVISION};
- const cloth=new THREE.MeshStandardMaterial({
-  color:ENTRANCE_BANNER_COLORS[owner],roughness:.96,metalness:0,
-  side:THREE.DoubleSide
+ // Use the identical unlit faction paint as roof stripes and Bastion fabric.
+ // Matte-looking solid paint, without sunlight shifting it toward cyan.
+ const cloth=new THREE.MeshBasicMaterial({
+  color:ENTRANCE_BANNER_COLORS[owner],toneMapped:false,side:THREE.DoubleSide
  });
  const ivory=new THREE.MeshBasicMaterial({color:'#e5d2a5',side:THREE.DoubleSide,
   toneMapped:false});
