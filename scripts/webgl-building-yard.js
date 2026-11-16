@@ -85,7 +85,15 @@ function supplyBarrel(group,x,z){
  box(g,'BarrelCap',[8,1.2,8],dark,0,17.7,0);
 }
 function securityLamp(group,x,z,height=53){
- const g=new THREE.Group();g.name='SecurityLamp';g.position.set(x,0,z);group.add(g);
+ const g=new THREE.Group();g.name='SecurityLamp';g.position.set(x,0,z);
+ // LampArm and LampHead project along the lamp's local +X axis.
+ // At the LEFT side of the command centre that previously pointed back
+ // into the facade; face the head and diffuser away from the wall instead.
+ // The opposite/right perimeter lamp already points outward along +X.
+ g.rotation.y=x<0?Math.PI:0;
+ g.userData={visualOnly:true,nonPlayable:true,securityLamp:true,
+  facesOutward:true};
+ group.add(g);
  box(g,'LampFoot',[11,2.5,11],steel,0,1.25,0);
  mesh(g,'LampPost',new THREE.CylinderGeometry(1.8,2.1,height,8),fencePost,0,height*.5,0);
  box(g,'LampArm',[13,2.7,3.2],steel,5,height,0);
