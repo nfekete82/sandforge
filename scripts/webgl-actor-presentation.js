@@ -36,13 +36,13 @@ function muzzleTexture(){
 }
 const flashTex=muzzleTexture();
 const ownerColor=owner=>owner===0?'#68ddf5':'#ff8a69';
-const pulseSize=kind=>infantry.has(kind)?21:air.has(kind)?36:kind==='tank'?40:35;
+const pulseSize=kind=>infantry.has(kind)?17:air.has(kind)?36:kind==='tank'?40:35;
 const barWidth=(kind,type)=>type==='building'
  ?Math.max(42,Math.min(68,(BUILDINGS[kind]?.width??115)*.30)):
- infantry.has(kind)?26:air.has(kind)?44:36;
+ infantry.has(kind)?22:air.has(kind)?44:36;
 const barAltitude=(kind,type)=>type==='building'
  ?Math.max(65,Math.min(144,(BUILDINGS[kind]?.width??130)*.55)):
- infantry.has(kind)?62:air.has(kind)?49:56;
+ infantry.has(kind)?43:air.has(kind)?49:56;
 
 function statusBar(scene,entity,type){
  const width=barWidth(entity.kind,type);
@@ -78,7 +78,7 @@ function flashSprite(entry,entity,type){
  const flash=new THREE.Sprite(mat);
  flash.name='weapon-flash';
  const kind=entity.kind,wide=type==='unit'?(UNITS[kind]?.width??38):Math.min(60,(BUILDINGS[kind]?.width??120)*.32);
- flash.position.set(wide*.10,type==='unit'?(infantry.has(kind)?34:38):60,wide*.42);
+ flash.position.set(wide*.10,type==='unit'?(infantry.has(kind)?26:38):60,wide*.42);
  flash.scale.setScalar(pulseSize(kind));
  flash.visible=false;
  entry.node.add(flash);
