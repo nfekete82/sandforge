@@ -91,7 +91,7 @@ test('flightline swaps PBR shutter references and keeps a safe fallback',()=>{
  assert.match(loader,/getObjectByName\('HangarRollupDrum_0'\)/);
  assert.match(loader,/getObjectByName\('AirfieldTowerDishRotor'\)/);
  assert.match(loader,/gate\.slats=slats;gate\.drum=drum/);
- assert.match(loader,/gate\.open=Math\.max\(0,Math\.min\(1,gate\.open\)\)/);
+ assert.match(loader,/applyAirfieldRollup\(gate,gate\.open\)/);
  assert.match(loader,/group\.userData\.airfieldPbrDisposed/);
  assert.match(loader,/group\.userData\.airfieldPbrToken!==token/);
  assert.match(loader,/model\.removeFromParent\(\);releaseGhost\(model\)/);
