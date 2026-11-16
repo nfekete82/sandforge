@@ -73,6 +73,7 @@ export function installClassicHud(){
    <button data-action="attack" title="Angriffsbewegung (F)">ANGRIFF</button>
    <button data-action="rally" id="sf-rally" title="Sammelpunkt für neue Einheiten setzen">SAMMELPUNKT</button>
    <button data-action="stop" title="Einheiten anhalten (X)">STOPP</button>
+   <button data-action="demolish" title="Eigenes Gebäude abreißen (nicht rückgängig)" hidden>ABREISSEN</button>
    <button data-action="unload" title="Alle Passagiere aus Humvee oder Transporthubschrauber ausladen (U)" hidden>ALLE AUSLADEN</button>
    <button data-action="missile-target" id="sf-strategic-fire" title="Langstreckenrakete: Ziel auf der Karte markieren" hidden>RAKETE STARTEN</button>
    <button data-action="interceptor-rearm" id="sf-interceptor-rearm" title="Drei Abwehrraketen für 650 Credits nachladen" hidden>ABWEHR LADEN</button>
