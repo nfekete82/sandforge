@@ -24,7 +24,8 @@ const colors={
  khaki:[139,141,108],olive:[91,107,80],roof:[93,101,82],
  concrete:[131,128,112],stone:[169,156,130],
  steel:[93,105,100],steel_dark:[42,51,51],steel_light:[151,158,140],
- door:[79,89,83],vent:[39,49,49],glass:[41,60,64],
+ door:[79,89,83],door_corrugated:[94,110,104],gate_frame:[92,109,102],
+ vent:[39,49,49],glass:[118,167,180],
  roof_corrugated:[110,120,96],
  warning:[196,165,101],team:factionRgb8(0),white:[226,216,184]
 };
@@ -61,6 +62,37 @@ function cylindricalShell(mat,cx,cz,rBottom,rTop,bottom,top,{caps=false}={}){
    tri(g,[cx,bottom,cz],lowerA,lowerB);
   }
  }
+}
+export const AIRFIELD_DISH_PIVOT='AirfieldTowerDishRotor';
+// Actual 3D roller drum on a horizontal axle. Its independent mesh node
+// rotates with the shutter animation; all coordinates are pivot-local.
+function rollerDrum(part='HangarRollupDrum_0'){
+ const g=material('door_corrugated',part),n=20,R=6;
+ for(let i=0;i<n;i++){
+  const a=i*TAU/n,b=(i+1)*TAU/n;
+  quad(g,[-56,R*Math.cos(a),R*Math.sin(a)],[56,R*Math.cos(a),R*Math.sin(a)],
+   [56,R*Math.cos(b),R*Math.sin(b)],[-56,R*Math.cos(b),R*Math.sin(b)]);
+ }
+}
+// 24-sided concave satellite reflector (plus real mast/feed boom). The whole
+// reflector is one GLB node, centered over the round airfield control tower.
+function satelliteDish(part=AIRFIELD_DISH_PIVOT){
+ const g=material('steel_light',part),n=24,R=11;
+ const v=(r,a)=>{
+  const yy=r*Math.sin(a),d=2.5*(r/R)**2;
+  return [r*Math.cos(a),11+yy*.84+d*.36,2+yy*.36-d*.84];
+ };
+ for(let j=0;j<5;j++)for(let i=0;i<n;i++){
+  const a=i*TAU/n,b=(i+1)*TAU/n,r0=j*R/5,r1=(j+1)*R/5;
+  quad(g,v(r0,a),v(r1,a),v(r1,b),v(r0,b));
+ }
+ for(let i=0;i<n;i++){
+  const a=i*TAU/n,b=(i+1)*TAU/n;
+  quad(g,v(R,a),v(R+1,a),v(R+1,b),v(R,b));
+ }
+ box('steel_light',[0,3.1,0],[3.2,6.2,3.2],0,part);
+ box('steel_light',[0,10.2,7.2],[1.1,1.2,12.5],0,part);
+ box('steel_light',[0,10.2,13],[3,3,3],0,part);
 }
 // A continuous barrel vault, with physical corrugation running lengthwise.
 // Roof panels are NOT a row of disconnected, tilted rectangular boxes.
@@ -168,16 +200,18 @@ function buildParts(){
   box('team',[x,61,front+11],[8.5,25,1]);
   star(x,63,front+11.7,3.7);
  }
- for(const [part,offset] of [['HangarDoorLeft_0',-27],['HangarDoorRight_0',27]]){
-  // Mesh is LOCAL to a node translated by the exporter to the currently
-  // authored dynamic-gate position. The existing update loop may translate
-  // and shrink this mesh to open the bay without remapping coordinates.
-  box('door',[0,0,0],[52,64,5],0,part);
-  for(const yy of [-22,-11,0,11,22])
-   box('door',[0,yy,3.2],[48,1.65,1.8],0,part);
-  for(const x of [-23.7,23.7])
-   box('door',[x,0,3.2],[1.2,61,1.5],0,part);
+ // Real single FULL-WIDTH roller shutter: 16 independent horizontal
+ // metallic slats, never two doors sliding apart. All are animated upward.
+ for(let i=0;i<16;i++){
+  const part='HangarRollupSlat_0_'+String(i).padStart(2,'0');
+  box('door_corrugated',[0,0,0],[109,3.92,3.8],0,part);
  }
+ rollerDrum();
+ // Weathered, textured jamb rails and protective coil housing.
+ for(const x of [cx-57,cx+57])
+  box('gate_frame',[x,39,front+11],[4.5,71,6.5]);
+ box('gate_frame',[cx,76.5,front+12],[119,14,18]);
+ box('steel_dark',[cx,68,front+20],[110,2.8,2.2]);
  // Roof truss bases, outdoor electrical cabinets and in-ground flood lights.
  for(const x of [cx-64,cx+64]){
   box('concrete',[x,2,front+1],[15,4,15]);
@@ -209,6 +243,7 @@ function buildParts(){
  // Single circular canopy, subtle olive roof and a small obstruction beacon.
  cylindricalShell('roof',towerX,towerZ,27.0,27.0,119.5,124,{caps:true});
  cylindricalShell('steel_light',towerX,towerZ,27.3,27.3,122.5,124.1);
+ satelliteDish();
  box('steel_dark',[towerX+10,133,towerZ-8],[2.9,19,2.9]);
  box('warning',[towerX+10,143,towerZ-8],[5.5,3.2,5.5]);
  box('team',[towerX,112,towerZ+23.8],[12,7,.85]);
@@ -254,7 +289,7 @@ function exportTeam(owner){
  
  
  buildParts();
- const gltf={asset:{version:'2.0',generator:'sandforge-airfield-pbr-v1-20261116'},
+ const gltf={asset:{version:'2.0',generator:'sandforge-airfield-pbr-v2-rollup-satellite-20261116'},
  extensionsUsed:['KHR_materials_unlit'],scene:0,
  scenes:[{nodes:[0]}],nodes:[{name:'SF_Airfield_PBR_Root',children:[]}],
  meshes:[],materials:[],images:[],textures:[],samplers:[{magFilter:9729,minFilter:9987,wrapS:10497,wrapT:10497}],
@@ -295,9 +330,14 @@ function exportTeam(owner){
   gltf.meshes.push({name:partName,
    primitives:[{attributes:{POSITION:pos,NORMAL:norm,TEXCOORD_0:uv},indices,material:names.get(g.name)}]});
   const node=gltf.nodes.length;
-  const isLeft=partName==='HangarDoorLeft_0',isRight=partName==='HangarDoorRight_0';
+  const slat=partName.match(/^HangarRollupSlat_0_(\\d{2})$/);
+  const drum=partName==='HangarRollupDrum_0';
+  const rotor=partName===AIRFIELD_DISH_PIVOT;
   gltf.nodes.push({name:partName,mesh,
-   ...(isLeft||isRight?{translation:[AIRFIELD_HANGAR_CENTER_X+(isLeft?-27:27),AIRFIELD_HANGAR_DOOR_Y,AIRFIELD_HANGAR_DOOR_Z]}:{})});
+   ...(slat?{translation:[AIRFIELD_HANGAR_CENTER_X,6+Number(slat[1])*4,
+     AIRFIELD_HANGAR_FRONT_Z+8]}:
+     drum?{translation:[AIRFIELD_HANGAR_CENTER_X,75,AIRFIELD_HANGAR_FRONT_Z+14]}:
+     rotor?{translation:[-269,128,-81]}:{})});
   gltf.nodes[0].children.push(node);
  }
  const bin=Buffer.concat(chunks);gltf.buffers[0].byteLength=bin.length;
@@ -311,6 +351,6 @@ function exportTeam(owner){
  const name='airfield-'+owner+'.glb';
  writeFileSync(join(OUT,name),out);
  console.log('Generated '+name+': '+out.length+' bytes, '+gltf.meshes.length+' meshes, '+
-  gltf.images.length+' textures, split animated hangar shutters and compact tower');
+  gltf.images.length+' textures, 16 roll-up slats and glass tower satellite');
 }
 mkdirSync(OUT,{recursive:true});for(const owner of [0,1])exportTeam(owner);
