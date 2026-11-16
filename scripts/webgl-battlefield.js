@@ -262,6 +262,7 @@ export class SandforgeBattlefield {
   root.traverse(mesh=>{
    if(!mesh.isMesh)return;
    mesh.castShadow=true;mesh.receiveShadow=true;
+   if(mesh.userData?.sandforgeBarracksPropPolish)return;
    mesh.material=Array.isArray(mesh.material)
     ?mesh.material.map(brighten):brighten(mesh.material);
   });
