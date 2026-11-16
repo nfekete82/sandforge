@@ -3,6 +3,8 @@ import {disposeOwnedMeshes} from './webgl-resource-lifecycle.js';
 import {servicePaint,disposeServicePaint} from './webgl-service-materials.js';
 import {ensureAirfieldPbr,detachAirfieldPbr} from './webgl-airfield-pbr.js';
 import {applyAirfieldRollup} from './webgl-airfield-rollup.js';
+import {createAirfieldSecurityFence,conformAirfieldSecurityFence}
+ from './webgl-airfield-security-fence.js';
 
 // Only the visual runway length changes (+15.2%); aircraft docking, flight
 // times and saved airfield coordinates remain simulation-owned.
@@ -273,6 +275,10 @@ export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
  box(group,'AirfieldFuelPumpRoof',24,3,23,-306,27,136,roofSand);
  for(const x of [-169,-134,-44,-8])
   box(group,'HangarSafetyChevron',8,.15,5,x,3.5,42,yellow);
+ // A visual-only military chain-link + barbed-wire fence encloses the
+ // hangar/tower/fuel compound, not the runway, taxiway or bomber apron.
+ // The entire approach opening to the east stays open at every map rotation.
+ group.add(createAirfieldSecurityFence());
  // Reduce site, runway and tower without changing the shared building anchor.
  const towerScale=.60; // reuse the existing towerX/towerZ coordinates
  for(const part of group.children)if(part.isMesh&&part.name.startsWith('AirfieldLeftControlTower')){
@@ -366,6 +372,7 @@ export function conformAirfieldSurface(group,base,heightAt,{force=false}={}){
   data.geometry.computeBoundingSphere();
   changed++;
  });
+ changed+=conformAirfieldSecurityFence(group,base,heightAt,origin);
  return changed;
 }
 
