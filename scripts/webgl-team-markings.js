@@ -9,8 +9,6 @@ const infantryKinds=new Set(['infantry','medic','engineer','heavy','rocket']);
 const kinds=new Set([...infantryKinds,'tank','rover','artillery','scout','bomber']);
 const materials=new Map();
 const quad=new THREE.PlaneGeometry(1,1);
-const poleGeo=new THREE.CylinderGeometry(1,1,1,7);
-const poleMat=new THREE.MeshBasicMaterial({color:'#7e725f'});
 function mat(owner){
  if(materials.has(owner))return materials.get(owner);
  const n=64,rgba=new Uint8Array(n*n*4),rgb8=factionRgb8(owner);
@@ -38,26 +36,6 @@ function patch(group,name,owner,x,y,z,w,h,rx=0,ry=0){
  mesh.raycast=()=>{};mesh.userData={visualOnly:true,teamMarking:true,nonPlayable:true};
  group.add(mesh);
 }
-// All calculations below happen once when the imported model is attached,
-// not inside the frame loop. Geometry bounds are measured in turret-local
-// coordinates, including nested mesh transforms, for both original GLBs
-// and procedural fallbacks.
-function turretLocalBounds(turret){
- if(!turret)return null;
- turret.updateWorldMatrix(true,true);
- const inverse=turret.matrixWorld.clone().invert();
- const bounds=new THREE.Box3(),part=new THREE.Box3(),transform=new THREE.Matrix4();
- turret.traverse(node=>{
-  if(!node.isMesh||!node.geometry||node.userData?.teamMarking)return;
-  if(!node.geometry.boundingBox)node.geometry.computeBoundingBox();
-  if(!node.geometry.boundingBox)return;
-  transform.multiplyMatrices(inverse,node.matrixWorld);
-  part.copy(node.geometry.boundingBox).applyMatrix4(transform);
-  bounds.union(part);
- });
- return bounds.isEmpty()?null:bounds;
-}
-
 // Paint identification *inside the PBR armour material*, rather than
 // attaching mast/cloth planes that hover over scaled or rotating tank GLBs.
 // The shader samples each chosen armour mesh's original local geometry and
@@ -272,10 +250,7 @@ export function attachTeamMarkings(entry,owner,kind,footprint=90,height=44){
  const group=new THREE.Group();
  group.name='SandforgeTeamUniformAndFlags';
  group.userData={signature,owner,kind,visualOnly:true,nonPlayable:true,teamMarkings:true};
- if(false){
-  // Retained structurally for all other unit variants; tank/artillery
-  // return above and therefore cannot reach the billboard branches.
- }else if(kind==='rover'){
+ if(kind==='rover'){
   patch(group,'TeamHumveeRoof',owner,0,h*.77,-w*.09,w*.34,w*.24,-Math.PI/2);
   for(const side of [-1,1])
    patch(group,'TeamDoor_'+side,owner,side*w*.30,h*.46,0,w*.21,Math.max(8,h*.24),0,side*Math.PI/2);
