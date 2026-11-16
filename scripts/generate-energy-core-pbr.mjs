@@ -152,7 +152,7 @@ function png(color,key){
  const random=()=>{state=(1664525*state+1013904223)>>>0;return state/4294967296};
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
   // Uniform paint: same sRGB as the team roof stripes and the static flags.
-  const i=y*(width*4+1)+1+x*4,noise=(key==='team'||key==='white')?0:Math.round((random()-.5)*17);
+  const i=y*(width*4+1)+1+x*4,noise=(key==='team'||key==='energy'||key==='white')?0:Math.round((random()-.5)*17);
   let rgb=color;
   if(key==='camo'){const blob=Math.sin(x*.27+Math.cos(y*.31)*2.1)+Math.cos(y*.28-x*.12);
    if(blob>.73)rgb=[82,91,64];else if(blob<-.80)rgb=[128,134,96];}
