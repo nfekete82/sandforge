@@ -31,11 +31,21 @@ function upgrade(path){
  if(json.asset.extras.sandforgeHQVents===VERSION){console.log('HQ vents already fixed: '+path);return;}
  if(json.asset.extras.sandforgeHQVents)throw Error('Unknown HQ vent revision in '+path);
  const side=['HQ_Static_HQ_PBR_antireflective_window','HQ_Static_HQ_PBR_black_grill'];
- const mats=['SF_VentRecessDark','SF_VentSlatsGunmetal','SF_VentFrameCharcoal'];
+ const sourceMaterials=['HQ_PBR_antireflective_window','HQ_PBR_black_grill','HQ_PBR_radar_steel'];
+ const mats=['HQ_PBR_RearVentRecess','HQ_PBR_RearVentSlats','HQ_PBR_RearVentFrame'];
  for(const name of [...side,'HQ_Static_SF_VentRecessDark','HQ_Static_SF_VentSlatsGunmetal','HQ_Static_SF_VentFrameCharcoal'])
-  if(!nodes.has(name))throw Error('Missing PBR HQ mesh: '+name);
+  if(!nodes.has(name))throw Error('Missing original HQ mesh: '+name);
  const materials=new Map(json.materials.map((m,i)=>[m.name,i]));
- for(const name of mats)if(!materials.has(name))throw Error('Missing material '+name);
+ for(const name of sourceMaterials)if(!materials.has(name))throw Error('Missing original PBR material '+name);
+ // Reuse embedded color/normal/roughness maps of existing military steel;
+ // darken the tints to match the original Kasernenvent slats and housings.
+ const tints=[[.38,.40,.39,1],[.72,.73,.71,1],[.42,.45,.43,1]];
+ for(let i=0;i<mats.length;i++){
+  const source=json.materials[materials.get(sourceMaterials[i])];
+  const clone=JSON.parse(JSON.stringify(source));
+  clone.name=mats[i];clone.pbrMetallicRoughness.baseColorFactor=tints[i];
+  const idx=json.materials.length;json.materials.push(clone);materials.set(mats[i],idx);
+ }
  // Authored black glass and black frames cover the ORIGINAL side louvers.
  // Hide ONLY the four side overlays inside the facade; leave side vents,
  // front windows and the animated HQ entry completely untouched.
