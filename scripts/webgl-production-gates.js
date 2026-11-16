@@ -104,6 +104,12 @@ export class SandforgeProductionGates {
    if(this.seen.has(event))continue;
    const base=bases.get(event.baseId),entry=bf.bases.get(event.baseId),unit=entities.get(event.unitId);
    const actor=bf.units.get(event.unitId);
+   // Airborne departures have their OWN staged flightline presenter.
+   // Never cancel its production hold or reveal the parked aircraft here.
+   if(base?.kind==='airfield'&&['bomber','scout'].includes(event.kind)){
+    this.seen.add(event);
+    continue;
+   }
    const age=time-event.at;
    // A factory GLB can finish streaming after the real unit was produced.
    // Briefly hold that single authoritative unit while its actual shutter
