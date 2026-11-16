@@ -247,3 +247,74 @@ test('Humvee and rocket truck queue behind a tank until the shared factory door 
  assert.deepEqual(f.game.units.map(u=>u.kind),['tank','rover','artillery']);
  f.controller.dispose();
 });
+
+test('regression: hiding vehicle until gate warning never aborts the rollout',()=>{
+ const f=fixture();f.tick(0);
+ assert.equal(f.actor.node.visible,false);
+ // A real frame loop does NOT restore visible before every frame.
+ f.game.time=10+.1;f.controller.update(true,1);
+ assert.equal(f.controller.active.size,1);
+ assert.equal(f.actor.node.visible,false);
+ f.game.time=10+.45;f.controller.update(true,1);
+ assert.equal(f.controller.active.size,1);
+ assert.equal(f.actor.node.visible,true);
+ f.controller.dispose();
+});
+
+test('factory rollout locks onto authoritative exterior destination, not its previous animated position',()=>{
+ const f=fixture();f.tick(0);
+ const state=f.controller.active.get(1);
+ const fixed=state.target.clone();
+ assert.ok(fixed.distanceTo(new THREE.Vector3(112,0,82))<1e-6);
+ f.game.time=10+1.25+state.duration*.62;
+ f.controller.update(true,1);
+ const first=f.actor.node.position.clone();
+ f.game.time=10+1.25+state.duration*.73;
+ f.controller.update(true,1);
+ const second=f.actor.node.position.clone();
+ assert.ok(second.distanceTo(first)>1,'vehicle moves after threshold');
+ assert.ok(state.target.distanceTo(fixed)<1e-6,'no self-targeting feedback loop');
+ f.game.time=10+1.25+state.duration;
+ f.controller.update(true,1);
+ assert.ok(f.actor.node.position.distanceTo(fixed)<1.2,
+  'last visible pose ends at authoritative release coordinate');
+ f.controller.dispose();
+});
+
+test('front-facing factory vehicle keeps a constant speed then continues its paid rally',()=>{
+ const f=fixture();f.unit.x=500;f.unit.y=800;
+ let released=0;
+ f.game.cancelProductionDeparture=()=>{released++};
+ f.tick(0);
+ const state=f.controller.active.get(1);
+ assert.equal(state.directRollout,true);
+ assert.equal(state.hasRally,true);
+ const pts=[];
+ for(const t of [.67,.73,.79,.85]){
+  f.game.time=10+1.25+state.duration*t;
+  f.controller.update(true,1);
+  pts.push(f.actor.node.position.clone());
+ }
+ const steps=pts.slice(1).map((p,i)=>p.distanceTo(pts[i]));
+ assert.ok(steps.every(d=>d>1));
+ assert.ok(Math.max(...steps)/Math.min(...steps)<1.2,
+  'no fast-then-slow easing after leaving the roller shutter');
+ f.game.time=10+1.25+state.duration;
+ f.controller.update(true,1);
+ assert.equal(released,1);
+ assert.equal(f.controller.active.size,1,
+  'the gate may still close, but rally movement is already released');
+ f.controller.dispose();
+});
+
+test('without a rally the vehicle parks immediately outside, not on the apron loop',()=>{
+ const f=fixture();f.unit.orders=[];f.tick(0);
+ const state=f.controller.active.get(1);
+ assert.equal(state.hasRally,false);
+ f.game.time=10+1.25+state.duration;
+ f.controller.update(true,1);
+ assert.ok(f.actor.node.position.distanceTo(state.target)<1.2);
+ assert.equal(f.actor.productionMotion,null);
+ assert.deepEqual(f.unit.orders,[]);
+ f.controller.dispose();
+});
