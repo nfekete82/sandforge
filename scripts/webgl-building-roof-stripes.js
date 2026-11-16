@@ -111,3 +111,13 @@ export function paintFactionRoofStripes(model,kind,owner){
  model.add(mark);
  return stripes;
 }
+
+/** Dispose only the owned stripe geometry; the authored GLB remains shared. */
+export function disposeFactionRoofStripes(model){
+ const mark=model?.getObjectByName?.(MARK);
+ if(!mark)return false;
+ mark.removeFromParent();
+ mark.geometry?.dispose();
+ mark.material?.dispose();
+ return true;
+}
