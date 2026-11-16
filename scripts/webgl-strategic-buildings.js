@@ -368,130 +368,101 @@ export function createStrategicBuilding(kind,owner=0){
    box(3.1,3,3,'glow',82,59,z);
   }
  }else if(kind==='silo'){
-  // SUNKEN LAUNCH SHAFT: a low sand-camouflaged concrete installation.
-  // No tall launch podium or walkways at rocket-tip height. The broad slab
-  // stays flush with the playable terrain; the dark shaft is a visual hole
-  // (no terrain modification, collider, new physics or save-file changes).
-  foundation(230,207);
-  box(219,6,196,'base',0,14,0);
-  box(211,3,187,'armor',0,18.2,0);
-  // Sand/olive armored outer lip and low perimeter edging.
-  for(const z of [-97,97]){
-   box(222,4,7,'metal',0,19.5,z);
-   for(const x of [-88,-44,0,44,88])box(19,1.8,5,'camoOlive',x,22.5,z);
-  }
-  for(const x of [-109,109])box(7,4,187,'metal',x,19.5,0);
-
-  // A sunken dark shaft, not a solid raised drum. This shallow visual cutout
-  // lies over the ground slab, surrounding the below-grade part of the missile.
-  // A thin grained rim and recessed inner shadow distinguish the opening.
-  const rocketX=-17;
-  cyl(78,78,2.5,'steel',rocketX,20.7,0,48);
-  cyl(70,70,2,'black',rocketX,22.3,0,48);
-  const well=cyl(59,59,1.4,'vent',rocketX,23.7,0,48);
+  // Actual cut-out concrete: the launch aperture is a HOLE in the slab,
+  // not the previous black cylinder painted over a solid roof.
+  // All dimensions are local to the existing game footprint (no physics edit).
+  const rocketX=-17,shaftRadius=61;
+  const deckShape=new THREE.Shape();
+  deckShape.moveTo(-115,-103.5);
+  deckShape.lineTo(115,-103.5);
+  deckShape.lineTo(115,103.5);
+  deckShape.lineTo(-115,103.5);
+  deckShape.closePath();
+  const hole=new THREE.Path();
+  hole.absarc(rocketX,0,shaftRadius,0,Math.PI*2,true);
+  deckShape.holes.push(hole);
+  const deck=add(new THREE.ExtrudeGeometry(deckShape,{
+   depth:7,steps:1,bevelEnabled:false,curveSegments:48
+  }),'base',0,1.4,0,-Math.PI/2);
+  deck.name='Silo_ExcavatedConcreteDeck';
+  deck.userData={launchAperture:true,shaftRadius,shaftX:rocketX};
+  // The shaft has a genuine vertical inner surface and a DARK floor lower
+  // than the concrete rim. It reads as depth even from the tactical angle.
+  const wallMaterial=new THREE.MeshStandardMaterial({
+   name:'SF_SiloShaftInterior',color:'#171c19',
+   metalness:.12,roughness:.94,side:THREE.BackSide
+  });
+  const inside=add(new THREE.CylinderGeometry(
+   shaftRadius-.25,shaftRadius-.25,8.6,48,1,true),
+   wallMaterial,rocketX,5.1,0);
+  inside.name='Silo_InnerShaftWall';
+  inside.castShadow=false;inside.receiveShadow=true;
+  const floorMaterial=new THREE.MeshStandardMaterial({
+   name:'SF_SiloShaftFloor',color:'#0c1210',roughness:.98,metalness:0
+  });
+  const well=add(new THREE.CylinderGeometry(shaftRadius-1,shaftRadius-1,.4,48),
+   floorMaterial,rocketX,1.65,0);
   well.name='Silo_RecessedLaunchWell';
-  const lip=add(new THREE.TorusGeometry(72,3.2,10,48),'trim',
-   rocketX,24.3,0,-Math.PI/2);
+  well.castShadow=false;
+  // Flat armoured annulus plus one slim gasket. Neither covers the hole.
+  const lip=add(new THREE.RingGeometry(shaftRadius+.2,shaftRadius+9,48),
+   'steel',rocketX,8.48,0,-Math.PI/2);
   lip.name='Silo_LaunchRim';
-  add(new THREE.TorusGeometry(61,1.4,8,48),'steel',
-   rocketX,24.6,0,-Math.PI/2);
-  // The paired retractable blast doors are PARKED level with the apron, not
-  // suspended above the rocket. Distinct panels make the launch bay legible.
-  for(const x of [rocketX-85,rocketX+85]){
-   box(25,3.8,109,'armor',x,22,0);
-   box(20,1.2,103,'steel',x,24.6,0);
-   for(const z of [-44,-22,0,22,44])
-    box(19,1.8,4,'black',x,25.4,z);
+  lip.castShadow=false;
+  const gasket=add(new THREE.TorusGeometry(shaftRadius+.8,1.2,6,48),
+   'black',rocketX,8.9,0,-Math.PI/2);
+  gasket.name='Silo_HatchGasket';
+  gasket.castShadow=false;
+  // Two parked blast doors sit flat BESIDE the excavation.
+  for(const x of [rocketX-86,rocketX+76]){
+   box(17,2.4,92,'armor',x,8.9,0);
+   for(const z of [-33,-11,11,33])
+    box(15,1.2,3,'steel',x,10.6,z);
   }
-  // Small circumferential clamps and worn warning plates remain below the
-  // missile nose. Entire hatch looks integrated at RTS camera distances.
-  for(let i=0;i<10;i++){
-   const angle=i*Math.PI*2/10;
-   const px=rocketX+Math.cos(angle)*78,pz=Math.sin(angle)*78;
-   box(11,2.2,8,i%2?'camoOlive':'trim',px,24,pz).rotation.y=-angle;
+  // Recessed safety latches at the lip rather than tall support scaffolds.
+  for(let i=0;i<8;i++){
+   const a=i*Math.PI/4;
+   const x=rocketX+Math.cos(a)*73,z=Math.sin(a)*73;
+   box(9,1.8,7,i%2?'camoOlive':'trim',x,9.1,z).rotation.y=-a;
   }
 
-  // Keep the original named, high-detail multi-stage rocket and materials.
-  // Every piece uses the same physical Y offset; the nozzle and lower stage
-  // now sit BELOW the 24-unit apron so only the upper missile protrudes.
-  const rocketInset=104;
-  const rocketCyl=(top,bottom,h,material,y,segments=24)=>
-   cyl(top,bottom,h,material,rocketX,y-rocketInset,0,segments);
-  const hull=rocketCyl(22.5,23.5,72,'rocketBody',128);
+  // MOST of the missile is below grade. Only an upper-stage collar and the
+  // nose emerge from the hole: no tall drum, pedestal or floating full rocket.
+  // Named parts remain present for faction PBR and existing unit tests.
+  const hull=cyl(21,21.5,11,'rocketBody',rocketX,11.3,0,24);
   hull.name='Silo_RocketBody';
-  rocketCyl(21.5,22.5,31,'rocketPanel',179);
-  rocketCyl(22,22.5,8,'rocketNose',164.5);
-  rocketCyl(18.8,21.5,9,'rocketPanel',201);
-  const ogive=add(new THREE.ConeGeometry(18.8,42,24),'rocketNose',
-   rocketX,226-rocketInset,0);
+  cyl(20.2,20.8,7,'rocketPanel',rocketX,18.6,0,24);
+  const seam=add(new THREE.TorusGeometry(20.8,1.4,6,28),
+   'trim',rocketX,21.7,0,-Math.PI/2);
+  seam.name='Silo_RocketStageSeam';
+  const ogive=add(new THREE.ConeGeometry(20,37,28),'rocketNose',
+   rocketX,37.7,0);
   ogive.name='Silo_RocketNose';
-  for(const [y,radius,width,material] of [
-   [94,22.5,3.2,'rocketNose'],[106,23.2,1.6,'rocketAccent'],
-   [148,22.6,1.8,'trim'],[162,23.1,2.5,'rocketNose'],
-   [194,21.4,2.2,'rocketAccent'],[206,18.8,1.8,'rocketNose']
-  ]){
-   const seam=add(new THREE.TorusGeometry(radius,width,8,32),
-    material,rocketX,y-rocketInset,0,-Math.PI/2);
-   if(y===162)seam.name='Silo_RocketStageSeam';
+  add(new THREE.TorusGeometry(19.8,1,6,28),'rocketAccent',
+   rocketX,22.4,0,-Math.PI/2);
+  // Embedded base/nozzle hides in the black excavation.
+  cyl(14,17,5,'vent',rocketX,4.5,0,20);
+  // Low camouflaged command/maintenance block to the RIGHT of the pit.
+  box(43,22,66,'base',91,16,-10);
+  box(47,3,70,'armor',91,28.5,-10);
+  for(const z of [-32,-13,7])
+   box(3,12,9,'black',112.8,17,z);
+  for(const z of [-26,3])
+   box(3.5,8,7,'glass',113,18,z);
+  box(16,16,3,'black',91,15,24);
+  box(13,14,2.5,'steel',91,15,25.8);
+  for(const y of [10,14,18])
+   box(14,1.5,3,'trim',91,y,27.3);
+  // A few distinct service modules, not a second full-height building.
+  for(const z of [-72,66]){
+   box(18,6,12,'camoOlive',90,11,z);
+   box(19,2,13,'steel',90,15,z);
   }
-  for(let n=0;n<8;n++){
-   const angle=n*Math.PI/4;
-   const x=rocketX+Math.cos(angle)*22.8,z=Math.sin(angle)*22.8;
-   const p=add(new THREE.BoxGeometry(3,21,1.8),'rocketPanel',
-    x,133-rocketInset,z,0,-angle,0);
-   p.castShadow=false;
+  for(const z of [-68,65])box(19,6,12,'vent',-94,10,z);
+  for(const [x,z] of [[-102,-85],[104,-85],[-102,82],[105,82]]){
+   cyl(3,4,10,'metal',x,14,z,10);
+   cyl(4,4,2,'glow',x,20,z,10);
   }
-  for(let n=0;n<4;n++){
-   const angle=n*Math.PI/2;
-   add(new THREE.BoxGeometry(19,30,3.3),'rocketBody',
-    rocketX+Math.cos(angle)*24,111-rocketInset,Math.sin(angle)*24,
-    0,-angle,-.31);
-  }
-  rocketCyl(14,18,8,'rocketNose',87.5,20);
-  rocketCyl(12.5,12.5,2,'rocketAccent',83,20);
-  for(const side of [-1,1])for(const z of [-7,7]){
-   box(5,12,9,'steel',rocketX+side*23,111-rocketInset,z);
-   box(8,3,11,'trim',rocketX+side*26,115-rocketInset,z);
-  }
-
-  // Flat control bunker on the RIGHT of the shaft, all within the original
-  // footprint. The main rocket, not an industrial roof tower, is the focus.
-  box(52,24,73,'base',78,24,-2);
-  box(54,3,76,'metal',78,38,-2);
-  box(57,3,78,'armor',78,41,-2);
-  for(const [x,y,width,height,paint] of [
-   [62,26,18,12,'camoOlive'],[85,24,16,11,'armor']
-  ])box(width,height,1.2,paint,x,y,-39.1);
-  for(const z of [-20,8,27]){
-   box(3,14,12,'black',105,25,z);
-   box(3.4,9,10,'glass',107,26,z);
-   box(4,1.8,12,'trim',108,32,z);
-  }
-  box(19,22,4,'black',78,22,35);
-  box(16,19,4,'metal',78,22,38);
-  for(let i=0;i<4;i++)box(16,1.6,4.5,'trim',78,15+i*5,39);
-
-  // Low-profile control consoles, exhausts and guarded service lighting.
-  for(const z of [-78,76]){
-   box(25,7,15,'camoOlive',80,23,z);
-   box(21,2.3,12,'steel',80,28,z);
-  }
-  for(const z of [-72,65]){
-   box(20,5,12,'vent',-86,23,z);
-   for(let i=0;i<3;i++)box(17,1.4,13,'trim',-86,21+i*2.3,z);
-  }
-  for(const [x,z] of [[-99,-79],[96,-79],[-99,81],[96,81]]){
-   cyl(3.7,4.7,14,'metal',x,26,z,10);
-   cyl(4.5,4.5,3,'glow',x,34,z,12);
-  }
-  // A narrow maintenance channel around the hatch, without an overhead
-  // bridge or a large platform concealing the recessed well.
-  for(const z of [-87,87]){
-   box(98,2.5,6,'metal',-17,21,z);
-   for(const x of [-59,-26,7,28])
-    box(9,1.5,7,'trim',x,23,z);
-  }
-  for(const x of [-96,102])box(5,3,29,'camoOlive',x,19,-1);
  }else{
   foundation(170,150);
   box(142,35,127,'base',0,32,0);
