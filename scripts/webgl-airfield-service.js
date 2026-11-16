@@ -109,10 +109,13 @@ export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
   box(group,'AirfieldRunwayThreshold',11,.16,5,x,2.83,z,markings);
  for(const z of [222,234,246,258])for(const x of [-33,57])
   box(group,'AirfieldRunwayLandingBars',19,.15,7,x,2.84,z,markings);
- // One simple taxi guideline connects the wide stands with the long runway.
- // It does not cover the apron as the old short black runway did.
- box(group,'AirfieldTaxiCrossGuide',188,.16,2.6,-82,2.03,24,yellow);
- for(const x of [-158,-126,-94,-62,-30,2])
+ // Three taxi-guide dashes at x=-62,-30,+2 were positioned *under* the
+ // asphalt mesh (whose left edge is x=-58.5). Heightfield adaptation made
+ // these buried strips bleed through as THREE BLACK BARS on the runway.
+ // End both the continuous guide and its dashes BEFORE the asphalt edge.
+ // Taxiing does not use these cosmetic meshes, so flight paths stay intact.
+ box(group,'AirfieldTaxiCrossGuide',112,.16,2.6,-120,2.03,24,yellow);
+ for(const x of [-158,-126,-94])
   box(group,'AirfieldTaxiGuideDash',16,.14,3,x,2.08,24,markings);
  for(const bay of [0]){
   const cx=-151,half=59,front=18,rear=-171;
@@ -416,17 +419,13 @@ export function updateAirfieldServiceYard(entry,base,units,time,dt,active=true){
 }
 export function hideOldAirfieldHangar(entry){
  if(!entry.detail||entry.airfieldOldHidden)return;
- // The imported modern airfield GLB is already rendered at correct scale
- // INSIDE the service yard; don't duplicate its hangar and tower here.
- if(entry.detail.getObjectByName('SF_Airfield_PBR_Root')){
-  entry.detail.visible=false;
-  entry.airfieldOldHidden=true;
-  return;
- }
- entry.detail.traverse(child=>{
-  if(/^(?:Atlas_)?(?:Hangar|ParkedJet|JetWheel|AirfieldRunway|AirfieldConcreteApron|TaxiwayFromHangar|Runway|ApronStopLine|SecurityPerimeter|ControlTower|Tower|MaintenanceServiceBlock|ServiceFlatRoof|ServiceRollerDoor|ServiceDoorLouvre|RoofCoolingUnit|AntennaEquipmentPad|AntennaStem|Beacon|FuelStorageTank|FuelTankSteelBand|FuelTankSupport|FuelPipingMain|FuelPipeTap|CargoContainer|AirbaseFloodlightMast|AirbaseFloodlightTop|AirbaseFloodlightLens|GroundPlinth|CeramicFoundation)/.test(child.name))
-   {child.visible=false;child.userData.airfieldLegacyHidden=true;}
- });
+ // The airfield has ONE complete authored service yard with its own
+ // hangar, tower, apron and runway. The old building GLB must NEVER render
+ // alongside it, even if it has an unexpected mesh/asset naming convention:
+ // old unlabelled skids/landing strips otherwise leak onto the new runway.
+ // Hide only the duplicate detail root, not aircraft units or game entities.
+ entry.detail.visible=false;
+ entry.detail.userData.airfieldLegacyHidden=true;
  entry.airfieldOldHidden=true;
 }
 export function disposeAirfieldServiceYard(entry){
