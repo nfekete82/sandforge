@@ -197,9 +197,9 @@ function sandTexture(){
   ctx.fillStyle='rgba(108,83,52,.065)';
   ctx.beginPath();ctx.ellipse(x,y,rad,rad*.65,0,0,Math.PI*2);ctx.fill();
  }
- for(let i=0;i<24;i++){
+ for(let i=0;i<8;i++){
   const x=r()*256,y=r()*256;
-  ctx.strokeStyle='rgba(125,96,62,.045)';ctx.lineWidth=.4+r()*.6;
+  ctx.strokeStyle='rgba(125,96,62,.024)';ctx.lineWidth=.4+r()*.6;
   ctx.beginPath();ctx.moveTo(x,y);ctx.bezierCurveTo(x+20,y-3,x+44,y+2,x+75,y-2);ctx.stroke();
  }
  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
