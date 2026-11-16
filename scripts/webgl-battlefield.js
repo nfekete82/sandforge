@@ -1955,13 +1955,15 @@ export class SandforgeBattlefield {
   // Buildings are NOT troops: hide general attack/stop/select commands and
   // show only their own removal action. Preserve strategic Silo / Interceptor
   // buttons; every ordinary unit retains all familiar commands.
-  const ownBuilding=Boolean(base&&base.owner===0&&chosen.length===0);
+  const buildingSelected=Boolean(base&&chosen.length===0);
+  const ownBuilding=Boolean(buildingSelected&&base.owner===0);
   const commands=view.querySelector('#sf-command-buttons');
   if(commands)for(const button of commands.querySelectorAll('button[data-action]')){
    const a=button.dataset.action;
-   if(ownBuilding){
-    button.hidden=a!=='demolish'&&!(a==='missile-target'&&base.kind==='silo')&&
-     !(a==='interceptor-rearm'&&base.kind==='interceptor');
+   if(buildingSelected){
+    button.hidden=!ownBuilding||
+     (a!=='demolish'&&!(a==='missile-target'&&base.kind==='silo')&&
+      !(a==='interceptor-rearm'&&base.kind==='interceptor'));
    }else if(a==='demolish')button.hidden=true;
    else if(!['rally','unload','missile-target','interceptor-rearm'].includes(a))
     button.hidden=false;
