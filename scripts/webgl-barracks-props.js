@@ -20,7 +20,7 @@ function cylinderBetween(parent,name,from,to,radius,material,segments=9){
 function addSandbags(root){
  const group=new THREE.Group();group.name='BarracksPolishedSandbags';
  const bagMat=barracksPropMaterial('linen');
- const darker=barracksPropMaterial('linenShade'),stitch=barracksPropMaterial('stitching');
+ const darker=barracksPropMaterial('linenShade');
  const shape=new THREE.SphereGeometry(1,16,10),p=shape.attributes.position;
  for(let i=0;i<p.count;i++)p.setXYZ(i,p.getX(i)*.97,p.getY(i)*.77,p.getZ(i)*.95);
  shape.computeVertexNormals();
@@ -32,9 +32,6 @@ function addSandbags(root){
    sack.name='BarracksLinenSandbag';sack.position.set(x,y,z);
    sack.scale.set(.45,.25,.32);sack.rotation.y=side*.065*(i%2?1:-1);
    group.add(sack);
-   const seam=shadow(new THREE.Mesh(new THREE.BoxGeometry(.59,.012,.022),stitch));
-   seam.name='BarracksSandbagStitch';seam.position.set(x,y+.166,z+.282);
-   group.add(seam);
   }
  }
  root.add(group);return group;
