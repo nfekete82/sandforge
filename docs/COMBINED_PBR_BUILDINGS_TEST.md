@@ -95,3 +95,24 @@ Die HQ-GLB selbst hat auf Wand, Dach, Betonsockel und Stoff trotz eingebetteter 
 - `scripts/build.mjs` kopiert das neue Modul nach `dist`, sodass die Standard-HUD-Icon-Pipeline es laden kann.
 - `tests/webgl-hq-portrait-lighting.test.mjs` prüft die materialbezogene Aufhellung, die originalen Farb-, Normal- und Roughness-Maps, unveränderte dunkle Tore, Kaserne/Legacy-HQ sowie den Build-Importpfad.
 - Die Portraits werden beim Neuladen des Spiels aus dem bereits im gemeinsamen Test-Worktree installierten HQ-GLB neu gerendert; keine neuen GLB-Dateien oder HUD-PNGs nötig.
+
+
+## Ruhiger Einheiten-Ausgang ohne Geschwindigkeitsruck
+
+- Pioniere aus dem PBR-HQ und Fußsoldaten aus der PBR-Kaserne erscheinen mit oder ohne Sammelpunkt auf demselben, kollisionsgeprüften **vorderen** Weg statt zunächst rechts um das Gebäude zu laufen. Ohne Sammelpunkt bleiben sie ca. fünf Meter außerhalb des Tores stehen; wenn der Weg blockiert ist, bleibt der bisherige sichere Seiten-Spawn als Fallback erhalten.
+- `src/reborn/production-exit.ts`: erster Fuß-Spawn bei `base.radius+75`; weitere freie Ausweichpunkte `+100/+130`, seitlich `0/±22/±45` je nach Gebäudedrehung. Die normale klassische Simulation ohne WebGL-Staging bleibt unverändert.
+- `scripts/webgl-production-gates.js`: bei echten Front-Spawns durchgehend linearer Weg Innenraum → Tor → **exakte autoritative Position**, nach realer Gesamtstrecke mit der regulären Rollengeschwindigkeit (105/92/78), statt einer 0.5-Sekunden-Beschleunigungsphase mit separatem Smoothstep-Bogen. Das zuständige Gameplay-Hold endet beim Eintreffen am realen Spawn, nicht erst nach dem Türschließen. Ein bereits eingestellter Rally bleibt während des Ausstiegs fest zugeordnet, auch wenn später der Gebäudesammelpunkt verschoben wird.
+- `scripts/webgl-actor-presentation.js`: die GLB-Laufanimation der Infanterie spielt auch während des Tor-Ausgangs mit normaler Rate `1` statt `driveSpeed/80`; daher kein kurzer Sprint mit nachfolgendem Standbild. Bei Sammelpunkt wird die Laufen-Animation für höchstens zwei Simulationsticks beim Übergang erhalten; Figur dreht sich zuletzt allmählich in die Richtung ihres tatsächlichen Rally-Auftrags.
+- Simulations-Aufträge, Einheitenslots, Kosten, KI, Spielkollisionen, Fabrik-/Fahrzeugausgänge und gespeicherte Spielstände bleiben unverändert. Die Konstruktion der Tore und PBR-GLBs wird nicht verändert.
+- Tests `tests/webgl-infantry-rally-direct.test.mjs` (alle vier Drehungen, mit/ohne Rally) und `tests/webgl-infantry-gate-continuity.test.mjs` (Kaserne/HQ, gleitender 105-Einheiten/s-Weg, keine Pause bei Übergabe) laufen automatisch im Installer.
+
+Zur Aktualisierung:
+
+```bash
+cd ~/Projects/sandforge-pbr-gesamt-test
+git fetch origin
+git merge --ff-only origin/feat/combined-barracks-hq-pbr-20261116
+npm run build
+node --test tests/webgl-infantry-gate-continuity.test.mjs tests/webgl-infantry-rally-direct.test.mjs tests/webgl-production-gates.test.mjs tests/webgl-production-rally.test.mjs
+PORT=8110 npm run preview
+```
