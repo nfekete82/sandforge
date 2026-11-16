@@ -36,9 +36,9 @@ export function wallDragSegments(start,end,mapSize,{axis=null,limit=WALL_CHAIN_M
  * is met, continue DRAWING red segments beyond it so players see why the
  * line stops, but never skip a rock and build invisibly on its far side.
  */
-export function validatedWallDrag(game,start,end,owner=0,{axis=null,limit=WALL_CHAIN_MAX}={}){
+export function validatedWallDrag(game,start,end,owner=0,{axis=null,limit=WALL_CHAIN_MAX,wallCost=75}={}){
  const candidates=wallDragSegments(start,end,game.world.size,{axis,limit});
- const price=75; // kept in sync with the authoritative wall spec
+ const price=Math.max(0,wallCost); // supplied from the authoritative catalogue
  let stopped=false,stopReason=null,buildable=0;
  const segments=candidates.map(({point,facing})=>{
   let reason=stopped?'Abschnitt hinter einem Hindernis':null;
