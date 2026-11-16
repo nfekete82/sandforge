@@ -39,7 +39,7 @@ import {UPGRADES,UPGRADE_KINDS,newResearchState,canResearchUpgrade,researchModif
  from './strategic-tech.js';
 
 export interface Formation {front:number[];fallback?:number[];heading:Point;origin:Point;goal:Point;lane:number;rear:number}
-export interface Order extends Point { kind:'move'|'attackMove'|'attack'|'heal'|'repair'|'build'|'board'; target?:number; approach?:Point; healOrigin?:Point; formation?:Formation; march?:number[]; rear?:number; tactical?:TacticalOrder }
+export interface Order extends Point { kind:'move'|'attackMove'|'attack'|'heal'|'repair'|'build'|'board'; target?:number; approach?:Point; healOrigin?:Point; formation?:Formation; march?:number[]; rear?:number; tactical?:TacticalOrder; guardOnArrival?:boolean }
 export type Weapon='rifle'|'heavy'|'pistol'|'turret'|'cannon'|'rocket'|'machinegun'|'bomb';
 export interface Burst {target:number;remaining:number;at:number;index:number}
 export interface WorkEffect {kind:'heal'|'repair'|'build'|'board';target:number;source:number;sources:number[];at:number;amount:number}
@@ -71,6 +71,8 @@ export interface Unit extends Point {
   /** Where an autonomous pursuit began; persisted so guards do not chase indefinitely. */
   pursuitOrigin?:Point|null;
   hold?:boolean;
+  /** Explicit STOPP/return-base guard stance: attack in weapon range, never pursue. */
+  guardArea?:boolean;
   workingTarget?:number|null;
   supportPaused?:boolean;
   burst?:Burst;
@@ -925,7 +927,7 @@ export class Simulation {
       if(service.phase==='approach'){
         delete u.airfieldService;u.flightHeight=1;u.path=[];u.repath=0;
       }else{
-        u.orders=[{...order}];u.path=[];u.repath=0;u.hold=false;
+        u.orders=[{...order}];u.path=[];u.repath=0;u.hold=false;u.guardArea=false;
         if(service.phase==='repair'||service.phase==='ready'){
           service.phase='takeoff';service.elapsed=0;
         }
@@ -973,7 +975,7 @@ export class Simulation {
         const next:Order={...order,x:entity.x,y:entity.y,...('queue' in entity?{approach}:{healOrigin:{x:entity.x,y:entity.y}})};
         if(append){if(u.orders.length>=32)return;u.orders.push(next);}else{u.orders=[next];u.path=[];u.repath=0;delete u.burst;}
         // Enqueuing future maintenance must not interrupt the work in progress.
-        if(!append){u.hold=false;u.supportPaused=false;u.combatTarget=null;u.pursuitOrigin=null;}
+        if(!append){u.hold=false;u.guardArea=false;u.supportPaused=false;u.combatTarget=null;u.pursuitOrigin=null;}
         accepted++;return;
       }
       let offset={x:slots[i].x-center.x,y:slots[i].y-center.y};
@@ -1003,7 +1005,7 @@ export class Simulation {
          ?[...buildings,...infantryStructureColliders(buildings),...towers]
          :[...buildings,...vehicleStructureColliders(buildings),...this.vehicleDecorObstacles(),...towers];
        const target=spec.flying?{x:clamp(p.x,8,this.world.size-8),y:clamp(p.y,8,this.world.size-8)}:this.world.nearest(p,obstacles,[],u,Math.max(0,spec.radius-10));if(!target)return;
-      const next:Order={...order,...target,...(playerMarch&&u.owner===0&&!spec.flying?{march:playerMarch}:mixed&&front.includes(u)?{march:(armoredFront.length?members.filter(v=>!unitSpec(v).flying):front).map(v=>v.id)}:{}),...(formation?{formation,...(support.includes(u)?{kind:order.kind==='attack'?'attackMove':order.kind,target:undefined}:{})}:{})};u.hold=false;u.supportPaused=false;u.workingTarget=null;
+      const next:Order={...order,...target,...(playerMarch&&u.owner===0&&!spec.flying?{march:playerMarch}:mixed&&front.includes(u)?{march:(armoredFront.length?members.filter(v=>!unitSpec(v).flying):front).map(v=>v.id)}:{}),...(formation?{formation,...(support.includes(u)?{kind:order.kind==='attack'?'attackMove':order.kind,target:undefined}:{})}:{})};u.hold=false;u.guardArea=false;u.supportPaused=false;u.workingTarget=null;
       if(append){if(u.orders.length<32)u.orders.push(next);else return;}
       else {this.transports.cancel(u);delete u.burst;u.orders=formation&&u.orders[0]?.kind==='heal'?[u.orders[0],next]:[next];u.path=[];u.repath=0;u.combatTarget=null;u.pursuitOrigin=null;
         if(u.kind==='tank'&&!u.moving)u.driveSpeed=0;}
@@ -1023,7 +1025,7 @@ export class Simulation {
     if(this.bases.some(b=>b.kind==='headquarters'&&b.territory===t.id&&b.owner!==owner&&b.hp>0))return 'enemy-hq';
     return 'capturing';
   }
-  stop(ids:number[],hold=false):void {for(const u of this.units)if(ids.includes(u.id)){if(u.kind==='bomber')delete u.bomberRun;this.cancelProductionDeparture(u.id);this.transports.cancel(u);u.orders=[];u.path=[];u.repath=0;u.moving=false;if(u.kind==='tank')u.driveSpeed=0;u.pursuitOrigin=null;u.combatTarget=null;u.hold=hold||u.kind==='engineer';u.supportPaused=false;u.workingTarget=null;delete u.burst;}}
+  stop(ids:number[],hold=false,guardArea=false):void {for(const u of this.units)if(ids.includes(u.id)){if(u.kind==='bomber')delete u.bomberRun;this.cancelProductionDeparture(u.id);this.transports.cancel(u);u.orders=[];u.path=[];u.repath=0;u.moving=false;if(u.kind==='tank')u.driveSpeed=0;u.pursuitOrigin=null;u.combatTarget=null;u.hold=hold||u.kind==='engineer';u.guardArea=hold&&guardArea;u.supportPaused=false;u.workingTarget=null;delete u.burst;}}
   private supportEligible(u:Unit,target:Unit|Base,kind:string):boolean {
     if(target.hp<=0||('orders' in target&&target.carrier)||target.owner!==u.owner)return false;
     if(kind==='heal')return u.kind==='medic'&&'orders' in target&&unitSpec(target).group==='Infanterie'&&target.hp<this.maxUnitHp(target);
@@ -1146,6 +1148,7 @@ export class Simulation {
     if(u.kind!=='medic'&&u.kind!=='engineer')return false;
     const order=u.orders[0],explicit=order&&['heal','repair','build'].includes(order.kind);
     if(order&&!explicit)return false;
+    if(u.hold&&u.guardArea)return false; // STOPP guards in place instead of taking support assignments.
     let target:Unit|Base|undefined;
     if(explicit){
       target=order.kind==='heal'?this.units.find(t=>t.id===order.target):order.kind==='repair'?this.bases.find(t=>t.id===order.target)??this.units.find(t=>t.id===order.target):this.bases.find(t=>t.id===order.target);
@@ -1307,7 +1310,7 @@ export class Simulation {
     const infantry=this.spatial.query(u,TANK_MG.range).filter(e=>e.owner!==u.owner&&e.hp>0&&!e.carrier&&unitSpec(e).group==='Infanterie'&&
       this.canSee(u.owner,e)&&distance(u,e)<=TANK_MG.range&&this.world.line(u,e,this.obstacles()));
     const order=u.orders[0];
-    const target=(u.hold
+    const target=(u.hold&&!u.guardArea
       ? infantry.find(e=>e.id===u.lastAttacker&&u.defendUntil>this.time)
       : infantry.find(e=>order?.kind==='attack'&&e.id===order.target)??infantry.sort((a,b)=>distance(u,a)-distance(u,b)||a.id-b.id)[0]);
     if(!target)return;
@@ -1426,6 +1429,16 @@ export class Simulation {
     // and line of sight. Do not chase or inherit an old combat lock.
     if(u.hold){
       u.combatTarget=null;
+      if(u.guardArea){
+        // STOPP is a full defensive guard stance: automatically fire on a
+        // visible enemy ALREADY inside weapon range without pursuing it.
+        const inRange=[...this.spatial.query(u,range),...this.bases]
+         .filter(eligible).sort((a,b)=>distance(u,a)-distance(u,b)||a.id-b.id);
+        const best=inRange[0];
+        u.combatTarget=best?.id??null;
+        return best;
+      }
+      // Legacy damage-triggered hold still returns fire at the attacker.
       if(u.lastAttacker===null||u.defendUntil<=this.time)return undefined;
       const attacker=this.combatEntity(u.lastAttacker);
       if(attacker&&eligible(attacker)){
@@ -1766,8 +1779,11 @@ export class Simulation {
       }
       if(order?.kind==='move'&&(u.owner===0||this.world.mapVersion>=3&&this.tactical.mode==='director'||this.tactical.state.phase!=='attack')){
         delete u.burst;u.combatTarget=null;u.pursuitOrigin=null;
-        if(distance(u,order)<18){u.orders.shift();u.path=[];u.repath=0;if(u.kind==='tank')u.driveSpeed=0;}
-        else this.move(u,order,dt);
+        if(distance(u,order)<18){
+          u.orders.shift();u.path=[];u.repath=0;
+          if(order.guardOnArrival){u.hold=true;u.guardArea=true;}
+          if(u.kind==='tank')u.driveSpeed=0;
+        }else this.move(u,order,dt);
         continue;
       }
       const acquired=this.acquire(u);
@@ -2180,6 +2196,7 @@ export class Simulation {
         s.strategicMissiles.some(m=>!validStrategicMissile(m,mapWorldSize(s.mapVersion??0),s.time))))||
        !validMatchStatisticsOrLegacy(s.stats)||!Array.isArray(s.units)||s.units.length>96||!Array.isArray(s.bases)||s.bases.length<(s.bootstrapVersion===1?0:2)||s.bases.length>260||
       s.units.some(u=>u.exactPath!==undefined&&typeof u.exactPath!=='boolean')||
+      s.units.some(u=>u.guardArea!==undefined&&typeof u.guardArea!=='boolean')||
       !Array.isArray(s.territories)||s.territories.length!==mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows||!Array.isArray(s.explored)||s.explored.length!==2||
       s.explored.some(a=>!Array.isArray(a)||![120**2,RULES.grid**2].includes(a.length)||a.some(v=>v!==0&&v!==1))||
       !Array.isArray(s.credits)||s.credits.length!==2||s.credits.some(v=>!finite(v)||v<0)||
@@ -2188,7 +2205,7 @@ export class Simulation {
           !['rover','tank','artillery'].includes(u.kind)))||
         (u.autoAirfieldRepair!==undefined&&typeof u.autoAirfieldRepair!=='boolean')||
         (u.airfieldService!==undefined&&(!['bomber','scout'].includes(u.kind)||!validAirfieldService(u.airfieldService,mapWorldSize(s.mapVersion??0))))||
-        (u.mgCooldown!==undefined&&(!finite(u.mgCooldown)||u.mgCooldown<0||u.mgCooldown>1))||!burst(u.burst,u.kind==='infantry'||u.kind==='heavy'||u.kind==='scout'||u.kind==='rover'||u.kind===undefined?3:1)||!point(u)||![0,1].includes(u.owner)||(u.kind!==undefined&&!Object.hasOwn(UNITS,u.kind))||(u.driveSpeed!==undefined&&(!finite(u.driveSpeed)||u.driveSpeed<0||u.driveSpeed>unitSpec(u).speed*researchFor(u).speed))||!validBomberOrbit(u.idleOrbit,u.kind??'infantry',mapWorldSize(s.mapVersion??0))||(u.bomberRun!==undefined&&((u.kind??'infantry')!=='bomber'||!u.bomberRun||!Number.isInteger(u.bomberRun.target)||!Number.isInteger(u.bomberRun.leg)||u.bomberRun.leg<0||u.bomberRun.leg>3||!Array.isArray(u.bomberRun.waypoints)||u.bomberRun.waypoints.length!==3||u.bomberRun.waypoints.some(p=>!point(p))))||(u.hullAngle!==undefined&&!finite(u.hullAngle))||(u.pursuitOrigin!==undefined&&u.pursuitOrigin!==null&&!point(u.pursuitOrigin))||!finite(u.hp)||u.hp<=0||u.hp>(UNITS[u.kind??'infantry']?.hp??0)*researchFor(u).hp+1e-5||!Array.isArray(u.orders)||u.orders.length>32||u.orders.some(o=>!point(o)||(o.rear!==undefined&&(!finite(o.rear)||o.rear<0||o.rear>400))||(o.tactical!==undefined&&((o.tactical.goal!==undefined&&!point(o.tactical.goal))||!Number.isInteger(o.tactical.group)||!['safe','assault','defend'].includes(o.tactical.mode)))||(o.march!==undefined&&(!Array.isArray(o.march)||o.march.length>96||o.march.some(id=>!Number.isInteger(id))))||(o.approach!==undefined&&!point(o.approach))||(o.healOrigin!==undefined&&!point(o.healOrigin))||(o.formation!==undefined&&(!Array.isArray(o.formation.front)||o.formation.front.length>96||o.formation.front.some(id=>!Number.isInteger(id))||!point(o.formation.origin)||!point(o.formation.goal)||!finite(o.formation.heading?.x)||!finite(o.formation.heading?.y)||Math.hypot(o.formation.heading.x,o.formation.heading.y)>1.001||!finite(o.formation.lane)||!finite(o.formation.rear)))||!['move','attackMove','attack','heal','repair','build','board'].includes(o.kind)||(['heal','repair','build','board'].includes(o.kind)&&!Number.isInteger(o.target))))||
+        (u.mgCooldown!==undefined&&(!finite(u.mgCooldown)||u.mgCooldown<0||u.mgCooldown>1))||!burst(u.burst,u.kind==='infantry'||u.kind==='heavy'||u.kind==='scout'||u.kind==='rover'||u.kind===undefined?3:1)||!point(u)||![0,1].includes(u.owner)||(u.kind!==undefined&&!Object.hasOwn(UNITS,u.kind))||(u.driveSpeed!==undefined&&(!finite(u.driveSpeed)||u.driveSpeed<0||u.driveSpeed>unitSpec(u).speed*researchFor(u).speed))||!validBomberOrbit(u.idleOrbit,u.kind??'infantry',mapWorldSize(s.mapVersion??0))||(u.bomberRun!==undefined&&((u.kind??'infantry')!=='bomber'||!u.bomberRun||!Number.isInteger(u.bomberRun.target)||!Number.isInteger(u.bomberRun.leg)||u.bomberRun.leg<0||u.bomberRun.leg>3||!Array.isArray(u.bomberRun.waypoints)||u.bomberRun.waypoints.length!==3||u.bomberRun.waypoints.some(p=>!point(p))))||(u.hullAngle!==undefined&&!finite(u.hullAngle))||(u.pursuitOrigin!==undefined&&u.pursuitOrigin!==null&&!point(u.pursuitOrigin))||!finite(u.hp)||u.hp<=0||u.hp>(UNITS[u.kind??'infantry']?.hp??0)*researchFor(u).hp+1e-5||!Array.isArray(u.orders)||u.orders.length>32||u.orders.some(o=>!point(o)||(o.guardOnArrival!==undefined&&(o.kind!=='move'||typeof o.guardOnArrival!=='boolean'))||(o.rear!==undefined&&(!finite(o.rear)||o.rear<0||o.rear>400))||(o.tactical!==undefined&&((o.tactical.goal!==undefined&&!point(o.tactical.goal))||!Number.isInteger(o.tactical.group)||!['safe','assault','defend'].includes(o.tactical.mode)))||(o.march!==undefined&&(!Array.isArray(o.march)||o.march.length>96||o.march.some(id=>!Number.isInteger(id))))||(o.approach!==undefined&&!point(o.approach))||(o.healOrigin!==undefined&&!point(o.healOrigin))||(o.formation!==undefined&&(!Array.isArray(o.formation.front)||o.formation.front.length>96||o.formation.front.some(id=>!Number.isInteger(id))||!point(o.formation.origin)||!point(o.formation.goal)||!finite(o.formation.heading?.x)||!finite(o.formation.heading?.y)||Math.hypot(o.formation.heading.x,o.formation.heading.y)>1.001||!finite(o.formation.lane)||!finite(o.formation.rear)))||!['move','attackMove','attack','heal','repair','build','board'].includes(o.kind)||(['heal','repair','build','board'].includes(o.kind)&&!Number.isInteger(o.target))))||
       s.bases.some(b=>(b.facing!==undefined&&![0,1,2,3].includes(b.facing))||!burst(b.burst,b.kind==='turret'?4:1)||!point(b)||![0,1].includes(b.owner)||(b.kind!==undefined&&!Object.hasOwn(BUILDINGS,b.kind))||(b.turretAngle!==undefined&&!finite(b.turretAngle))||
         (b.siloCharge!==undefined&&(!finite(b.siloCharge)||b.siloCharge<0||
           b.siloCharge>SILO_CHARGE_SECONDS||b.kind!=='silo'))||
