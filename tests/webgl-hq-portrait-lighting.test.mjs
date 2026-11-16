@@ -67,7 +67,7 @@ test('HUD applies the authored-HQ-only path, real original texture atlas, and in
  const portrait=readFileSync('scripts/webgl-portraits.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
  assert.match(portrait,/kind==='headquarters'&&hasAuthoredHeadquartersPBR\(model\)/);
- assert.match(portrait,/if\(authoredHQ\)\{\s*\/\/ Match the actual in-game HQ/);
+ assert.match(portrait,/if\(authoredHQ\)\{\s*(?:\/\/[^\n]*\n\s*)*prepareAuthoredHeadquartersPortrait\(model\)/);
  assert.match(portrait,/prepareAuthoredHeadquartersPortrait\(model\)/);
  assert.match(portrait,/return renderModelPortrait\(model,renderer,\{buildingCard:true,headquartersCard:authoredHQ\}\)/);
  assert.match(portrait,/headquartersCard\?3\.1/);
