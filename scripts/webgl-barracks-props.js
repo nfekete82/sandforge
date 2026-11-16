@@ -150,5 +150,7 @@ export function polishBarracksProps(root){
   obj.userData.sandforgeBarracksPropPolish=true;
   obj.raycast=()=>{};
  }});
- root.add(result);return true;
+ root.add(result);
+ root.userData.sandforgeOriginalPBR=true;
+ return true;
 }
