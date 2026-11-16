@@ -36,10 +36,10 @@ test('both HQs have 64%-larger dome centered on the roof, not on the barracks',(
 test('antenna is far right, small rotating mirror front right, awning centered and wider',()=>{
  for(const owner of [0,1]){
   const doc=glb(DIR+'headquarters-'+owner+'.glb');
-  assert.equal(doc.asset.extras?.sandforgeHQRoofLayout,'centered-command-dome-roof-v3-20261116');
+  assert.equal(doc.asset.extras?.sandforgeHQRoofLayout,'centered-command-dome-roof-v4-canopy-20261116');
   const rotors=[
    ['HQ_Radar_01_LargeDish_Rotor',[-4.90,5.79,-3.15]],
-   ['HQ_Radar_02_PhasedArray_Rotor',[5.32,5.23,.20]],
+   ['HQ_Radar_02_PhasedArray_Rotor',[5.87,5.23,.20]],
    ['HQ_Radar_03_MiniDish_Rotor',[5.42,5.45,3.08]]
   ];
   for(const [name,expected] of rotors)
@@ -58,6 +58,38 @@ test('antenna is far right, small rotating mirror front right, awning centered a
    assert.ok(doc.nodes.some(n=>n.name===name),'unit production gate preserved');
  }
 });
+test('steel canopy braces sit below the fabric, never cut black diagonal lines through it',()=>{
+ for(const owner of [0,1]){
+  const file=DIR+'headquarters-'+owner+'.glb';
+  const raw=readFileSync(file);
+  const doc=glb(file);
+  const jsonLength=raw.readUInt32LE(12);
+  const binaryStart=20+jsonLength+8;
+  const positions=(name)=>{
+   const n=doc.nodes.find(n=>n.name===name);
+   assert.ok(n,'missing '+name);
+   const primitive=doc.meshes[n.mesh].primitives[0];
+   const a=doc.accessors[primitive.attributes.POSITION];
+   const v=doc.bufferViews[a.bufferView],start=binaryStart+(v.byteOffset??0)+(a.byteOffset??0);
+   const data=[];
+   for(let i=0;i<a.count;i++){
+    const p=start+i*(v.byteStride??12);
+    data.push([raw.readFloatLE(p),raw.readFloatLE(p+4),raw.readFloatLE(p+8)]);
+   }
+   return data;
+  };
+  const fabric=positions('HQ_Static_SF_OriginalPBR_canvas');
+  assert.equal(fabric.length,6);
+  const roofY=x=>3.4542+(x-6.9426)*(2.9184-3.4542)/(8.7318-6.9426);
+  const steel=positions('HQ_Static_SF_OriginalPBR_steel');
+  const inside=steel.filter(([x,y,z])=>x>=6.93&&x<=8.75&&z>=-2.09&&z<=2.45&&
+    y>roofY(x)-.30&&y<roofY(x)+.24);
+  assert.ok(inside.length>100,'keep real structural steel below the canopy');
+  assert.ok(inside.every(([x,y])=>y<=roofY(x)-.165),
+   'steel penetrates the fabric and creates black diagonal line artifacts');
+ }
+});
+
 test('authored roof rearrangement is idempotent and does not duplicate geometry',()=>{
  const path=DIR+'headquarters-0.glb';
  const dir=mkdtempSync(join(tmpdir(),'sandforge-roof-test-')),tmp=join(dir,'hq.glb');
