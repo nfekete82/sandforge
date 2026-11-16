@@ -788,7 +788,7 @@ async function addRuins(){
    // Only 2–3 broken walls, 2–4 bits of debris, NO roof/whole building.
    // The smaller World obstruction footprint comes from canyon-front.ts.
    anchor.add(makeSmallRuinFragments(ruin,seed,i,{
-    texture:ruinStrata??ruinGrit,lowQuality:lowQuality
+    texture:ruinStrata??ruinGrit,lowQuality:query.get('lite')==='1'
    }));
   }else{
    const source=data[ruin.variant===1?1:0].scene.clone(true);
