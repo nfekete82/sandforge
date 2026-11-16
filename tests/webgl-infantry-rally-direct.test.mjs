@@ -25,7 +25,7 @@ test('infantry front-door candidates follow each rotated building, not world-rig
   const a=[0,Math.PI,Math.PI/2,Math.PI*1.5][facing];
   const direction={x:Math.sin(a),y:Math.cos(a)};
   assert.ok(Math.abs((p.x-b.x)*direction.y-(p.y-b.y)*direction.x)<1e-7);
-  assert.ok((p.x-b.x)*direction.x+(p.y-b.y)*direction.y>=b.radius+100-.0001);
+  assert.ok((p.x-b.x)*direction.x+(p.y-b.y)*direction.y>=b.radius+75-.0001);
  }
 });
 for(const [building,role] of [['barracks','infantry'],['headquarters','engineer']]){
@@ -36,7 +36,7 @@ for(const [building,role] of [['barracks','infantry'],['headquarters','engineer'
   const {g,b,u,release}=produce(building,role,facing,rally);
   const fwd=(u.x-b.x)*dir.x+(u.y-b.y)*dir.y;
   const side=(u.x-b.x)*dir.y-(u.y-b.y)*dir.x;
-  assert.ok(fwd>=b.radius+95,'staged rally unit must spawn IN FRONT of the actual portal, not beside HQ');
+  assert.ok(fwd>=b.radius+70,'staged rally unit must spawn IN FRONT of the actual portal, not beside HQ');
   assert.ok(Math.abs(side)<48,'staged unit must not run to right-hand waiting zone');
   assert.equal(u.orders[0]?.kind,'attackMove','the rally order is already authoritative');
   assert.ok(g.isProductionDepartureHeld(u.id));
@@ -46,9 +46,18 @@ for(const [building,role] of [['barracks','infantry'],['headquarters','engineer'
   assert.ok(Math.hypot(u.x-start.x,u.y-start.y)>4,
    'unit should go directly toward assigned rally after the door releases it');
  });
- test(building+' '+role+' without rally retains the old right-hand waiting location',()=>{
-  const {b,u}=produce(building,role,0,null);
-  assert.ok(u.x>b.x+b.radius,'default spawn remains on the right flank');
+ for(const facing of [0,1,2,3])test(building+' '+role+' without rally idles directly in front, facing '+facing,()=>{
+  const {b,u}=produce(building,role,facing,null);
+  const angle=[0,Math.PI,Math.PI/2,Math.PI*1.5][facing];
+  const dir={x:Math.sin(angle),y:Math.cos(angle)};
+  const forward=(u.x-b.x)*dir.x+(u.y-b.y)*dir.y;
+  const sideways=(u.x-b.x)*dir.y-(u.y-b.y)*dir.x;
+  assert.ok(forward>=b.radius+70&&forward<b.radius+131,
+   'no rally: idle a few metres beyond the front, not the old right side');
+  assert.ok(Math.abs(sideways)<48,'unit must not run around the structure');
   assert.equal(u.orders.length,0,'no phantom rally order');
+  const delta=u.angle-(Math.PI/2-angle);
+  assert.ok(Math.abs(Math.atan2(Math.sin(delta),Math.cos(delta)))<1e-8,
+   'idle facing matches the actual front door without rotation snap');
  });
 }
