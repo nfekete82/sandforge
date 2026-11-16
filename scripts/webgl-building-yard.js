@@ -184,9 +184,13 @@ function perimeterFence(group,width){
 /** Barracks-only military wire perimeter. Unlike the old wooden fence, this
  * has slim steel posts and horizontal wire/barbs, no bulky rail or X braces.
  * Three sides plus two front sections keep the actual infantry exit clear. */
-function perimeterBarracksWire(group,width,{factory=false}={}){
- const x=width*.65,rear=-width*.53,front=width*.28;
- const gateHalf=width*.23;
+function perimeterBarracksWire(group,width,{factory=false,generator=false}={}){
+ // Generator: small scaled perimeter with enough clearance for its front
+ // service door, a shallow yard and no wire across the entrance.
+ const x=width*(generator?.70:.65);
+ const rear=-width*(generator?.54:.53);
+ const front=width*(generator?.45:.28);
+ const gateHalf=width*(generator?.28:.23);
  const posts=[],strands=[],barbs=[],seen=new Set();
  function segment(x0,z0,x1,z1){
   const dx=x1-x0,dz=z1-z0,dist=Math.hypot(dx,dz);
@@ -229,6 +233,7 @@ function perimeterBarracksWire(group,width,{factory=false}={}){
  group.userData.fenceWires=strands.length+barbs.length;
  group.userData.barracksWireFence=true;
  group.userData.factoryWireFence=factory;
+ group.userData.generatorWireFence=generator;
 }
 
 const barracksYardPaint=new Map([
@@ -261,8 +266,8 @@ function addSiteDecor(root,kind,width){
  if(kind==='generator')g.scale.setScalar(.66);
  root.add(g);
  const large=width>=155;
- if(kind==='barracks'||kind==='headquarters'||kind==='factory')
-  perimeterBarracksWire(g,width,{factory:kind==='factory'});
+ if(['barracks','headquarters','factory','generator'].includes(kind))
+  perimeterBarracksWire(g,width,{factory:kind==='factory',generator:kind==='generator'});
  else if(fencedSites.has(kind))perimeterFence(g,width);
  const supplies=new THREE.Group();
  // The original depot was centered at x=.55*width while its pallet
