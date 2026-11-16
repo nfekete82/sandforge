@@ -10,7 +10,7 @@ import {TERRAIN_LABELS} from '/src/reborn/battlefield-terrain.js';
 import {RULES} from '/src/reborn/config.js';
 import {installClassicHud} from '/webgl-classic-hud.js';
 import {globalCatalogAvailability} from '/webgl-global-catalog.js';
-import {hydrateUnitIcons,hydrateBuildingIcons,unitIcon,buildingIcon,buildingIconUrl,researchIconMarkup,researchEffectLabel,hydrateResearchArtworks} from '/webgl-portraits.js';
+import {hydrateUnitIcons,hydrateBuildingIcons,unitIcon,buildingIcon,buildingIconUrl,researchIconMarkup,hydrateResearchArtworks} from '/webgl-portraits.js';
 import {createSandforgeResearchDeck} from '/webgl-research-deck.js';
 import {SandforgeActorPresentation} from '/webgl-actor-presentation.js';
 import {calibratedScale,visualUnitScale,unitVisualYaw,unitRenderAltitude,buildingFacingAngle,nextBuildingFacing,buildingFacingDegrees,turretAimLocalYaw,selectionRingRadius} from '/webgl-scale.js';
@@ -42,7 +42,7 @@ import {SandforgeConstructionPresentation} from '/webgl-construction.js';
 import {createBastionCaptureBar,updateBastionCaptureBar} from '/webgl-bastion-capture.js';
 import {snapToPlayableEdge,worldToMinimap} from '/webgl-map-edges.js';
 import {attackBlinkAlpha} from '/src/reborn/attack-alerts.js';
-import {UPGRADES,UPGRADE_KINDS,canResearchUpgrade,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
+import {UPGRADES,UPGRADE_KINDS,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
 import {createStrategicBuilding,isStrategicBuilding} from '/webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry,disposeRocketLauncher} from '/webgl-rocket-infantry.js';
 import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building-roof-stripes.js';
@@ -1326,13 +1326,6 @@ export class SandforgeBattlefield {
     this.unloadPassenger(Number(button.dataset.carrierId),Number(button.dataset.passengerId));
     return;
    }
-   if(button.dataset.upgrade){
-    const upgrade=button.dataset.upgrade;
-    if(this.game.startResearch(0,upgrade))
-      this.message('Forschung begonnen: '+UPGRADES[upgrade].name);
-    else this.message('Forschung nicht möglich: Credits, Voraussetzung oder laufendes Projekt prüfen');
-    this.drawInterface();return;
-   }
    if(action==='missile-target'){
     const silo=this.game.bases.find(b=>b.id===this.selectedBase&&b.owner===0&&
       b.kind==='silo'&&b.hp>0&&b.buildRemaining<=0);
@@ -1485,13 +1478,11 @@ export class SandforgeBattlefield {
    const available=globalCatalogAvailability(this.game);
    if(!available[event.detail.tab])return;
    this.panel.querySelector('#sf-actions').scrollTop=0;
-   if(event.detail.tab==='research')this.researchDeck?.reopen();
    const descriptions={
     buildings:'Gebäude auswählen und einen freien Bauplatz auf der Karte anklicken.',
     infantry:'Soldaten und Pioniere direkt aus dem globalen Menü ausbilden.',
     vehicles:'Bodenfahrzeuge direkt in der Fahrzeugfabrik produzieren.',
     aircraft:'Flugzeuge und Transporthelikopter direkt am Flugfeld produzieren.',
-    research:'Globale Technologien im Forschungszentrum erforschen.',
     territories:'Kontrollpunkt wählen, um die Kamera zum Sektor zu bewegen.'};
    this.panel.querySelector('#sf-catalog-detail').textContent=descriptions[event.detail.tab]??'';
    // Tab clicks update the rendered actions NOW, even when a factory is
@@ -1596,26 +1587,11 @@ export class SandforgeBattlefield {
    '" aria-label="Sektor '+(t.id+1)+' zentrieren">'+
    '<i></i><strong>SEKTOR '+(t.id+1)+'</strong><small></small></button>'
   ).join('');
-  const upgrades=UPGRADE_KINDS.map(kind=>{
-   const tech=UPGRADES[kind];
-   return '<button type="button" class="sf-research-card" data-upgrade="'+kind+
-    '" title="'+plain(tech.description)+'" aria-label="'+plain(tech.name)+
-    ' – '+tech.cost+' Credits – '+tech.seconds+' Sekunden">'+
-    '<span class="sf-tech-art" aria-hidden="true">'+
-    '<span class="sf-tech-art-fallback">'+researchIconMarkup(kind)+'</span>'+
-    '<img data-sf-research-artwork="'+kind+'" alt="" loading="lazy" decoding="async">'+
-    '</span>'+
-    '<span class="sf-tech-info sf-tech-body"><strong>'+plain(tech.name)+'</strong>'+
-    '<span class="sf-tech-effect">'+plain(researchEffectLabel[kind]??tech.description)+'</span>'+
-    '<small class="sf-tech-meta">'+tech.cost+' ◆ · '+tech.seconds+' s</small>'+
-    '<span class="sf-tech-progress" aria-hidden="true"></span></span></button>';
-  }).join('');
   const markup='<div class="sf-group" data-sf-group="buildings"><div class="catalog-grid">'+
    cards(buildingKinds.filter(kind=>kind!=='interceptor'||INTERCEPTOR_ENABLED),'building')+'</div></div>'+
    '<div class="sf-group" data-sf-group="infantry">'+infantryRoster+'</div>'+
    '<div class="sf-group" data-sf-group="vehicles">'+vehicleRoster+'</div>'+
    '<div class="sf-group" data-sf-group="aircraft">'+aircraftRoster+'</div>'+
-   '<div class="sf-group" data-sf-group="research"><div class="sf-research-grid">'+upgrades+'</div></div>'+
    '<div class="sf-group" data-sf-group="territories"><h2>KONTROLLPUNKTE</h2>'+tiles+'</div></div>';
   if(this.previousActionsMarkup!==markup){
    const scroll=actions.scrollTop;
@@ -1643,24 +1619,6 @@ export class SandforgeBattlefield {
   const techState=g.research[0];
   const researchOnline=g.bases.some(b=>b.owner===0&&b.kind==='research'&&
    b.hp>0&&b.buildRemaining<=0);
-  for(const button of actions.querySelectorAll('[data-upgrade]')){
-   const kind=button.dataset.upgrade,tech=UPGRADES[kind];
-   const researched=techState.completed.includes(kind);
-   const inProgress=techState.active===kind;
-   const mayStart=researchOnline&&canResearchUpgrade(techState,kind)&&
-    g.credits[0]>=tech.cost;
-   button.disabled=researched||inProgress||!mayStart;
-   button.classList.toggle('sf-tech-done',researched);
-   button.classList.toggle('sf-tech-active',inProgress);
-   button.querySelector('.sf-tech-progress').textContent=researched?'✓':inProgress?
-    Math.ceil(techState.remaining)+'s':tech.requires&&!techState.completed.includes(tech.requires)?
-    'VORAUSSETZUNG':!mayStart?'GESPERRT':'START';
-   button.title=tech.description+(researched?' · Erforschung abgeschlossen':
-    inProgress?' · Noch '+Math.ceil(techState.remaining)+' Sekunden':
-    tech.requires&&!techState.completed.includes(tech.requires)?
-    ' · Benötigt '+UPGRADES[tech.requires].name:
-    !researchOnline?' · Forschungszentrum erforderlich':'');
-  }
   const generatorLimitReached=g.bases.filter(b=>b.owner===0&&b.kind==='generator'&&b.hp>0).length>=MAX_GENERATORS_PER_FACTION;
   const constructed=new Map(g.bases.filter(b=>b.owner===0&&b.hp>0).map(b=>[b.kind,b]));
   // The simulation already rejects duplicate HQ, barracks, factory and
@@ -1709,9 +1667,7 @@ export class SandforgeBattlefield {
   }
   hydrateUnitIcons(actions,this.renderer);
   hydrateBuildingIcons(actions,this.renderer);
-  // Nine real 3D upgrade models: rasterize only after the research deck is
-  // opened. Offscreen 3D readback never runs during ordinary frame rendering.
-  if(view.dataset.tab==='research')hydrateResearchArtworks(actions,this.renderer);
+  // Research artwork is rendered only for ongoing jobs in the production queue.
   // The bottom production panel is GLOBAL: every producer and every build
   // site stays visible regardless of which unit or structure is selected.
   const queuedBases=g.bases.filter(b=>b.owner===0&&b.hp>0&&b.queue?.length);
