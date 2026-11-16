@@ -1970,10 +1970,12 @@ export class SandforgeBattlefield {
   view.querySelector('[data-action="attack"]').setAttribute('aria-pressed',String(this.attackMode));
   view.querySelector('#sf-catalog-detail').textContent=
    spec?.description??'Einheiten auswählen · Rechtsklick bewegen · Pionier für Gebäude erforderlich.';
-  // Do not rebuild tech thumbnails during 20-Hz Simulation updates. The
-  // research module updates in place and remembers the selected technology.
+  // Opening technology research requires an explicit click on the actual
+  // completed owned lab. Automatic selection never opens a modal.
+  const clickedLab=base?.kind==='research'&&base.id===this.researchDeckRequestedFor;
+  if(!clickedLab)this.researchDeckRequestedFor=null;
   this.researchDeck?.update({
-   base,state:techState,credits:g.credits[0],online:researchOnline,
+   base:clickedLab?base:null,state:techState,credits:g.credits[0],online:researchOnline,
    playing:g.status==='playing'
   });
   if(g.status!=='playing')this.message(g.status==='victory'?'SIEG – alle Gegner besiegt':'NIEDERLAGE');
@@ -2459,7 +2461,8 @@ export class SandforgeBattlefield {
      this.selectedBase=null;
     }else{
      this.selected.clear();this.selectedBase=hit.entity.id;
-     if(hit.entity.kind==='research')this.researchDeck?.reopen();
+     this.researchDeckRequestedFor=hit.entity.kind==='research'?hit.entity.id:null;
+     if(this.researchDeckRequestedFor!==null)this.researchDeck?.reopen();
     }
     this.sound?.select?.();this.drawInterface();return;
    }
