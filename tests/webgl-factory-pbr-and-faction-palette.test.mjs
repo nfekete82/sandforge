@@ -156,7 +156,7 @@ test('all four roof paint sections avoid the raised roof ventilation housings',(
 
 test('factory reuses thin HQ/barracks wire, opens right side for repairs',()=>{
  const yard=readFileSync('scripts/webgl-building-yard.js','utf8');
- assert.match(yard,/perimeterBarracksWire\(g,width,\{factory:kind==='factory'\}\)/);
+ assert.match(yard,/perimeterBarracksWire\(g,width,\{factory:kind==='factory',generator:kind==='generator'\}\)/);
  assert.match(yard,/segment\(x,rear,x,factory\?-width\*\.13:front\)/);
  assert.match(yard,/if\(!factory\)segment\(gateHalf,front,x,front\)/);
  assert.match(yard,/BarracksWireFenceStrands/);
