@@ -13,7 +13,11 @@ export const BARRACKS_PROP_SURFACES=Object.freeze({
  supplyWood:Object.freeze({base:[144,115,78],metalness:0,roughness:.91,relief:.85,seed:301}),
  darkSteel:Object.freeze({base:[62,70,66],metalness:.65,roughness:.57,relief:.48,seed:401}),
  brightSteel:Object.freeze({base:[152,159,152],metalness:.72,roughness:.49,relief:.36,seed:402}),
- dishMetal:Object.freeze({base:[119,136,130],metalness:.70,roughness:.52,relief:.34,seed:403})
+ dishMetal:Object.freeze({base:[119,136,130],metalness:.70,roughness:.52,relief:.34,seed:403}),
+ fenceSteel:Object.freeze({base:[66,72,67],metalness:.74,roughness:.64,relief:.44,seed:404}),
+ helmetPaint:Object.freeze({base:[100,112,79],metalness:.22,roughness:.85,relief:.55,seed:405}),
+ rubber:Object.freeze({base:[47,49,43],metalness:.03,roughness:.97,relief:.75,seed:501}),
+ trackMetal:Object.freeze({base:[85,91,79],metalness:.55,roughness:.78,relief:.64,seed:502})
 });
 
 const mapsByRole=new Map(),materialsByRole=new Map();
@@ -52,7 +56,7 @@ function pixel(role,x,y,spec){
  }else if(role==='supplyWood'){
   relief+=lengthwise*.22;
   colorOffset+=lengthwise*13-(dust>.77?8:0);
- }else if(role==='darkSteel'||role==='brightSteel'||role==='dishMetal'){
+ }else if(role==='darkSteel'||role==='brightSteel'||role==='dishMetal'||role==='fenceSteel'||role==='trackMetal'){
   relief+=metalBrush*.035+paintScratch*.25;
   colorOffset+=metalBrush*3+paintScratch*18;
   roughness+=paintScratch*.16;
