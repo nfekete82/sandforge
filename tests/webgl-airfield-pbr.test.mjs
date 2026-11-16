@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {inflateSync} from 'node:zlib';
 import {factionRgb8} from '../scripts/sandforge-faction-palette.js';
+import {servicePaint} from '../scripts/webgl-service-materials.js';
+import {airfieldLaunchDuration,airfieldLaunchPose,airfieldLaunchLeg} from '../scripts/webgl-airfield-launch-path.js';
 
 const root='src/assets/reborn/buildings-3d/';
 const src=name=>readFileSync('scripts/'+name,'utf8');
@@ -203,4 +205,78 @@ test('runway is 15 percent longer and has no mast in the aircraft corridor',()=>
  assert.match(rules,/approach:\{x:12,z:225\},touchdown:\{x:12,z:130\}/);
  assert.match(rules,/AIRFIELD_LANDING_SECONDS=3\.4/);
  assert.match(rules,/AIRFIELD_TAKEOFF_SECONDS=8/);
+});
+
+
+test('flightline concrete uses small uniform slab aggregates, never camouflage blobs',()=>{
+ const service=src('webgl-airfield-service.js'),paint=src('webgl-service-materials.js');
+ assert.match(service,/const wornPaving=servicePaint\([^\n]*\{pattern:'slab'/);
+ assert.match(service,/const apronWear=servicePaint\([\s\S]*?\{pattern:'slab',seed:67/);
+ assert.match(service,/const rampGrip=servicePaint\([\s\S]*?\{pattern:'slab',seed:25/);
+ assert.match(service,/const runwayWear=servicePaint\([^\n]*\{pattern:'asphalt'/);
+ assert.match(paint,/const idx=slab\|\|asphalt\?1/);
+ const material=servicePaint(['#82817a','#aaa69f','#c3beb5'],{pattern:'slab',seed:39});
+ const d=material.map.image.data;
+ const value=(x,y)=>d[(y*96+x)*4];
+ assert.ok(Math.abs(value(18,18)-value(19,18))<22,'no large irregular swatches');
+ assert.ok(value(48,18)<value(18,18)-12,'visible concrete panel joint');
+ material.map.dispose();material.dispose();
+});
+
+test('control tower is a real four-sided glass cabin, not one opaque block',()=>{
+ const gen=src('generate-airfield-pbr.mjs');
+ assert.match(gen,/for\(const z of \[towerZ-20,towerZ\+20\]\)/);
+ assert.match(gen,/for\(const x of \[towerX-22,towerX\+22\]\)/);
+ assert.match(gen,/box\('glass',\[towerX,106,z\],\[41,21,1\.5\]\)/);
+ assert.match(gen,/box\('glass',\[x,106,towerZ\],\[1\.5,21,37\]\)/);
+ assert.match(gen,/alphaMode:'BLEND'/);
+ assert.match(gen,/scan\[i\+3\]=key==='glass'\?210:255/);
+ assert.doesNotMatch(gen,/box\('glass',\[towerX,106,towerZ\],\[44,22,40\]\)/);
+});
+
+test('bomber taxis from actual hangar via apron then lifts off from runway',()=>{
+ const total=airfieldLaunchDuration('bomber');
+ assert.ok(total>10&&total<12);
+ assert.equal(airfieldLaunchPose('bomber',0).visible,false);
+ const p=airfieldLaunchPose('bomber',3);
+ assert.equal(p.stage,'taxi');
+ assert.deepEqual([airfieldLaunchLeg('bomber',p).from,airfieldLaunchLeg('bomber',p).to],['dock','door']);
+ const takeoff=airfieldLaunchPose('bomber',8.8);
+ assert.equal(takeoff.stage,'takeoff');
+ assert.ok(takeoff.lift>0&&takeoff.lift<1);
+ assert.deepEqual([airfieldLaunchLeg('bomber',takeoff).from,airfieldLaunchLeg('bomber',takeoff).to],['taxi','departure']);
+ assert.ok(airfieldLaunchPose('bomber',total+.02).done);
+});
+
+test('transport helicopter clears hangar, then rises vertically on apron',()=>{
+ const duration=airfieldLaunchDuration('scout');
+ assert.ok(duration>7&&duration<8);
+ const pose=airfieldLaunchPose('scout',5.2);
+ assert.equal(pose.stage,'takeoff');
+ assert.deepEqual(airfieldLaunchLeg('scout',pose),{from:'lineup',to:'lineup',t:1});
+ assert.ok(pose.lift>0&&pose.lift<1);
+ assert.ok(airfieldLaunchPose('scout',duration+.01).done);
+ assert.equal(airfieldLaunchPose('infantry',0),null);
+});
+
+test('real paid air units use one animation event and a lawful exterior handoff',()=>{
+ const simulation=readFileSync('src/reborn/simulation.ts','utf8');
+ assert.match(simulation,/if\(!spawn&&this\.stageWebGLProduction&&b\.kind==='airfield'/);
+ assert.match(simulation,/airfieldPoint\(b,kind==='bomber'\?'departure':'lineup'\)/);
+ assert.match(simulation,/spawn=point;stagedAirfield=true/);
+ assert.match(simulation,/this\.productionDepartureHolds\.set\(u\.id,this\.time\+\(stagedAirfield/);
+ const launch=src('webgl-airfield-launch.js'),battle=src('webgl-battlefield.js'),build=src('build.mjs');
+ assert.match(launch,/const actor=bf\.units\.get\(event\.unitId\)/);
+ assert.match(launch,/this\.seen=new WeakSet\(this\.game\.productionReleases\)/);
+ assert.match(launch,/this\.active\.has\(base\.id\)/);
+ assert.match(launch,/actor\.node\.position\.copy\(worldPoint\)/);
+ assert.match(launch,/this\.game\.cancelProductionDeparture\?\.\(state\.event\.unitId\)/);
+ assert.doesNotMatch(launch,/\.spawn\(/,'no second dummy unit may be created');
+ assert.match(battle,/this\.airfieldLaunch=new SandforgeAirfieldLaunch\(this\)/);
+ assert.match(battle,/this\.airfieldLaunch\.update\(active\)/);
+ assert.match(build,/dist\/webgl-airfield-launch\.js/);
+ assert.match(build,/dist\/webgl-airfield-launch-path\.js/);
+ const service=src('webgl-airfield-service.js');
+ assert.match(service,/group\.userData\.airfieldProductionOpen\?\?0/);
+ assert.match(src('webgl-preview.js'),/battlefield\.airfieldLaunch\.dispose\(\)/);
 });
