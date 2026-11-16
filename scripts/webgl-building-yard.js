@@ -322,7 +322,7 @@ function addSiteDecor(root,kind,width){
  // Build perimeter AFTER props so Energiekern can calculate their real
  // dimensions and reserve clearance on the right and in front. All other
  // military building perimeters keep their original geometry.
- if(['barracks','headquarters','factory','generator'].includes(kind))
+ if(['barracks','headquarters','factory','generator','research'].includes(kind))
   perimeterBarracksWire(g,width,{factory:kind==='factory',generator:kind==='generator'});
  else if(fencedSites.has(kind))perimeterFence(g,width);
  // Place masts near the side fencing, never along the open front door/spawn.
@@ -472,7 +472,7 @@ export function createBuildingYard(kind,width=160){
  if(CAMO_NET_BUILDING_KINDS.includes(kind))attachSmallCamouflageNet(root,width);
  // The generator's side crates, pallet and barrels need the same authored
  // wood/steel/cloth PBR mapping as HQ supplies, not plain colored blocks.
- if(['barracks','headquarters','factory','generator'].includes(kind))
+ if(['barracks','headquarters','factory','generator','research'].includes(kind))
   textureBarracksYard(root);
  return root;
 }
