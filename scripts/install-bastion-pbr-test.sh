@@ -9,13 +9,19 @@ if [[ ! -f scripts/generate-bastion-radar.mjs ]]; then
  exit 1
 fi
 BACKUP="$(mktemp -d /tmp/sandforge-bastion-backup.XXXXXX)"
-for owner in -1 0 1; do
- cp "$ASSETS/bastion-$owner.glb" "$BACKUP/bastion-$owner.glb"
+# Back up all seven assets, not just the Bastion: this combined preview
+# replaces four older building GLBs as well.
+for file in bastion--1.glb bastion-0.glb bastion-1.glb \
+            barracks-0.glb barracks-1.glb \
+            headquarters-0.glb headquarters-1.glb; do
+ cp "$ASSETS/$file" "$BACKUP/$file"
 done
 rollback(){
  echo "Bastion-Build/Test fehlgeschlagen; alte GLBs werden zurückkopiert: $BACKUP" >&2
- for owner in -1 0 1; do
-  cp "$BACKUP/bastion-$owner.glb" "$ASSETS/bastion-$owner.glb"
+ for file in bastion--1.glb bastion-0.glb bastion-1.glb \
+             barracks-0.glb barracks-1.glb \
+             headquarters-0.glb headquarters-1.glb; do
+  cp "$BACKUP/$file" "$ASSETS/$file"
  done
 }
 trap rollback ERR
@@ -23,8 +29,13 @@ npm run build
 node --test \
  tests/webgl-bastion-pbr-radar.test.mjs \
  tests/sandforge-bastion-navigation.test.mjs \
- tests/webgl-building-portrait-readability.test.mjs
+ tests/webgl-building-portrait-readability.test.mjs \
+ tests/webgl-authored-barracks-portrait.test.mjs \
+ tests/webgl-final-pbr-asset-sync.test.mjs \
+ tests/webgl-unified-pbr-buildings.test.mjs \
+ tests/webgl-hq-dome.test.mjs \
+ tests/webgl-hq-portrait-lighting.test.mjs
 trap - ERR
-echo "Alle drei Bastionen aus Git-Code generiert, ohne ZIP. Backup: $BACKUP"
+echo "Bastion + finale PBR-Kaserne + PBR-Kommandozentrale geladen. Backup: $BACKUP"
 echo "Preview: PORT=8111 npm run preview"
-echo "ACHTUNG: Port 8110 ist der alte Kaserne/HQ-Teststand."
+echo "Port 8111 zeigt jetzt alle drei FINALEN Gebäude gemeinsam."
