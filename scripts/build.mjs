@@ -1,5 +1,6 @@
 import { cpSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
 mkdirSync('dist', { recursive: true });
 // RC2: WebGL is the default for all ordinary builds, including Docker.
 // Explicit SANDFORGE_RENDERER=classic retains the historical root for
@@ -106,6 +107,10 @@ cpSync('src/reborn/style.css', 'dist/style.css');
 cpSync('src/reborn/retro-desert.css', 'dist/retro-desert.css');
 cpSync('src/reborn/qwen-general.worker.js', 'dist/src/reborn/qwen-general.worker.js');
 cpSync('legacy', 'dist/legacy', {recursive:true});
+// New compact PBR Bastions are generated from checked-in JS, not from a
+// user-downloaded ZIP. Do this on every build so dist cannot ship the retired
+// round-radar tower even when the original binary files remain in Git.
+execFileSync(process.execPath,['scripts/generate-bastion-radar.mjs'],{stdio:'inherit'});
 cpSync('src/assets', 'dist/src/assets', {recursive:true});
 // Incremental local builds must also discard the retired aircraft assets.
 for(const team of [0,1])for(const extension of ['glb','png','json'])rmSync(`dist/src/assets/reborn/animation/gunship-${team}.${extension}`,{force:true});
