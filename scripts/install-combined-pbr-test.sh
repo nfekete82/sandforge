@@ -84,6 +84,7 @@ node --test \
  tests/webgl-hq-vents.test.mjs \
  tests/webgl-bastion-clearance.test.mjs \
  tests/webgl-infantry-rally-direct.test.mjs \
+ tests/webgl-infantry-gate-continuity.test.mjs \
  tests/webgl-barracks-props.test.mjs \
  tests/webgl-barracks-yard-textures.test.mjs \
  tests/webgl-barracks-pbr-production.test.mjs \
