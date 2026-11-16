@@ -16,18 +16,8 @@ export const AIRFIELD_FENCE_TAXI_GAP=Object.freeze({
  westEnd:-238,eastEnd:-73,frontZ:183,rightEndZ:9
 });
 const UP=new THREE.Vector3(0,1,0);
-const postPaint=new THREE.MeshStandardMaterial({
- color:'#404943',roughness:.65,metalness:.62
-});
-const meshPaint=new THREE.MeshStandardMaterial({
- color:'#8e9689',roughness:.81,metalness:.42
-});
-const barbedPaint=new THREE.MeshStandardMaterial({
- color:'#746e5f',roughness:.85,metalness:.42
-});
 const groundY=3.15;
 const pos=(x,y,z)=>[x,y,z];
-const edgesByType={posts:[],wire:[],barbed:[]};
 
 function cylinderBatch(group,name,edges,radius,material){
  if(!edges.length)return;
@@ -62,6 +52,17 @@ function applyEdges(mesh,convert=point=>point){
  mesh.computeBoundingSphere();
 }
 export function createAirfieldSecurityFence(){
+ // These materials belong to this yard and are safely disposed on removal;
+ // never share an already-disposed PBR material between active airfields.
+ const postPaint=new THREE.MeshStandardMaterial({
+  color:'#404943',roughness:.65,metalness:.62
+ });
+ const meshPaint=new THREE.MeshStandardMaterial({
+  color:'#8e9689',roughness:.81,metalness:.42
+ });
+ const barbedPaint=new THREE.MeshStandardMaterial({
+  color:'#746e5f',roughness:.85,metalness:.42
+ });
  const group=new THREE.Group();
  group.name='AirfieldSecurityPerimeter';
  group.userData={visualOnly:true,nonPlayable:true,
