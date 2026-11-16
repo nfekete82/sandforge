@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {inflateSync} from 'node:zlib';
 import {factionRgb8} from '../scripts/sandforge-faction-palette.js';
 import {calibratedScale,MODEL_HEIGHTS} from '../scripts/webgl-scale.js';
+import {createBuildingYard,disposeBuildingYard} from '../scripts/webgl-building-yard.js';
 
 const src=p=>readFileSync(p,'utf8');
 function energyGlb(owner){
@@ -35,7 +36,7 @@ function teamPixel(m){
 test('both teams receive small, valid 3D PBR energy-core GLBs',()=>{
  for(const owner of [0,1]){
   const m=energyGlb(owner);
-  assert.equal(m.doc.asset.generator,'sandforge-energy-core-pbr-v2-glass-20261116');
+  assert.equal(m.doc.asset.generator,'sandforge-energy-core-pbr-v3-glass-dome-20261116');
   assert.ok(m.buf.length>15000);
   assert.ok(m.doc.meshes.length>=12&&m.doc.meshes.length<=16);
   assert.equal(m.doc.scenes[m.doc.scene].nodes.length,1);
@@ -54,7 +55,7 @@ test('energy core has smaller desert housing and a tall dominant glass cylinder'
  const max=bounds.reduce((x,a)=>Math.max(x,a.max[1]),-Infinity);
  const left=bounds.reduce((x,a)=>Math.min(x,a.min[0]),Infinity);
  const right=bounds.reduce((x,a)=>Math.max(x,a.max[0]),-Infinity);
- assert.ok(max-min>=4.40&&max-min<=4.52,'glass energy tube dominates over the low bunker');
+ assert.ok(max-min>=4.86&&max-min<=4.90,'translucent dome visibly crowns the glass reactor');
  assert.ok(right-left>=3.78&&right-left<=3.82,'housing is significantly narrower than old 5m model');
  const generator=src('scripts/generate-energy-core-pbr.mjs');
  assert.match(generator,/function buildParts\(\)/);
@@ -128,12 +129,12 @@ test('large clear glass cylinder ships with real BLEND alpha and visible team-po
   const a=m.doc.accessors[tubeMesh.primitives[0].attributes.POSITION];
   assert.ok(a.max[1]-a.min[1]>=2.24-1e-5);
   assert.ok(a.max[0]-a.min[0]>=2.3-1e-5);
-  assert.equal(a.count,24*6,'24 continuous wall facets, no opaque glass lid');
+  assert.equal(a.count,24*6*(1+8),'24 full tube facets plus eight curved transparent dome rings');
  }
 });
 
 test('live and ghost renders shrink the reactor instead of scaling it back up',()=>{
- const coreBounds={x:3.80,y:4.48,z:3.37};
+ const coreBounds={x:3.80,y:4.87,z:3.37};
  const factor=calibratedScale('generator','building',coreBounds,112);
  const width=coreBounds.x*factor,height=coreBounds.y*factor;
  assert.ok(width<72&&width>60,'the on-screen footprint must be ~40% smaller');
@@ -150,4 +151,22 @@ test('live and ghost renders shrink the reactor instead of scaling it back up',(
  const catalog=src('src/reborn/catalog.ts');
  assert.match(catalog,/generator:\{name:'Energiekern',cost:150,buildTime:9,hp:500/);
  assert.match(catalog,/income:10/);
+});
+
+test('small generator has a real transparent hemispherical dome and textured side props',()=>{
+ const source=src('scripts/generate-energy-core-pbr.mjs');
+ assert.match(source,/export const ENERGY_GLASS_DOME=Object\.freeze\(\{radius:1\.15,base:4\.22,rise:\.65,segments:8\}\)/);
+ assert.match(source,/function glassDome\(\)/);
+ assert.match(source,/glassDome\(\);/);
+ assert.doesNotMatch(source,/frustum\('steel_dark',4\.25,4\.39,1\.25,1\.15/,
+  'no old opaque metal lid may hide the energy column');
+ const yard=createBuildingYard('generator',112);
+ const cache=yard.getObjectByName('BaseSupplyCache');
+ assert.ok(cache);
+ const props=[];
+ cache.traverse(o=>{if(o.isMesh)props.push(o);});
+ assert.ok(props.length>=3);
+ assert.ok(props.some(o=>o.userData?.sandforgeBarracksPropPolish&&o.material?.map?.isTexture),
+  'crates and barrels reuse authored tiled PBR wood/metal instead of flat fills');
+ disposeBuildingYard(yard);
 });
