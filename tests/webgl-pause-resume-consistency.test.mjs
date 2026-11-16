@@ -144,7 +144,8 @@ test('runtime setter is idempotent and always resets frame debt on resume',()=>{
  const state={
   running:false,pauseSource:'Leertaste',accumulator:2.5,
   game:{paused:true},sound:{pause(){}},updates:0,
-  updateSimulationBanner(){this.updates++;},
+  // Called as an unbound function inside the VM: capture state, not `this`.
+  updateSimulationBanner(){state.updates++;},
   $:()=>button
  };
  // Imported functions are isolated from renderer globals for this test.
@@ -158,6 +159,7 @@ test('runtime setter is idempotent and always resets frame debt on resume',()=>{
  assert.equal(button['aria-pressed'],'true');
  assert.equal(state.setSimulationRunning(true),true);
  assert.equal(state.running,true,'repeated setter call must never toggle again');
+ assert.equal(state.updates,2,'setter refreshes banner even if state is unchanged');
  assert.match(sceneSource,/if\(event\.code==='Space'&&!window\.Sandforge3DMenu\)/);
  assert.match(sceneSource,/simulationBanner\.hidden=!reason\|\|document\.getElementById\('sf3d-pause-dialog'\)\?\.open===true/);
 });
