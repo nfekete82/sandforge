@@ -140,3 +140,32 @@ test('sand update is visual-only: gameplay terrain generation and building PBR s
  const palette=txt('scripts/webgl-desert-style.js');
  assert.match(palette,/authoredSandVertexBlend:\.76/);
 });
+
+
+test('command centre security lamps face OUTWARD instead of shining at the wall',()=>{
+ for(const kind of ['headquarters','barracks']){
+  const yard=createBuildingYard(kind,160);
+  yard.updateMatrixWorld(true);
+  const perimeter=yard.getObjectByName('BasePerimeter_'+kind);
+  assert.ok(perimeter,'missing '+kind+' yard');
+  const lamps=perimeter.children.filter(c=>c.name==='SecurityLamp');
+  assert.equal(lamps.length,2,'keep both original perimeter lamps');
+  for(const lamp of lamps){
+   const side=Math.sign(lamp.position.x);
+   const head=lamp.getObjectByName('LampHead');
+   const post=lamp.getObjectByName('LampPost');
+   const diffuser=lamp.getObjectByName('LampDiffuser');
+   assert.ok(head&&post&&diffuser,'all existing lamp details remain');
+   const pos=new THREE.Vector3(),pole=new THREE.Vector3();
+   head.getWorldPosition(pos);
+   post.getWorldPosition(pole);
+   assert.ok(side*(pos.x-pole.x)>6,
+    'lamp head must project OUTWARD on '+(side<0?'left':'right')+' side of '+kind);
+   diffuser.getWorldPosition(pos);
+   assert.ok(side*(pos.x-pole.x)>6,
+    'emissive diffuser must face OUTWARD, never point into the facade');
+   assert.equal(lamp.userData.facesOutward,true);
+  }
+  disposeBuildingYard(yard);
+ }
+});
