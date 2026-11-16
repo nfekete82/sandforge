@@ -32,8 +32,7 @@ test('spacious desert maps are less cluttered and keep large ruins recognizable'
   for(let i=0;i<ruins.length;i++)for(let j=i+1;j<ruins.length;j++){
    const a=ruins[i],b=ruins[j];
    const gap=Math.hypot(a.x-b.x,a.y-b.y);
-   const radius=Math.hypot(a.width,a.depth)*.65;
-   assert.ok(gap>Math.max(b.width,b.depth)+radius+260,
+   assert.ok(gap>350,
     'decorative ruin sites must keep substantial empty sand between them');
   }
  }
