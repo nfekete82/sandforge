@@ -372,6 +372,7 @@ async function rasterizeBuildingIcon(kind,renderer){
    const authoredHQ=kind==='headquarters'&&hasAuthoredHeadquartersPBR(model);
    const authoredBarracks=kind==='barracks'&&hasFinalBarracksPBR(model);
    const authoredFactory=kind==='factory'&&Boolean(model.getObjectByName('SF_Factory_PBR_roof')&&model.getObjectByName('FactoryRollupDoor'));
+   const authoredAirfield=kind==='airfield'&&Boolean(model.getObjectByName('SF_Airfield_PBR_Root')&&model.getObjectByName('HangarDoorLeft_0')&&model.getObjectByName('HangarDoorRight_0'));
    if(authoredHQ){
     // Same original PBR textures as the real domed command centre.
     prepareAuthoredHeadquartersPortrait(model);
@@ -387,9 +388,9 @@ async function rasterizeBuildingIcon(kind,renderer){
       node.material.map(m=>m.clone()):node.material.clone();
     });
     prepareFinalBarracksPortrait(model);
-   }else if(authoredFactory){
-    // The generated factory is already full PBR with exact team-blue
-    // painted roof/flags. Retain its authored texture atlas untouched.
+   }else if(authoredFactory||authoredAirfield){
+    // Factory and airfield share the canonical desert PBR paint. Keep the
+    // actual built GLB materials; no old orange faction shader in thumbnails.
    }else{
     if(kind==='barracks')finishBarracksSides(model);
     tintFactionMaterials(model,0,kind,'building');
