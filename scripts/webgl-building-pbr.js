@@ -59,14 +59,27 @@ const fallbackColor={
  wall:'#cbbc9e',camo:'#c6b695',roof:'#b9ab91',metal:'#555954',trim:'#776f5f'
 };
 const makeMaps=role=>{
- const n=96,pixels=new Uint8Array(n*n*4),roughness=new Uint8Array(n*n*4);
- // Deterministic, periodic micro-height noise, normal maps generated once.
- const height=(x,y)=>{
+ const n=256,pixels=new Uint8Array(n*n*4),roughness=new Uint8Array(n*n*4);
+ // High-resolution tileable stochastic microrelief instead of a 96px
+ // repeated sine wave: no straight bands under low golden-hour sunlight.
+ // Generated once per material role, shared across EVERY building instance.
+ const hash=(x,y)=>{
   const a=(x+n)%n,b=(y+n)%n;
-  const wave=Math.sin(a*Math.PI*2/16)*.20+Math.cos(b*Math.PI*2/19)*.17;
-  const salt=((Math.imul(a+1,73856093)^Math.imul(b+1,19349663))>>>0)%23/23;
-  return wave+salt*.18;
+  let h=Math.imul(a+1,73856093)^Math.imul(b+1,19349663);
+  h=Math.imul(h^(h>>>13),1274126177);
+  return ((h^(h>>>16))>>>0)/4294967295;
  };
+ const smooth=(x,y,cell)=>{
+  const u=x/cell,v=y/cell,i=Math.floor(u),j=Math.floor(v);
+  const fx=(u-i)**2*(3-2*(u-i)),fy=(v-j)**2*(3-2*(v-j));
+  const grid=(i,j)=>hash(((i%(n/cell))+(n/cell))%(n/cell),
+   ((j%(n/cell))+(n/cell))%(n/cell));
+  const a=grid(i,j)*(1-fx)+grid(i+1,j)*fx;
+  const b=grid(i,j+1)*(1-fx)+grid(i+1,j+1)*fx;
+  return a*(1-fy)+b*fy;
+ };
+ const height=(x,y)=>(smooth(x,y,32)-.5)*.42+
+  (smooth(x,y,8)-.5)*.22+(hash(x,y)-.5)*.07;
  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
   const dx=(height(x+1,y)-height(x-1,y))*.28;
   const dy=(height(x,y+1)-height(x,y-1))*.28;
@@ -85,7 +98,7 @@ const makeMaps=role=>{
   tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
   tex.magFilter=THREE.LinearFilter;
   tex.minFilter=THREE.LinearMipmapLinearFilter;
-  tex.generateMipmaps=true;tex.needsUpdate=true;
+  tex.generateMipmaps=true;tex.anisotropy=8;tex.needsUpdate=true;
  }
  normal.name='SandforgeDesertBuildingNormal-'+role;
  rough.name='SandforgeDesertBuildingRoughness-'+role;
