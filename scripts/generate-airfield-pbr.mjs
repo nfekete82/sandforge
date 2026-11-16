@@ -65,11 +65,14 @@ function barrelRoof(cx,front=20,back=-173){
   // Continuous UVs: one coherent corrugated-metal PBR texture over the vault.
   tri(roof,a,b,e,[[u0,0],[u0,3],[u1,3]]);
   tri(roof,a,e,d,[[u0,0],[u1,3],[u1,0]]);
-  // Solid barrel-shaped gables close the void above the rectangular doors.
-  quad(face,[cx+x0,73.5,front-.5],[cx+x1,73.5,front-.5],
-   [cx+x1,y1,front-.5],[cx+x0,y0,front-.5]);
-  quad(face,[cx+x1,73.5,back+.5],[cx+x0,73.5,back+.5],
-   [cx+x0,y0,back+.5],[cx+x1,y1,back+.5]);
+  // Solid barrel gables close the door opening. UVs span the complete
+  // facade (not one camo repeat per 1m roof segment).
+  for(const z of [front-.5,back+.5]){
+   const low0=[cx+x0,73.5,z],low1=[cx+x1,73.5,z];
+   const high1=[cx+x1,y1,z],high0=[cx+x0,y0,z];
+   tri(face,low0,low1,high1,[[u0,0],[u1,0],[u1,1]]);
+   tri(face,low0,high1,high0,[[u0,0],[u1,1],[u0,1]]);
+  }
   // Reinforcing ribs follow the SAME curvature; no straight bars pierce it.
   for(const z of [back+2,-107,-43,front-2]){
    const offset=1.15;
