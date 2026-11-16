@@ -226,7 +226,7 @@ export class DesertArtPass {
   // Just a few wall fragments at each ruin, not stone carpets everywhere.
   const rubblePerRuin=modernDesert?(this.lowQuality?2:3):
    spacious?(this.lowQuality?5:13):(this.lowQuality?8:27);
-  const rubbleAt=ruin=>modernDesert&&ruin.height<30?1:rubblePerRuin;
+  const rubbleAt=ruin=>this.world.mapVersion>=19&&ruin.height<30?1:rubblePerRuin;
   const count=this.terrain.ruins.reduce((n,ruin)=>n+rubbleAt(ruin),0);
   if(!count)return;
   const geometry=weatheredStoneGeometry(this.lowQuality);
