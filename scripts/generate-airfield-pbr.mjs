@@ -93,7 +93,9 @@ function buildParts(){
   for(let i=0;i<5;i++)box('steel_dark',[x-6.0+i*3,100.7,-105],[1.3,1.5,21]);
   // Two longitudinal PBR-painted strips, INTERRUPTED before the vents.
   for(const [z0,z1] of [[-153,-125],[-73,-14]]){
-   box('team',[cx+side*40,98,(z0+z1)/2],[3,.45,z1-z0]);
+   // Match the curved roof height at x +/-40; paint is flush, not floating.
+   const x=40,roofY=76+17*Math.sqrt(1-(x/68)**2)+1.5;
+   box('team',[cx+side*x,roofY,(z0+z1)/2],[3,.35,z1-z0]);
   }
  }
  // True doorway opening is kept empty behind the moving shutter.
@@ -107,10 +109,11 @@ function buildParts(){
  box('steel_light',[cx,76,front+7],[117,4,3]);
  box('steel_dark',[cx,70,front+12],[55,5.6,4]);
  // Flag pennants fixed to the facade on both sides of the gate.
- for(const x of [cx-66,cx+66]){
-  box('steel_dark',[x,61,front-13],[16,34,4]);
-  box('team',[x,61,front-10.5],[12,28,1]);
-  star(x,63,front-9.6,5.1);
+ for(const x of [cx-57,cx+57]){
+  // Side-mounted flags sit on the immobile door columns, not the shutters.
+  box('steel_dark',[x,61,front+9],[10,30,3.0]);
+  box('team',[x,61,front+11],[8.5,25,1]);
+  star(x,63,front+11.7,3.7);
  }
  for(const [part,offset] of [['HangarDoorLeft_0',-27],['HangarDoorRight_0',27]]){
   // Mesh is LOCAL to a node translated by the exporter to the currently
