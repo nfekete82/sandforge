@@ -43,3 +43,14 @@ PORT=8111 npm run preview
 `tests/webgl-bastion-pbr-radar.test.mjs` meldet jetzt einen Fehler, wenn noch die alte GLB im Worktree liegt. Der Test prüft zusätzlich den Generator-Marker `sandforge-bastion-radar-v3-tall-platform`, drei Fraktionsvarianten, die eigenen Radarrotoren und Animationskanäle. Der komplette Build erzeugt die drei benötigten GLBs deterministisch vor dem Test. Ohne erfolgreiche Node-Tests oder Sichtprüfung im Browser PR #324 noch nicht mergen.
 
 Die generierten GLBs sind Arbeitskopie-Artefakte und noch nicht als Binärdateien committed; **der zur Erzeugung notwendige Sourcecode ist vollständig auf GitHub**.
+
+
+## HUD-Korrektur: Gebäudevorschauen bleiben auch gesperrt erkennbar
+
+Die Kombination aus der kleineren, nicht-HDR-beleuchteten Offscreen-Kamera und mehrfachen CSS-Filtern verdunkelte einige Gebäudekacheln stark. Besonders die bereits gebaute und deshalb gesperrte Kommandozentrale erhielt gleichzeitig `opacity:.78` auf dem Container und `grayscale/blur/brightness(.70)/opacity(.77)` auf dem Bild.
+
+- In `scripts/webgl-portraits.js` verwenden nun **alle** 3D-Gebäude- und Strategiebauwerk-Thumbnails eine eigene Studiobeleuchtung mit besserem hemisphärischem Fill und temporär maximal mindestens `1.28` Tone-Mapping-Exposure. Alle WebGL-Renderer-Einstellungen werden im `finally` zurückgesetzt; das eigentliche Sandforge-Spiel, Infanterie und Forschung bleiben unverändert.
+- Die originale HQ-PBR-Spezialbehandlung bleibt aktiv; das Bild zeigt weiterhin die echten GLB-Albedo-/Normal-/Roughness-Texturen und nicht ein ausgedachtes aufgehelltes Material.
+- In `src/reborn/webgl-classic-hud.css` werden gesperrte Gebäudekacheln über den gedämpften Hintergrund, Rahmen und den Preistext kenntlich gemacht, **nicht** mehr durch starke Graustufen, Unschärfe und mehrfache Opacity-Verringerung. Interaktionen für gesperrte Gebäude bleiben blockiert.
+- `tests/webgl-building-portrait-readability.test.mjs` prüft, dass Beleuchtung und Belichtungsanpassung nur für Gebäude gelten, der Rendererzustand zurückgesetzt wird, die CSS-Regel die alte Verdunklung überschreibt und die Sperrlogik nicht verändert wurde.
+- Die Icons werden bei Browser-Neustart neu generiert. Kein neues GLB, ZIP oder Asset erforderlich. Lokaler visueller Check der neuen HUD-Karten steht auf Port 8111 noch aus.
