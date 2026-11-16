@@ -291,25 +291,49 @@ export function createStrategicBuilding(kind,owner=0){
    box(17,9,3,'glass',x,101,24);
    box(18,2,4,'trim',x,106,25);
   }
-  // Large convincing parabolic dish, mast and signal instrument pods.
-  cyl(8,11,20,'metal',-21,121,-12);
-  cyl(18,22,6,'black',-21,135,-12,20);
-  const dish=add(new THREE.SphereGeometry(29,28,14,0,Math.PI*2,0,Math.PI*.43),
-   'stone',-21,146,-11,-.54);
+  // Compact, articulated dish like the Bastion radar: a real concave
+  // reflector, narrow rim and centered receiver, not a giant vertical hoop.
+  // The swivel sits entirely on its own solid instrument-room roof pedestal.
+  box(43,5,41,'black',-21,116,-11);
+  box(39,2,38,'trim',-21,120,-11);
+  cyl(10,12,13,'metal',-21,127.5,-11,14);
+  cyl(15,17,5,'black',-21,136,-11,18);
+  const radarYaw=new THREE.Group();
+  radarYaw.name='Research_RadarMount';
+  radarYaw.position.set(-21,140,-11);
+  root.add(radarYaw);
+  const radarTilt=new THREE.Group();
+  radarTilt.rotation.x=-.32;
+  radarYaw.add(radarTilt);
+  const reflectorProfile=Array.from({length:13},(_,i)=>{
+   const r=i*1.55;
+   return new THREE.Vector2(r,5.6*Math.pow(i/12,2));
+  });
+  const dish=new THREE.Mesh(new THREE.LatheGeometry(reflectorProfile,28),mats.steel);
   dish.name='Research_Radar';
-  add(new THREE.TorusGeometry(27,2,12,32),'trim',-21,157,3,-.54);
-  const arm=add(new THREE.CylinderGeometry(2.1,2.1,31,10),'metal',-21,161,1,.47);
-  arm.name='Research_ReceiverArm';
-  cyl(6,7,5,'glow',-21,172,12,12);
+  dish.castShadow=true;dish.receiveShadow=true;
+  radarTilt.add(dish);
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(18.6,.9,6,32),mats.trim);
+  rim.name='Research_RadarRim';
+  rim.position.y=5.6;rim.rotation.x=-Math.PI/2;
+  rim.castShadow=true;radarTilt.add(rim);
+  const receiver=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,15,8),mats.metal);
+  receiver.name='Research_ReceiverArm';
+  receiver.position.y=10;
+  receiver.castShadow=true;radarTilt.add(receiver);
+  const feed=new THREE.Mesh(new THREE.CylinderGeometry(3.2,3.2,2.5,10),mats.glow);
+  feed.name='Research_ReceiverFeed';feed.position.y=18;
+  radarTilt.add(feed);
   // An identifiable roof HVAC bank, shielded server stacks, cabling and ducts.
   for(const z of [-30,-5,20]){
    box(26,14,18,'metal',43,91,z);
    grille(43,94,z+9.9,21);
    box(28,2,20,'trim',43,99,z);
   }
+  // Short protected telemetry masts, not a second forest of tall pipes.
   for(const x of [18,60]){
-   cyl(4.5,4.5,40,'metal',x,107,-52);
-   cyl(6,6,3,'glow',x,128,-52);
+   cyl(2.6,3.2,20,'metal',x,99,-52);
+   cyl(4.1,4.1,2.5,'glow',x,110.5,-52);
   }
   box(30,3,52,'black',40,83,-5);
   for(let i=0;i<5;i++)box(3,3.2,52,'trim',26+i*7,86,-5);
