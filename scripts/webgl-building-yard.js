@@ -184,32 +184,38 @@ function perimeterFence(group,width){
 /** Barracks-only military wire perimeter. Unlike the old wooden fence, this
  * has slim steel posts and horizontal wire/barbs, no bulky rail or X braces.
  * Three sides plus two front sections keep the actual infantry exit clear. */
-function perimeterBarracksWire(group,width,{factory=false,generator=false}={}){
- // Fit the generator's REAL supply cache rather than estimating its size.
- // A symmetric x=width*.70 fence previously intersected the far-right
- // wooden pallet; on generated models, wire actually passed through props.
+function perimeterBarracksWire(group,width,{factory=false,generator=false,research=false}={}){
+ // Measure the ACTUAL outdoor crates, barrel rims and pallet. Their
+ // footprints can extend beyond a proportional fence line on both the
+ // Energiekern and the enlarged Forschungzentrum. Never run wire through kit.
  let cacheBounds=null;
- if(generator){
+ if(generator||research){
   const cache=group.getObjectByName('BaseSupplyCache');
   if(cache){
    group.updateWorldMatrix(true,true);
    const worldBounds=new THREE.Box3().setFromObject(cache);
    if(!worldBounds.isEmpty()){
-    // Convert the real mesh bounds back into the scaled fence group's local
-    // coordinates: the generator yard has an intentional .66 visual scale.
+    // Express measured bounds in fence-local coordinates (the reactor
+    // decor is separately scaled to .66, the research yard is unscaled).
     cacheBounds=worldBounds.applyMatrix4(group.matrixWorld.clone().invert());
    }
   }
  }
- const leftX=-width*(generator?.70:.65);
+ const leftX=-width*(generator?.70:research?.74:.65);
  const rightX=generator?Math.max(width*.96,
-  cacheBounds?cacheBounds.max.x+15:width*.96):width*.65;
+  cacheBounds?cacheBounds.max.x+15:width*.96):
+  research?Math.max(width*.86,cacheBounds?cacheBounds.max.x+18:width*.86):
+  width*.65;
  const rear=generator?Math.min(-width*.56,
-  cacheBounds?cacheBounds.min.z-14:-width*.56):-width*.53;
+  cacheBounds?cacheBounds.min.z-14:-width*.56):
+  research?Math.min(-width*.59,cacheBounds?cacheBounds.min.z-16:-width*.59):
+  -width*.53;
  const front=generator?Math.max(width*.53,
-  cacheBounds?cacheBounds.max.z+14:width*.53):width*.28;
- const gateHalf=width*(generator?.30:.23);
- if(generator)group.userData.generatorFenceBounds={
+  cacheBounds?cacheBounds.max.z+14:width*.53):
+  research?Math.max(width*.56,cacheBounds?cacheBounds.max.z+18:width*.56):
+  width*.28;
+ const gateHalf=width*(generator?.30:research?.28:.23);
+ if(generator||research)group.userData[generator?'generatorFenceBounds':'researchFenceBounds']={
   leftX,rightX,rear,front,gateHalf,
   cacheMinX:cacheBounds?.min.x??null,cacheMaxX:cacheBounds?.max.x??null,
   cacheMinZ:cacheBounds?.min.z??null,cacheMaxZ:cacheBounds?.max.z??null
@@ -323,7 +329,7 @@ function addSiteDecor(root,kind,width){
  // dimensions and reserve clearance on the right and in front. All other
  // military building perimeters keep their original geometry.
  if(['barracks','headquarters','factory','generator','research'].includes(kind))
-  perimeterBarracksWire(g,width,{factory:kind==='factory',generator:kind==='generator'});
+  perimeterBarracksWire(g,width,{factory:kind==='factory',generator:kind==='generator',research:kind==='research'});
  else if(fencedSites.has(kind))perimeterFence(g,width);
  // Place masts near the side fencing, never along the open front door/spawn.
  const lampHeight=Math.min(60,Math.max(43,width*.29));
