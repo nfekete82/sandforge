@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {inflateSync} from 'node:zlib';
+import vm from 'node:vm';
 import {factionRgb8} from '../scripts/sandforge-faction-palette.js';
 import {servicePaint} from '../scripts/webgl-service-materials.js';
 import {airfieldLaunchDuration,airfieldLaunchPose,airfieldLaunchLeg} from '../scripts/webgl-airfield-launch-path.js';
@@ -283,4 +284,64 @@ test('real paid air units use one animation event and a lawful exterior handoff'
  const service=src('webgl-airfield-service.js');
  assert.match(service,/group\.userData\.airfieldProductionOpen\?\?0/);
  assert.match(src('webgl-preview.js'),/battlefield\.airfieldLaunch\.dispose\(\)/);
+});
+
+
+test('real launch presenter freezes during Space pause and resumes at exact Simulation position',()=>{
+ const file=src('webgl-airfield-launch.js');
+ const code=file.replace(/^import .*?;\s*$/gm,'').replace(/^export /gm,'')+
+  '\nthis.Launch=SandforgeAirfieldLaunch;';
+ const base={id:20,owner:0,kind:'airfield',hp:1200,buildRemaining:0,
+  x:800,y:800,facing:0};
+ const point=(b,waypoint)=>{
+  const local={dock:[-151,-117],door:[-151,20],lineup:[-151,95],
+   taxi:[12,95],departure:[12,225]}[waypoint];
+  return {x:b.x+95+local[0]*.9,y:b.y+local[1]*.82};
+ };
+ const context={
+  airfieldPoint:point,unitVisualYaw:(kind,heading)=>Math.PI/2-heading,
+  airfieldLaunchDuration,airfieldLaunchPose,airfieldLaunchLeg,
+  console,WeakSet,Map,Set,Math
+ };
+ vm.createContext(context);
+ vm.runInContext(code,context);
+ const spawn=point(base,'departure');
+ const unit={id:51,kind:'bomber',owner:0,hp:700,x:spawn.x,y:spawn.y,
+  orders:[]};
+ const node={visible:true,rotation:{y:0},position:{x:0,y:0,z:0,
+  copy(v){Object.assign(this,v);}}};
+ const actor={node,productionMotion:null};
+ const yard={userData:{airfieldProductionOpen:0}};
+ const baseEntry={node:{visible:true},airfieldServiceYard:yard};
+ const released=[];
+ const game={time:0,stageWebGLProduction:true,productionReleases:[],
+  units:[unit],bases:[base],canSee:()=>true,
+  extendProductionDeparture(){},cancelProductionDeparture:id=>released.push(id)};
+ const field={game,bases:new Map([[base.id,baseEntry]]),
+  units:new Map([[unit.id,actor]]),world:{size:2000},
+  heightAt:()=>0,pos:(x,z,y)=>({x:x-1000,z:z-1000,y}),
+  entityPosition:u=>({x:u.x-1000,z:u.y-1000,y:175})};
+ const presenter=new context.Launch(field);
+ game.productionReleases.push({unitId:unit.id,baseId:base.id,
+  kind:'bomber',owner:0,at:0});
+ presenter.update(true,1);
+ assert.equal(node.visible,false,'the bomber must begin behind shut doors');
+ game.time=4;presenter.update(true,1);
+ assert.ok(node.visible,'bomber should now taxi through the open hangar');
+ assert.equal(yard.userData.airfieldProductionOpen,1);
+ const x=node.position.x,z=node.position.z;
+ presenter.update(false,1);
+ assert.equal(node.position.x,x,'pause does not teleport actor to runway');
+ assert.equal(node.position.z,z);
+ assert.equal(presenter.active.size,1);
+ game.time=8.4;presenter.update(true,.5);
+ assert.ok(node.position.y>7,'bomber should now be climbing');
+ game.time=12;presenter.update(true,1);
+ assert.equal(node.position.x,spawn.x-1000,'handoff must match exact real Unit');
+ assert.equal(node.position.z,spawn.y-1000);
+ assert.equal(presenter.active.size,0);
+ assert.equal(yard.userData.airfieldProductionOpen,0);
+ assert.deepEqual(released,[unit.id]);
+ assert.equal(unit.x,spawn.x,'Simulation never rewrites unit position for animation');
+ assert.equal(unit.y,spawn.y);
 });
