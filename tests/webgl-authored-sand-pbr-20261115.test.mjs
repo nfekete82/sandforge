@@ -26,9 +26,9 @@ test('albedo and derived normal/roughness share one UV orientation and correct c
  assert.match(src,/albedo\.colorSpace=THREE\.SRGBColorSpace/);
  assert.match(src,/normal:make\(normal,THREE\.NoColorSpace\)/);
  assert.match(src,/roughness:make\(rough,THREE\.NoColorSpace\)/);
- assert.match(src,/const v=Math\.max\(\.86,Math\.min\(\.97,/);
- assert.equal(SANDFORGE_SAND_PBR.normalStrength,.66);
- assert.deepEqual(SANDFORGE_SAND_PBR.roughnessRange,[.86,.97]);
+ assert.match(src,/const v=Math\.max\(SANDFORGE_SAND_PBR\.roughnessRange\[0\],/);
+ assert.equal(SANDFORGE_SAND_PBR.normalStrength,.83);
+ assert.deepEqual(SANDFORGE_SAND_PBR.roughnessRange,[.89,.985]);
  assert.equal(typeof createSandNormalAndRoughness,'function');
  assert.equal(typeof installDesertSandPBR,'function');
 });
@@ -43,7 +43,7 @@ test('3D desert only: same scene material, normal/surface detail, and unmodified
  assert.match(build,/cpSync\('scripts\/webgl-sand-pbr\.js','dist\/webgl-sand-pbr\.js'\)/);
  assert.match(build,/cpSync\('src\/assets', 'dist\/src\/assets', \{recursive:true\}\)/);
  assert.doesNotMatch(sim,/installDesertSandPBR|SANDFORGE_SAND_PBR/);
- assert.equal(DESERT_SCENIC_STYLE.authoredSandVertexBlend,.83);
+ assert.equal(DESERT_SCENIC_STYLE.authoredSandVertexBlend,.76);
  const col=new THREE.Color(DESERT_SCENIC_STYLE.authoredSandVertex);
  assert.equal(col.getHexString(),'ffffff','the PBR albedo supplies the real warm sand pigment');
 });
