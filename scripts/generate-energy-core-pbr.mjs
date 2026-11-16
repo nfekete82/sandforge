@@ -54,6 +54,15 @@ function cylinder(mat,r,y0,y1,sides=12,at=[0,0,0],rotor=false){
  quad(g,p(a,y0),p(b,y0),p(b,y1),p(a,y1));tri(g,add([0,y1,0],at),p(a,y1),p(b,y1));
  }
 }
+// The outer optical jacket has outward-facing normals and NO opaque cap.
+// The transparent glass stays a cylindrical shell even when viewed from above.
+function glassTube(r,bottom,top,sides=24){
+ const g=material('glass');
+ for(let i=0;i<sides;i++){
+  const a=i*TAU/sides,b=(i+1)*TAU/sides;
+  quad(g,pt(r,bottom,a),pt(r,top,a),pt(r,top,b),pt(r,bottom,b));
+ }
+}
 function beam(mat,a,b,width=.09,rotor=false){
  const direction=unit(sub(b,a)),right=unit(cross(direction,[0,0,1])),forward=unit(cross(direction,right));
  const offset=(p,x,z)=>add(add(p,mul(right,x)),mul(forward,z)),w=width/2;
@@ -97,7 +106,7 @@ function buildParts(){
  const tube=ENERGY_GLASS_CYLINDER;
  frustum('steel_dark',1.87,2.04,1.29,1.18,tube.sides);
  ring('team',2.04,1.16,1.28,.072,tube.sides);
- cylinder('glass',tube.radius,tube.bottom,tube.top,tube.sides);
+ glassTube(tube.radius,tube.bottom,tube.top,tube.sides);
  // Real inner energy column visible THROUGH the glass, in exact team blue
  // (or red). Narrow so the glass remains the main visual object.
  cylinder('energy',.42,2.16,4.09,20);
