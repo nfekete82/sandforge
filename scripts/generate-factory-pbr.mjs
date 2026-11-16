@@ -8,8 +8,12 @@ import {deflateSync} from 'node:zlib';
 import {factionRgb8} from './sandforge-faction-palette.js';
 const OUT=process.argv[2]||'src/assets/reborn/buildings-3d';
 const PI=Math.PI,TAU=2*PI;
-// The door obeys the existing WebGL production gate's 1.48m upward opening.
+// The door obeys the existing WebGL factory gate's upward opening.
 // Work in the same local metre scale as the legacy FactoryRollupDoor.
+// The 10% wider factory is visual-only. Game collision and service yard stay unchanged.
+export const FACTORY_WIDTH_FACTOR=1.10;
+export const FACTORY_GATE_OPEN_HEIGHT=1.70;
+export const FACTORY_ROOF_VENT_GAP=Object.freeze([-1.35,-.18]);
 const colors={
  camo:[198,177,137],sand:[211,193,157],sand_light:[224,204,170],
  khaki:[148,144,113],olive:[92,107,82],roof:[90,95,77],
@@ -30,7 +34,7 @@ function tri(g,a,b,c,uv=[[0,0],[1,0],[1,1]]){const normal=unit(cross(sub(b,a),su
 function quad(g,a,b,c,d){tri(g,a,b,c);tri(g,a,c,d,[[0,0],[1,1],[0,1]])}
 function box(mat,at,size,rotation=0,rotor=false){
  const g=material(mat,rotor),[sx,sy,sz]=size.map(x=>x/2),co=Math.cos(rotation),si=Math.sin(rotation);
- const p=[[-sx,-sy,-sz],[sx,-sy,-sz],[sx,sy,-sz],[-sx,sy,-sz],[-sx,-sy,sz],[sx,-sy,sz],[sx,sy,sz],[-sx,sy,sz]].map(([x,y,z])=>[at[0]+x*co+z*si,at[1]+y,at[2]+z*co-x*si]);
+ const p=[[-sx,-sy,-sz],[sx,-sy,-sz],[sx,sy,-sz],[-sx,sy,-sz],[-sx,-sy,sz],[sx,-sy,sz],[sx,sy,sz],[-sx,sy,sz]].map(([x,y,z])=>[(at[0]+x*co+z*si)*FACTORY_WIDTH_FACTOR,at[1]+y,at[2]+z*co-x*si]);
  for(const [a,b,c,d] of [[0,3,2,1],[4,5,6,7],[0,4,7,3],[1,2,6,5],[3,7,6,2],[0,1,5,4]])quad(g,p[a],p[b],p[c],p[d]);
 }
 function frustum(mat,y0,y1,r0,r1,sides=12,angle=PI/8){
@@ -93,13 +97,15 @@ function buildParts(){
  // Independently animated door: SINGLE node FactoryRollupDoor and a
  // physically recessed black interior that remains visible as it opens.
  // Leave the real doorway EMPTY behind the moving shutter.
- box('door',[.18,.78,2.24],[1.83,1.52,.15]);
+ // 15% wider and ~12% taller opening, fitted inside the real facade cavity.
+ // Keep the original node name so the production presenter animates this panel.
+ box('door',[.18,.86,2.24],[1.91,FACTORY_GATE_OPEN_HEIGHT,.15]);
  for(let i=0;i<8;i++)
-  box('door',[.18,.115+i*.187,2.332],[1.81,.148,.035]);
- for(const x of [-.68,1.04])
-  box('steel_light',[x,.78,2.34],[.055,1.46,.03]);
+  box('door',[.18,.12+i*.213,2.332],[1.89,.164,.035]);
+ for(const x of [-.75,1.11])
+  box('steel_light',[x,.87,2.34],[.055,1.61,.03]);
  // Door track is static on the facade, but nothing blocks the opening.
- box('steel_light',[.18,1.60,2.40],[2.18,.085,.085]);
+ box('steel_light',[.18,1.83,2.40],[2.18,.085,.085]);
  for(const x of [-1.06,1.42])
   box('steel',[x,.83,2.36],[.075,1.58,.12]);
  // Stacked roof slab, weathered grey-green flat finish and real overhang.
@@ -109,9 +115,15 @@ function buildParts(){
   box('steel_light',[x,2.56,0],[.12,.17,4.81]);
  for(const z of [-2.31,2.31])
   box('steel_light',[0,2.56,z],[4.96,.16,.12]);
- // Exactly TWO canonical faction roof stripes, installed as solid paint.
- for(const x of [-1.55,1.55])
-  box('team',[x,2.586,-.10],[.16,.018,3.22]);
+ // Exactly two team roof stripes, with a split around the raised skylight /
+ // ventilation housings. Four short paint sections total, NEVER under vents.
+ // Keep both strips symmetric; the same gaps persist for blue and red GLBs.
+ for(const x of [-1.55,1.55])for(const [z0,z1] of [
+  [-1.71,FACTORY_ROOF_VENT_GAP[0]],[FACTORY_ROOF_VENT_GAP[1],1.51]
+ ]){
+  const length=z1-z0;
+  box('team',[x,2.586,(z0+z1)/2],[.16,.018,length]);
+ }
  // Broad exhaust plenums and dark angled ventilation grilles.
  box('stone',[-.88,2.70,-.66],[1.13,.28,.95]);
  box('steel_dark',[-.88,2.85,-.66],[.97,.11,.81]);
