@@ -2480,6 +2480,7 @@ export class SandforgeBattlefield {
      this.selectedBase=null;
     }else{
      this.selected.clear();this.selectedBase=hit.entity.id;
+     if(hit.entity.kind==='research')this.researchDeck?.reopen();
     }
     this.sound?.select?.();this.drawInterface();return;
    }
