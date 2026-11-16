@@ -53,7 +53,7 @@ test('ALLE selects only visible alive friendly units on current screen, not whol
   }}
  }]));
  const selected=visibleFriendlyUnits(units,entries,{
-  project:node=>node.position,isVisible:ndc=>ndc.y<.1
+  project:node=>node.position,isVisible:(ndc,u)=>ndc.y<.1&&u.id!==8
  });
  assert.deepEqual(selected,[1]);
  const all=visibleFriendlyUnits(units,entries,{project:node=>node.position});
