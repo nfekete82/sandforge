@@ -80,6 +80,7 @@ node --test \
  tests/webgl-unified-pbr-buildings.test.mjs \
  tests/webgl-hq-dome.test.mjs \
  tests/webgl-hq-roof-layout.test.mjs \
+ tests/webgl-hq-portrait-lighting.test.mjs \
  tests/webgl-hq-vents.test.mjs \
  tests/webgl-bastion-clearance.test.mjs \
  tests/webgl-infantry-rally-direct.test.mjs \
