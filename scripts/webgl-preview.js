@@ -29,6 +29,7 @@ import {installDesertSandPBR,SANDFORGE_SAND_PBR} from '/webgl-sand-pbr.js';
 import {createDesertVillages} from '/webgl-desert-village.js';
 import {installMatchResultOverlay} from '/webgl-match-result.js';
 import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry} from '/webgl-rock-materials.js';
+import {makeSmallRuinFragments,isSmallRuin} from '/webgl-ruin-fragments.js';
 
 /** Opt-in WebGL scene using the real authoritative Sandforge map and simulation.
  * This page is isolated from the production Canvas renderer, save format and AI
@@ -694,7 +695,8 @@ function addBuriedRuinRoad(anchor,ruin,index){
  const c=Math.cos(ruin.rotation),sn=Math.sin(ruin.rotation);
  const baseHeight=heightAt(ruin.x,ruin.y);
  const offset=(x,z)=>heightAt(ruin.x+c*x+sn*z,ruin.y-sn*x+c*z)-baseHeight;
- for(let i=0;i<4;i++){
+ const segments=ruin.height<30?0:2;
+ for(let i=0;i<segments;i++){
   const x=ruin.width*(.54+i*.18);
   const z=ruin.depth*(.29+(random()-.5)*.18);
   const w=ruin.width*(.13+random()*.04);
@@ -769,21 +771,32 @@ function dressRuinDamage(anchor,ruin,index){
  return group;
 }
 async function addRuins(){
- // Every ruin instance is a real glTF triangle mesh with PBR materials.
+ // Large landmarks retain their imported PBR glTF architecture; small
+ // modern ruins are intentionally roofless fragments rather than scaled
+ // complete houses. Old map versions keep their original glTF structures.
  // Wait for the authored rock texture so instances are textured on first paint.
  await ruinStrataLoad;
  const data=await Promise.all([
   tryModel('/src/assets/reborn/canyon-3d/ruin-house.gltf'),
   tryModel('/src/assets/reborn/canyon-3d/ruin-depot.gltf')]);
  for(const [i,ruin] of terrain.ruins.entries()){
-  const source=data[ruin.variant===1?1:0].scene.clone(true);
-  weatherRuinMeshes(source);
-  normalized(source,ruin.width*.98);
   const anchor=new THREE.Group();
   anchor.position.copy(pos(ruin.x,ruin.y));
   anchor.rotation.y=ruin.rotation;
-  anchor.add(source);
-  if(spacious){dressRuinDamage(anchor,ruin,i);addBuriedRuinRoad(anchor,ruin,i);}
+  const micro=spacious&&isSmallRuin(ruin);
+  if(micro){
+   // Only 2–3 broken walls, 2–4 bits of debris, NO roof/whole building.
+   // The smaller World obstruction footprint comes from canyon-front.ts.
+   anchor.add(makeSmallRuinFragments(ruin,seed,i,{
+    texture:ruinStrata??ruinGrit,lowQuality:lowQuality
+   }));
+  }else{
+   const source=data[ruin.variant===1?1:0].scene.clone(true);
+   weatherRuinMeshes(source);
+   normalized(source,ruin.width*.98);
+   anchor.add(source);
+   if(spacious){dressRuinDamage(anchor,ruin,i);addBuriedRuinRoad(anchor,ruin,i);}
+  }
   scene.add(anchor);ruinMeshes.push(anchor);
  }
  return ruinMeshes.length;
