@@ -81,6 +81,7 @@ cpSync('scripts/webgl-grounding.js','dist/webgl-grounding.js');
 cpSync('scripts/webgl-ground-tracks.js','dist/webgl-ground-tracks.js');
 cpSync('scripts/webgl-vehicle-dust.js','dist/webgl-vehicle-dust.js');
 cpSync('scripts/webgl-building-yard.js','dist/webgl-building-yard.js');
+cpSync('scripts/webgl-foundation-slabs.js','dist/webgl-foundation-slabs.js');
 cpSync('scripts/webgl-barracks-props.js','dist/webgl-barracks-props.js');
 cpSync('scripts/webgl-barracks-contact-shadows.js','dist/webgl-barracks-contact-shadows.js');
 cpSync('scripts/webgl-barracks-prop-materials.js','dist/webgl-barracks-prop-materials.js');
