@@ -29,8 +29,8 @@ test('wall/camouflage/roof/metal/trim classify only safe exterior parts',()=>{
   ['barracks','Atlas_BarracksRoofCamo_8','camo'],
   ['factory','FactoryRoofArmor','roof'],
   ['factory','ServiceWallCassette','camo'],
-  ['factory','SF_Factory_PBR_camo','camo'],
-  ['airfield','SF_Airfield_PBR_camo','camo'],
+  ['factory','SF_Factory_PBR_camo','wall'],
+  ['airfield','SF_Airfield_PBR_camo','wall'],
   ['factory','Atlas_ArmouredHull_3','metal'],
   ['headquarters','HeadquartersRoofArmourA','roof'],
   ['headquarters','Atlas_CeramicHull_7','wall']
@@ -86,7 +86,7 @@ test('PBR textures are triplanar in local coordinates, preserve original GLB map
   assert.equal(shader.uniforms.sfBuildingAlbedo.value.isTexture,true);
  }
 });
-test('authored factory and airfield only repaint wall shells with barracks camouflage',()=>{
+test('factory and hangar use the identical HQ/barracks WALL albedo without baked checkerboard',()=>{
  for(const [kind,wall,roof,gate] of [
   ['factory','SF_Factory_PBR_camo','SF_Factory_PBR_roof','FactoryRollupDoor'],
   ['airfield','SF_Airfield_PBR_camo','SF_Airfield_PBR_roof_corrugated','HangarRollupSlat_0_00']
@@ -102,14 +102,32 @@ test('authored factory and airfield only repaint wall shells with barracks camou
   const count=finishDesertBuildingMaterials(model,kind);
   assert.equal(count,1,'only exterior shell is repainted for '+kind);
   const painted=model.getObjectByName(wall);
-  assert.equal(painted.material.userData.sandforgeBuildingPBRRole,'camo');
-  assert.equal(painted.material.customProgramCacheKey().includes('|'+kind+'|camo'),true);
+  assert.equal(painted.material.userData.sandforgeBuildingPBRRole,'wall');
+  assert.equal(painted.material.customProgramCacheKey().includes('|'+kind+'|wall'),true);
   const shader={
    vertexShader:'#include <common>\n#include <begin_vertex>\n#include <beginnormal_vertex>',
    fragmentShader:'#include <common>\n#include <color_fragment>',uniforms:{}
   };
   painted.material.onBeforeCompile(shader,{});
-  assert.ok(shader.fragmentShader.includes('sfBuildingAlbedo'),'shared barracks texture');
+  assert.ok(shader.fragmentShader.includes('sfBuildingAlbedo'),'shared HQ/barracks plaster');
+  assert.ok(shader.fragmentShader.includes('float sfWear=1.0;'),
+   'legacy camo checker may not multiply the authored exterior');
+  assert.ok(shader.fragmentShader.includes('sfPaint*sfWear,1.000'),
+   'factory/hangar wall overrides legacy checker completely');
+  const source=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),
+   new THREE.MeshStandardMaterial({color:'#b8ac91'}));
+  source.name='Atlas_CeramicHull_4';
+  const hq=new THREE.Group();hq.add(source);
+  assert.equal(finishDesertBuildingMaterials(hq,'headquarters'),1);
+  const referenceShader={
+   vertexShader:'#include <common>\n#include <begin_vertex>\n#include <beginnormal_vertex>',
+   fragmentShader:'#include <common>\n#include <color_fragment>',uniforms:{}
+  };
+  source.material.onBeforeCompile(referenceShader,{});
+  assert.strictEqual(shader.uniforms.sfBuildingAlbedo.value,
+   referenceShader.uniforms.sfBuildingAlbedo.value,
+   'factory and airfield use exactly the same uploaded wall atlas as HQ');
+  source.geometry.dispose();source.material.dispose();
   if(kind==='airfield')assert.ok(shader.fragmentShader.includes('sfBuildingLocal*0.027'),
    'authored hangar uses correct physical-scale camouflage');
   assert.strictEqual(model.getObjectByName(roof).material,originalRoof);
