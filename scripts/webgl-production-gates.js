@@ -170,6 +170,7 @@ export class SandforgeProductionGates {
    game.extendProductionDeparture?.(unit.id,visualAt+GATE_TIMING.warning+GATE_TIMING.opening+duration+.05);
    this.active.set(base.id,{event,visualAt,duration,directFoot,doorLength,
     exteriorLength,walkStart:start.clone(),walkExit:exit.clone(),
+    hasRally:unit.orders?.some(o=>o.kind==='move'||o.kind==='attackMove')===true,
     orders:orderKey(unit),hp:unit.hp,baseHp:base.hp});
   }
   for(const [id,state] of this.active){
@@ -211,7 +212,7 @@ export class SandforgeProductionGates {
     // The authoritative rally starts on the next 20Hz tick. Keep the
     // SAME foot walk clip for at most two ticks, instead of flashing idle
     // between visual clearance and the first real path step.
-    const keepWalking=Boolean(state.released&&base?.rally&&!u.moving&&
+    const keepWalking=Boolean(state.released&&state.hasRally&&!u.moving&&
      game.time-(state.releaseTime??game.time)<.12);
     actor.productionMotion=keepWalking&&state.lastMotion?
      {...state.lastMotion,moving:true,hideHealth:false}:null;
@@ -255,7 +256,7 @@ export class SandforgeProductionGates {
     p=state.walkExit.clone().lerp(target,t);
     const tangent=target.clone().sub(state.walkExit);tangent.y=0;
     yaw=tangent.lengthSq()>.0001?Math.atan2(tangent.x,tangent.z):facing;
-    if(base.rally){
+    if(state.hasRally){
      const heading=Math.PI/2-(u.hullAngle??u.angle);
      const blend=smooth((fraction-.72)/.28);
      yaw+=Math.atan2(Math.sin(heading-yaw),Math.cos(heading-yaw))*blend;
