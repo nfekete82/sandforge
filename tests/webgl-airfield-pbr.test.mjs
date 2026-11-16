@@ -224,15 +224,28 @@ test('flightline concrete uses small uniform slab aggregates, never camouflage b
  material.map.dispose();material.dispose();
 });
 
-test('control tower is a real four-sided glass cabin, not one opaque block',()=>{
- const gen=src('generate-airfield-pbr.mjs');
- assert.match(gen,/for\(const z of \[towerZ-20,towerZ\+20\]\)/);
- assert.match(gen,/for\(const x of \[towerX-22,towerX\+22\]\)/);
- assert.match(gen,/box\('glass',\[towerX,106,z\],\[41,21,1\.5\]\)/);
- assert.match(gen,/box\('glass',\[x,106,towerZ\],\[1\.5,21,37\]\)/);
- assert.match(gen,/alphaMode:'BLEND'/);
- assert.match(gen,/scan\[i\+3\]=key==='glass'\?210:255/);
- assert.doesNotMatch(gen,/box\('glass',\[towerX,106,towerZ\],\[44,22,40\]\)/);
+test('tower has a circular shaft, 360-degree glazing and a round roof',()=>{
+ const generator=src('generate-airfield-pbr.mjs');
+ assert.match(generator,/export const AIRFIELD_TOWER_SIDES=20/);
+ assert.match(generator,/function cylindricalShell\(/);
+ assert.match(generator,/cylindricalShell\('camo',towerX,towerZ,17\.5,17\.5,6,93/);
+ assert.match(generator,/cylindricalShell\('glass',towerX,towerZ,23,23,97\.5,117\.5\)/);
+ assert.match(generator,/cylindricalShell\('roof',towerX,towerZ,27\.0,27\.0,119\.5,124/);
+ assert.match(generator,/for\(let i=0;i<AIRFIELD_TOWER_SIDES;i\+\+\)/);
+ assert.match(generator,/alphaMode:'BLEND'/);
+ assert.match(generator,/scan\[i\+3\]=key==='glass'\?210:255/);
+ assert.doesNotMatch(generator,/box\('glass',\[towerX,106,z\]/);
+ assert.doesNotMatch(generator,/box\('roof',\[towerX,120,towerZ\]/);
+});
+
+test('runway has no raised black rubber/debris strips, but retains safe markings',()=>{
+ const service=src('webgl-airfield-service.js');
+ assert.doesNotMatch(service,/box\(group,'AirfieldTouchdownRubber'/);
+ assert.doesNotMatch(service,/for\(const x of \[-11,33\]\)/);
+ assert.match(service,/AirfieldRunwayCenterDash/);
+ assert.match(service,/AirfieldRunwayThreshold/);
+ assert.match(service,/AirfieldRunwayEdgeLine/);
+ assert.match(service,/AirfieldRunwayLandingBars/);
 });
 
 test('bomber taxis from actual hangar via apron then lifts off from runway',()=>{
