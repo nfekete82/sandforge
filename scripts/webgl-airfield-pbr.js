@@ -37,6 +37,17 @@ function styleGhost(model){
 function releaseGhost(model){
  for(const m of model?.userData?.airfieldGhostMaterials||[])m.dispose();
  model?.userData?.airfieldGhostMaterials?.clear();
+ // The finished hangar clones only its wall material for the shared
+ // barracks paint. Dispose that instance, never the cached source GLB/maps.
+ const owned=new Set();
+ model?.traverse?.(mesh=>{
+  if(!mesh.isMesh)return;
+  const materials=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+  for(const material of materials){
+   if(material?.userData?.sandforgeBuildingPBROwned)owned.add(material);
+  }
+ });
+ for(const material of owned)material.dispose();
 }
 /** Return immediately: the original hangar is displayed while a PBR GLB
  * downloads. No incomplete geometry or missing door is visible mid-load.
