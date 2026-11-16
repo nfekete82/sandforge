@@ -118,9 +118,9 @@ function buildParts(){
   // and shrink this mesh to open the bay without remapping coordinates.
   box('door',[0,0,0],[52,64,5],0,part);
   for(const yy of [-22,-11,0,11,22])
-   box('steel_light',[0,yy,3.2],[48,1.65,1.8],0,part);
+   box('door',[0,yy,3.2],[48,1.65,1.8],0,part);
   for(const x of [-23.7,23.7])
-   box('steel_dark',[x,0,3.2],[1.2,61,1.5],0,part);
+   box('door',[x,0,3.2],[1.2,61,1.5],0,part);
  }
  // Roof truss bases, outdoor electrical cabinets and in-ground flood lights.
  for(const x of [cx-64,cx+64]){
