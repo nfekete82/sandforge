@@ -28,7 +28,8 @@ export function canyonRuinBlocked(p:Point,r:CanyonRuin,pad=0):boolean{
  * The ridge sits between bastion rows; access remains open around both ends.
  * Candidate props are rejected close to bases, roads and all known ramps. */
 export function generateCanyonFeatures(seed:number,size:number,columns:number,rows:number,
- sites:readonly Point[],corridors:readonly (readonly [Point,Point])[]):CanyonFeatures{
+ sites:readonly Point[],corridors:readonly (readonly [Point,Point])[],
+ modernRemnants=false):CanyonFeatures{
  const random=mix(seed^0x6f2b4a71),seam=(Math.floor(rows/2)/rows)*size;
  const ridge:CanyonRidge={
   width:68,height:116,
@@ -40,7 +41,8 @@ export function generateCanyonFeatures(seed:number,size:number,columns:number,ro
    .map(x=>({x:x*size,width:Math.max(205,size*.045)}))
  };
  const ruins:CanyonRuin[]=[];
- const spacious=size>=6000; // v19+ only; old deterministic canyon maps untouched.
+ const spacious=size>=6000; // v19+ geometry
+ const sparseModern=spacious&&modernRemnants; // ONLY v23+ generator; old seeded v19-v22 untouched.
  const nearRoad=(p:Point)=>corridors.some(([a,b])=>segmentDistance(p,a,b)<(spacious?135:112));
  const safe=(r:CanyonRuin)=>{
   const p={x:r.x,y:r.y},radius=Math.hypot(r.width,r.depth)*.65;
@@ -50,7 +52,8 @@ export function generateCanyonFeatures(seed:number,size:number,columns:number,ro
    &&!ridge.spine.slice(1).some((b,i)=>segmentDistance(p,ridge.spine[i],b)<r.width+radius+120)
    // Modern 3D sites need open sand between them, not clusters of almost
    // identical miniature houses. Legacy Canyon seed geometry is untouched.
-   &&ruins.every(o=>dist(o,p)>Math.max(o.width,o.depth)+radius+(spacious?265:55));
+   &&ruins.every(o=>dist(o,p)>Math.max(o.width,o.depth)+radius+
+    (sparseModern?265:spacious?195:55));
  };
  // Fixed visual zones, deterministic small offsets. Gameplay paths are never
  // inferred from this decoration; the block grid is built from exact footprints.
@@ -60,23 +63,23 @@ export function generateCanyonFeatures(seed:number,size:number,columns:number,ro
  for(const [index,[ax,ay]] of anchors.entries()){
   // Spacious maps: ONE distinct site per region (10 maximum, down from 14).
   // Keep old map generator's 3-per-region layout unchanged.
-  for(let n=0;n<(spacious?1:3);n++){
+  for(let n=0;n<(sparseModern?1:spacious?1+(index%3===0?1:0):3);n++){
    let added=false;
    for(let trial=0;trial<32&&!added;trial++){
     // Large derelict buildings are deliberately rare. Most sites are
     // micro-ruins, alternating their fragment profile by variant and seed.
-    const variant=spacious?(index%4===0?1:(random()<.5?0:2)):
+    const variant=sparseModern?(index%4===0?1:(random()<.5?0:2)):
      Math.floor(random()*3);
     const r:CanyonRuin={x:(ax+(random()-.5)*.09)*size,y:(ay+(random()-.5)*.09)*size,
       // Actual blocked footprints match the visible remains. Tiny broken
       // walls do not reserve the space of a full-size building.
       // Older map footprints and RNG calls stay byte-for-byte unchanged.
-      width:spacious?(variant===1?162:59+random()*19):
-       (variant===1?120:80+random()*35),
-      depth:spacious?(variant===1?119:45+random()*15):
-       (variant===1?88:66+random()*29),
-      height:spacious?(variant===1?75.6:14+random()*8):
-       (variant===1?63:39+random()*26),
+      width:sparseModern?(variant===1?162:59+random()*19):
+       (variant===1?120:80+random()*35)*(spacious?1.35:1),
+      depth:sparseModern?(variant===1?119:45+random()*15):
+       (variant===1?88:66+random()*29)*(spacious?1.35:1),
+      height:sparseModern?(variant===1?75.6:14+random()*8):
+       (variant===1?63:39+random()*26)*(spacious?1.20:1),
       // Give spacious 3D ruins genuinely different orientations, not the
       // nearly identical +/-7-degree facing of legacy Canyon maps.
       rotation:spacious?(random()-.5)*Math.PI*1.7:(random()-.5)*.24,variant};
