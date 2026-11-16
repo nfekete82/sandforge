@@ -71,6 +71,15 @@ test('fine concrete and repair materials have real shared normal relief, no repe
  material.dispose();mesh.geometry.dispose();
 });
 
+test('building PBR microrelief uses shared 256px stochastic textures without visible scanlines',()=>{
+ const material=readFileSync('scripts/webgl-building-pbr.js','utf8');
+ assert.match(material,/const n=256,pixels=new Uint8Array/);
+ assert.match(material,/const hash=\(x,y\)=>/);
+ assert.match(material,/tex.generateMipmaps=true;tex.anisotropy=8/);
+ assert.match(material,/albedo.anisotropy=8/);
+ assert.doesNotMatch(material,/const wave=Math.sin\(a\*Math.PI\*2\/16\)/);
+});
+
 test('subtle left-side SVG icons preserve every HUD action and four production tabs',()=>{
  const hud=readFileSync('scripts/webgl-classic-hud.js','utf8');
  const css=readFileSync('src/reborn/webgl-classic-hud.css','utf8');
