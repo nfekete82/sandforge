@@ -95,28 +95,19 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    (stageBottom-occlusion.position.y))<1e-6,
    'virtual and physical missile must have the SAME underwater endpoint');
   assert.equal(typeof occlusion.onBeforeRender,'function');
-  // A single physical PBR material is what removes the seam. The dark
-  // shader projection is only a fallback; the submerged rocket must be drawn
-  // as real geometry, clipped to precisely the visible missile silhouette.
-  const rocketStencil=model.getObjectByName('Silo_RocketStencilMask');
+  // The prior colorless stencil overpaint used depthTest=false and leaked
+  // the entire 125-unit cylinder through the sand, yard and perimeter fence.
+  // Verify that no global-stencil state remains and that the PBR overlay
+  // clips each fragment by where its camera ray crosses the launch opening.
+  assert.equal(model.getObjectByName('Silo_RocketStencilMask'),undefined,
+   'no framebuffer stencil pass may draw rocket pixels outside the silo');
   const submerged=model.getObjectByName('Silo_RocketBodyUnderground');
-  assert.ok(rocketStencil?.isMesh&&submerged?.isMesh);
-  assert.equal(rocketStencil.material.isShaderMaterial,true);
-  assert.equal(rocketStencil.material.colorWrite,false,
-   'stencil pass must not paint anything itself');
-  assert.equal(rocketStencil.material.stencilWrite,true);
-  assert.equal(rocketStencil.material.stencilRef,1);
-  assert.equal(rocketStencil.material.stencilFunc,THREE.AlwaysStencilFunc);
-  assert.ok(rocketStencil.material.fragmentShader.includes(
-   'if(!(tRocket<min(tWall,tFloor)))discard;'),
-   'stencil may include rocket pixels only, never the surrounding steel walls');
-  assert.equal(typeof rocketStencil.onBeforeRender,'function');
+  assert.ok(submerged?.isMesh);
   assert.equal(submerged.material.isMeshStandardMaterial,true);
-  assert.equal(submerged.material.stencilFunc,THREE.EqualStencilFunc);
-  assert.equal(submerged.material.stencilRef,1);
-  assert.equal(submerged.material.stencilWrite,true);
+  assert.equal(submerged.material.stencilWrite,false,
+   'underground rocket must not depend on stale global stencil pixels');
   assert.equal(submerged.material.depthTest,false,
-   'stenciled physical rocket draws through ground-level depth mask');
+   'underground PBR is drawn over the fake ground-level occlusion plane');
   assert.equal(submerged.material.depthWrite,false);
   assert.strictEqual(submerged.material.map,body.material.map,
    'submerged geometry shares exact upper-cylinder PBR albedo');
@@ -126,11 +117,30 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
   assert.equal(submerged.material.vertexColors,true);
   assert.equal(submerged.position.y,body.position.y);
   assert.equal(submerged.position.x,body.position.x);
-  assert.equal(submerged.renderOrder>rocketStencil.renderOrder,true,
-   'real PBR rocket must render after the precise visibility stencil');
+  assert.equal(submerged.userData.viewRayClipped,true);
+  assert.equal(typeof submerged.material.onBeforeCompile,'function');
+  assert.equal(typeof submerged.onBeforeRender,'function');
   assert.ok(submerged.geometry.index.count>0&&
    submerged.geometry.index.count<body.geometry.index.count,
    'only subterranean side triangles are drawn in the masked pass');
+  // Simulate Three's shader hook and verify the GPU geometry pass can only
+  // show physical rocket pixels projected THROUGH the circular opening.
+  const program={
+   uniforms:{},
+   vertexShader:'#include <common>\n#include <worldpos_vertex>',
+   fragmentShader:'#include <common>\n#include <clipping_planes_fragment>'
+  };
+  submerged.material.onBeforeCompile(program);
+  assert.ok(program.vertexShader.includes('vRocketWorldPosition='));
+  assert.ok(program.fragmentShader.includes('if(t<=0.0||t>=1.0)discard;'));
+  assert.ok(program.fragmentShader.includes(
+   'dot(crossing,crossing)>'));
+  assert.ok(program.fragmentShader.includes('if(length(ray)>=wall)discard;'));
+  assert.ok(program.fragmentShader.includes('if(delta<0.0)discard;'));
+  assert.equal(program.uniforms.uSiloOpeningRadius.value,
+   shader.uniforms.uRadius.value);
+  assert.equal(program.uniforms.uSiloDepthLimit.value,95);
+  assert.strictEqual(program.uniforms.uSiloWorldToLocal.value?.isMatrix4,true);
   assert.equal(deck.material.name,'SF_metal','main launch deck is stamped steel');
   assert.equal(deck.material.map?.name,'Sandforge silo stamped steel maintenance panels');
   assert.ok(deck.material.metalness>.7&&deck.material.roughness<.5);
@@ -215,8 +225,8 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    painted.push(o)});
   assert.ok(painted.some(m=>m.material.name==='SF_base'));
   assert.ok(painted.some(m=>m.material.name==='SF_armor'));
-  assert.ok(model.children.filter(o=>o.isMesh).length<=26,
-   'static batching remains bounded: one rocket stencil and one PBR underground pass');
+  assert.ok(model.children.filter(o=>o.isMesh).length<=25,
+   'static batching remains bounded: only one additional underground PBR pass');
  }
  assert.equal(BUILDINGS.silo.cost,5000);
  assert.equal(BUILDINGS.silo.buildTime,100);
@@ -286,8 +296,8 @@ test('translucent silo building ghost hides the buried rocket without altering g
  const scene=readFileSync('scripts/webgl-battlefield.js','utf8');
  assert.match(scene,/trimSiloRocketForGhost\(placeholder\)/,
   'ghost-only trim is called before translucent materials are applied');
- assert.match(scene,/\['Silo_RocketBodyUnderground','Silo_RocketStencilMask'\]/,
-  'transparent ghost hides the two underground stencil/PBR passes');
+ assert.match(scene,/const buried=placeholder\.getObjectByName\('Silo_RocketBodyUnderground'\)/,
+  'transparent ghost hides the underground PBR body');
  assert.equal(trimSiloRocketForGhost(new THREE.Group()),false,
   'non-silo buildings should never be modified');
  assert.equal(trimSiloRocketForGhost(ghost),true,
