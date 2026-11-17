@@ -49,6 +49,7 @@ node --test \
  tests/webgl-compact-unit-commands-20261116.test.mjs \
  tests/webgl-pause-resume-consistency.test.mjs \
  tests/webgl-airfield-pbr.test.mjs \
+ tests/webgl-airfield-camouflage-runway-clearance-20261117.test.mjs \
  tests/webgl-micro-ruins.test.mjs \
  tests/webgl-energy-core-pbr.test.mjs \
  tests/webgl-bastion-corridor-art.test.mjs \
