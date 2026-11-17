@@ -84,4 +84,8 @@ test('paid frontier guard: HQ reserve is protected, one soldier may protect an e
  assert.match(source,/const base=fort\?\.point\?\?protectedBases/);
  assert.match(source,/if\(u\.defendUntil>g\.time\)continue/,
   'active combat cannot be overridden by a scripted garrison order');
+ assert.match(source,/ownedBastions\.some\(t=>distance\(u,t\.point\)<260\)/,
+  'a visible intruder near a captured Bastion triggers local defense too');
+ assert.match(source,/\.\.\.g\.territories\.filter\(t=>t\.owner===1\)\.map\(t=>t\.point\)/,
+  'defensive priority accounts for actual owned Bastion positions');
 });
