@@ -2478,7 +2478,7 @@ export class SandforgeBattlefield {
  bastionAtPointer(event,groundPoint=null){
   // The Canvas RTS snaps a right-click on a capture site to the actual
   // control-point center. A tilted WebGL camera instead raycasts sand
-  // BEHIND the tall tower, frequently outside the 95-unit capture radius.
+  // BEHIND the tall tower, frequently outside the capture radius.
   // Recognize both the terrain near the site and the visible 3D model.
   const capturable=this.game.territories.filter(t=>t.owner!==0);
   if(groundPoint){
