@@ -724,7 +724,8 @@ export class Simulation {
     for(const u of this.units)if(ids.includes(u.id)&&u.owner===0&&u.kind==='supply'&&u.hp>0){
       const job=u.supply??(u.supply=newSupplyJob());
       if(cacheId!==undefined&&(!this.supplyCaches.some(c=>c.id===cacheId&&c.remaining>0)))continue;
-      job.auto=enabled;job.cacheId=cacheId??null;job.phase=enabled?'seek':'idle';
+      job.auto=enabled;job.cacheId=cacheId??null;job.preferred=cacheId??null;
+      job.phase=enabled?'seek':'idle';
       job.clock=0;job.destination=undefined;u.orders=[];u.path=[];u.repath=0;
       if(enabled&&job.cargo>0)job.phase='to-hq';
       n++;
@@ -1077,7 +1078,7 @@ export class Simulation {
     if(this.bases.some(b=>b.kind==='headquarters'&&b.territory===t.id&&b.owner!==owner&&b.hp>0))return 'enemy-hq';
     return 'capturing';
   }
-  stop(ids:number[],hold=false,guardArea=false):void {for(const u of this.units)if(ids.includes(u.id)){u.returnToHangar=false;if(u.kind==='bomber')delete u.bomberRun;this.cancelProductionDeparture(u.id);this.transports.cancel(u);u.orders=[];u.path=[];u.repath=0;u.moving=false;if(u.kind==='tank')u.driveSpeed=0;u.pursuitOrigin=null;u.combatTarget=null;u.hold=hold||u.kind==='engineer';u.guardArea=hold&&guardArea;u.supportPaused=false;u.workingTarget=null;delete u.burst;}}
+  stop(ids:number[],hold=false,guardArea=false):void {for(const u of this.units)if(ids.includes(u.id)){if(u.supply){u.supply.auto=false;u.supply.phase='idle';}u.returnToHangar=false;if(u.kind==='bomber')delete u.bomberRun;this.cancelProductionDeparture(u.id);this.transports.cancel(u);u.orders=[];u.path=[];u.repath=0;u.moving=false;if(u.kind==='tank')u.driveSpeed=0;u.pursuitOrigin=null;u.combatTarget=null;u.hold=hold||u.kind==='engineer';u.guardArea=hold&&guardArea;u.supportPaused=false;u.workingTarget=null;delete u.burst;}}
   private supportEligible(u:Unit,target:Unit|Base,kind:string):boolean {
     if(target.hp<=0||('orders' in target&&target.carrier)||target.owner!==u.owner)return false;
     if(kind==='heal')return u.kind==='medic'&&'orders' in target&&unitSpec(target).group==='Infanterie'&&target.hp<this.maxUnitHp(target);
@@ -1859,6 +1860,12 @@ export class Simulation {
           if(order.guardOnArrival){u.hold=true;u.guardArea=true;}
           if(u.kind==='tank')u.driveSpeed=0;
         }else this.move(u,order,dt);
+        continue;
+      }
+      // Unarmed supply trucks are civilians. Even when idle or explicitly
+      // attack-moved, they must not chase combat targets and abandon cargo.
+      if(u.kind==='supply'){
+        u.combatTarget=null;delete u.burst;
         continue;
       }
       const acquired=this.acquire(u);

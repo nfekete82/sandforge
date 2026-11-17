@@ -18,6 +18,8 @@ export type SupplyPhase='seek'|'to-cache'|'loading'|'to-hq'|'unloading'|'idle';
 export interface SupplyCache extends Point{id:number;remaining:number;capacity:number}
 export interface SupplyJob{
  auto:boolean;phase:SupplyPhase;cacheId:number|null;cargo:number;clock:number;
+ /** Optional player-chosen depot. If depleted/unreachable, use another. */
+ preferred?:number|null;
  /** Last requested valid movement goal; not a teleport. */
  destination?:Point;
 }
@@ -28,6 +30,8 @@ export function validSupplyJob(job:SupplyJob|undefined,kind:string,size:number):
  return kind==='supply'&&job&&typeof job.auto==='boolean'&&
   ['seek','to-cache','loading','to-hq','unloading','idle'].includes(job.phase)&&
   (job.cacheId===null||Number.isSafeInteger(job.cacheId)&&job.cacheId>=0&&job.cacheId<16)&&
+  (job.preferred===undefined||job.preferred===null||
+   Number.isSafeInteger(job.preferred)&&job.preferred>=0&&job.preferred<16)&&
   Number.isSafeInteger(job.cargo)&&job.cargo>=0&&job.cargo<=SUPPLY_LOAD&&
   positive(job.clock)&&job.clock<10_000&&
   (job.destination===undefined||Number.isFinite(job.destination.x)&&
@@ -135,7 +139,15 @@ export function stepSupplyLogistics(g:Simulation,dt:number):void{
   if(!job.auto)continue;
   if(job.phase==='idle'){job.phase=job.cargo>0?'to-hq':'seek';job.clock=0;}
   if(job.phase==='seek'){
-   const cache=selectSupplyCache(g,u);
+   const preferred=job.preferred===null||job.preferred===undefined?undefined:
+    g.supplyCaches.find(c=>c.id===job.preferred&&c.remaining>0);
+   const enemyNearby=preferred&&g.units.some(v=>v.owner!==u.owner&&v.hp>0&&
+    !v.carrier&&g.canSee(u.owner,v)&&distance(v,preferred)<390);
+   const legalPreferred=preferred&&!enemyNearby&&
+    (distance(u,preferred)<SUPPLY_PICKUP_RADIUS||
+     g.world.path(u,preferred,[...g.obstacles(),...g.bastionColliders()],14).length>0)
+     ?preferred:undefined;
+   const cache=legalPreferred??selectSupplyCache(g,u);
    if(!cache){job.clock=Math.min(9999,job.clock+dt);continue;}
    job.cacheId=cache.id;job.destination={x:cache.x,y:cache.y};
    job.clock=0;job.phase='to-cache';

@@ -45,7 +45,7 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   if(belief.strategy==='infantry')observed.infantry=Math.max(observed.infantry,recent.filter(v=>v.kind==='infantry'||v.kind==='heavy').length);
  }
  const airTarget=enemyAir??(observed.air?{kind:'bomber' as const}:undefined);
- const fighters=c.army.filter(u=>!['engineer','medic','scout'].includes(u.kind)).length;
+ const fighters=c.army.filter(u=>!['engineer','medic','scout','supply'].includes(u.kind)).length;
  const rocketQuota=rocketInfantryQuota({fighters,time:g.time,
   vehicles:observed.armor,air:observed.air,
   barracksReady:available('rocket'),underAttack:c.underAttack});

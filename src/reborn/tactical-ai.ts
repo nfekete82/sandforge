@@ -96,7 +96,7 @@ export function chooseEndgameVisionPost(x:{
 export function attemptEndgameStandoff(confirmedCleanup:boolean,observedObjective:boolean,directLineClear:boolean):boolean{
  return confirmedCleanup&&observedObjective&&!directLineClear;
 }
-const combat=(u:Unit)=>u.hp>0&&!u.carrier&&!['medic','engineer','scout'].includes(u.kind);
+const combat=(u:Unit)=>u.hp>0&&!u.carrier&&!['medic','engineer','scout','supply'].includes(u.kind);
 const frontRole=(u:Unit)=>combat(u)&&u.kind!=='artillery'&&!unitSpec(u).flying;
 export const combatStrength=(u:Unit)=>u.hp/100*Math.pow((unitSpec(u).damage/unitSpec(u).cooldown)/(17/.85),.35);
 /** Earlier retreats require a real living medic and confirmed enemy HQ loss. */
@@ -238,7 +238,7 @@ export class TacticalAI {
   // would hand the gun several free shots. Keep tanks/supported units at
   // the much lower threshold that prevents suicidal mid-battle retreats.
   const supported=near.some(v=>v.id!==u.id&&
-    !['engineer','medic','scout'].includes(v.kind));
+    !['engineer','medic','scout','supply'].includes(v.kind));
   const criticalFraction=supported ? .26 :
    ['infantry','heavy','rocket'].includes(u.kind) ? .40 : .26;
   if(u.hp>=unitSpec(u).hp*criticalFraction)return;
