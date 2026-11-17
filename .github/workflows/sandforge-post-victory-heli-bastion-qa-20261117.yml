@@ -26,7 +26,10 @@ jobs:
       - name: Install project dependencies
         run: npm ci --no-audit --no-fund
       - name: Compile simulation without unavailable Mac-local PBR GLBs
-        run: npx tsc -p tsconfig.json
+        run: |
+          npx tsc -p tsconfig.json
+          # Match-result UI regression expects this module in the built output.
+          cp scripts/webgl-match-result.js dist/webgl-match-result.js
       - name: Validate Bastion capture, heli boarding, and new victory condition
         run: |
           node --test \
