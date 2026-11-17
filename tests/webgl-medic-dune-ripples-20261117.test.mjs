@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {MEDIC_ART_REVISION,polishMedicModel} from '../scripts/webgl-medic-polish.js';
 import {DESERT_SURFACE_DETAIL,createDesertSurfaceDetail} from '../scripts/webgl-sand-surface-detail.js';
-import {generateMap} from '../src/reborn/world-generation.js';
+import {generateMap} from '../dist/src/reborn/world-generation.js';
 
 const txt=p=>readFileSync(p,'utf8');
 test('authored medic kit follows existing animated Atlas bones without glow',()=>{
