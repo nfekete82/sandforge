@@ -469,7 +469,7 @@ export function createStrategicBuilding(kind,owner=0){
    name:'SF_SiloDepthOcclusion',color:'#080e11',side:THREE.DoubleSide,
    depthWrite:true
   });
-  const occlusion=add(new THREE.CircleGeometry(shaftRadius-1.0,64),
+  const occlusion=add(new THREE.CircleGeometry(shaftRadius+.6,64),
    depthMaskMaterial,rocketX,1.42,0,-Math.PI/2);
   occlusion.name='Silo_TerrainOcclusion';
   occlusion.castShadow=false;occlusion.receiveShadow=false;
