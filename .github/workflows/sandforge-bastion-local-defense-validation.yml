@@ -50,7 +50,7 @@ jobs:
             --maps ${{ matrix.map }} --seeds 2026,2027,2028,2029 --seconds 600 \
             --modes director --opponent contesting --label bastion-local-defense \
             --output "$DIR/after.json"
-      - name: A/B report: Bastion control-time, gains/losses, wins and troop costs
+      - name: "A/B report: Bastion control-time, gains/losses, wins and troop costs"
         run: |
           node scripts/ai-test-arena-compare.mjs "$DIR/before.json" "$DIR/after.json" "$DIR/comparison.md"
           node scripts/ai-bastion-control-report.mjs "$DIR/before.json" "$DIR/after.json" "$DIR/territory-report.md"
