@@ -18,7 +18,8 @@ function darkSurface(material){
  const light=.2126*c.r+.7152*c.g+.0722*c.b;
  if(light>.105)return false;
  // Never touch albedo-mapped parts, even if their baseColor is dark.
- if(material.map||material.userData?.sandforgeBuildingPBRRole)return false;
+ if((material.map||material.userData?.sandforgeBuildingPBRRole)&&
+   !/skid|rubber|scuff|debris|tire.?mark|tyre.?mark|rubber.?bar/i.test(material.name||''))return false;
  return true;
 }
 export function removeRunwaySkidArtifacts(entry){
@@ -33,10 +34,7 @@ export function removeRunwaySkidArtifacts(entry){
  root.traverse(mesh=>{
   if(!mesh.isMesh||mesh===runway||!mesh.visible||
     mesh.userData?.airfieldRunwayStripeRemoved)return;
-  if(mesh.name.startsWith('AirfieldRunway')||
-   mesh.name.startsWith('AirfieldAircraft')||
-   mesh.name.startsWith('AirfieldTaxi')||
-   mesh.name.startsWith('AirfieldSecurity'))return;
+  if(/^(?:AirfieldExtendedRunway|AirfieldRunwaySandShoulder|AirfieldRunwayCenterDash|AirfieldRunwayEdgeLine|AirfieldRunwayThreshold|AirfieldRunwayLandingBars|AirfieldRunwayLamp|AirfieldAircraftParking|AirfieldTaxiCrossGuide|AirfieldTaxiGuideDash|AirfieldSecurity)/.test(mesh.name))return;
   const mats=Array.isArray(mesh.material)?mesh.material:[mesh.material];
   if(!mats.length||!mats.every(darkSurface))return;
   // Never inspect invisible old GLBs / construction meshes.
