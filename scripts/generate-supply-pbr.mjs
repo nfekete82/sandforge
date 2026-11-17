@@ -80,10 +80,10 @@ function newScene(name,owner){
  }
  function wedge(mat,[px,py,pz],[w,h,d],n=0,rise=5){
   const sx=w/2,sz=d/2;
-  const a=[px-sx,py,pz-sz],b=[px+sx,py,pz-sz],c=[px+sx,py,pz+sz],d=[px-sx,py,pz+sz];
+  const a=[px-sx,py,pz-sz],b=[px+sx,py,pz-sz],c=[px+sx,py,pz+sz],corner=[px-sx,py,pz+sz];
   const e=[px-sx,py+h-rise,pz-sz],f=[px+sx,py+h-rise,pz-sz],
    g=[px+sx,py+h,pz+sz],i=[px-sx,py+h,pz+sz];
-  for(const four of [[a,b,c,d],[e,i,g,f],[a,e,f,b],[b,f,g,c],[c,g,i,d],[d,i,e,a]])quad(mat,...four,n);
+  for(const four of [[a,b,c,corner],[e,i,g,f],[a,e,f,b],[b,f,g,c],[c,g,i,corner],[corner,i,e,a]])quad(mat,...four,n);
  }
  function cylinderX(mat,r,width,n=0,segments=16,center=[0,0,0],r2=r){
   const [x,y,z]=center;
