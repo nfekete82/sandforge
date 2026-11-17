@@ -2,7 +2,7 @@
 /** Deterministic self-contained authored Sandforge logistics PBR GLBs.
  * No external AI assets, Meshy round-trips, Blender, CDN or tracked binary files.
  * Produces faction truck GLBs with six independent wheel pivots and an animated
- * rear loading hatch, plus an actual neutral storage hall whose 18 separate
+ * rear loading hatch, plus an open concrete depot whose 18 separate
  * pallet/crate stacks visibly deplete and replenish at runtime.
  */
 import {mkdirSync,writeFileSync} from 'node:fs';
@@ -303,59 +303,42 @@ function crate(a,n,x,y,z,width=19,depth=17,kind='wood'){
 }
 function depot(){
  const a=newScene('SF_Supply_Depot_PBR_Root',0),{box,node}=a;
- // Low concrete logistics yard. Absolutely NO hall, canopy, walls or roof:
- // the player must see the supply pallets and every disappearing crate
- // from every isometric zoom and overhead camera angle.
- const slab=node('SF_DepotConcretePad');
- box('concrete',[0,2,-42],[266,4,230],slab);
- box('concreteLight',[0,4.5,-42],[260,1,225],slab);
- // Thin curbs and expansion joints are kept flush so they never obscure stock.
- for(const x of [-131,131]){
-  box('concreteDark',[x,5,-42],[3,3,228],slab);
-  for(const z of [-134,-78,-22,34])
-   box('edge',[x,6,z],[3,.8,2],slab);
- }
- for(const z of [-155,72])box('concreteDark',[0,5,z],[262,3,3],slab);
- for(const z of [-110,-54,2,58])
-  box('concreteDark',[0,5.12,z],[252,.18,.8],slab);
- for(const x of [-92,-46,0,46,92])
-  box('concreteDark',[x,5.15,-42],[.75,.18,215],slab);
- // A dedicated drive-in lane is painted on the slab, not walled off.
- for(const x of [-24,24])
-  box('hazard',[x,5.48,40],[2,.25,54],slab);
- for(const z of [47,58,69])
-  for(const x of [-110,-88,88,110])
-   box('hazard',[x,5.48,z],[14,.24,1.6],slab);
- // Two clear three-by-three pallet banks (18 independently hideable groups).
- // All supplies sit ON the concrete, large enough to read from RTS altitude.
+ // An OPEN logistics stockyard: one clean concrete pad, no ramp, roof,
+ // wall, floor grid, orange traffic lines or painted expansion joints.
+ const pad=node('SF_DepotConcretePad');
+ box('concrete',[0,2,-42],[266,4,230],pad);
+ box('concreteLight',[0,4.5,-42],[262,.9,226],pad);
+ // Only the low slab's perimeter is framed, not the walkable concrete.
+ for(const x of [-132,132])
+  box('concreteDark',[x,5.0,-42],[2.3,1.8,229],pad);
+ for(const z of [-156,72])
+  box('concreteDark',[0,5.0,z],[266,1.8,2.3],pad);
+ // Eighteen separately refillable stock groups, arranged in two open banks.
+ // The crates deliberately match the truck's small wooden/olive supply
+ // containers. No tall three-box towers masking each other at RTS zoom.
  for(let i=0;i<18;i++){
   const row=Math.floor(i/6),col=i%6,side=col<3?-1:1,slot=col%3;
-  const x=side*(46+slot*34),z=-114+row*58;
+  const x=side*(46+slot*32),z=-117+row*60;
   const group=node('SF_DepotStock_'+String(i).padStart(2,'0'));
-  box('wood',[x,9,z],[28,6,30],group);
-  for(const dx of [-10,10])box('wood',[x+dx,5.5,z],[4,5,28],group);
-  crate(a,group,x,24,z,24,24,i%3===0?'metal':'wood');
-  if(i%4===0)crate(a,group,x,45,z,22,22,'metal');
-  if(i%4===1){
-   box('canvas',[x,37,z],[25,3,25],group);
-   box('steel',[x,40,z],[19,2,19],group);
-  }
+  box('wood',[x,7.2,z],[26,4.2,26],group);
+  for(const dx of [-8,8])
+   box('wood',[x+dx,5.5,z],[2.6,3.3,24],group);
+  // 16×15 unit main crate = same order as the truck-bed crates after
+  // the game's display normalization. Keep pallets below knee height.
+  crate(a,group,x-3,18,z,16,15,i%3===0?'metal':'wood');
+  if(i%3===1)
+   crate(a,group,x+8,18,z+5,12,12,'metal');
+  if(i%6===4)
+   crate(a,group,x-3,35,z,14,14,'wood');
  }
- // Ground-level loading ramp and beacon remain animated/recognisable.
- const ramp=node('SF_DepotLoadingRamp',0,[0,5.8,65]);
- box('steel',[0,0,6],[51,2,30],ramp);
- for(const x of [-24,24])box('edge',[x,1,6],[2.2,2.2,30],ramp);
- box('hazard',[0,1,20],[52,.6,2.2],ramp);
- const lamp=node('SF_Depot_LoadBeacon',0,[109,7,58]);
- box('edge',[0,1,0],[11,3,11],lamp);
- box('steel',[0,5,0],[7,6,7],lamp);
- box('amber',[0,9,0],[7,6,7],lamp);
- const clip={name:'DepotRampLower',tracks:[{node:ramp,path:'rotation',
-  times:[0,.3,1],values:[0,0,0,1,Math.sin(-.14),0,0,Math.cos(-.14),
-   Math.sin(-.25),0,0,Math.cos(-.25)]}]};
+ // Tiny ground-level locator remains, not a ramp or drive-on platform.
+ const lamp=node('SF_Depot_LoadBeacon',0,[117,5.5,60]);
+ box('edge',[0,1,0],[8,2,8],lamp);
+ box('steel',[0,4,0],[5,5,5],lamp);
+ box('amber',[0,7,0],[5,4,5],lamp);
  const beacon={name:'DepotBeaconPulse',tracks:[{node:lamp,path:'scale',
   times:[0,.5,1],values:[1,1,1,1.18,1.2,1.18,1,1,1]}]};
- a.buildGLB('supply-depot-neutral.glb',[clip,beacon]);
+ a.buildGLB('supply-depot-neutral.glb',[beacon]);
 }
 mkdirSync(OUT,{recursive:true});
 for(const owner of [0,1])truck(owner);
