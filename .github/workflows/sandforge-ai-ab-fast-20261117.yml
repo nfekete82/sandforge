@@ -1,9 +1,6 @@
 name: Sandforge AI A/B quick 5-minute pairs
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/sandforge-ai-ab-fast-20261117.yml'
   workflow_dispatch:
 
 jobs:
