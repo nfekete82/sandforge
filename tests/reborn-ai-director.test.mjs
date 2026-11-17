@@ -2,7 +2,9 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {assaultDecision,abortAssault,preferredRole} from '../dist/src/reborn/ai-director.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
-import {developArmy} from '../dist/src/reborn/army-economy.js';
+import {developArmy,directorArmyTarget} from '../dist/src/reborn/army-economy.js';
+import {homeDefensePlan} from '../dist/src/reborn/home-defense-doctrine.js';
+import {readFileSync} from 'node:fs';
 import {addProducer,seedCompletedGenerators} from './fixtures/reborn-production.mjs';
 import {blueDefense} from '../scripts/benchmark-ai-opponent.mjs';
 import {UNITS} from '../dist/src/reborn/catalog.js';
@@ -58,6 +60,64 @@ test('director: three finished buildings queue simultaneously on one economic ti
  assert.equal(queued[2],'scout');
  assert.ok(before-g.credits[1]>=3*100,'all queues spend real credits');
  assert.equal(g.queued(1),3);
+});
+
+test('director: ordinary paid economies can sustain more than the old 18-22 unit cap',()=>{
+ assert.equal(directorArmyTarget(10),24);
+ assert.equal(directorArmyTarget(35),27);
+ assert.equal(directorArmyTarget(65),39);
+ assert.equal(directorArmyTarget(110),42);
+ assert.ok(directorArmyTarget(1000)<48,'never exceed hard simulation capacity');
+});
+
+test('director: healthy large squads release home guards earlier and probe more actively',()=>{
+ const context={
+  fighters:9,time:70,recentLosses:0,recentFailures:0,lastFailureAt:-1,
+  observedHomePressure:false,defendedTarget:false,confirmedEndgame:false
+ };
+ const early=homeDefensePlan(context);
+ assert.equal(early.guards,3);
+ assert.equal(early.minimumReady,2);
+ assert.equal(early.notBefore,50,'safe opening can attack from 50 seconds');
+ assert.equal(early.allowSecondaryRaids,false);
+ const mature=homeDefensePlan({...context,fighters:12,time:135});
+ assert.equal(mature.allowSecondaryRaids,true,
+  'paid mobile detachments can raid an empty second flank before 180 seconds');
+ const threatened=homeDefensePlan({...context,observedHomePressure:true});
+ assert.ok(threatened.guards>early.guards,
+  'observed base threat still keeps real defenders at home');
+ const defeated=homeDefensePlan({...context,recentLosses:4,recentFailures:2,lastFailureAt:68});
+ assert.ok(defeated.guards>early.guards);
+ assert.ok(defeated.notBefore>=68,
+  'real losses trigger recovery instead of blindly feeding a kill zone');
+ const source=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(source,/g\.world\.mapVersion>=19&&g\.time<125/,
+  'modern map expansion raid gate must track the shorter buildup');
+});
+
+test('director: previously saturated factory still buys a third real tank',()=>{
+ const g=new Simulation(2026,4),hq=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
+ seedCompletedGenerators(g);
+ const barracks=addProducer(g,'barracks',1);
+ const factory=addProducer(g,'factory',1);
+ for(let i=0;i<5;i++)g.spawn(1,{x:hq.x+125+i*11,y:hq.y-170},'infantry');
+ const rover=g.spawn(1,{x:hq.x+180,y:hq.y-110},'rover');
+ g.spawn(1,{x:hq.x+220,y:hq.y-110},'tank');
+ g.spawn(1,{x:hq.x+270,y:hq.y-110},'tank');
+ g.spawn(1,{x:hq.x+310,y:hq.y-110},'artillery');
+ assert.ok(rover);
+ g.credits[1]=4000;
+ const initial=g.credits[1],before=g.count(1);
+ developArmy(g,g.tactical.state,g.units.filter(u=>u.owner===1&&u.hp>0),()=>0);
+ assert.equal(factory.queueTypes[0],'tank',
+  'the third armor purchase must not be blocked by the old 2-tank ceiling');
+ assert.ok(barracks.queue.length>0,
+  'independent paid barracks should keep training when there is budget');
+ assert.equal(g.count(1),before,'no free soldiers are created by macro policy');
+ const cost=g.bases.filter(b=>b.owner===1)
+  .reduce((n,b)=>n+(b.queueCosts??[]).reduce((s,c)=>s+c,0),0);
+ assert.ok(cost>=UNITS.tank.cost);
+ assert.equal(initial-g.credits[1],cost,'every reinforcement is charged at full price');
 });
 
 test('director: baseline can still be benchmarked without mutating campaign state',()=>{
