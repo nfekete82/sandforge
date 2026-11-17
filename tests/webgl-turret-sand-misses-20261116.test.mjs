@@ -4,6 +4,8 @@ import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {UNIT_MISS_CHANCE,unitShotMisses}
  from '../dist/src/reborn/unit-accuracy.js';
+import {calibratedScale,visualBuildingScale,visualUnitScale,TURRET_VISUAL_SCALE,
+ MODEL_HEIGHTS} from '../scripts/webgl-scale.js';
 
 test('turret bursts for both factions miss the sand 25% of the time without damage',()=>{
  assert.equal(UNIT_MISS_CHANCE,.25);
@@ -76,4 +78,32 @@ test('defensive misses use visible sand dents and dust, not explosion or extra G
  assert.match(vfx,/this\.placeScorch\(point\.x,point\.y,towerRound\?/);
  assert.match(vfx,/for\(let i=0;i<\(towerRound\?7:5\);i\+\+\)/);
  assert.match(battle,/this\.heightAt\(shot\.to\.x,shot\.to\.y\)\+\(shot\.miss\?2:27\)/);
+});
+
+test('defensive turret shrinks 12% in gameplay, fallback and build ghost only',()=>{
+ assert.equal(TURRET_VISUAL_SCALE,.88);
+ assert.equal(visualBuildingScale('turret'),.88);
+ assert.equal(visualBuildingScale('headquarters'),1);
+ assert.equal(visualBuildingScale('barracks'),1);
+ assert.equal(visualUnitScale('infantry'),.42,
+  'soldier stature must remain unchanged beside the smaller tower');
+ const bounds={x:110,y:100,z:92},width=120;
+ const oldTurret=Math.min(width/110,MODEL_HEIGHTS.turret/100);
+ const newTurret=calibratedScale('turret','building',bounds,width);
+ assert.ok(Math.abs(newTurret-oldTurret*.88)<1e-10,
+  'authored turret must shrink AFTER GLB width/height normalization');
+ assert.equal(calibratedScale('barracks','building',bounds,width),
+  Math.min(width/110,MODEL_HEIGHTS.barracks/100),
+  'other buildings retain their previous art scale');
+ const battle=readFileSync('scripts/webgl-battlefield.js','utf8');
+ assert.match(battle,/if\(type==='building'&&kind==='turret'\)\s*group\.scale\.setScalar\(visualBuildingScale\(kind\)\)/,
+  'lite fallback and placement ghost must match the 88% authored turret');
+ assert.match(battle,/const scale=calibratedScale\(entry\.kind,type,dims,desired\)/,
+  'completed GLB must use the shared normalization scale');
+ assert.match(battle,/const scale=calibratedScale\(kind,'building',size,spec\.width\)/,
+  'construction ghost GLB must use the same visual scaling');
+ // Range, tower radius, selection and turret simulation are authoritative
+ // in the gameplay catalog, not modified by any of these presentation paths.
+ const scaleSrc=readFileSync('scripts/webgl-scale.js','utf8');
+ assert.match(scaleSrc,/Do NOT change BUILDINGS\.turret radius\/width or weapon range/);
 });
