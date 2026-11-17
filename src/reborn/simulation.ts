@@ -2175,7 +2175,10 @@ export class Simulation {
           // short exterior arrival fade. Never fake an opening in the baked facade.
           this.productionReleases.push({unitId:u.id,baseId:b.id,kind,owner:b.owner,at:this.time,from:{x:b.x,y:b.y},to:{...spawn}});
           if(this.productionReleases.length>24)this.productionReleases.shift();
-          countProduced(this.stats,b.owner);if(b.owner===0)this.notices.push(`Einheit bereit: ${spec.name}.`);b.queue.shift();b.queueTypes.shift();b.queueCosts?.shift();b.production=0;if(b.rally)this.command([u.id],{...b.rally,kind:'attackMove'});
+          // A supply hauler is born with auto=true. Applying a generic HQ rally
+          // invokes command(), which explicitly disables its logistics state.
+          // Ignore combat rally for haulers so they immediately seek stock.
+          countProduced(this.stats,b.owner);if(b.owner===0)this.notices.push(`Einheit bereit: ${spec.name}.`);b.queue.shift();b.queueTypes.shift();b.queueCosts?.shift();b.production=0;if(b.rally&&kind!=='supply')this.command([u.id],{...b.rally,kind:'attackMove'});
            if(footFrontExit&&u.orders[0]&&
               ['move','attackMove'].includes(u.orders[0].kind)){
              // A rally facing is known at production time. The presenter
