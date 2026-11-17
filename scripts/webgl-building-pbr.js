@@ -7,11 +7,12 @@ import * as THREE from 'three';
  * Original GLB geometry, UVs, doors, PBR wear/normal maps and animations
  * are preserved. No meshes or draw calls are added.
  */
-export const DESERT_BUILDING_PBR_REVISION='sandforge-authored-building-pbr-v3-matched-facades-20261117';
+export const DESERT_BUILDING_PBR_REVISION='sandforge-authored-building-pbr-v4-organic-facility-walls-20261117';
 export const DESERT_BUILDING_KINDS=Object.freeze(['barracks','headquarters','factory','airfield']);
 const root='/src/assets/reborn/buildings-3d/textures/';
 export const DESERT_BUILDING_IMAGES=Object.freeze({
  wall:root+'desert-wall-plaster.svg',
+ facilityWall:root+'desert-facility-wall-camo.svg',
  camo:root+'desert-camo-panel.svg',
  roof:root+'desert-roof-dust.svg',
  metal:root+'desert-worn-metal.svg',
@@ -19,6 +20,7 @@ export const DESERT_BUILDING_IMAGES=Object.freeze({
 });
 const settings=Object.freeze({
  wall:Object.freeze({coverage:.70,roughness:.91,metalness:.03,scale:1.4}),
+ facilityWall:Object.freeze({coverage:1,roughness:.91,metalness:.03,scale:.36}),
  camo:Object.freeze({coverage:.85,roughness:.92,metalness:.03,scale:1.8}),
  roof:Object.freeze({coverage:.61,roughness:.82,metalness:.15,scale:1.65}),
  metal:Object.freeze({coverage:.34,roughness:.73,metalness:.43,scale:2.3}),
@@ -42,9 +44,9 @@ export function buildingSurfaceRole(kind,meshName='',materialName=''){
  // Authored factory/hangar GLBs use batched mesh names per material.
  // Repaint the exterior wall ONLY, not the roof, shutters, glass, factory
  // production doors, hangar roof corrugation or mechanical equipment.
- if(kind==='airfield')return mesh==='sf_airfield_pbr_camo'?'wall':null;
+ if(kind==='airfield')return mesh==='sf_airfield_pbr_camo'?'facilityWall':null;
  if(kind==='factory'&&mesh.startsWith('sf_factory_pbr_'))
-  return mesh==='sf_factory_pbr_camo'?'wall':null;
+  return mesh==='sf_factory_pbr_camo'?'facilityWall':null;
  if(exclude.test(mesh))return null;
  if(camouflage.test(mesh))return 'camo';
  if(roofing.test(mesh))return 'roof';
@@ -62,7 +64,7 @@ export function buildingSurfaceRole(kind,meshName='',materialName=''){
 const textures=new Map();
 const textureReady=new Map();
 const fallbackColor={
- wall:'#cbbc9e',camo:'#c6b695',roof:'#b9ab91',metal:'#555954',trim:'#776f5f'
+ wall:'#cbbc9e',facilityWall:'#c9b18a',camo:'#c6b695',roof:'#b9ab91',metal:'#555954',trim:'#776f5f'
 };
 const makeMaps=role=>{
  const n=256,pixels=new Uint8Array(n*n*4),roughness=new Uint8Array(n*n*4);
@@ -172,14 +174,13 @@ export function finishDesertBuildingMaterials(model,kind){
    const ghost=source.userData?.sandforgePreviewMaterial===true;
    const material=ghost?source:source.clone();
    const maps=roleMaps(role),config=settings[role];
-   // Authored factory/hangar shell must use the exact same "wall" atlas
-   // as the barracks/HQ ceramic hull, not the checkerboard camo-panel atlas.
-   // The hangar uses full-size GLB coordinates; factory uses small local
-   // coordinates similar to barracks. Neither inherits a high-frequency
-   // paint pattern underneath the new shared exterior coating.
-   const authoredWallShell=role==='wall'&&
-    (kind==='airfield'||kind==='factory');
-   const uvScale=kind==='airfield'?.027:config.scale;
+   // HQ and barracks keep their original ceramic walls and baked authentic
+   // desert camouflage. The modern factory/hangar wall shells are plain UV
+   // blocks with a tiny checker baked in. Paint just those shells with our
+   // SHARED organic sand/olive facade, tuned to the same large patch scale.
+   // Do not change team strips, moving gates or the real steel roofs.
+   const authoredWallShell=role==='facilityWall';
+   const uvScale=kind==='airfield'?.015:config.scale;
    const wallCoverage=authoredWallShell?1:config.coverage;
    if(!material.normalMap)material.normalMap=maps.normal;
    if(!material.roughnessMap)material.roughnessMap=maps.roughness;
