@@ -151,6 +151,14 @@ execFileSync(process.execPath,['scripts/generate-energy-core-pbr.mjs'],{stdio:'i
 // Real flightline service still animates doors and controls aircraft docking.
 execFileSync(process.execPath,['scripts/generate-airfield-pbr.mjs'],{stdio:'inherit'});
 cpSync('src/assets', 'dist/src/assets', {recursive:true});
+ // Retired supply assets may survive a previous incremental build/worktree.
+ // Never ship their old GLBs or WebGL handlers in a new bastion-only build.
+ for(const obsolete of [
+  'dist/src/assets/reborn/supply-custom',
+  'dist/src/assets/reborn/supply-pbr',
+  'dist/webgl-supply-custom.js',
+  'dist/webgl-supply-logistics.js'
+ ])rmSync(obsolete,{force:true,recursive:true});
 // Incremental local builds must also discard the retired aircraft assets.
 for(const team of [0,1])for(const extension of ['glb','png','json'])rmSync(`dist/src/assets/reborn/animation/gunship-${team}.${extension}`,{force:true});
 // A verifiable fingerprint of the *shipped* gameplay pixels, not the source GLB.
