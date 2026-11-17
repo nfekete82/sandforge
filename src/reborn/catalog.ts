@@ -65,7 +65,12 @@ export const weaponDamage=(u:{kind?:UnitKind},target:{kind?:UnitKind|BuildingKin
  }
  // Maintain existing heavy-gun vs structure tuning and guided anti-armor
  // specialist strengths. Tank MG exclusively targets infantry.
+ // Elite infantry is still tough and strong against foot soldiers, but
+ // its 120-point burst used to delete a 100-HP rifleman instantly while the
+ // 420-HP attacker survived several squads. Two landed volleys now matter.
+ // Do not weaken its separately tuned armor, aircraft or building damage.
  return base*(kind==='heavy'&&building?.45:
+  kind==='heavy'&&unitSpec(target as {kind?:UnitKind}).group==='Infanterie'?.75:
   kind==='rover'&&building?.35:
   kind==='rocket'&&building?.7:
   kind==='rocket'&&unitSpec(target as {kind?:UnitKind}).group==='Infanterie'?.10:
