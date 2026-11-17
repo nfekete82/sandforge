@@ -41,3 +41,60 @@ jobs:
             tests/reborn-control-retreat.test.mjs \
             tests/reborn-combat-balance-20261117.test.mjs \
             tests/webgl-ai-debug-20261117.test.mjs
+
+  bastion-24-match-validation:
+    strategy:
+      fail-fast: false
+      matrix:
+        map: [4, 23, 24]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      DIR: ai-arena-results/bastion-validate-${{ matrix.map }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile both policies with identical engine, catalog and campaign plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show a587b07bc0608a44290a3c04c28647fde5b37965:src/reborn/tactical-ai.ts > src/reborn/tactical-ai.ts
+          npx tsc -p tsconfig.json
+          cp -a dist dist-before
+          git restore --source=HEAD -- src/reborn/tactical-ai.ts
+          npx tsc -p tsconfig.json
+          cmp dist-before/src/reborn/simulation.js dist/src/reborn/simulation.js
+          cmp dist-before/src/reborn/catalog.js dist/src/reborn/catalog.js
+          cmp dist-before/src/reborn/campaign-commander.js dist/src/reborn/campaign-commander.js
+      - name: Old global defense (4 paired starting worlds)
+        shell: bash
+        run: |
+          mkdir -p "$DIR"
+          ATLAS_SIM_MODULE="$PWD/dist-before/src/reborn/simulation.js" node scripts/ai-test-arena.mjs \
+            --maps ${{ matrix.map }} --seeds 2026,2027,2028,2029 --seconds 600 \
+            --modes director --opponent contesting --label old-global-defense \
+            --output "$DIR/before.json"
+      - name: New Bastion-local defense (same 4 worlds)
+        shell: bash
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps ${{ matrix.map }} --seeds 2026,2027,2028,2029 --seconds 600 \
+            --modes director --opponent contesting --label bastion-local-defense \
+            --output "$DIR/after.json"
+      - name: A/B report: Bastion control-time, gains/losses, wins and troop costs
+        run: |
+          node scripts/ai-test-arena-compare.mjs "$DIR/before.json" "$DIR/after.json" "$DIR/comparison.md"
+          node scripts/ai-bastion-control-report.mjs "$DIR/before.json" "$DIR/after.json" "$DIR/territory-report.md"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sandforge-bastion-validation-${{ matrix.map }}
+          path: ai-arena-results/bastion-validate-${{ matrix.map }}/
+          if-no-files-found: warn
