@@ -171,13 +171,18 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  });
  const scores:Record<UnitKind,number>={
   infantry:Math.max(1,22-count('infantry')*5)+(fighters.length<4?18:0),
-  heavy:14+(known?20+known*10:0)+armor*5+(fighters.length>=3?9:0)-count('heavy')*11,
+  // A raised unit ceiling alone is not sufficient: 11-point decay made
+  // heavy infantry score <=0 at three squads, stopping the barracks anyway.
+  heavy:14+(known?20+known*10:0)+armor*5+(fighters.length>=3?9:0)
+   +(director&&income>=65?7:0)-count('heavy')*(director?5:11),
   rocket:(desiredRockets>count('rocket')?52+(air>0?air*12:armor>0?armor*9:0):0)-count('rocket')*9,
   medic:(wounded>=2?30:Math.max(0,fighters.length-2)*4)-count('medic')*20,
   engineer:count('engineer')===0?(!complete('barracks')?80:fighters.length>=2?38:0):own.length>=4&&count('engineer')<2?15:0,
   rover:complete('factory')?35+(g.explored[1].reduce((n,v)=>n+v,0)/g.explored[1].length<.4?6:0)-count('rover')*17:0,
-  tank:complete('factory')?44+known*4+armor*6-count('tank')*16:0,
-  artillery:complete('factory')&&(known||fighters.length>=5)?32+known*14-count('artillery')*32:0,
+  tank:complete('factory')?44+known*4+armor*6
+   +(director&&income>=65?24:0)-count('tank')*(director?12:16):0,
+  artillery:complete('factory')&&(known||fighters.length>=5)?32+known*14
+   -count('artillery')*(director?20:32):0,
   scout:complete('airfield')&&fighters.length>=4?25-count('scout')*35:0,
   bomber:antiArmorBomberQuota>count('bomber')
    ?58+armor*10-count('bomber')*12
