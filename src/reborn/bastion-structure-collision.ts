@@ -1,7 +1,8 @@
 import type {MapVersion,Point} from './config.js';
 
 /** Physical footprint of the WebGL bastion's visible 116-unit-wide tower.
- * 55+infantry radius 10 leaves a walkable 65–95 capture annulus.
+ * 55+infantry radius 10 leaves a wide, walkable annulus inside the
+ * capture circle; standing just beside the tower starts capture automatically.
  * Older map versions keep their original obstacle and save geometry.
  * This affects navigation only; it never modifies the static World grid. */
 export const BASTION_NAVIGATION_RADIUS=55;
