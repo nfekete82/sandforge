@@ -255,8 +255,7 @@ export function createStrategicBuilding(kind,owner=0){
   // khaki world-space camouflage shader or moving construction-ghost paint.
   mats.metal.userData={...mats.metal.userData,sandforgeAuthoredMetal:true};
   mats.warning=new THREE.MeshStandardMaterial({color:'#cda956',roughness:.62,metalness:.18});
-  // One uninterrupted metallic finish across the shafted body and nose.
-  // The ringed second stage and decorative accents are removed entirely.
+  // Smooth, matching stainless-steel body and shorter rounded ogive.
   mats.rocketBody=new THREE.MeshStandardMaterial({color:'#aeb8b7',map:materialGrain,
    bumpMap:materialGrain,bumpScale:.045,roughness:.36,metalness:.84});
   mats.rocketNose=new THREE.MeshStandardMaterial({color:'#aeb8b7',map:materialGrain,
@@ -500,31 +499,108 @@ export function createStrategicBuilding(kind,owner=0){
   well.name='Silo_RecessedLaunchWell';
   well.castShadow=false;well.receiveShadow=true;
 
-  // The terrain is NOT cut by the game simulation. Preserve an OPAQUE
-  // ground-level mask above the terrain to prevent sand from showing through.
-  // Its authored PBR-like inner-steel atlas creates visible radial bracing and
-  // a deep center instead of the old featureless black disk.
-  // Moving this mesh below ground would recreate the bright concrete/sand
-  // surface seen in the earlier screenshot.
-  const depthMaskMaterial=new THREE.MeshBasicMaterial({
-   name:'SF_SiloDepthOcclusion',color:'#ffffff',
-   map:siloShaftDepthPaint,side:THREE.DoubleSide,
-   depthWrite:true
+  // A real open hole cannot be cut in the world terrain without changing
+  // the heightfield. A flat painted disk was equally wrong: from the isometric
+  // camera it looked like a metal floor instead of a deep shaft. Keep an
+  // opaque disk ABOVE the terrain, but ray-project a 95-unit cylindrical well
+  // behind every fragment. The ray hits the actual inner wall or far floor;
+  // angular structural ribs and three horizontal reinforcement collars are
+  // shaded by their virtual 3D depth, not concentric circles on the deck.
+  // It only affects silo art (same ghost, HUD and gameplay geometry).
+  const shaftDepth=95;
+  const depthMaskMaterial=new THREE.ShaderMaterial({
+   name:'SF_SiloDepthOcclusion',
+   side:THREE.DoubleSide,depthTest:true,depthWrite:true,
+   uniforms:{
+    uCameraLocal:{value:new THREE.Vector3(0,0,250)},
+    uRadius:{value:shaftRadius-.8},
+    uDepth:{value:shaftDepth},
+    uSurfaceMap:{value:siloShaftDepthPaint}
+   },
+   vertexShader:`
+    varying vec2 vSiloXY;
+    varying vec2 vSiloUV;
+    void main(){
+     vSiloXY=position.xy;
+     vSiloUV=uv;
+     gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
+    }
+   `,
+   fragmentShader:`
+    uniform vec3 uCameraLocal;
+    uniform float uRadius;
+    uniform float uDepth;
+    uniform sampler2D uSurfaceMap;
+    varying vec2 vSiloXY;
+    varying vec2 vSiloUV;
+    const float PI=3.141592653589793;
+    float band(float depth,float at,float halfWidth){
+     return 1.0-smoothstep(halfWidth,halfWidth+1.1,abs(depth-at));
+    }
+    void main(){
+     vec3 eye=uCameraLocal;
+     vec3 dir=normalize(vec3(vSiloXY,0.0)-eye);
+     float a=max(dot(dir.xy,dir.xy),0.0000001);
+     float b=dot(eye.xy,dir.xy);
+     float c=dot(eye.xy,eye.xy)-uRadius*uRadius;
+     float delta=max(0.0,b*b-a*c);
+     float tWall=(-b+sqrt(delta))/a;
+     float tPlane=-eye.z/min(dir.z,-0.00001);
+     float tFloor=(-uDepth-eye.z)/min(dir.z,-0.00001);
+     vec3 metal;
+     if(tWall>tPlane+0.001 && tWall<tFloor){
+      vec3 hit=eye+dir*tWall;
+      float down=clamp(-hit.z,0.0,uDepth);
+      float angle=atan(hit.y,hit.x);
+      float rib=pow(max(0.0,cos(angle*16.0)),18.0);
+      float seam=pow(max(0.0,-cos(angle*16.0)),28.0);
+      // Recessed metal ribs / 'Rillen' down the actual virtual wall.
+      float collars=band(down,14.0,1.35)*0.24+
+       band(down,38.0,1.6)*0.26+
+       band(down,67.0,1.9)*0.23;
+      float depthFade=1.0-0.76*down/uDepth;
+      float lightSide=0.65+0.35*max(0.0,
+       dot(-normalize(hit.xy),normalize(eye.xy-hit.xy)));
+      float streak=(sin(angle*71.0+down*.075)+sin(angle*43.0-down*.026))*.022;
+      float shade=(.16+rib*.22-seam*.07+collars+streak)*depthFade*lightSide;
+      metal=vec3(.026,.038,.045)+vec3(.62,.77,.82)*max(shade,0.0);
+     }else{
+      // No visible stone or bright floor: the bottom lies 95 units below
+      // the mouth and almost disappears in shadow.
+      vec2 foot=eye.xy+dir.xy*tFloor;
+      float radial=clamp(length(foot)/uRadius,0.0,1.0);
+      float scratches=0.009*sin(atan(foot.y,foot.x)*44.0);
+      float ambient=.018+.018*radial+scratches;
+      metal=vec3(ambient*.73,ambient*.89,ambient);
+     }
+     gl_FragColor=vec4(clamp(metal,vec3(0.0),vec3(1.0)),1.0);
+     #include <tonemapping_fragment>
+     #include <colorspace_fragment>
+    }
+   `
   });
   const occlusion=add(new THREE.CircleGeometry(shaftRadius+.6,64),
    depthMaskMaterial,rocketX,1.42,0,-Math.PI/2);
   occlusion.name='Silo_TerrainOcclusion';
   occlusion.castShadow=false;occlusion.receiveShadow=false;
   occlusion.userData={visualOnly:true,nonPlayable:true,
-   hidesUnderlyingTerrain:true};
+   hidesUnderlyingTerrain:true,visualShaftDepth:shaftDepth};
+  // Camera must be transformed into the actual local plane; this also
+  // works for rotated buildings and changing camera angles.
+  const maskInverse=new THREE.Matrix4();
+  occlusion.onBeforeRender=(_renderer,_scene,camera)=>{
+   maskInverse.copy(occlusion.matrixWorld).invert();
+   depthMaskMaterial.uniforms.uCameraLocal.value
+    .copy(camera.position).applyMatrix4(maskInverse);
+  };
 
-  // Lower the physical rib tops to just above the terrain occlusion mask.
-  // Two lower rings are represented at smaller radii in the depth texture;
-  // no more bright concentric hoop stack directly beneath the upper lip.
+  // Restore the older strong vertical steel strips inside the shaft.
+  // The physical top section meets the rim; the rest continues down
+  // the ray-projected wall with genuinely depth-spaced horizontal collars.
   for(let i=0;i<12;i++){
    const a=i*Math.PI/6;
    const bar=box(3.5,30,2.8,'steel',
-    rocketX+Math.cos(a)*(shaftRadius-2.5),-12.5,
+    rocketX+Math.cos(a)*(shaftRadius-2.5),-6.6,
     Math.sin(a)*(shaftRadius-2.5));
    bar.rotation.y=-a;
   }
@@ -559,15 +635,20 @@ export function createStrategicBuilding(kind,owner=0){
     9.4,Math.sin(a)*77.6,8);
   }
 
-  // Smooth steel missile: one full cylinder and a pointed cone, with
-  // no cylindrical overwrap, stage collars, longitudinal grooves or rings.
-  const hull=cyl(15.7,16.6,31,'rocketBody',rocketX,5.1,0,48);
+  // Recess the missile deeper. Only a short, rounded ballistic ogive and a
+  // small upper section of the smooth cylinder rise above the steel hatch.
+  // The blunt nose follows a curved ogive profile, not the former sharp cone.
+  const hull=cyl(15.7,16.6,31,'rocketBody',rocketX,-4,0,48);
   hull.name='Silo_RocketBody';
-  const ogive=add(new THREE.ConeGeometry(15.7,30,48),'rocketNose',
-   rocketX,35.6,0);
+  const ogiveProfile=[
+   [15.7,0],[15.55,2.4],[14.8,5.2],[13.4,8.3],
+   [11.5,11.2],[8.6,14.0],[5.5,16.1],[2.5,17.3],[0,17.7]
+  ].map(([radius,height])=>new THREE.Vector2(radius,height));
+  const ogive=add(new THREE.LatheGeometry(ogiveProfile,48),
+   'rocketNose',rocketX,11.5,0);
   ogive.name='Silo_RocketNose';
   // Lower engine remains concealed beneath the gunmetal hatch opening.
-  cyl(11.5,13.6,7,'vent',rocketX,-11.5,0,24);
+  cyl(11.5,13.6,7,'vent',rocketX,-20.6,0,24);
     // Low camouflaged command/maintenance block to the RIGHT of the pit.
   box(43,22,66,'base',91,16,-10);
   box(47,3,70,'armor',91,28.5,-10);
