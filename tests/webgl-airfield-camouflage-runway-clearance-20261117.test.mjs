@@ -72,6 +72,16 @@ test('black runway skid trio is removed without touching landing marks, building
  const outside=stripe('HangarExteriorToolPart',35,dark,-185);
  const high=stripe('HangarAntennaDark',35,dark,32);
  high.position.y=30;
+ // The maintenance drawers were the last two dark runway strokes:
+ // the cleanup hid the low one but left two higher ones visible.
+ const cabinets=yard.children.filter(m=>
+  m.name==='HangarMaintenanceToolCabinet'||m.name==='HangarCabinetDrawer');
+ assert.equal(cabinets.length,8,'two maintenance cabinets and six drawers retained');
+ const runwayLeft=originalRunway.position.x-originalRunway.geometry.parameters.width/2;
+ for(const furniture of cabinets){
+  const right=furniture.position.x+furniture.geometry.parameters.width/2;
+  assert.ok(right<runwayLeft-2,furniture.name+' may not overlap the runway');
+ }
  const entry={node:root,airfieldServiceYard:yard};
  const removed=removeRunwaySkidArtifacts(entry);
  assert.equal(removed,3,'remove only three unlabelled black bars in runway');
