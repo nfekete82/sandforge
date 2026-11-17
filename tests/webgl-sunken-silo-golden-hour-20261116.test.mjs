@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {readFileSync} from 'node:fs';
-import {createStrategicBuilding} from '../scripts/webgl-strategic-buildings.js';
+import {createStrategicBuilding,trimSiloRocketForGhost} from '../scripts/webgl-strategic-buildings.js';
 import {createBuildingYard,disposeBuildingYard} from '../scripts/webgl-building-yard.js';
 import {DESERT_GOLDEN_HOUR,desertGoldenHourEnabled}
  from '../scripts/webgl-golden-hour.js';
@@ -72,6 +72,12 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
   assert.ok(shader.fragmentShader.includes('deepFade'),
    'submerged body must fade into deep shaft shadow');
   assert.equal(shader.uniforms.uRocketRadius.value,body.geometry.parameters.radiusTop);
+  assert.equal(body.geometry.parameters.radiusTop,body.geometry.parameters.radiusBottom,
+   'real metal hull must be a straight cylinder, not a tapered slanted body');
+  assert.ok(shader.uniforms.uRocketColor.value.equals(body.material.color),
+   'underwater missile shader must use the exact same alloy albedo as the real upper hull');
+  assert.ok(shader.fragmentShader.includes('metal=uRocketColor*'),
+   'the submerged missile color may never come from a separate hard-coded grey');
   const stageBottom=body.position.y-body.geometry.parameters.height/2;
   assert.ok(Math.abs(shader.uniforms.uRocketBottom.value-
    (stageBottom-occlusion.position.y))<1e-6,
@@ -191,6 +197,39 @@ test('projected silo ray hits submerged rocket ahead of deep shaft wall',()=>{
  const wallC=eye.x*eye.x+eye.y*eye.y-wallRadius*wallRadius;
  const tWall=(-b+Math.sqrt(b*b-a*wallC))/a;
  assert.ok(tEntry<tWall,'rocket must be in front of the far shaft wall');
+});
+
+test('translucent silo building ghost hides the buried rocket without altering gameplay',()=>{
+ const live=createStrategicBuilding('silo',0);
+ const ghost=createStrategicBuilding('silo',0);
+ const liveBody=live.getObjectByName('Silo_RocketBody');
+ const ghostBody=ghost.getObjectByName('Silo_RocketBody');
+ assert.equal(ghostBody.geometry.drawRange.count,Infinity,
+  'new building starts with a complete rocket before ghost conversion');
+ assert.equal(trimSiloRocketForGhost(ghost),true);
+ assert.ok(ghostBody.userData.sandforgeGhostRocketCut);
+ const {radialSegments,heightSegments}=ghostBody.geometry.parameters;
+ const visible=ghostBody.userData.sandforgeGhostVisibleSegments;
+ assert.ok(visible>0&&visible<heightSegments/2,
+  'placement ghost may only show the upper part of the missile');
+ assert.equal(ghostBody.geometry.drawRange.count,visible*radialSegments*6);
+ const indices=ghostBody.geometry.index.array;
+ const positions=ghostBody.geometry.getAttribute('position');
+ let lowest=Infinity;
+ for(let i=0;i<ghostBody.geometry.drawRange.count;i++){
+  const vertexY=positions.getY(indices[i])+ghostBody.position.y;
+  lowest=Math.min(lowest,vertexY);
+ }
+ assert.ok(lowest>=2.2,
+  'preview rocket ends above the basement and cannot protrude below the ghost platform');
+ assert.equal(liveBody.geometry.drawRange.count,Infinity,
+  'preview clipping must never damage the completed in-game missile');
+ assert.equal(live.getObjectByName('Silo_TerrainOcclusion').material.uniforms.uDepth.value,95);
+ const scene=readFileSync('scripts/webgl-battlefield.js','utf8');
+ assert.match(scene,/if\(kind==='silo'\)trimSiloRocketForGhost\(placeholder\)/,
+  'ghost-only trim is called before translucent materials are applied');
+ assert.equal(trimSiloRocketForGhost(new THREE.Group()),false,
+  'non-silo buildings should never be modified');
 });
 
 test('silo shares the slim military barbed-wire fence and clears its supply pallets',()=>{
