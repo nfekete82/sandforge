@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {setCustomSupplyCargo,animateCustomSupplyTruck} from './webgl-supply-custom.js';
 
 /** Lightweight, wholly authored and self-contained Sandforge logistics art.
  * No external GLB, atlas, texture fetch or runtime geometry creation per frame.
@@ -106,7 +107,9 @@ export function updateSupplyCacheVisual(root,cache,{time=0,loading=false}={}){
  }
  root.visible=true;
 }
-export function setSupplyTruckCargo(root,loaded){
+export function setSupplyTruckCargo(root,job){
+ if(setCustomSupplyCargo(root,job))return;
+ const loaded=typeof job==='object'?Boolean(job?.cargo):Boolean(job);
  let cargo=root?.userData?.cargoGroup;
  if(!cargo&&root?.getObjectByName){
   cargo=root.getObjectByName('SF_Supply_Cargo');
@@ -120,6 +123,7 @@ export function setSupplyTruckCargo(root,loaded){
  */
 export function animateSupplyTruckRig(root,unit,entry,travel,time,dt,active){
  if(!root?.getObjectByName)return;
+ if(animateCustomSupplyTruck(root,entry,travel,dt,active,unit.supply?.phase))return;
  const rig=entry.supplyRigModel===root?entry.supplyRig:(()=>{
   entry.supplyRigModel=root;
   return entry.supplyRig={
