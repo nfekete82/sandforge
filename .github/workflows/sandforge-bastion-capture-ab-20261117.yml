@@ -1,9 +1,6 @@
 name: Sandforge Bastion parallel capture A/B
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/sandforge-bastion-capture-ab-20261117.yml'
   workflow_dispatch:
 
 jobs:
