@@ -338,7 +338,8 @@ export class TacticalAI {
   * leaving the entire army idle at an unaffordable fortified objective. */
  private expansionRaid(fighters:Unit[],home:Point):Set<number>{
   const g=this.g,s=this.state,b=s.battle??=newBattle(),old=b.squads.find(q=>q.role==='raid');
-  const safe=(id:number)=>{const t=g.territories[id];return t&&t.owner!==1&&!s.knownTurrets.some(k=>distance(k,t.point)<k.range+140)
+  const safe=(id:number)=>{const t=g.territories[id];return t&&t.owner!==1&&id!==s.commander?.mission?.sector
+   &&!s.knownTurrets.some(k=>distance(k,t.point)<k.range+140)
    &&!g.memories[1].some(m=>m.owner===0&&m.hp>0&&m.territory===id)
    &&!g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&distance(u,t.point)<350);};
   if(old&&old.target!==null&&safe(old.target)){
@@ -347,9 +348,16 @@ export class TacticalAI {
   }
   b.squads=b.squads.filter(q=>q.role!=='raid');
   if(old){const units=fighters.filter(u=>old.ids.includes(u.id));if(old.target!==null&&g.territories[old.target]?.owner!==1)this.issue(units,s.rally??home,'safe',undefined,false,false);}
-  if(fighters.length<5||!['reinforce','withdraw'].includes(b.assessment?.stance??'')||b.squads.some(q=>q.role==='defense'&&q.ids.length))return new Set();
+  // Two spare PAID fighters may take a separate, safe neutral Bastion while
+  // the main force is still assembling. No members of s.group are borrowed,
+  // and an active local-defense squad always takes priority.
+  const siegeStalled=['reinforce','withdraw'].includes(b.assessment?.stance??'');
+  const buildupOpportunity=g.time>=70&&s.phase==='gather'&&fighters.length>=10;
+  if(fighters.length<5||!(siegeStalled||buildupOpportunity)
+   ||b.squads.some(q=>q.role==='defense'&&q.ids.length))return new Set();
   const spare=fighters.filter(u=>!s.group.includes(u.id)&&['infantry','rover'].includes(u.kind));if(spare.length<2)return new Set();
-  const targets=g.territories.filter(t=>safe(t.id)&&t.neighbors.some(id=>g.territories[id].owner===1))
+  const targets=g.territories.filter(t=>safe(t.id)&&(!buildupOpportunity||t.owner===-1)
+   &&t.neighbors.some(id=>g.territories[id].owner===1))
    .sort((a,v)=>distance(spare[0],a.point)-distance(spare[0],v.point)||a.id-v.id);
   const target=targets.find(t=>{const route=this.route(spare[0],t.point);return route.length&&this.sampleRoute(route,spare[0]).risk<8;});if(!target)return new Set();
   const units=spare.sort((a,v)=>distance(a,target.point)-distance(v,target.point)||a.id-v.id).slice(0,2);
