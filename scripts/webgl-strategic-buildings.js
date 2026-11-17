@@ -521,7 +521,11 @@ export function createStrategicBuilding(kind,owner=0){
     uWallTexture:{value:siloInnerSteelPaint},
     uRocketRadius:{value:rocketRadius},
     uRocketBottom:{value:hullTopY-hullHeight-depthMaskY},
-    uRocketColor:{value:mats.rocketBody.color.clone()}
+    uRocketColor:{value:mats.rocketBody.color.clone()},
+    // Reuse the actual rocket PBR map for the virtual body below grade.
+    uRocketGrain:{value:mats.rocketBody.map},
+    uRocketTop:{value:hullTopY-depthMaskY},
+    uRocketHeight:{value:hullHeight}
    },
    vertexShader:`
     varying vec2 vSiloXY;
@@ -539,6 +543,9 @@ export function createStrategicBuilding(kind,owner=0){
     uniform float uRocketRadius;
     uniform float uRocketBottom;
     uniform vec3 uRocketColor;
+    uniform sampler2D uRocketGrain;
+    uniform float uRocketTop;
+    uniform float uRocketHeight;
     varying vec2 vSiloXY;
     const float PI=3.141592653589793;
     float band(float depth,float at,float halfWidth){
@@ -572,17 +579,19 @@ export function createStrategicBuilding(kind,owner=0){
       vec3 rocketHit=eye+dir*tRocket;
       float below=clamp(-rocketHit.z,0.0,uDepth);
       vec2 radial=normalize(rocketHit.xy);
-      // Match the smooth physical brushed-alloy upper stage: darker with
-      // depth, without ribs, painted rings or a fake lower end cap.
-      // Same alloy albedo as the physical missile, but lit as metal
-      // inside a dark underground well. The old hard-coded .59 grey was
-      // unlit and much brighter than the real PBR cylinder above it.
-      float diffuse=.045+.065*max(0.0,
-       dot(radial,normalize(vec2(-.66,.75))));
-      float brush=.004*sin(atan(rocketHit.y,rocketHit.x)*47.0+below*.035);
-      float deepFade=1.0-.88*smoothstep(1.0,uDepth-6.0,below);
-      metal=uRocketColor*max(.035,diffuse+brush)*deepFade+
-       vec3(.003,.0035,.004);
+      // Use the very same grain and alloy albedo as the physical body
+      // and rounded tip. The previous angle-based sine brush created
+      // vertical stripes in the submerged section that were not on the
+      // real rocket; they made it look like a different object.
+      float rocketAngle=atan(rocketHit.y,rocketHit.x)/(2.0*PI)+0.5;
+      vec2 rocketUV=vec2(rocketAngle,
+       (uRocketTop-rocketHit.z)/uRocketHeight);
+      vec3 rocketGrain=texture2D(uRocketGrain,rocketUV).rgb;
+      float facing=max(0.0,dot(radial,normalize(vec2(-.66,.75))));
+      float shade=.037+.052*facing;
+      float deepFade=1.0-.88*smoothstep(0.0,uDepth-6.0,below);
+      metal=uRocketColor*rocketGrain*shade*deepFade+
+       vec3(.002,.002,.002);
      }else if(tWall>tPlane+0.001 && tWall<tFloor){
       vec3 hit=eye+dir*tWall;
       float down=clamp(-hit.z,0.0,uDepth);
@@ -691,8 +700,10 @@ export function createStrategicBuilding(kind,owner=0){
   const shading=new Float32Array(positions.count*3);
   for(let i=0;i<positions.count;i++){
    const y=positions.getY(i)+hullCenterY;
-   const depth=Math.max(0,Math.min(1,(y+70)/95));
-   const brightness=.15+.85*depth*depth;
+   // Above the opening the cylinder shares the tip's full-strength PBR
+   // material. Apply gradual vertex darkening only underground.
+   const underground=Math.max(0,Math.min(1,(depthMaskY-y)/shaftDepth));
+   const brightness=1.0-.88*underground*underground;
    shading[i*3]=brightness;
    shading[i*3+1]=brightness;
    shading[i*3+2]=brightness;
