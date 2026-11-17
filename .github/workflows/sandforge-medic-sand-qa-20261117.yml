@@ -48,7 +48,7 @@ jobs:
             tests/sandforge-bastion-navigation.test.mjs
           # The legacy test uses the old center-to-center path assumption:
           # site centres are now physically occupied by Bastion towers.
-          # Run its other 11 genuine historical/terrain regressions.
+          # Run remaining genuine historical/terrain regressions.
           node --test \
-            --test-name-pattern='^(?!infantry, engineer, vehicle and heavy tank paths reach every bastion)' \
+            --test-name-pattern='^(?!.*infantry, engineer, vehicle and heavy tank paths reach every bastion)' \
             tests/sandforge-procedural-battlefields.test.mjs
