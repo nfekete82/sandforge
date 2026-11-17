@@ -84,11 +84,17 @@ export function createSupplyCacheVisual(){
 export function updateSupplyCacheVisual(root,cache,{time=0,loading=false}={}){
  const fraction=Math.max(0,Math.min(1,cache.remaining/Math.max(1,cache.capacity)));
  const model=root?.userData?.pbrModel??root;
- const stocks=Array.from({length:18},(_,i)=>
-  model.getObjectByName?.('SF_DepotStock_'+String(i).padStart(2,'0'))).filter(Boolean);
+ // GLTF group lookups happen once per cloned depot, not 18 scene-tree
+ // traversals per render frame (six sites can remain on screen for hours).
+ const stocks=model.userData.supplyStockGroups??(model.userData.supplyStockGroups=
+  Array.from({length:18},(_,i)=>
+   model.getObjectByName?.('SF_DepotStock_'+String(i).padStart(2,'0'))).filter(Boolean));
  if(stocks.length===18){
   const count=Math.ceil(stocks.length*fraction);
-  stocks.forEach((stock,i)=>{stock.visible=i<count;});
+  if(root.userData.lastStockModel!==model||root.userData.lastStockCount!==count){
+   stocks.forEach((stock,i)=>{stock.visible=i<count;});
+   root.userData.lastStockModel=model;root.userData.lastStockCount=count;
+  }
   const ramp=model.getObjectByName('SF_DepotLoadingRamp');
   if(ramp)ramp.rotation.x+=((loading?-.45:0)-ramp.rotation.x)*.12;
   const beacon=model.getObjectByName('SF_Depot_LoadBeacon');
@@ -101,8 +107,12 @@ export function updateSupplyCacheVisual(root,cache,{time=0,loading=false}={}){
  root.visible=true;
 }
 export function setSupplyTruckCargo(root,loaded){
- const cargo=root?.userData?.cargoGroup??root?.getObjectByName?.('SF_Supply_Cargo');
- if(cargo)cargo.visible=Boolean(loaded);
+ let cargo=root?.userData?.cargoGroup;
+ if(!cargo&&root?.getObjectByName){
+  cargo=root.getObjectByName('SF_Supply_Cargo');
+  if(cargo)root.userData.cargoGroup=cargo;
+ }
+ if(cargo&&cargo.visible!==Boolean(loaded))cargo.visible=Boolean(loaded);
 }
 /** Actual 20 Hz physical movement, not free-running mixer clips, drives all
  * 6 truck wheels. Opening the large rear doors follows loading/unloading
@@ -110,19 +120,24 @@ export function setSupplyTruckCargo(root,loaded){
  */
 export function animateSupplyTruckRig(root,unit,entry,travel,time,dt,active){
  if(!root?.getObjectByName)return;
+ const rig=entry.supplyRigModel===root?entry.supplyRig:(()=>{
+  entry.supplyRigModel=root;
+  return entry.supplyRig={
+   wheels:['L','R'].flatMap(side=>[0,1,2].map(i=>
+    root.getObjectByName('SF_Supply_Wheel_'+side+'_'+i))).filter(Boolean),
+   doors:[root.getObjectByName('SF_Supply_CargoDoor_L'),
+    root.getObjectByName('SF_Supply_CargoDoor_R')]
+  };
+ })();
  if(entry.supplyVisualTime!==time){
   entry.supplyVisualTime=time;
   if(active&&Number.isFinite(travel)&&travel>.03&&travel<80){
-   for(const side of ['L','R'])for(let i=0;i<3;i++){
-    const wheel=root.getObjectByName('SF_Supply_Wheel_'+side+'_'+i);
-    if(wheel)wheel.rotation.x-=travel/14.5;
-   }
+   for(const wheel of rig.wheels)wheel.rotation.x-=travel/14.5;
   }
  }
  const opening=['loading','unloading'].includes(unit.supply?.phase);
  const step=Math.min(1,Math.max(0,dt)*4.5);
- for(const [name,sign] of [['SF_Supply_CargoDoor_L',1],['SF_Supply_CargoDoor_R',-1]]){
-  const door=root.getObjectByName(name);
-  if(door)door.rotation.y+=((opening?1.10:0)*sign-door.rotation.y)*step;
- }
+ rig.doors.forEach((door,i)=>{
+  if(door)door.rotation.y+=((opening?1.10:0)*(i===0?1:-1)-door.rotation.y)*step;
+ });
 }
