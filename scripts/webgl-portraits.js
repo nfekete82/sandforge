@@ -47,11 +47,21 @@ export const strategicBuildingIcon=kind=>{
   '<path d="M95 79 L95 38 M65 56 Q95 8 125 56Z" fill="#6499a7" stroke="#e8c58a" stroke-width="6"/>'+
   '<circle cx="95" cy="35" r="9" fill="#e5c98b"/>':
   kind==='silo'?
-  '<rect x="35" y="116" width="126" height="45" rx="6" fill="#796d57"/>'+
-  '<rect x="58" y="71" width="76" height="64" rx="6" fill="#485659"/>'+
-  '<path d="M96 26 Q115 56 115 79 L115 138 L77 138 L77 79 Q77 55 96 26Z" fill="#9fa79d" stroke="#efd5a1" stroke-width="5"/>'+
-  '<rect x="45" y="101" width="20" height="13" fill="#5eacbd"/>'+
-  '<rect x="130" y="101" width="20" height="13" fill="#5eacbd"/>':
+  // Match the playable SILO rather than the retired upright bunker icon:
+  // low dark deck, broad circular recessed steel hatch, smooth parked missile,
+  // and a compact desert service room to its right.
+  '<path d="M13 120 L88 82 L179 123 L102 166 Z" fill="#323834" stroke="#7c755d" stroke-width="3"/>'+
+  '<path d="M35 120 L91 94 L158 123 L100 151 Z" fill="#181f21" stroke="#6c7166" stroke-width="6"/>'+
+  '<ellipse cx="96" cy="124" rx="47" ry="24" fill="#263138" stroke="#87928c" stroke-width="4"/>'+
+  '<ellipse cx="96" cy="121" rx="38" ry="19" fill="#141d22"/>'+
+  '<path d="M88 100 L88 79 Q89 68 96 64 Q105 69 105 79 L105 101Z" fill="#8e9998"/>'+
+  '<path d="M88 100 L88 126 Q96 137 105 126 L105 100Z" fill="#8e9998"/>'+
+  '<path d="M88 92 Q96 82 105 92" stroke="#d4dbd6" stroke-width="2" fill="none"/>'+
+  '<path d="M129 120 L159 105 L175 113 L146 128 Z" fill="#a69b79"/>'+
+  '<path d="M129 120 L146 128 L146 142 L129 134Z" fill="#877e63"/>'+
+  '<path d="M146 128 L175 113 L175 127 L146 142Z" fill="#666a56"/>'+
+  '<rect x="151" y="125" width="10" height="9" fill="#212b30"/>'+
+  '<path d="M26 139 L44 150 M157 151 L173 142" stroke="#857b61" stroke-width="3"/>':
   '<rect x="30" y="110" width="132" height="52" rx="8" fill="#877b66"/>'+
   '<rect x="48" y="63" width="98" height="60" rx="8" fill="#4c6064"/>'+
   '<path d="M60 118 L71 59 L87 33 L92 103 M104 118 L115 59 L131 33 L136 103" stroke="#d1d2bd" stroke-width="17" stroke-linecap="round" fill="none"/>'+
