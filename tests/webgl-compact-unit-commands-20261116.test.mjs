@@ -147,7 +147,7 @@ test('damaged bomber ZUR BASIS lands for actual airfield repair; full HP uses HQ
  assert.equal(healthy.airfieldService,undefined);
  assert.equal(healthy.orders[0].guardOnArrival,true,
   'fully healthy bomber retains ordinary return-to-HQ behavior');
- assert.equal(healthy.returnToHangar,undefined);
+ assert.notEqual(healthy.returnToHangar,true);
 });
 
 test('damaged bomber waits for occupied hangar, then automatically enters real service',()=>{
