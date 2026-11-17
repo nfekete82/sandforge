@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
-import {createStrategicBuilding,isStrategicBuilding} from './webgl-strategic-buildings.js';
+import {createStrategicBuilding,isStrategicBuilding,prepareSiloForPortrait} from './webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry} from './webgl-rocket-infantry.js';
 import {createResearchArtwork,RESEARCH_ARTWORK_KINDS} from './webgl-research-artworks.js';
 import {tintFactionMaterials} from './webgl-faction-accents.js';
@@ -205,6 +205,12 @@ function renderModelPortrait(model,renderer,{width=320,height=220,research=false
 function renderStrategicPortrait(kind,renderer){
  const model=createStrategicBuilding(kind,0);
  if(!model)return strategicBuildingIcon(kind);
+ // The live 125-unit missile extends far below the launch deck. Three.js
+ // includes those vertices (and hidden shaft floors) when framing a portrait,
+ // producing a tiny, misleading silo image. Portraits must show the ACTUAL
+ // top-side silhouette, not the underground construction mesh.
+ if(kind==='silo'&&!prepareSiloForPortrait(model))
+  throw new Error('Silo HUD portrait could not trim buried missile geometry');
  tintFactionMaterials(model,0,kind,'building');
  return renderModelPortrait(model,renderer,{buildingCard:true});
 }
