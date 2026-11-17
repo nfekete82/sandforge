@@ -55,6 +55,7 @@ import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building
 import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette.js';
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
+import {polishMedicModel} from '/webgl-medic-polish.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
 // exclusively by the original Simulation. 3D nodes are presentation only.
@@ -233,7 +234,7 @@ export class SandforgeBattlefield {
     const cloth=new THREE.MeshStandardMaterial({color:owner===0?'#b9afa0':'#ac8276',roughness:.86}),
      armor=new THREE.MeshStandardMaterial({color:owner===0?'#385d67':'#805044',roughness:.7}),
      white=new THREE.MeshStandardMaterial({color:'#eae4d6',roughness:.82}),
-     cross=new THREE.MeshStandardMaterial({color:'#ca3035',roughness:.76});
+     cross=new THREE.MeshStandardMaterial({color:'#178c68',roughness:.92});
     make(new THREE.BoxGeometry(17,20,12),cloth,0,22,0);
     for(const x of [-5.5,5.5]){
      make(new THREE.BoxGeometry(5,17,7),cloth,x,5,0);
@@ -473,6 +474,7 @@ export class SandforgeBattlefield {
      paintFactionRoofStripes(model,entry.kind,entry.owner);
      paintFactionEntranceBanners(model,entry.kind,entry.owner);
     }
+    if(type==='unit'&&entry.kind==='medic')polishMedicModel(model);
     if(type==='unit'&&entry.kind==='engineer')
      entry.engineerTools=equipEngineerTools(model);
     if(type==='unit'&&entry.kind==='rocket')
