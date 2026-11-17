@@ -112,10 +112,11 @@ test('phase 1: stale HQ attack is dropped if the Bastion it targeted was secured
  assert.notEqual(goal?.sector,t.id);
 });
 
-test('paid frontier guard: HQ reserve is protected, one soldier may protect an exposed Bastion',()=>{
+test('paid frontier guards: HQ reserve stays protected while two posts may cover separate Bastions',()=>{
  const source=readFileSync('src/reborn/tactical-ai.ts','utf8');
- assert.match(source,/const border=g\.territories\.filter\(t=>t\.owner===1&&/);
- assert.match(source,/const fort=i===1&&guards\.length>=2&&border\?border:null/);
+ assert.match(source,/const frontiers=g\.territories\.filter\(t=>t\.owner===1&&/);
+ assert.match(source,/frontierGuardPosts\(guards\.length,frontiers\.length\)/);
+ assert.match(source,/const fort=i>0&&i<=posted\?frontiers\[i-1\]:null/);
  assert.match(source,/const radius=fort\?68:/);
  assert.match(source,/const base=fort\?\.point\?\?protectedBases/);
  assert.match(source,/if\(u\.defendUntil>g\.time\)continue/,
