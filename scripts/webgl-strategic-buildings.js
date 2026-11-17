@@ -590,21 +590,35 @@ export function createStrategicBuilding(kind,owner=0){
       // alloy albedo, grain tiling and actual Golden-Hour directional light.
       // Our old .037+.052 grey shader ignored the strong WARM sun, creating
       // a black/blue stump against the physically lit upper cylinder.
-      float rocketAngle=atan(rocketHit.y,rocketHit.x)/(2.0*PI)+0.5;
-      vec2 rocketUV=vec2(rocketAngle,
-       (uRocketTop-rocketHit.z)/uRocketHeight)*uRocketMapScale;
+      // CylinderGeometry UVs are NOT the UVs of the camera-facing disk.
+      // Three.js cylinder U is atan2(x,z), with V=1 at the top. The old
+      // atan2(planeY,planeX)+.5 and inverted V shifted the grain at the seam.
+      // Mask-local Y = -world Z, so reproduce the actual cylinder UVs.
+      float rocketAngle=fract(
+       atan(rocketHit.x,-rocketHit.y)/(2.0*PI)+1.0);
+      float rocketV=1.0-(uRocketTop-rocketHit.z)/uRocketHeight;
+      vec2 rocketUV=vec2(rocketAngle,rocketV)*uRocketMapScale;
       vec3 rocketGrain=texture2D(uRocketGrain,rocketUV).rgb;
       vec3 rocketNormal=vec3(radial,0.0);
-      float sun=max(dot(rocketNormal,normalize(uRocketSunDir)),0.0);
-      // Specular/diffuse metal response is warmer on the exposed sunny side.
-      // The right side remains dark as on the real cylinder. Underground
-      // dimming starts a few units BELOW the opening, never at the join.
-      float sunResponse=pow(sun,1.75);
-      vec3 ambientMetal=vec3(.010,.009,.008);
-      vec3 warmMetal=uRocketSunColor*(.43*sunResponse);
-      float deepFade=1.0-.89*smoothstep(4.0,uDepth-7.0,below);
-      metal=uRocketColor*rocketGrain*(ambientMetal+warmMetal)*deepFade+
-       vec3(.001,.001,.001);
+      vec3 sunDir=normalize(uRocketSunDir);
+      float sun=max(dot(rocketNormal,sunDir),0.0);
+      // Use a softer warm key PLUS the ambient/sky fill available to the
+      // real PBR body. The previous strong .43 key and near-zero .010
+      // ambient made one side too warm and the other almost pitch-black,
+      // producing a harsh horizontal transition at the hatch opening.
+      float sunResponse=pow(sun,1.65);
+      vec3 ambientMetal=vec3(.035,.028,.020);
+      vec3 warmMetal=uRocketSunColor*(.32*sunResponse);
+      // Broad brushed-metal reflection tracks the actual view angle.
+      vec3 viewDir=normalize(eye-rocketHit);
+      vec3 halfDir=normalize(sunDir+viewDir);
+      float sheen=pow(max(dot(rocketNormal,halfDir),0.0),13.0);
+      vec3 specularMetal=uRocketSunColor*(.055*sheen);
+      // No artificial dark band at y=mask: the fade starts well inside the
+      // underground shaft and then disappears toward its real depth.
+      float deepFade=1.0-.89*smoothstep(6.0,uDepth-7.0,below);
+      metal=(uRocketColor*rocketGrain*(ambientMetal+warmMetal)
+       +specularMetal)*deepFade;
      }else if(tWall>tPlane+0.001 && tWall<tFloor){
       vec3 hit=eye+dir*tWall;
       float down=clamp(-hit.z,0.0,uDepth);
