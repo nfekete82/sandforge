@@ -38,7 +38,7 @@ test('deterministically exported six-wheel faction GLBs contain real camo PBR ma
    assert.ok(clip,anim+' is exported as a real GLB animation');
    assert.ok(clip.channels.length>=2);
   }
- });
+ }
 });
 test('depot GLB contains a true storage hall and eighteen individually hideable pallet stacks',()=>{
  const g=glb('supply-depot-neutral.glb');
