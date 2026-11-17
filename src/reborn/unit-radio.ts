@@ -26,7 +26,7 @@ const RADIO_CURVES:Record<string,Float32Array>={
  support:radioSaturationCurve(1.55),air:radioSaturationCurve(1.6)
 };
 const air=(kind:UnitKind)=>['scout','bomber'].includes(kind);
-export const radioProfile=(kind:UnitKind):string=>['medic','engineer'].includes(kind)?'support':['heavy','rover','tank','artillery'].includes(kind)?'crew':'soldier';
+export const radioProfile=(kind:UnitKind):string=>['medic','engineer'].includes(kind)?'support':['heavy','rover','supply','tank','artillery'].includes(kind)?'crew':'soldier';
 export function radioChoices(clips:RadioClip[],action:RadioAction,unit:UnitKind):RadioClip[]{
  // No soldier or engineer reports driving. Keep archived audio but never select it.
  const profile=radioProfile(unit),bank=clips.filter(c=>c.profile===profile&&(!/\bangefahren\b/i.test(c.text))),groups=(...names:string[])=>bank.filter(c=>names.includes(c.group));

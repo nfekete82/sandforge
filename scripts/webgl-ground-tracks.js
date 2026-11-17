@@ -87,10 +87,10 @@ function markPool(scene,type,capacity,ttl,opacity){
  * Render-only: UNITS collision radii and saved movement are untouched. */
 export function vehicleTrackProfile(kind){
  const footprint=(UNITS[kind]?.width??80)*visualUnitScale(kind);
- const treadFraction=kind==='rover'?.08:kind==='tank'?.105:.11;
+ const treadFraction=['rover','supply'].includes(kind)?.08:kind==='tank'?.105:.11;
  return {
   footprint,
-  offset:footprint*(kind==='rover'?.265:kind==='tank'?.25:.27),
+  offset:footprint*(['rover','supply'].includes(kind)?.265:kind==='tank'?.25:.27),
   width:Math.max(5,Math.min(12,footprint*treadFraction))
  };
 }
@@ -136,7 +136,8 @@ export class SandforgeGroundTracks{
    if(!last)continue;
    const dx=now.x-last.x,dz=now.y-last.y,d=Math.hypot(dx,dz);
    if(d<.01||d>this.maxTrailSpan)continue; // stationary or teleported
-   const vehicle=['rover','tank','artillery'].includes(unit.kind);
+   // Six-wheel supply trucks leave two tyre tracks, never alternating footsteps.
+   const vehicle=['rover','supply','tank','artillery'].includes(unit.kind);
    const interval=vehicle?19:17;
    const heading=Math.atan2(dx,dz);
    let distance=interval-last.carry;

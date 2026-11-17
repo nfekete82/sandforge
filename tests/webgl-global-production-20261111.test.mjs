@@ -29,8 +29,9 @@ test('the global dock has exactly four production tabs; research is building-onl
  assert.ok(hud.includes("panel.dataset.tab='buildings'"));
  assert.ok(hud.includes('data-action="sectors"'));
  assert.match(battlefield,/const available=globalCatalogAvailability\(g\)/);
- assert.match(battlefield,/const aircraftRoster=roster\(\[\['airfield','FLUGFELD'\]\]\)/);
- assert.match(battlefield,/const vehicleRoster=roster\(\[\['factory','FAHRZEUGFABRIK'\]\]\)/);
+ assert.match(battlefield,/const aircraftRoster=roster\(\[\['airfield','FLUGFELD'\]\],'Luftunterstützung'\)/);
+ assert.match(battlefield,/const vehicleRoster=roster\(\[\['headquarters','KOMMANDOZENTRALE · LOGISTIK'\]/);
+ assert.match(battlefield,/\['factory','FAHRZEUGFABRIK'\]\],'Fahrzeuge'\)/);
  assert.ok(battlefield.includes('if(!ready)return'));
  assert.ok(css.includes('button[hidden]'));
 });
@@ -55,7 +56,7 @@ test('real simulation automatically chooses barracks/factory/airfield despite no
  const cases=[
   ['engineer','headquarters'],['infantry','barracks'],['medic','barracks'],
   ['heavy','barracks'],['rocket','barracks'],
-  ['rover','factory'],['tank','factory'],['artillery','factory'],
+  ['supply','headquarters'],['rover','factory'],['tank','factory'],['artillery','factory'],
   ['scout','airfield'],['bomber','airfield']
  ];
  for(const [kind,sourceKind] of cases){
@@ -68,6 +69,8 @@ test('real simulation automatically chooses barracks/factory/airfield despite no
  }
  assert.equal(barracks.queueTypes.length,4);
  assert.equal(factory.queueTypes.length,3);
+ assert.ok(g.bases.some(b=>b.kind==='headquarters'&&b.queueTypes.includes('supply')),
+  'vehicle tab supplies are actually purchased at the HQ');
  assert.equal(airfield.queueTypes.length,2);
  assert.equal(g.count(0)+g.queued(0)<=48,true);
 });
@@ -163,15 +166,15 @@ test('only finished player-owned source buildings unlock their relevant producti
  const {g,add}=setup();
  const available=()=>globalCatalogAvailability(g);
  assert.deepEqual(available(),{
-  buildings:true,infantry:true,vehicles:false,aircraft:false,
+  buildings:true,infantry:true,vehicles:true,aircraft:false,
   territories:true
- },'starting HQ unlocks pioneer production only');
+ },'HQ unlocks pioneer and logistics vehicle production');
  const barracks=add('barracks');
  barracks.buildRemaining=4;
  assert.equal(available().infantry,true);
  const factory=add('factory');
  factory.buildRemaining=3;
- assert.equal(available().vehicles,false,'construction in progress is NOT unlocked');
+ assert.equal(available().vehicles,true,'HQ logistics works during factory construction');
  factory.buildRemaining=0;
  assert.equal(available().vehicles,true);
  assert.equal(available().aircraft,false);
@@ -187,8 +190,11 @@ test('only finished player-owned source buildings unlock their relevant producti
  assert.equal('research' in available(),false,'destroying lab cannot show an obsolete tab');
  airfield.owner=1;
  assert.equal(available().aircraft,false,'enemy-owned airfield does not unlock air tab');
- // Current tab disappears gracefully when the last factory is destroyed.
+ // Factory destruction hides its combat vehicles, but HQ logistics remains
+ // available until the last HQ is destroyed.
  factory.hp=0;
+ assert.equal(available().vehicles,true);
+ g.bases.find(b=>b.kind==='headquarters'&&b.owner===0).hp=0;
  assert.equal(available().vehicles,false);
  assert.equal(available().buildings,true);
 });
@@ -198,6 +204,8 @@ test('unit types are split into independent factory and aircraft menus',()=>{
  const ground=units.filter(u=>UNITS[u].producers.includes('factory'));
  const airborne=units.filter(u=>UNITS[u].producers.includes('airfield'));
  assert.deepEqual(ground,['rover','tank','artillery']);
+ assert.equal(UNITS.supply.group,'Fahrzeuge');
+ assert.deepEqual(UNITS.supply.producers,['headquarters']);
  assert.deepEqual(airborne,['scout','bomber']);
  for(const u of airborne)assert.ok(!ground.includes(u));
  const {g,add}=setup();add('factory');add('airfield');

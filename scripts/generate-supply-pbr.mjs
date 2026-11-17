@@ -87,15 +87,28 @@ function newScene(name,owner){
    g=[px+sx,py+h,pz+sz],i=[px-sx,py+h,pz+sz];
   for(const four of [[a,b,c,corner],[e,i,g,f],[a,e,f,b],[b,f,g,c],[c,g,i,corner],[corner,i,e,a]])quad(mat,...four,n);
  }
- function cylinderX(mat,r,width,n=0,segments=16,center=[0,0,0],r2=r){
+ /** Proper outward-facing cylinder along X (old end-cap triangles were
+  * degenerate and the huge rectangular cleats looked like giant black blobs).
+  */
+ function cylinderX(mat,r,width,n=0,segments=24,center=[0,0,0]){
   const [x,y,z]=center;
+  const v=(u,ang)=>[x+u,y+r*Math.sin(ang),z+r*Math.cos(ang)];
   for(let i=0;i<segments;i++){
    const a=i*TAU/segments,b=(i+1)*TAU/segments;
-   const v=(u,radius,ang)=>[x+u,y+radius*Math.sin(ang),z+radius*Math.cos(ang)];
-   quad(mat,v(-width/2,r,a),v(-width/2,r,b),v(width/2,r,b),v(width/2,r,a),n);
-   quad(mat,v(-width/2,r2,0),v(-width/2,r,a),v(-width/2,r,b),v(-width/2,r2,0),n);
-   tri(mat,v(width/2,0,0),v(width/2,r,a),v(width/2,r,b),n);
-   tri(mat,v(-width/2,0,0),v(-width/2,r,b),v(-width/2,r,a),n);
+   quad(mat,v(-width/2,a),v(width/2,a),v(width/2,b),v(-width/2,b),n);
+   tri(mat,[x+width/2,y,z],v(width/2,b),v(width/2,a),n);
+   tri(mat,[x-width/2,y,z],v(-width/2,a),v(-width/2,b),n);
+  }
+ }
+ /** Low-profile tread ribs follow the tyre circumference tangentially,
+  * not sharp cubes protruding through the wheel. All rotate with the pivot.
+  */
+ function tyreBand(n,r=12.2,width=9.4){
+  const segments=28,half=width/2-.8;
+  for(let i=0;i<segments;i++){
+   const a=(i+.13)*TAU/segments,b=(i+.74)*TAU/segments;
+   const p=(x,ang)=>[x,(r+.19)*Math.sin(ang),(r+.19)*Math.cos(ang)];
+   quad('edge',p(-half,a),p(half,a),p(half,b),p(-half,b),n);
   }
  }
  function beam(mat,a,b,width,n=0){
@@ -173,10 +186,10 @@ function newScene(name,owner){
   console.log('PBR GLB '+outFile+' '+(out.length/1024).toFixed(1)+' KiB, '+gltf.meshes.length+
    ' textured mesh batches, '+gltf.animations.length+' authored animation clips');
  }
- return {box,wedge,cylinderX,beam,node,buildGLB};
+ return {box,wedge,cylinderX,tyreBand,beam,node,buildGLB};
 }
 function truck(owner){
- const a=newScene('SF_Supply_Truck_Root',owner),{box,wedge,cylinderX,node}=a;
+ const a=newScene('SF_Supply_Truck_Root',owner),{box,wedge,cylinderX,tyreBand,node}=a;
  // 3-axle articulated field supply vehicle; nose is local +Z.
  box('edge',[0,13,-3],[48,7,105]);box('steel',[0,19,-2],[44,4,94]);
  box('black',[0,19,48],[50,9,14]);box('hub',[0,19,55],[48,4,8]);
@@ -245,25 +258,27 @@ function truck(owner){
   for(const side of [-1,1])
    box('edge',[x+side*9,43,z],[2,17,15],cargo);
  }
+ // Rounded low-profile military all-terrain tyres, 3 axles / 6 wheels.
+ // Former mesh used 16 huge rotated rectangular cleats per tyre; viewed
+ // isometrically those resembled gears/black rocks rather than real wheels.
  const wheels=[];
  for(const side of [-1,1])for(const [idx,z] of [[0,29],[1,-15],[2,-43]]){
   const label='SF_Supply_Wheel_'+(side<0?'L':'R')+'_'+idx;
-  const pivot=node(label,0,[side*30,13,z]);wheels.push(pivot);
-  cylinderX('rubber',14.5,10,pivot,20);
-  cylinderX('edge',10.6,11,pivot,16,[0,0,0],10.3);
-  cylinderX('hub',7.2,12,pivot,16,[0,0,0],7.2);
-  cylinderX('steel',3.1,13,pivot,12,[0,0,0],3.1);
-  // Deep, visibly sculpted treads, not black spheres.
-  for(let i=0;i<16;i++){
-   const ang=i*TAU/16;
-   box('black',[0,Math.sin(ang)*14.4,Math.cos(ang)*14.4],
-    [12,4.5,7],pivot,-ang);
-  }
-  for(let i=0;i<8;i++){
-   const ang=i*TAU/8;
-   box('black',[side*5.9,Math.sin(ang)*5.9,Math.cos(ang)*5.9],[1.5,1.7,2.5],pivot);
+  const pivot=node(label,0,[side*30,13.3,z]);wheels.push(pivot);
+  cylinderX('rubber',12.2,9.4,pivot,28);
+  tyreBand(pivot,12.2,9.4);
+  // Separately coloured sidewall, recessed ring, hub and six lug nuts.
+  cylinderX('black',9.1,10.2,pivot,28);
+  cylinderX('steel',7.1,11.4,pivot,24);
+  cylinderX('hub',5.5,12.1,pivot,24);
+  cylinderX('edge',2.4,12.6,pivot,16);
+  for(let i=0;i<6;i++){
+   const angle=i*TAU/6,yy=Math.sin(angle)*4.15,zz=Math.cos(angle)*4.15;
+   // Flush lug nuts: visually readable without spikes.
+   cylinderX('steel',.85,1.1,pivot,8,[side*6.2,yy,zz]);
   }
  }
+
  for(const z of [-15,-43])box('edge',[0,12,z],[70,3,4]);
  box('black',[0,14,-65],[45,5,4]);box('amber',[-21,18,-67],[7,3,2]);box('amber',[21,18,-67],[7,3,2]);
  const spin={name:'SupplyWheelRoll',tracks:wheels.map(n=>{
@@ -320,15 +335,19 @@ function depot(){
  box('camo',[0,58,-6],[145,12,7]);
  for(const x of [-62,62])box('steel',[x,31,-2],[7,54,8]);
  box('black',[0,36,-9],[112,42,2]);
- // Roof and canopy panels in same muted camo PBR palette as headquarters.
- box('edge',[0,69,-75],[204,8,159]);
- box('camo',[0,75,-72],[202,8,160]);
- box('camoDark',[-47,80,-74],[62,1.5,141]);
- box('khaki',[39,80,-75],[54,1.5,141]);
- for(const z of [-140,-111,-82,-53,-25]){
-  box('steel',[0,81,z],[205,3,3]);
+ // OPEN STORAGE COURTYARD: a complete roof concealed all 18 stock groups
+ // from the elevated RTS camera. Keep a roof over the rear offices, side
+ // rails and exposed metal beams, but leave the pallet bays visibly open.
+ box('edge',[0,71,-128],[204,8,34]);
+ box('camo',[0,76,-128],[202,5,32]);
+ box('camoDark',[-46,79,-128],[67,2,28]);
+ box('khaki',[43,79,-128],[50,2,28]);
+ for(const z of [-143,-110,-68,-28]){
+  box('steel',[0,78,z],[195,3.3,3.5]);
  }
- for(const x of [-100,100])box('edge',[x,77,-75],[6,9,162]);
+ for(const x of [-100,100])box('edge',[x,73,-75],[6,6,159]);
+ // Short side sunshades without a solid ceiling above the crates.
+ for(const x of [-91,91])box('canvas',[x,75,-65],[15,3,72]);
  // Deeper covered front platform; intentionally wide access lane in the middle.
  box('stone',[0,3,21],[185,6,60]);
  for(const x of [-91,91])box('edge',[x,5,21],[5,7,61]);
@@ -338,11 +357,13 @@ function depot(){
   beam('edge',[x,60,30],[x*.85,76,-5],6);
   box('edge',[x,65,30],[16,5,14]);
  }
- box('camo',[0,78,12],[191,7,105]);
- box('camoDark',[-44,82,7],[61,1.5,96]);
- box('light',[40,82,15],[46,1.5,80]);
- for(const x of [-91,91])box('steel',[x,80,12],[5,8,107]);
- for(const z of [-38,10,52])box('edge',[0,82,z],[188,3,4]);
+ // Weatherproof loading lip only: the stock at z -44/-11/+22
+ // remains completely visible from above. A 25-unit lip shades the ramp.
+ box('camo',[0,78,51],[191,7,24]);
+ box('camoDark',[-44,82,51],[62,1.6,19]);
+ box('light',[40,82,51],[47,1.6,19]);
+ for(const x of [-91,91])box('steel',[x,80,34],[5,8,48]);
+ for(const z of [34,65])box('edge',[0,82,z],[188,3,4]);
  for(const x of [-60,60])box('amber',[x,71,50],[33,3.5,4]);
  // Raised rear annex: real large shipping container, NOT a tiny shed.
  box('steel',[121,16,-102],[62,29,81]);
@@ -352,10 +373,10 @@ function depot(){
  for(const z of [-136,-117,-99,-81,-62])box('edge',[154,30,z],[4,34,2]);
  for(const x of [102,142])box('black',[x,21,-58],[9,20,3]);
  // Roof utilities integrated into the surface instead of floating pieces.
- box('edge',[-38,83,-108],[42,4,32]);
- for(let i=0;i<7;i++)box('steel',[-55+i*5.5,87,-108],[2,4,29]);
- box('stone',[55,84,-118],[27,9,33]);
- for(let i=0;i<5;i++)box('black',[45+i*5,90,-117],[2,2,27]);
+ box('edge',[-38,83,-128],[42,4,30]);
+ for(let i=0;i<7;i++)box('steel',[-55+i*5.5,87,-128],[2,4,26]);
+ box('stone',[55,84,-128],[27,9,29]);
+ for(let i=0;i<5;i++)box('black',[45+i*5,90,-127],[2,2,24]);
  // Corner markings and large, solid readable cargo doors.
  for(const x of [-63,63]){
   box('olive',[x,29,-2],[31,35,4]);
@@ -369,7 +390,7 @@ function depot(){
   const row=Math.floor(i/6),col=i%6;
   // Stock sits in side bays leaving a broad central lane for trucks.
   const side=col<3?-1:1,slot=col%3;
-  const x=side*(60+slot*12),z=-44+row*33;
+  const x=side*(48+slot*18),z=-44+row*33;
   const group=node('SF_DepotStock_'+String(i).padStart(2,'0'));
   crate(a,group,x,20,z,18,17,i%3===0?'metal':'wood');
   if(i%4===0)crate(a,group,x,41,z,16,16,'metal');

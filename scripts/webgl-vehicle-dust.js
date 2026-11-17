@@ -1,7 +1,7 @@
 /** Bounded, visual-only desert vehicle dust. Called once per 20-Hz state tick. */
 export const VEHICLE_DUST_CAP=120;
 export const VEHICLE_DUST_CAP_LITE=28;
-const KINDS=new Set(['rover','tank','artillery']);
+const KINDS=new Set(['rover','supply','tank','artillery']);
 export function vehicleDustEligible({kind,moving,dx,dz,biome='desert',visible=true,
  enabled=true,distanceToCamera=0,lite=false,tick=0,id=0}){
  if(!enabled||biome!=='desert'||!visible||!moving||!KINDS.has(kind))return false;

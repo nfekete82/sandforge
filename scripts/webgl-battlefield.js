@@ -56,7 +56,7 @@ import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
-import {createSupplyTruckVisual,createSupplyCacheVisual,updateSupplyCacheVisual,setSupplyTruckCargo,animateSupplyTruckRig} from '/webgl-supply-logistics.js';
+import {createSupplyTruckVisual,createSupplyCacheVisual,updateSupplyCacheVisual,setSupplyTruckCargo,animateSupplyTruckRig,updateSupplyLoadingIndicator} from '/webgl-supply-logistics.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
 // exclusively by the original Simulation. 3D nodes are presentation only.
@@ -1178,6 +1178,7 @@ export class SandforgeBattlefield {
     if(Math.abs(visualGround-terrainGround)<.03)delete entry.previousServiceGround;
    }
    entry.node.position.copy(this.pos(x,z,visualGround+unitRenderAltitude(u.kind,u.flightHeight??1)));
+   if(u.kind==='supply')updateSupplyLoadingIndicator(entry,u.supply);
    const hullAngle=['tank','artillery'].includes(u.kind)&&Number.isFinite(u.hullAngle)?u.hullAngle:u.angle;
    entry.node.rotation.y=unitVisualYaw(u.kind,hullAngle);
    if(u.kind==='tank'||u.kind==='artillery')this.orientTankRig(entry,u);
@@ -1905,7 +1906,7 @@ export class SandforgeBattlefield {
     '<span class="card-meta"><span class="card-name">'+plain(spec.name)+
     '</span><span class="card-cost">'+spec.cost+'</span></span></button>';
   }).join('');
-  const roster=(producers)=>producers.map(([kind,label])=>{
+  const roster=(producers,category)=>producers.map(([kind,label])=>{
    const ready=g.bases.some(b=>b.owner===0&&b.kind===kind&&b.hp>0&&b.buildRemaining<=0);
    // Never list any unbuilt or in-progress production facility: its tab
    // remains absent or its producer's cards are hidden until completion.
@@ -1913,12 +1914,15 @@ export class SandforgeBattlefield {
    return '<section class="sf-roster-section" data-sf-producer="'+kind+
     '" data-sf-ready="true"><h2>'+label+
     '</h2><div class="catalog-grid">'+
-    cards(unitKinds.filter(k=>UNITS[k].producers.includes(kind)),'unit')+'</div></section>';
+    cards(unitKinds.filter(k=>UNITS[k].producers.includes(kind)&&
+     UNITS[k].group===category),'unit')+'</div></section>';
   }).join('');
   const infantryRoster=roster([['headquarters','KOMMANDOZENTRALE · PIONIERE'],
-   ['barracks','KASERNE · INFANTERIE']]);
-  const vehicleRoster=roster([['factory','FAHRZEUGFABRIK']]);
-  const aircraftRoster=roster([['airfield','FLUGFELD']]);
+   ['barracks','KASERNE · INFANTERIE']],'Infanterie');
+  // Classify by UNIT, not by its factory: HQ builds unarmed supply vehicles.
+  const vehicleRoster=roster([['headquarters','KOMMANDOZENTRALE · LOGISTIK'],
+   ['factory','FAHRZEUGFABRIK']],'Fahrzeuge');
+  const aircraftRoster=roster([['airfield','FLUGFELD']],'Luftunterstützung');
   // The original markup embedded a changing capture timer. Every 280 ms
   // during a late-game sector contest it changed the ENTIRE catalogue HTML,
   // destroyed all image elements and caused new 3D portrait uploads/readbacks.

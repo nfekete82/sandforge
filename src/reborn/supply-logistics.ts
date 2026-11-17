@@ -34,6 +34,16 @@ export interface SupplyJob{
  destination?:Point;
 }
 export const newSupplyJob=():SupplyJob=>({auto:true,phase:'seek',cacheId:null,cargo:0,clock:0});
+/** Rendering-only progress from the real paid logistics timeline. Never
+ * advances the clock or awards credits, even on pause/save/replay.
+ */
+export function supplyOperationProgress(job:Pick<SupplyJob,'phase'|'clock'>|undefined):
+ {mode:'loading'|'unloading';fraction:number}|null{
+ if(!job||job.phase!=='loading'&&job.phase!=='unloading')return null;
+ const seconds=job.phase==='loading'?SUPPLY_PICKUP_SECONDS:SUPPLY_UNLOAD_SECONDS;
+ const elapsed=Number.isFinite(job.clock)?job.clock:0;
+ return {mode:job.phase,fraction:clamp(elapsed/seconds,0,1)};
+}
 const positive=(n:number)=>Number.isFinite(n)&&n>=0;
 export function validSupplyJob(job:SupplyJob|undefined,kind:string,size:number):boolean{
  if(job===undefined)return true;
