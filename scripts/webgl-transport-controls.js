@@ -7,6 +7,18 @@ export function selectedInfantryForTransport(units,selected,carrier){
  return units.filter(u=>chosen.has(u.id)&&u.id!==carrier.id&&u.owner===carrier.owner&&
   u.hp>0&&!u.carrier&&BOARDABLE_INFANTRY.has(u.kind)).map(u=>u.id);
 }
+/** Right-click a friendly infantry while ONE Humvee/helicopter is selected.
+ * A carrier-initiated pickup must not depend on infantry being selected;
+ * Simulation.transports.collect moves the carrier to the target instead.
+ */
+export function selectedCarrierForPickup(units,selected,passenger){
+ const chosen=selected instanceof Set?selected:new Set(selected??[]);
+ if(!passenger||passenger.hp<=0||passenger.carrier||
+  !BOARDABLE_INFANTRY.has(passenger.kind)||chosen.size!==1)return null;
+ return units.find(u=>chosen.has(u.id)&&u.id!==passenger.id&&
+  ['rover','scout'].includes(u.kind)&&u.owner===passenger.owner&&u.owner===0&&
+  u.hp>0&&!u.carrier)??null;
+}
 export function selectedLoadedTransports(units,selected){
  const chosen=selected instanceof Set?selected:new Set(selected??[]);
  return units.filter(u=>chosen.has(u.id)&&['rover','scout'].includes(u.kind)&&u.owner===0&&u.hp>0&&
