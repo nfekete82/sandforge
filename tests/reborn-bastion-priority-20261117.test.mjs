@@ -42,6 +42,34 @@ test('phase 1: a living HQ in the selected Bastion is a legal tactical blocker',
  assert.equal(target?.sector,t.id);
 });
 
+test('phase 1: free adjacent Bastion outranks a visible turret-blocked Bastion',()=>{
+ const {g,redHQ,redHQSector}=scenario();
+ const neighbors=redHQSector.neighbors.map(id=>g.territories[id]).filter(t=>t.owner===-1);
+ assert.ok(neighbors.length>=2);
+ const defended=neighbors[0],free=neighbors[1];
+ const turret={id:88001,owner:0,kind:'turret',hp:650,
+  x:defended.point.x,y:defended.point.y,territory:defended.id};
+ g.memories[1].push(turret);
+ const goal=chooseMission(g,newCampaign(),redHQ);
+ assert.equal(goal?.kind,'capture');
+ assert.equal(goal?.sector,free.id,
+  'select the unfortified Bastion before knowingly entering a guarded capture zone');
+});
+
+test('phase 1: if all adjacent Bastions are defended, attack only their known blocker',()=>{
+ const {g,redHQ,redHQSector}=scenario();
+ const adjacent=redHQSector.neighbors.map(id=>g.territories[id]).filter(t=>t.owner===-1);
+ assert.ok(adjacent.length>=2);
+ for(const [i,t] of adjacent.entries())g.memories[1].push({
+  id:88002+i,owner:0,kind:'turret',hp:650,
+  x:t.point.x,y:t.point.y,territory:t.id
+ });
+ const goal=chooseMission(g,newCampaign(),redHQ);
+ assert.equal(goal?.kind,'structure');
+ assert.ok(g.memories[1].some(m=>m.id===goal.objective&&m.kind==='turret'));
+ assert.notEqual(g.territories[goal.sector].owner,1);
+});
+
 test('phase 2: after all Bastions are secure, destroy remaining known enemies',()=>{
  const {g,redHQ,blueHQ}=scenario();
  for(const t of g.territories)t.owner=1;
