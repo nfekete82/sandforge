@@ -204,7 +204,10 @@ export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
  // markings inside the aircraft corridor are flat painted lines/thresholds.
  // No raised painted black dashes anywhere along the service apron.
  // Real concrete joints already live in the subtle slab texture.
- for(const x of [-216,45]){
+ // Both maintenance cabinets belong in the service compound. The old
+ // x=45 cabinet sat ON the runway; its three dark drawers appeared as
+ // the remaining two black skid marks after visual cleanup hid the first.
+ for(const x of [-238,-223]){
   box(group,'HangarMaintenanceToolCabinet',15,26,19,x,14,-109,ribbedSteel);
   for(const yy of [11,18,25])
    box(group,'HangarCabinetDrawer',12,1.4,2,x,yy,-98,dark);
