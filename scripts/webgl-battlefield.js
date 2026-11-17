@@ -56,8 +56,6 @@ import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
-import {createSupplyTruckVisual,createSupplyCacheVisual,updateSupplyCacheVisual,setSupplyTruckCargo,animateSupplyTruckRig,updateSupplyLoadingIndicator} from '/webgl-supply-logistics.js';
-import {customSupplyTruckUrl,prepareCustomSupplyTruck} from '/webgl-supply-custom.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
 // exclusively by the original Simulation. 3D nodes are presentation only.
@@ -72,7 +70,6 @@ export class SandforgeBattlefield {
  constructor({game,world,terrain,scene,renderer,camera,controls,loader,groundMeshes,heightAt,pos,lite=false,biome='desert'}){
   Object.assign(this,{game,world,terrain,scene,renderer,camera,controls,loader,groundMeshes,heightAt,pos,lite,biome});
   this.units=new Map();this.bases=new Map();this.bastions=new Map();
-  this.supplyCacheNodes=new Map();this.supplyCacheGame=null;
   // Toggle just the NEW site dressing, not the original production props.
   this.siteDecorEnabled=new URLSearchParams(location.search).get('siteDecor')!=='0';
   this.announcedBuildings=new Set(game.bases.filter(b=>b.buildRemaining<=0).map(b=>b.id));
@@ -150,7 +147,6 @@ export class SandforgeBattlefield {
  }
  entityPosition(p){return this.pos(p.x,p.y,this.heightAt(p.x,p.y)+unitRenderAltitude(p.kind,p.flightHeight??1));}
  createFallback(kind,owner,type){
-  if(type==='unit'&&kind==='supply')return createSupplyTruckVisual(owner);
   if(type==='building'&&isStrategicBuilding(kind))return createStrategicBuilding(kind,owner);
   if(type==='unit'&&kind==='rocket')return createRocketInfantry(owner);
   const group=new THREE.Group(),team=FACTION_PAINT[owner],metal=new THREE.MeshStandardMaterial({color:team,metalness:.55,roughness:.53}),
@@ -276,9 +272,6 @@ export class SandforgeBattlefield {
  }
  async getModel(url){
   if(!this.models.has(url))this.models.set(url,this.loader.loadAsync(url).catch(e=>{
-   // Older worktrees without the newly imported GLB keep their existing PBR truck.
-   const match=url.match(/\/supply-custom\/supply-([01])\.glb$/);
-   if(match)return this.loader.loadAsync('/src/assets/reborn/supply-pbr/supply-'+match[1]+'.glb');
    this.models.delete(url);throw e;
   }));
   return this.models.get(url);
@@ -286,8 +279,6 @@ export class SandforgeBattlefield {
  asset(kind,owner,type){
   const prefix='/src/assets/reborn/';
   if(type==='building')return prefix+'buildings-3d/'+kind+'-'+owner+'.glb';
-  // True textured GLBs with six wheel pivots and two working cargo doors.
-  if(type==='unit'&&kind==='supply')return customSupplyTruckUrl(owner);
   // Rocket specialists share the fully animated Atlas infantry skeleton.
   // Keep the original prototype rig and clips, replace only its rifle mesh.
   if(type==='unit'&&kind==='rocket')return prefix+'prototype/infantry-'+owner+'.glb';
@@ -303,16 +294,15 @@ export class SandforgeBattlefield {
   // ?lite=1 mode. Queue pressure must not permanently demote a paid tank to
   // the emergency cuboid geometry.
   const priorityTank=type==='unit'&&entity.kind==='tank';
-  const prioritySupply=type==='unit'&&entity.kind==='supply';
   if((this.lite&&type!=='building'&&
-      !['medic','rocket','tank','supply'].includes(entity.kind))||
+      !['medic','rocket','tank'].includes(entity.kind))||
      (type==='building'&&isStrategicBuilding(entity.kind))||entry.requested||
-     (!priorityTank&&!prioritySupply&&this.loadingCount+this.modelQueue.length>=this.maxModels))return;
+     (!priorityTank&&this.loadingCount+this.modelQueue.length>=this.maxModels))return;
   entry.requested=true;
   const url=this.asset(entity.kind,entity.owner,type);
   if(type==='building'&&['factory','barracks'].includes(entity.kind))
    this.modelQueue.unshift({url,entry,type});
-  else if(type==='unit'&&['tank','medic','supply'].includes(entity.kind))
+  else if(type==='unit'&&['tank','medic'].includes(entity.kind))
    this.modelQueue.unshift({url,entry,type});
   else this.modelQueue.push({url,entry,type});
   this.pumpModelQueue();
@@ -464,7 +454,6 @@ export class SandforgeBattlefield {
     const {entry,type}=task;
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
-    if(type==='unit'&&entry.kind==='supply')prepareCustomSupplyTruck(model,entry.owner);
     if(type==='building'&&((entry.kind==='headquarters'&&
       model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
       (entry.kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
@@ -486,10 +475,6 @@ export class SandforgeBattlefield {
     if(type==='building'&&['barracks','headquarters'].includes(entry.kind)){
      paintFactionRoofStripes(model,entry.kind,entry.owner);
      paintFactionEntranceBanners(model,entry.kind,entry.owner);
-    }
-    if(type==='unit'&&entry.kind==='supply'){
-     model.userData.sandforgeOriginalPBR=true;
-     setSupplyTruckCargo(model,{cargo:0,phase:'seek'});
     }
     if(type==='unit'&&entry.kind==='medic')polishMedicModel(model);
     if(type==='unit'&&entry.kind==='engineer')
@@ -552,7 +537,7 @@ export class SandforgeBattlefield {
      if(type==='building')finishBuildingFacadeShading(model);
     }
     if(type==='building'&&entry.kind==='barracks')addBarracksContactShadows(model);
-    if(type==='unit'&&entry.kind!=='supply')
+    if(type==='unit')
      attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
     entry.visualBaseY=model.position.y;entry.visualBaseZ=model.position.z;
     if(type==='building'){
@@ -561,9 +546,7 @@ export class SandforgeBattlefield {
     }
     if(type==='unit'&&['tank','artillery'].includes(entry.kind))this.installTankRig(entry,model);
     entry.modelLoadError=null;entry.modelLoadRetries=0;
-    // Authored wheel clips exist for GLB inspection; actual wheel rotation
-    // follows real displacement, so parked trucks never spin.
-    if(type==='unit'&&data.animations.length&&entry.kind!=='supply'){
+    if(type==='unit'&&data.animations.length){
      const mixer=new THREE.AnimationMixer(model);
      const idle=data.animations.find(a=>/idle|stand|hover|engine/i.test(a.name))||data.animations[0];
      const walk=data.animations.find(a=>/walk|run|move|drive|roll|fly|operation/i.test(a.name))||idle;
@@ -653,7 +636,7 @@ export class SandforgeBattlefield {
    if(rotor)entry.motion={kind:'research',rotor,mode:'anchored-dish'};
   }
   if(type==='building')finishBuildingFacadeShading(placeholder);
-  if(unit&&entity.kind!=='supply')attachTeamMarkings(entry,entity.owner,entity.kind,footprint,height);
+  if(unit)attachTeamMarkings(entry,entity.owner,entity.kind,footprint,height);
   if(type==='unit'&&['tank','artillery'].includes(entity.kind))this.installTankRig(entry,placeholder);
   this.scheduleDetail(entry,entity,type);return entry;
  }
