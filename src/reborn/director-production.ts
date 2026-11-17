@@ -139,7 +139,7 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   infantry:12,heavy:c.income>=65?6:5,rocket:rocketQuota,
   medic:Math.min(3,Math.ceil((count('infantry')+count('heavy'))/5)),
   engineer:c.defenseNeedsWorker||c.own.length>=4&&(s.recovering?.length??0)>0?2:1,
-  rover:2,tank:c.income>=65||observed.armor>=3?6:4,
+  supply:2,rover:2,tank:c.income>=65||observed.armor>=3?6:4,
   artillery:c.knownTurrets>1?4:c.knownEnemyHQ||c.knownTurrets?3:2,
   scout:1,bomber:Math.max(bomberQuota,c.income>=65&&!c.finishing?1:0),
  })[kind];
