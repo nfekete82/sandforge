@@ -1,10 +1,10 @@
-// One vertical, segmented industrial shutter: 16 full-width panels wind into
+// One vertical, segmented industrial shutter: 8 broad full-width steel panels wind into
 // the overhead drum instead of sliding sideways or deforming whole door meshes.
 // Presentation-only; all aircraft pathing, bay timing and collision are unchanged.
-export const AIRFIELD_ROLLUP_VERSION='segmented-vertical-shutter-v2-20261116';
-export const AIRFIELD_ROLLUP_SLATS=16;
-export const AIRFIELD_ROLLUP_FIRST_Y=6;
-export const AIRFIELD_ROLLUP_STEP=4;
+export const AIRFIELD_ROLLUP_VERSION='segmented-coarse-steel-shutter-v3-20261117';
+export const AIRFIELD_ROLLUP_SLATS=8;
+export const AIRFIELD_ROLLUP_FIRST_Y=8;
+export const AIRFIELD_ROLLUP_STEP=8;
 export const AIRFIELD_ROLLUP_TRAVEL=64;
 export function applyAirfieldRollup(gate,progress=gate?.open??0){
  if(!gate)return;
