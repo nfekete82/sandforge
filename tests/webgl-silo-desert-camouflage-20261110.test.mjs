@@ -56,7 +56,8 @@ test('missile silo and research center share desert khaki and olive PBR paint',(
    'static details remain batched; allow one dedicated shaft depth mask');
   assert.ok(silo.getObjectByName('Silo_RocketBody'));
   assert.ok(silo.getObjectByName('Silo_RocketNose'));
-  assert.ok(silo.getObjectByName('Silo_RocketStageSeam'));
+  assert.equal(silo.getObjectByName('Silo_RocketStageSeam'),undefined,
+   'the brushed steel rocket must be smooth without decorative raised bands');
   dispose(silo);dispose(research);
  }
 });
