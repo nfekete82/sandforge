@@ -589,11 +589,14 @@ export function createStrategicBuilding(kind,owner=0){
    hidesUnderlyingTerrain:true,visualShaftDepth:shaftDepth};
   // Camera must be transformed into the actual local plane; this also
   // works for rotated buildings and changing camera angles.
-  const maskInverse=new THREE.Matrix4();
+  const maskInverse=new THREE.Matrix4(),cameraWorld=new THREE.Vector3();
   occlusion.onBeforeRender=(_renderer,_scene,camera)=>{
    maskInverse.copy(occlusion.matrixWorld).invert();
-   depthMaskMaterial.uniforms.uCameraLocal.value
-    .copy(camera.position).applyMatrix4(maskInverse);
+   // Resolve from the mesh's currently active material so the placement
+   // ghost can use a safely cloned ShaderMaterial and its own uniform state.
+   camera.getWorldPosition(cameraWorld);
+   occlusion.material.uniforms?.uCameraLocal?.value
+    .copy(cameraWorld).applyMatrix4(maskInverse);
   };
 
   // Restore the older strong vertical steel strips inside the shaft.
