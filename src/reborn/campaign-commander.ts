@@ -51,10 +51,26 @@ export function refreshIntelligence(g:Simulation,s:CampaignState):void{
  * remains a war objective until its destruction has actually been observed. */
 export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?:MissionContext):WarMission|undefined{
  const buildings=knownBuildings(g),old=s.mission;
+ // The war has two explicit strategic objectives:
+ // 1. Own and SECURE all public Bastions (including those lost again).
+ // 2. Only then destroy remaining enemy units/structures.
+ // A known turret or living HQ blocking a Bastion's capture circle is
+ // eligible to be attacked during phase one, never as an unrelated raid.
+ // Public sector ownership is fair knowledge; unseen enemy structures aren't.
+ const unheld=g.territories.filter(t=>t.owner!==1);
+ const securingBastions=unheld.length>0;
+ const canKeepBlockingObjective=(mission:WarMission,remembered:Memory|undefined)=>{
+  if(!remembered||g.territories[mission.sector]?.owner===1)return false;
+  const target=g.territories[mission.sector];
+  return !!target&&(remembered.kind==='headquarters'&&remembered.territory===target.id
+   ||remembered.kind==='turret'&&distance(remembered,target.point)<660);
+ };
  if(old){
   const remembered=old.objective===null?undefined:buildings.find(b=>b.id===old.objective);
   const enemy=old.kind==='hunt'?g.units.find(u=>u.id===old.objective&&u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)):undefined;
-  const valid=old.kind==='capture'?g.territories[old.sector]?.owner!==1:old.kind==='structure'?!!remembered:!!enemy;
+  const valid=old.kind==='capture'?g.territories[old.sector]?.owner!==1:
+   old.kind==='structure'?!!remembered&&(!securingBastions||canKeepBlockingObjective(old,remembered)):
+   !securingBastions&&!!enemy;
   const failed=context?.fronts.filter(f=>f.sector===old.sector).sort((a,b)=>b.at-a.at)[0];
   const nearbyLosses=context?.losses.filter(l=>g.time-l.at<60&&distance(l,old)<700).length??0;
   const recentlySeen=s.intel.some(i=>i.id===old.objective&&g.time-i.seenAt<105);
@@ -90,19 +106,26 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  const fieldArmy=army.length>=5&&army.some(u=>['tank','artillery'].includes(u.kind));
  const choices:{kind:WarMission['kind'];p:Point;sector:number;objective:number|null;hp:number;score:number}[]=[];
  const finishing=s.enemyHQEliminatedAt!==undefined;
- for(const b of buildings){
+ // No HQ rush while Bastions remain unheld. Existing capture missions
+ // preemptively neutralize only a tower/HQ physically blocking their circle.
+ for(const b of securingBastions?[]:buildings){
   const blocking=b.kind==='turret'&&buildings.some(other=>['headquarters','barracks','factory','airfield'].includes(other.kind??'')&&distance(other,b)<660);
-  // Cleanup destroys observed production before chasing neutral bastions.
+  // After every Bastion is held, clean up visible production and combat units.
   const production=['barracks','factory','airfield'].includes(b.kind??'');
   const value=finishing?(blocking?3500:production?3900:b.kind==='turret'?2600:1750)
    :blocking?2100:b.kind==='headquarters'?1900:b.kind==='turret'?1200:production?1450:700;
   choices.push({kind:'structure',p:b,sector:b.territory,objective:b.id,hp:b.hp,score:distance(origin,b)-value});
  }
- for(const t of g.territories)if(t.owner!==1&&t.neighbors.some(id=>g.territories[id].owner===1))
-  choices.push({kind:'capture',p:t.point,sector:t.id,objective:null,hp:0,score:distance(origin,t.point)-t.income*10+
-   (finishing?(t.owner===0?-1500:2300):(t.owner===0?(fieldArmy&&owned>=2?-900:1300):0))});
+ // Only reachable frontier Bastions are first-class objectives. If
+ // surrounded/dispossessed, use the other public sectors as a fallback.
+ // Recapture enemy-held Bastions before risking a raid on intact industry.
+ const frontier=unheld.filter(t=>t.neighbors.some(id=>g.territories[id].owner===1));
+ for(const t of frontier.length?frontier:unheld)
+  choices.push({kind:'capture',p:t.point,sector:t.id,objective:null,hp:0,
+   score:distance(origin,t.point)-t.income*10-
+    (t.owner===0?850:0)-(t.owner===0&&fieldArmy&&owned>=2?450:0)});
  // In cleanup, visible survivors remain targets even with neutral fronts.
- if(finishing||!choices.length)for(const u of g.units)if(u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u))
+ if(!securingBastions)for(const u of g.units)if(u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u))
   choices.push({kind:'hunt',p:u,sector:g.territories.reduce((a,b)=>distance(u,a.point)<distance(u,b.point)?a:b).id,objective:u.id,hp:u.hp,score:distance(origin,u)-(finishing?1650:0)});
  if(context){
   const ownHP=context.force.reduce((n,u)=>n+u.hp,0),siege=context.force.some(u=>u.kind==='artillery');
