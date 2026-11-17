@@ -28,7 +28,7 @@ const lines=[
  '# Sandforge – echter 10-Minuten-Bastionstest', '',
  '**'+pairs.length+' identische Karten-/Seed-Paare**, simulierter 20-Hz-Spielablauf. '+
  'Beide Varianten verwenden dieselben Waffen, Preise, Karten, Gegner und Startressourcen. '+
- 'Nur der für diese Prüfung angegebene KI-Wachtruppen-Algorithmus unterscheidet sich.',
+ 'Nur die explizit verglichene KI-Entscheidungslogik unterscheidet sich.',
  '',
  '| Kennzahl (Durchschnitt) | Vorher | Nachher | Δ |',
  '|---|---:|---:|---:|'
