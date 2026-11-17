@@ -76,8 +76,8 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    'real metal hull must be a straight cylinder, not a tapered slanted body');
   assert.ok(shader.uniforms.uRocketColor.value.equals(body.material.color),
    'underwater missile shader must use the exact same alloy albedo as the real upper hull');
-  assert.ok(shader.fragmentShader.includes('metal=uRocketColor*'),
-   'the submerged missile color may never come from a separate hard-coded grey');
+  assert.ok(shader.fragmentShader.includes('uRocketColor*rocketGrain*'),
+   'submerged metal must derive from the shared alloy and shared albedo, not a hard-coded grey');
   assert.strictEqual(body.material.map,nose.material.map,
    'nose and straight hull must share the identical metallic grain texture');
   assert.equal(body.material.roughness,nose.material.roughness,
@@ -95,12 +95,31 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    'underground rocket samples the actual upper-stage metal texture');
   assert.match(shader.fragmentShader,/rocketUV=vec2\([\s\S]*?\*uRocketMapScale;/,
    'the exact upper-cylinder texture repeat must be used below the rim');
-  assert.ok(shader.fragmentShader.includes('pow(sun,1.75)'),
-   'silo shading must match directional physical metal highlights, not uniform grey');
+  assert.ok(shader.fragmentShader.includes('pow(sun,1.65)'),
+   'submerged missile retains direction-dependent physical lighting');
+  assert.ok(shader.fragmentShader.includes('vec3 ambientMetal=vec3(.035,.028,.020)'),
+   'the dark half of the missile must receive warm sky bounce rather than turning black');
+  assert.ok(shader.fragmentShader.includes('specularMetal=uRocketSunColor*'),
+   'metallic highlights follow the camera and desert sun');
   assert.ok(shader.fragmentShader.includes('warmMetal=uRocketSunColor*'),
    'the buried missile needs warm golden-hour illumination instead of bluish black');
-  assert.ok(shader.fragmentShader.includes('smoothstep(4.0,uDepth-7.0,below)'),
-   'underground fade must begin below the join, not at the visible top seam');
+  assert.ok(shader.fragmentShader.includes('smoothstep(6.0,uDepth-7.0,below)'),
+   'underground fade must begin six units below the join, not at the visible seam');
+  assert.ok(shader.fragmentShader.includes('atan(rocketHit.x,-rocketHit.y)'),
+   'projected metal U follows THREE.CylinderGeometry orientation rather than disk angle');
+  assert.ok(shader.fragmentShader.includes('float rocketV=1.0-(uRocketTop-rocketHit.z)/uRocketHeight'),
+   'projected metal V matches CylinderGeometry top-to-bottom UV rather than being inverted');
+  // Geometry cross-check: top of a THREE cylinder is v=1, the right edge
+  // corresponds to u=0.25. The mask's local y is opposite to world z.
+  const physical=new THREE.CylinderGeometry(1,1,2,4,1,true);
+  const vertex=physical.getAttribute('position');
+  const uv=physical.getAttribute('uv');
+  const angle=Math.atan2(vertex.getX(1),vertex.getZ(1));
+  const projectedU=((angle/(2*Math.PI)+1)%1);
+  assert.ok(Math.abs(uv.getX(1)-projectedU)<1e-6,
+   'virtual cylinder U must align with a physical THREE cylinder at the joint');
+  assert.equal(uv.getY(1),1,'upper cylinder vertices use V=1');
+  physical.dispose();
   const sunCam=new THREE.PerspectiveCamera();
   sunCam.position.set(350,300,380);
   sunCam.updateMatrixWorld(true);
