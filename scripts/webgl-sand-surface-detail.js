@@ -20,7 +20,9 @@ export const DESERT_SURFACE_DETAIL=Object.freeze({
  gritTileMetres:48,
  coverageTileMetres:1780,
  coverageStrength:.43,
- gritStrength:.11
+ gritStrength:.11,
+ rippleTileMetres:285,
+ rippleStrength:.22
 });
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
 const mix=(a,b,t)=>a+(b-a)*t;
@@ -61,6 +63,7 @@ export function createDesertSurfaceDetail(renderer){
  const grit=new Uint8Array(count*4);
  const silt=new Uint8Array(count*4);
  const mask=new Uint8Array(count*4);
+ const ripples=new Uint8Array(count*4);
  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
   const u=x/size,v=y/size,index=(y*size+x)*4;
   // Repeatable surface patterns: dusty compacted silt, wind-carved ripples,
@@ -96,11 +99,25 @@ export function createDesertSurfaceDetail(renderer){
   const wind=clamp(.55+.40*(tiledNoise(u,v,6,0x917ab1)-.5)+.08*(medium-.5));
   const dune=clamp(.48+.45*(tiledNoise(u,v,3,0x62b2e0)-.5)+.28*(broad-.5));
   rgba(mask,index,m*255,wind*255,dune*255);
+  // Warped, seam-periodic dune ripples baked once; unlike the former plain
+  // cosine lines these never form straight, evenly spaced screen bands.
+  const warp=(tiledNoise(u,v,7,0x238c9a)-.5)*5.4+
+   (tiledNoise(u,v,15,0x3b2071)-.5)*1.8;
+  const phase=u*37+v*7+warp;
+  const secondary=u*71-v*17+warp*.83+
+   (tiledNoise(u,v,11,0x77d913)-.5)*2.7;
+  const triangle=t=>1-Math.abs(2*(t-Math.floor(t))-1);
+  const broadRipple=ease(triangle(phase));
+  const fineRipple=ease(triangle(secondary));
+  const ripple=clamp(.5+(broadRipple-.5)*.72+(fineRipple-.5)*.22+
+   (fine-.5)*.16);
+  rgba(ripples,index,ripple*255,(.5+(fineRipple-.5)*.74)*255,wind*255);
  }
  return Object.freeze({
   silt:makeTexture(silt,size,renderer,{name:'SandforgeSiltPBRColor'}),
   grit:makeTexture(grit,size,renderer,{name:'SandforgeFineMineralGrain'}),
-  mask:makeTexture(mask,size,renderer,{srgb:false,name:'SandforgeSedimentCoverage'})
+  mask:makeTexture(mask,size,renderer,{srgb:false,name:'SandforgeSedimentCoverage'}),
+  ripples:makeTexture(ripples,size,renderer,{srgb:false,name:'SandforgeWindCarvedRippleRelief'})
  });
 }
 
@@ -114,13 +131,14 @@ export function installDesertSurfaceDetail(material,renderer){
   shader.uniforms.sfDesertSilt={value:maps.silt};
   shader.uniforms.sfDesertGrain={value:maps.grit};
   shader.uniforms.sfDesertMask={value:maps.mask};
+  shader.uniforms.sfDesertRipples={value:maps.ripples};
   const varying='varying vec2 sfDesertGround; varying float sfDesertRelief;';
   shader.vertexShader=shader.vertexShader.replace('#include <common>',
    '#include <common>\n'+varying);
   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',
    '#include <begin_vertex>\nsfDesertGround=position.xz;sfDesertRelief=1.0-clamp(normal.y,0.0,1.0);');
   shader.fragmentShader=shader.fragmentShader.replace('#include <common>',
-   '#include <common>\n'+varying+'\nuniform sampler2D sfDesertSilt;\nuniform sampler2D sfDesertGrain;\nuniform sampler2D sfDesertMask;');
+   '#include <common>\n'+varying+'\nuniform sampler2D sfDesertSilt;\nuniform sampler2D sfDesertGrain;\nuniform sampler2D sfDesertMask;\nuniform sampler2D sfDesertRipples;');
   shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',[
    '#include <map_fragment>',
    '// Single surface, three physical colour textures; no second mesh.',
@@ -135,10 +153,15 @@ export function installDesertSurfaceDetail(material,renderer){
    'vec3 sfMineral=texture2D(sfDesertGrain,sfDesertGround/'+DESERT_SURFACE_DETAIL.gritTileMetres.toFixed(1)+').rgb;',
    'sfMineral=mix(sfMineral,texture2D(sfDesertGrain,sfSandTwist/'+(DESERT_SURFACE_DETAIL.gritTileMetres*.47).toFixed(1)+').rgb,.22);',
    'float sfWindDrift=texture2D(sfDesertMask,sfSandTwist/'+DESERT_SURFACE_DETAIL.windTileMetres.toFixed(1)+').g;',
+   'vec2 sfRippleUV=sfSandTwist/'+DESERT_SURFACE_DETAIL.rippleTileMetres.toFixed(1)+';',
+   'vec3 sfWindRipples=texture2D(sfDesertRipples,sfRippleUV).rgb;',
+   'float sfRippleShade=(sfWindRipples.r-.5)*'+DESERT_SURFACE_DETAIL.rippleStrength.toFixed(3)+';',
    'diffuseColor.rgb=mix(diffuseColor.rgb,sfSediment,sfBedMask*'+DESERT_SURFACE_DETAIL.coverageStrength.toFixed(2)+');',
    'diffuseColor.rgb=mix(diffuseColor.rgb,sfMineral,'+DESERT_SURFACE_DETAIL.gritStrength.toFixed(3)+'*(.42+.5*sfBedMask));',
    '// Soft broad dune/hollow shading, continuous over all terrain chunks.',
-   'diffuseColor.rgb*=1.0+(.5-sfDesertZoning.r)*.063+(sfDuneZone-.5)*.034+(sfWindDrift-.5)*.044;'
+   'diffuseColor.rgb*=1.0+(.5-sfDesertZoning.r)*.063+(sfDuneZone-.5)*.034+(sfWindDrift-.5)*.044;',
+   '// Soft sunlit ridges and sheltered troughs in the actual PBR ground material.',
+   'diffuseColor.rgb*=clamp(1.0+sfRippleShade*sfWindZone,.88,1.12);'
   ].join('\n'));
   // Wind ripple bump relief fades naturally in sheltered/flat areas while
   // staying visible on exposed dunes. Keep the physical Three.js normal map.

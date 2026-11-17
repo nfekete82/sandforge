@@ -61,7 +61,11 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
   const u=(wx*c+wy*d)/690,v=(-wx*d+wy*c)/1370;
   const broad=fbm(wx/1900,wy/1900,s),detail=fbm(wx/630,wy/630,s^731);
   const crest=(Math.sin(u*4.2+(fbm(u*.65,v*.65,s^51)-.5)*5.4+v*.65)+1)*.5;
-  const dunes=18+crest*crest*(64+55*broad)+detail*17;
+  // More small, walkable wind-blown mounds; all still pass through the same
+  // grading/gradient limiter as units, navigation, construction and fog.
+  const hummocks=(profile==='dunes'||profile==='mixed'?12:0)*
+   smooth((fbm(wx/430+7,wy/430-11,s^0x47f2)-.35)/.32);
+  const dunes=18+crest*crest*(64+55*broad)+detail*17+hummocks;
   const ridge=1-Math.abs(fbm(wx/1100,wy/1100,s^107)*2-1);
   const plateau=smooth((broad-.30)/.38)*154;
   const rocky=12+plateau+ridge*ridge*64+detail*15;

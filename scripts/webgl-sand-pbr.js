@@ -101,7 +101,7 @@ export async function installDesertSandPBR(material,renderer,{url=SANDFORGE_SAND
  material.map=albedo;
  material.color.set('#ffffff'); // Real albedo owns the pigment, no double tint.
  material.normalMap=maps.normal;
- material.normalScale.set(.52,.52);
+ material.normalScale.set(.79,.79);
  material.roughnessMap=maps.roughness;
  material.roughness=1;
  material.metalness=0;

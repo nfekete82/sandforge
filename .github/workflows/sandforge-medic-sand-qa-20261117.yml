@@ -1,0 +1,51 @@
+name: Sandforge medic and wind-ripple sand QA
+on:
+  push:
+    branches: [feat/medic-desert-ripples-20261117]
+  pull_request:
+    branches: [integration/sandforge-current-20261117]
+    paths:
+      - 'scripts/webgl-medic-polish.js'
+      - 'scripts/webgl-sand-surface-detail.js'
+      - 'src/reborn/battlefield-terrain.ts'
+      - 'tests/webgl-medic-dune-ripples-20261117.test.mjs'
+      - '.github/workflows/sandforge-medic-sand-qa-20261117.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Check 3D model and shader modules
+        run: |
+          node --check scripts/webgl-medic-polish.js
+          node --check scripts/webgl-sand-surface-detail.js
+          node --check scripts/webgl-battlefield.js
+      # The full build intentionally requires Nobby's local FINAL PBR GLB
+      # worktrees. They are not tracked in Git and cannot exist on Actions.
+      # Compile the authoritative simulation and validate the changed shaders
+      # and model modules without silently substituting old 3D buildings.
+      - name: Compile authoritative simulation (CI-safe)
+        run: |
+          npx tsc -p tsconfig.json
+          test -f dist/src/reborn/world-generation.js
+      - name: Medic, dune geometry and terrain shader regressions
+        run: |
+          node --test \
+            tests/webgl-medic-dune-ripples-20261117.test.mjs \
+            tests/webgl-sand-scenic-camouflage.test.mjs \
+            tests/sandforge-bastion-navigation.test.mjs
+          # The deprecated historical test uses direct tower-centre routing,
+          # even though those positions are now solid. Modern topology,
+          # capture-ring access and actual pathing are validated above.
