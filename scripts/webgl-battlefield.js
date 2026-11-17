@@ -22,6 +22,7 @@ import {polishBarracksProps} from '/webgl-barracks-props.js';
 import {addBarracksContactShadows} from '/webgl-barracks-contact-shadows.js';
 import {createAirfieldServiceYard,conformAirfieldSurface,updateAirfieldServiceYard,hideOldAirfieldHangar,disposeAirfieldServiceYard} from '/webgl-airfield-service.js';
 import {detachAirfieldPbr} from '/webgl-airfield-pbr.js';
+import {removeRunwaySkidArtifacts} from '/webgl-airfield-runway-clearance.js';
 import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '/webgl-factory-service.js';
 import {disposeServicePaint,previewServiceMaterial} from '/webgl-service-materials.js';
 import {createSegmentedSelectionRing} from '/webgl-selection-ring.js';
@@ -1170,6 +1171,15 @@ export class SandforgeBattlefield {
      conformAirfieldSurface(entry.airfieldServiceYard,b,(x,z)=>this.heightAt(x,z));
     }
     hideOldAirfieldHangar(entry);
+    // Run this only after a new async building/GLB identity arrives. It strips
+    // legacy unlabelled black runway skid objects without masking the white
+    // runway lines, aircraft, or the paved access strip.
+    if(entry.airfieldRunwaySweptDetail!==entry.detail||
+      entry.airfieldRunwaySweptPBR!==entry.airfieldServiceYard.userData.airfieldPbrModel){
+     removeRunwaySkidArtifacts(entry);
+     entry.airfieldRunwaySweptDetail=entry.detail;
+     entry.airfieldRunwaySweptPBR=entry.airfieldServiceYard.userData.airfieldPbrModel;
+    }
     if(b.buildRemaining<=0)updateAirfieldServiceYard(entry,b,this.game.units,this.game.time,dt,active);
    }
    if(b.kind==='factory'){
