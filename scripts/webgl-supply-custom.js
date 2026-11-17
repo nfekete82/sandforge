@@ -67,16 +67,39 @@ export function prepareCustomSupplyTruck(root,owner){
  return true;
 }
 
+/** One physical cargo stack per eighth of the authoritative 45-credit load.
+ * Loading and unloading use the simulation's clock, never frame delta.
+ * Once the simulation deposits credits, phase='seek' and cargo=0: ALL
+ * containers stay hidden until the next actual pickup.
+ */
+export function supplyVisibleCrateCount(job,slots=8){
+ const total=Math.max(0,Math.floor(Number(slots)||0));
+ if(!total)return 0;
+ const cargo=Math.max(0,Math.min(45,Number(job?.cargo)||0));
+ const clock=Math.max(0,Number(job?.clock)||0);
+ const phase=job?.phase;
+ // No cargo in the actual economy means a genuinely empty truck.
+ // The one exception is active loading, which fills the bed progressively.
+ if(!cargo&&phase!=='loading')return 0;
+ const portion=phase==='loading'?Math.min(1,clock/2.4):
+  phase==='unloading'?Math.max(0,1-clock/1.4)*cargo/45:
+  cargo/45;
+ return Math.max(0,Math.min(total,Math.ceil(total*portion-1e-7)));
+}
 export function setCustomSupplyCargo(root,job){
  if(!isCustomSupplyTruck(root))return false;
  const stacks=root.userData.supplyCrates??(root.userData.supplyCrates=
   Array.from({length:8},(_,i)=>root.getObjectByName('cargo_stack_'+i)).filter(Boolean));
- const phase=job?.phase;
- const value=Math.max(0,Math.min(45,Number(job?.cargo)||0));
- const progress=phase==='loading'?Math.min(1,(Number(job?.clock)||0)/2.4):
-  phase==='unloading'?Math.max(0,1-(Number(job?.clock)||0)/1.4):value/45;
- const count=Math.max(0,Math.min(stacks.length,Math.ceil(stacks.length*progress-1e-6)));
- stacks.forEach((node,i)=>{node.visible=i<count;});
+ if(stacks.length!==8){
+  // Unknown GLB layout: let the generic supply handler take over rather
+  // than silently claiming to hide cargo that cannot actually be found.
+  return false;
+ }
+ const count=supplyVisibleCrateCount(job,stacks.length);
+ if(root.userData.supplyVisibleCrates!==count){
+  stacks.forEach((stack,i)=>{stack.visible=i<count;});
+  root.userData.supplyVisibleCrates=count;
+ }
  return true;
 }
 
