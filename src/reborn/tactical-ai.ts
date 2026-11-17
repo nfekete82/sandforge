@@ -1307,7 +1307,10 @@ export class TacticalAI {
   const intruders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<(b.kind==='headquarters'?560:420)));
   if(g.world.mapVersion>=3&&this.mode==='director'){
    const defense=this.localDefense(fighters,medics,intruders,home);
-   const raiders=g.world.mapVersion>=19&&g.time<180
+   // Earlier paid raids follow the shorter home-defense buildup.
+   // Preserve an uncontested initial setup and never strip emergency
+   // defenders; expansionRaid independently checks actual safe sectors.
+   const raiders=g.world.mapVersion>=19&&g.time<125
     ?new Set<number>():this.expansionRaid(fighters.filter(u=>!defense.has(u.id)),home);
    this.campaign(army,fighters.filter(u=>!defense.has(u.id)&&!raiders.has(u.id)),medics.filter(u=>!defense.has(u.id)),home);
    this.dispatchObservedSpecialists(army);
