@@ -45,3 +45,36 @@ export function blueDefense(g){
  const kind=count('infantry')<5?'infantry':count('heavy')<1?'heavy':null;
  if(kind&&g.credits[owner]>=UNITS[kind].cost)g.recruit(barracks.id,kind);
 }
+
+/** A budgeted, territorial opponent for Bastion-first benchmarks.
+ * Blue has no fog exemption, free income or free troops. It builds/trains
+ * through the same legal public APIs as the unchanged defensive opponent,
+ * then sends three PAID fighters to challenge neutral and red Bastions.
+ * This is a test opponent only, NOT a gameplay handicap for either team.
+ */
+export function blueContest(g){
+ blueDefense(g);
+ if(g.status!=='playing'||g.time<95)return;
+ const hq=g.bases.find(b=>b.owner===0&&b.kind==='headquarters'&&b.hp>0);
+ if(!hq)return;
+ const roster=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
+  ['infantry','heavy'].includes(u.kind)).sort((a,b)=>a.id-b.id);
+ if(roster.length<5)return; // always leave at least two real troops on HQ defense
+ const raiders=roster.slice(2,5);
+ const targets=g.territories.filter(t=>t.owner!==0&&t.id!==hq.territory&&
+  t.neighbors.some(id=>g.territories[id]?.owner===0))
+  .filter(t=>!g.bases.some(b=>b.owner===1&&b.hp>0&&b.kind==='headquarters'&&
+   b.territory===t.id&&g.canSee(0,b)))
+  .sort((a,b)=>(a.owner===-1?0:1)-(b.owner===-1?0:1)||
+   Math.hypot(a.point.x-hq.x,a.point.y-hq.y)-
+   Math.hypot(b.point.x-hq.x,b.point.y-hq.y)||a.id-b.id);
+ const safe=targets.filter(t=>!g.bases.some(b=>b.owner===1&&b.hp>0&&
+   b.kind==='turret'&&g.canSee(0,b)&&Math.hypot(b.x-t.point.x,b.y-t.point.y)<635));
+ const goal=(safe.length?safe:targets)[0];
+ if(!goal)return;
+ for(const u of raiders){
+  const o=u.orders[0];
+  if(o?.kind==='attackMove'&&Math.hypot(o.x-goal.point.x,o.y-goal.point.y)<100)continue;
+  g.command([u.id],{kind:'attackMove',x:goal.point.x,y:goal.point.y});
+ }
+}
