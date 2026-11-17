@@ -810,14 +810,25 @@ export class TacticalAI {
    .slice(0,3);
   const frontAngle=Math.atan2(g.world.size/2-home.y,g.world.size/2-home.x);
   const angles=[-.85,.85,Math.PI,-.15,1.8];
+  // One of at least two PAID reserve soldiers is posted at a captured
+  // frontier Bastion (not only behind the HQ). Never remove the first home
+  // defender and never send more than one away from production defenses.
+  // Public sector neighbors/income are permitted; no fogged enemy knowledge.
+  const border=g.territories.filter(t=>t.owner===1&&
+    t.neighbors.some(id=>g.territories[id]?.owner!==1))
+   .sort((a,b)=>Number(b.neighbors.some(id=>g.territories[id]?.owner===0))-
+      Number(a.neighbors.some(id=>g.territories[id]?.owner===0))||
+      b.income-a.income||distance(home,a.point)-distance(home,b.point)||a.id-b.id)[0];
   for(const [i,u] of guards.entries()){
-   // Spread posts around the HQ/production perimeter, not on top of doors.
-   const base=protectedBases[i%Math.max(1,protectedBases.length)]??home;
-   const angle=frontAngle+angles[i%angles.length];
-   const radius=base===home?185:150;
+   const fort=i===1&&guards.length>=2&&border?border:null;
+   // Keep all remaining reserves around HQ and production structures.
+   const base=fort?.point??protectedBases[i%Math.max(1,protectedBases.length)]??home;
+   const angle=fort?Math.atan2(home.y-base.y,home.x-base.x):
+    frontAngle+angles[i%angles.length];
+   const radius=fort?68:base===home?185:150;
    const proposed={x:base.x+Math.cos(angle)*radius,y:base.y+Math.sin(angle)*radius};
    const post=g.world.nearest(proposed,this.obstacles(),[],u,Math.max(0,unitSpec(u).radius-10));
-   if(!post||distance(post,base)>310)continue;
+   if(!post||distance(post,base)>(fort?200:310))continue;
    if(distance(u,post)<58){
     if(u.orders.length&&u.orders[0]?.tactical?.mode==='safe')g.stop([u.id],true);
     else if(!u.orders.length&&!u.hold)g.stop([u.id],true);
