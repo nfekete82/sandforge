@@ -67,6 +67,42 @@ const siloDesertCamo=(()=>{
  return t;
 })();
 
+/** Deterministic, tileable stamped-steel panels for the recessed missile-silo
+ * launch deck. Metallic plates, bevelled seams, sparse rivets and fine brushed
+ * wear make the hatch readable from the zoomed-out RTS camera. One shared PBR
+ * texture serves the construction ghost, HUD portrait and live building.
+ */
+const siloSteelPlate=(()=>{
+ const n=256,rgba=new Uint8Array(n*n*4);
+ for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+  const px=x%64,py=y%64;
+  const seam=px<3||py<3?-43:0;
+  const bevel=(px>=3&&px<7||py>=3&&py<7)?13:0;
+  const rivet=((px-12)**2+(py-12)**2<9||
+   (px-52)**2+(py-52)**2<9)?-31:0;
+  const hash=(Math.imul(x+317,374761393)^Math.imul(y+71,668265263))>>>0;
+  const brushed=5*Math.sin(x*.29)+3*Math.cos(x*.075+y*.017);
+  const grain=((hash^(hash>>>13))&31)-15;
+  const patina=seam+bevel+rivet+brushed+grain*.39;
+  const i=(y*n+x)*4;
+  const base=[196,202,198];
+  for(let c=0;c<3;c++)
+   rgba[i+c]=Math.max(0,Math.min(255,Math.round(base[c]+patina)));
+  rgba[i+3]=255;
+ }
+ const texture=new THREE.DataTexture(rgba,n,n,THREE.RGBAFormat);
+ texture.name='Sandforge silo stamped steel maintenance panels';
+ texture.colorSpace=THREE.SRGBColorSpace;
+ texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
+ // ExtrudeGeometry uses local model-unit UVs; ~11 large plates span the deck.
+ texture.repeat.set(.012,.014);
+ texture.magFilter=THREE.LinearFilter;
+ texture.minFilter=THREE.LinearMipmapLinearFilter;
+ texture.generateMipmaps=true;
+ texture.needsUpdate=true;
+ return texture;
+})();
+
 /** Static destructible base wall, rendered once and shared by preview and game. */
 function createDefensiveWall(owner){
  const root=new THREE.Group();root.name='Strategic_wall';
@@ -163,13 +199,22 @@ export function createStrategicBuilding(kind,owner=0){
    bumpMap:materialGrain,bumpScale:.23,roughness:.72,metalness:.22});
   mats.steel=new THREE.MeshStandardMaterial({color:'#8d8770',map:materialGrain,
    bumpMap:materialGrain,bumpScale:.1,roughness:.6,metalness:.4});
+  // The hatch platform is actual brushed, riveted steel, not sandy plaster.
+  // Reuse the existing metal batch instead of adding a draw call per plate.
+  mats.metal.color.set('#c3cbc5');
+  mats.metal.map=siloSteelPlate;
+  mats.metal.roughness=.43;
+  mats.metal.metalness=.76;
+  mats.metal.bumpScale=.12;
   mats.warning=new THREE.MeshStandardMaterial({color:'#cda956',roughness:.62,metalness:.18});
-  mats.rocketBody=new THREE.MeshStandardMaterial({color:'#787b66',map:materialGrain,
-   bumpMap:materialGrain,bumpScale:.09,roughness:.71,metalness:.25});
-  mats.rocketPanel=new THREE.MeshStandardMaterial({color:'#bab497',map:materialGrain,
-   bumpMap:materialGrain,bumpScale:.08,roughness:.66,metalness:.27});
-  mats.rocketNose=new THREE.MeshStandardMaterial({color:'#363e3c',roughness:.51,metalness:.44});
-  mats.rocketAccent=new THREE.MeshStandardMaterial({color:'#b38a4e',roughness:.66,metalness:.2});
+  mats.rocketBody=new THREE.MeshStandardMaterial({color:'#a8b3b2',map:materialGrain,
+   bumpMap:materialGrain,bumpScale:.075,roughness:.38,metalness:.82});
+  mats.rocketPanel=new THREE.MeshStandardMaterial({color:'#d1d6cf',map:materialGrain,
+   bumpMap:materialGrain,bumpScale:.06,roughness:.42,metalness:.77});
+  mats.rocketNose=new THREE.MeshStandardMaterial({color:'#829198',map:materialGrain,
+   bumpMap:materialGrain,bumpScale:.05,roughness:.32,metalness:.81});
+  mats.rocketAccent=new THREE.MeshStandardMaterial({color:'#a7a997',
+   roughness:.44,metalness:.73});
   // Give the large bunker and hatch faces a real tiled camouflage albedo.
   // Keep fine concrete grain as bump; rocket, hatches' dark iron, metallic
   // machinery and team-colored glass keep their own original materials.
@@ -382,66 +427,92 @@ export function createStrategicBuilding(kind,owner=0){
   hole.absarc(rocketX,0,shaftRadius,0,Math.PI*2,true);
   deckShape.holes.push(hole);
   const deck=add(new THREE.ExtrudeGeometry(deckShape,{
-   depth:7,steps:1,bevelEnabled:false,curveSegments:48
-  }),'base',0,1.4,0,-Math.PI/2);
+   depth:7,steps:1,bevelEnabled:false,curveSegments:64
+  }),'metal',0,1.4,0,-Math.PI/2);
+  // Retain the stable mesh name for saves/tests; its visible finish is now
+  // weathered steel rather than the old uniform tan concrete surface.
   deck.name='Silo_ExcavatedConcreteDeck';
   deck.userData={launchAperture:true,shaftRadius,shaftX:rocketX};
-  // The shaft has a genuine vertical inner surface and a DARK floor lower
-  // than the concrete rim. It reads as depth even from the tactical angle.
+  // The steel-walled shaft is 35 units deep. Its floor is genuinely below
+  // grade, so the perspective reveals a recessed cylinder rather than a
+  // shallow black disk painted on top of the platform.
   const wallMaterial=new THREE.MeshStandardMaterial({
-   name:'SF_SiloShaftInterior',color:'#171c19',
-   metalness:.12,roughness:.94,side:THREE.BackSide
+   name:'SF_SiloShaftInterior',color:'#333b3b',map:materialGrain,
+   bumpMap:materialGrain,bumpScale:.10,
+   metalness:.55,roughness:.71,side:THREE.BackSide
   });
   const inside=add(new THREE.CylinderGeometry(
-   shaftRadius-.25,shaftRadius-.25,8.6,48,1,true),
-   wallMaterial,rocketX,5.1,0);
+   shaftRadius-.3,shaftRadius-.3,35.5,64,1,true),
+   wallMaterial,rocketX,-9.15,0);
   inside.name='Silo_InnerShaftWall';
   inside.castShadow=false;inside.receiveShadow=true;
   const floorMaterial=new THREE.MeshStandardMaterial({
-   name:'SF_SiloShaftFloor',color:'#0c1210',roughness:.98,metalness:0
+   name:'SF_SiloShaftFloor',color:'#111918',roughness:.96,metalness:.12
   });
-  const well=add(new THREE.CylinderGeometry(shaftRadius-1,shaftRadius-1,.4,48),
-   floorMaterial,rocketX,1.65,0);
+  const well=add(new THREE.CylinderGeometry(shaftRadius-1,shaftRadius-1,.45,64),
+   floorMaterial,rocketX,-26.6,0);
   well.name='Silo_RecessedLaunchWell';
-  well.castShadow=false;
-  // Flat armoured annulus plus one slim gasket. Neither covers the hole.
-  const lip=add(new THREE.RingGeometry(shaftRadius+.2,shaftRadius+9,48),
-   'steel',rocketX,8.48,0,-Math.PI/2);
+  well.castShadow=false;well.receiveShadow=true;
+
+  // Visible vertical steel stiffeners and two retaining hoops make the
+  // empty depth legible even when the missile is still in the silo.
+  for(let i=0;i<16;i++){
+   const a=i*Math.PI/8;
+   const bar=box(1.7,25,1.5,'steel',
+    rocketX+Math.cos(a)*(shaftRadius-1),-8,Math.sin(a)*(shaftRadius-1));
+   bar.rotation.y=-a;
+  }
+  for(const y of [-9.4,-20.8])
+   add(new THREE.TorusGeometry(shaftRadius-.9,.95,6,64),
+    'steel',rocketX,y,0,-Math.PI/2);
+
+  // Layered heavy hatch collar, without any polygon crossing the open pit.
+  const lip=add(new THREE.RingGeometry(shaftRadius+.35,shaftRadius+15,64),
+   'metal',rocketX,8.49,0,-Math.PI/2);
   lip.name='Silo_LaunchRim';
   lip.castShadow=false;
-  const gasket=add(new THREE.TorusGeometry(shaftRadius+.8,1.2,6,48),
+  const gasket=add(new THREE.TorusGeometry(shaftRadius+.65,2,8,64),
    'black',rocketX,8.9,0,-Math.PI/2);
   gasket.name='Silo_HatchGasket';
   gasket.castShadow=false;
-  // Two parked blast doors sit flat BESIDE the excavation.
-  for(const x of [rocketX-86,rocketX+76]){
-   box(17,2.4,92,'armor',x,8.9,0);
-   for(const z of [-33,-11,11,33])
-    box(15,1.2,3,'steel',x,10.6,z);
+  add(new THREE.TorusGeometry(shaftRadius+13.7,1.7,8,64),
+   'steel',rocketX,9.2,0,-Math.PI/2);
+
+  // Thick parked blast-door leaves and flush mechanical fasteners.
+  // Keep the center aperture completely clear.
+  for(const x of [rocketX-87,rocketX+84]){
+   box(18,3.0,97,'metal',x,9.0,0);
+   for(const z of [-40,-20,0,20,40])
+    box(16,1.2,2.2,'steel',x,11.0,z);
   }
-  // Recessed safety latches at the lip rather than tall support scaffolds.
-  for(let i=0;i<8;i++){
-   const a=i*Math.PI/4;
+  for(let i=0;i<24;i++){
+   const a=i*Math.PI/12;
    const x=rocketX+Math.cos(a)*73,z=Math.sin(a)*73;
-   box(9,1.8,7,i%2?'camoOlive':'trim',x,9.1,z).rotation.y=-a;
+   const clasp=box(7,1.3,3.6,'steel',x,9.8,z);
+   clasp.rotation.y=-a;
+  }
+  for(let i=0;i<12;i++){
+   const a=i*Math.PI/6;
+   cyl(1.75,1.75,.85,'trim',rocketX+Math.cos(a)*77.6,
+    9.4,Math.sin(a)*77.6,8);
   }
 
-  // MOST of the missile is below grade. Only an upper-stage collar and the
-  // nose emerge from the hole: no tall drum, pedestal or floating full rocket.
-  // Named parts remain present for faction PBR and existing unit tests.
-  const hull=cyl(21,21.5,11,'rocketBody',rocketX,11.3,0,24);
+  // Distinct cylindrical brushed-steel stage topped by a shorter pointed
+  // nosecone. Lower engine is hidden in the REAL shaft, never a floating cone.
+  const hull=cyl(16.3,17.2,27,'rocketBody',rocketX,12.8,0,32);
   hull.name='Silo_RocketBody';
-  cyl(20.2,20.8,7,'rocketPanel',rocketX,18.6,0,24);
-  const seam=add(new THREE.TorusGeometry(20.8,1.4,6,28),
-   'trim',rocketX,21.7,0,-Math.PI/2);
+  cyl(16.0,16.2,7.5,'rocketPanel',rocketX,25.4,0,32);
+  const seam=add(new THREE.TorusGeometry(16.4,1.15,8,32),
+   'rocketAccent',rocketX,29.0,0,-Math.PI/2);
   seam.name='Silo_RocketStageSeam';
-  const ogive=add(new THREE.ConeGeometry(20,37,28),'rocketNose',
-   rocketX,37.7,0);
+  const ogive=add(new THREE.ConeGeometry(15.7,30,32),'rocketNose',
+   rocketX,43.9,0);
   ogive.name='Silo_RocketNose';
-  add(new THREE.TorusGeometry(19.8,1,6,28),'rocketAccent',
-   rocketX,22.4,0,-Math.PI/2);
-  // Embedded base/nozzle hides in the black excavation.
-  cyl(14,17,5,'vent',rocketX,4.5,0,20);
+  for(const y of [10.4,19.2,29.1])
+   add(new THREE.TorusGeometry(16.4,.72,6,32),
+    'rocketAccent',rocketX,y,0,-Math.PI/2);
+  // Dark nozzle sits below deck level at the bottom of the rocket stage.
+  cyl(11.5,13.6,7,'vent',rocketX,-3.2,0,24);
   // Low camouflaged command/maintenance block to the RIGHT of the pit.
   box(43,22,66,'base',91,16,-10);
   box(47,3,70,'armor',91,28.5,-10);
