@@ -637,8 +637,10 @@ export class SandforgeBattlefield {
   // structure keeps the complete missile and the matching deep shaft shader.
   if(kind==='silo'){
    trimSiloRocketForGhost(placeholder);
-   // Only the above-deck missile is part of the transparent placement
-   // ghost. The completed model no longer creates a second buried PBR mesh.
+   // The fine black mouth seal is only for the opaque, completed silo.
+   // It would float below the cropped 50%-transparent placement ghost.
+   const joint=placeholder.getObjectByName('Silo_RocketHatchJoint');
+   if(joint)joint.visible=false;
   }
   // Render the REAL finished 3D shape as a 50%-opaque ghost, so doors,
   // hangar openings and production exits are identifiable before clicking.
