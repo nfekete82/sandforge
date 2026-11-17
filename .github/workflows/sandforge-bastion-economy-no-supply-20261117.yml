@@ -20,8 +20,11 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Build complete WebGL game and audit import graph
-        run: npm run build
+      - name: Compile simulation and package all WebGL modules
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --no-warnings --experimental-vm-modules scripts/check-webgl-module-graph.mjs
       - name: Validate territory economics, legacy save migration, 3D HUD and AI
         run: |
           node --test \
