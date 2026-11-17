@@ -635,16 +635,22 @@ export function createStrategicBuilding(kind,owner=0){
     9.4,Math.sin(a)*77.6,8);
   }
 
-  // The 1.42-high terrain mask hid nearly all of the previous hull.
-  // Reveal a visible cylinder while its lower half stays in the pit.
-  const hull=cyl(15.7,16.6,38,'rocketBody',rocketX,.5,0,48);
+  // The launch platform's terrain mask is at y=1.42. Keep the lower
+  // rocket cylinder below that mask, but expose enough straight steel hull
+  // above the opening that the rounded nose cannot look like it floats.
+  // Derive the nose mount from the hull instead of a hard-coded altitude,
+  // so changing the stage height cannot leave a gap between meshes.
+  const hullHeight=52,hullCenterY=9.5;
+  const hull=cyl(15.7,16.6,hullHeight,'rocketBody',
+   rocketX,hullCenterY,0,48);
   hull.name='Silo_RocketBody';
   const ogiveProfile=[
    [15.7,0],[15.55,2.4],[14.8,5.2],[13.4,8.3],
    [11.5,11.2],[8.6,14.0],[5.5,16.1],[2.5,17.3],[0,17.7]
   ].map(([radius,height])=>new THREE.Vector2(radius,height));
+  const hullTopY=hullCenterY+hullHeight/2;
   const ogive=add(new THREE.LatheGeometry(ogiveProfile,48),
-   'rocketNose',rocketX,19.5,0);
+   'rocketNose',rocketX,hullTopY,0);
   ogive.name='Silo_RocketNose';
   // Lower engine remains concealed beneath the gunmetal hatch opening.
   cyl(11.5,13.6,7,'vent',rocketX,-21,0,24);
