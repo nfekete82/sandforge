@@ -78,6 +78,18 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    'underwater missile shader must use the exact same alloy albedo as the real upper hull');
   assert.ok(shader.fragmentShader.includes('metal=uRocketColor*'),
    'the submerged missile color may never come from a separate hard-coded grey');
+  assert.strictEqual(body.material.map,nose.material.map,
+   'nose and straight hull must share the identical metallic grain texture');
+  assert.equal(body.material.roughness,nose.material.roughness,
+   'nose and hull have exactly the same metal roughness');
+  assert.equal(body.material.metalness,nose.material.metalness,
+   'nose and hull have exactly the same metalness');
+  assert.strictEqual(shader.uniforms.uRocketGrain.value,body.material.map,
+   'projected underground hull must use the same grain as the physical rocket');
+  assert.ok(shader.fragmentShader.includes('texture2D(uRocketGrain,rocketUV)'),
+   'underground rocket samples the actual upper-stage metal texture');
+  assert.doesNotMatch(shader.fragmentShader,/float brush=\.004\*sin/,
+   'no artificial vertical streaks on the underwater rocket cylinder');
   const stageBottom=body.position.y-body.geometry.parameters.height/2;
   assert.ok(Math.abs(shader.uniforms.uRocketBottom.value-
    (stageBottom-occlusion.position.y))<1e-6,
@@ -121,8 +133,14 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    lowest=Math.min(lowest,colors.getX(i));
    highest=Math.max(highest,colors.getX(i));
   }
-  assert.ok(lowest<=.20&&highest>=.95,
-   'upper hull stays metallic while deep underground shell fades into darkness');
+  assert.ok(lowest<=.20&&highest>=.99,
+   'upper hull stays full-strength metal while deep underground shell fades into darkness');
+  for(let i=0;i<positions.count;i++){
+   const worldY=positions.getY(i)+body.position.y;
+   if(worldY>=occlusion.position.y)
+    assert.ok(colors.getX(i)>=.999,
+     'visible rocket cylinder has precisely the same undimmed PBR metal as its nose');
+  }
   assert.equal(nose.position.y,cylinderTop,
    'rounded ogive must connect directly to the cylinder without a floating gap');
   const source=readFileSync('scripts/webgl-strategic-buildings.js','utf8');
