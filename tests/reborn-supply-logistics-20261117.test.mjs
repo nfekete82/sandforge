@@ -94,3 +94,32 @@ test('AI logistics purchases a real truck and preserves the HQ and roster cost',
  assert.ok(hq.queueTypes.includes('supply'),'AI paid headquarters queues first supply truck');
  assert.equal(before-g.credits[1]>=275,true,'credits are deducted from the actual red wallet');
 });
+
+
+test('depots restock gradually after 45 seconds without harvesting, and visible crates return',()=>{
+ const g=make();disableAi(g);
+ const cache=g.supplyCaches[0],base=g.credits[0];
+ cache.remaining=0;cache.lastPickupAt=10;cache.restockClock=0;
+ g.time=10;
+ for(let i=0;i<Math.round((45+14.95)/.05);i++)g.step(.05);
+ assert.equal(cache.remaining,0,'restock is delayed and only paid in full 15-second chunks');
+ for(let i=0;i<2;i++)g.step(.05);
+ assert.equal(cache.remaining,30,'the first refill adds exactly 30 stock credits');
+ for(let i=0;i<300;i++)g.step(.05);
+ assert.equal(cache.remaining,60);
+ const save=Simulation.load(g.save());
+ assert.equal(save.supplyCaches[0].remaining,60);
+ assert.ok(save.supplyCaches[0].lastPickupAt>=0);
+ assert.ok(save.supplyCaches[0].restockClock>=0);
+ assert.ok(g.credits[0]>=base,'restock never removes money from the owner');
+ assert.ok(g.stats.factions[0].earnedCredits>=0);
+});
+test('restocking is interrupted by a pickup and never exceeds depot capacity',()=>{
+ const g=make();disableAi(g);
+ const c=g.supplyCaches[0];g.time=90;
+ c.remaining=SUPPLY_STOCK-20;c.lastPickupAt=0;c.restockClock=14.95;
+ g.step(.05);assert.equal(c.remaining,SUPPLY_STOCK,'stock caps at capacity');
+ c.remaining=100;c.lastPickupAt=g.time;c.restockClock=14.95;
+ g.step(.05);assert.equal(c.remaining,100,'recent pickup enforces fresh restock delay');
+ assert.equal(c.restockClock,0);
+});

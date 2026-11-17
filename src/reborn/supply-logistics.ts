@@ -14,8 +14,18 @@ export const SUPPLY_STOCK=2250;
 export const SUPPLY_PICKUP_SECONDS=2.4;
 export const SUPPLY_UNLOAD_SECONDS=1.4;
 export const SUPPLY_PICKUP_RADIUS=90;
+/** A depleted depot regenerates slowly after an undisturbed 45-second pause.
+ * 30 credits per 15 simulated seconds: infinite long-term supply routes, but
+ * no free currency, and no fast recovery under continuous harvesting.
+ */
+export const SUPPLY_RESTOCK_DELAY=45;
+export const SUPPLY_RESTOCK_INTERVAL=15;
+export const SUPPLY_RESTOCK_AMOUNT=30;
 export type SupplyPhase='seek'|'to-cache'|'loading'|'to-hq'|'unloading'|'idle';
-export interface SupplyCache extends Point{id:number;remaining:number;capacity:number}
+export interface SupplyCache extends Point{
+ id:number;remaining:number;capacity:number;
+ lastPickupAt?:number;restockClock?:number;
+}
 export interface SupplyJob{
  auto:boolean;phase:SupplyPhase;cacheId:number|null;cargo:number;clock:number;
  /** Optional player-chosen depot. If depleted/unreachable, use another. */
@@ -86,7 +96,7 @@ export function generateSupplyCaches(
    if(p)caches.push({id:caches.length,...p,remaining:SUPPLY_STOCK,capacity:SUPPLY_STOCK});
   }
  }
- return caches;
+ return caches.map(c=>({...c,lastPickupAt:0,restockClock:0}));
 }
 export const supplyDeliveryPoint=(g:Simulation,u:Unit,hq:Base):Point=>{
  const angle=Math.atan2(u.y-hq.y,u.x-hq.x);
@@ -133,6 +143,21 @@ export function selectSupplyCache(g:Simulation,u:Unit):SupplyCache|undefined{
  */
 export function stepSupplyLogistics(g:Simulation,dt:number):void{
  if(!g.supplyCaches.length)return;
+ // Supply regenerates only while harvesters are away. Resource state is
+ // authoritative, deterministic at 20 Hz, and persisted with the save.
+ for(const cache of g.supplyCaches){
+  if(cache.remaining>=cache.capacity){
+   cache.restockClock=0;continue;
+  }
+  const since=g.time-(cache.lastPickupAt??0);
+  if(since<SUPPLY_RESTOCK_DELAY){cache.restockClock=0;continue;}
+  cache.restockClock=(cache.restockClock??0)+dt;
+  if(cache.restockClock+1e-8>=SUPPLY_RESTOCK_INTERVAL){
+   const ticks=Math.floor((cache.restockClock+1e-8)/SUPPLY_RESTOCK_INTERVAL);
+   cache.restockClock=Math.max(0,cache.restockClock-ticks*SUPPLY_RESTOCK_INTERVAL);
+   cache.remaining=Math.min(cache.capacity,cache.remaining+ticks*SUPPLY_RESTOCK_AMOUNT);
+  }
+ }
  const units=g.units.filter(u=>u.kind==='supply'&&u.hp>0&&!u.carrier);
  for(const u of units){
   const job=u.supply??(u.supply=newSupplyJob());
@@ -168,6 +193,7 @@ export function stepSupplyLogistics(g:Simulation,dt:number):void{
    if(job.clock+1e-8>=SUPPLY_PICKUP_SECONDS){
     const taken=Math.min(SUPPLY_LOAD,cache.remaining);
     cache.remaining-=taken;job.cargo=taken;
+    cache.lastPickupAt=g.time;cache.restockClock=0;
     job.phase='to-hq';job.clock=0;u.orders=[];
    }
    continue;
