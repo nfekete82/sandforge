@@ -57,6 +57,7 @@ import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
 import {createSupplyTruckVisual,createSupplyCacheVisual,updateSupplyCacheVisual,setSupplyTruckCargo,animateSupplyTruckRig} from '/webgl-supply-logistics.js';
+import {customSupplyTruckUrl,prepareCustomSupplyTruck} from '/webgl-supply-custom.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
 // exclusively by the original Simulation. 3D nodes are presentation only.
@@ -274,14 +275,19 @@ export class SandforgeBattlefield {
   return group;
  }
  async getModel(url){
-  if(!this.models.has(url))this.models.set(url,this.loader.loadAsync(url).catch(e=>{this.models.delete(url);throw e;}));
+  if(!this.models.has(url))this.models.set(url,this.loader.loadAsync(url).catch(e=>{
+   // Older worktrees without the newly imported GLB keep their existing PBR truck.
+   const match=url.match(/\/supply-custom\/supply-([01])\.glb$/);
+   if(match)return this.loader.loadAsync('/src/assets/reborn/supply-pbr/supply-'+match[1]+'.glb');
+   this.models.delete(url);throw e;
+  }));
   return this.models.get(url);
  }
  asset(kind,owner,type){
   const prefix='/src/assets/reborn/';
   if(type==='building')return prefix+'buildings-3d/'+kind+'-'+owner+'.glb';
   // True textured GLBs with six wheel pivots and two working cargo doors.
-  if(type==='unit'&&kind==='supply')return prefix+'supply-pbr/supply-'+owner+'.glb';
+  if(type==='unit'&&kind==='supply')return customSupplyTruckUrl(owner);
   // Rocket specialists share the fully animated Atlas infantry skeleton.
   // Keep the original prototype rig and clips, replace only its rifle mesh.
   if(type==='unit'&&kind==='rocket')return prefix+'prototype/infantry-'+owner+'.glb';
@@ -458,6 +464,7 @@ export class SandforgeBattlefield {
     const {entry,type}=task;
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
+    if(type==='unit'&&entry.kind==='supply')prepareCustomSupplyTruck(model,entry.owner);
     if(type==='building'&&((entry.kind==='headquarters'&&
       model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
       (entry.kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
@@ -482,7 +489,7 @@ export class SandforgeBattlefield {
     }
     if(type==='unit'&&entry.kind==='supply'){
      model.userData.sandforgeOriginalPBR=true;
-     setSupplyTruckCargo(model,false);
+     setSupplyTruckCargo(model,{cargo:0,phase:'seek'});
     }
     if(type==='unit'&&entry.kind==='medic')polishMedicModel(model);
     if(type==='unit'&&entry.kind==='engineer')
@@ -1141,7 +1148,7 @@ export class SandforgeBattlefield {
    const oldEntry=this.units.get(u.id);if(oldEntry)oldEntry.productionMotion=null;
    let entry=this.units.get(u.id);
    if(!entry){entry=this.spawnNode(u,'unit');this.units.set(u.id,entry);}
-   if(u.kind==='supply')setSupplyTruckCargo(entry.detail??entry.placeholder,Boolean(u.supply?.cargo));
+   if(u.kind==='supply')setSupplyTruckCargo(entry.detail??entry.placeholder,u.supply??{cargo:0});
    if(entry.factionOwner!==u.owner){
     applyFactionAccents(entry,u,'unit');
     attachTeamMarkings(entry,u.owner,u.kind,entry.modelFootprint??(UNITS[u.kind]?.width??60),entry.modelHeight??42);
