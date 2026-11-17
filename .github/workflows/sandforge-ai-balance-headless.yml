@@ -1,0 +1,34 @@
+name: Sandforge AI and combat balance (headless)
+
+on:
+  pull_request:
+    paths:
+      - 'src/reborn/**'
+      - 'tests/reborn-ai-director.test.mjs'
+      - 'tests/reborn-combat-balance-20261117.test.mjs'
+      - 'tests/reborn-map-ai.test.mjs'
+      - 'tests/reborn-control-retreat.test.mjs'
+      - 'tests/fixtures/**'
+      - '.github/workflows/sandforge-ai-balance-headless.yml'
+  workflow_dispatch:
+
+jobs:
+  ai-and-combat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install JavaScript dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Compile simulation without local PBR GLB files
+        run: npx tsc -p tsconfig.json
+      - name: Test paid AI production, aggression, retreat and weapon balance
+        run: |
+          node --test \
+            tests/reborn-ai-director.test.mjs \
+            tests/reborn-map-ai.test.mjs \
+            tests/reborn-control-retreat.test.mjs \
+            tests/reborn-combat-balance-20261117.test.mjs
