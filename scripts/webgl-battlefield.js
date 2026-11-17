@@ -32,7 +32,7 @@ import {selectedMaintenanceKind,serviceFootprintContains,maintenanceClickAllowed
 import {disposeOwnedMeshes,disposeTaggedMaterials} from '/webgl-resource-lifecycle.js';
 import {releaseBastionRevision} from '/webgl-bastion-lifecycle.js';
 import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
-import {selectedInfantryForTransport,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
+import {selectedInfantryForTransport,selectedCarrierForPickup,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
 import {pointerGestureIntent,submitConstruction,nearestEngineer,keepPlacementAfterBuild,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
 import {validatedWallDrag,WALL_CHAIN_DRAG_THRESHOLD,WALL_CHAIN_MAX} from '/webgl-wall-drag.js';
 import {sameKindVisibleUnits,visibleFriendlyUnits} from '/webgl-double-click-select.js';
@@ -2684,6 +2684,27 @@ export class SandforgeBattlefield {
     this.message(accepted?accepted+' Soldat(en): Zum '+(carrier.kind==='scout'?'Hubschrauber':'Humvee')+' einsteigen':
      'Einsteigen nicht möglich · Plätze, Entfernung und Weg prüfen');
     if(accepted){this.sound?.command?.();this.showCommandPulse({x:carrier.x,y:carrier.y});}
+    this.drawInterface();return;
+   }
+  }
+  // Carrier-first pickup: with ONE helicopter or Humvee selected, RMB on a
+  // friendly soldier sends the vehicle/aircraft to THEM (not vice versa).
+  // Keep this before terrain, maintenance hitboxes and normal unit orders.
+  if(event.button===2&&this.selected.size&&!this.attackMode&&
+     !this.rallyMode&&!this.strategicTargetMode&&this.selectedBase===null){
+   const friendly=this.friendlyAtPointer(event);
+   const passenger=friendly?.type==='unit'?friendly.entity:null;
+   const carrier=selectedCarrierForPickup(this.game.units,this.selected,passenger);
+   if(carrier){
+    const accepted=this.game.transports.collect(carrier.id,[passenger.id]);
+    this.message(accepted?
+     (carrier.kind==='scout'?'Helikopter':'Humvee')+
+     ': Abholen · '+(UNITS[passenger.kind]?.name??'Soldat'):
+     'Abholen nicht möglich · Plätze, Landeplatz oder Weg prüfen');
+    if(accepted){
+     this.sound?.command?.();
+     this.showCommandPulse({x:passenger.x,y:passenger.y});
+    }
     this.drawInterface();return;
    }
   }
