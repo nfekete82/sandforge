@@ -30,6 +30,7 @@ npm run build
 node --test \
  tests/webgl-bastion-pbr-radar.test.mjs \
  tests/sandforge-bastion-navigation.test.mjs \
+ tests/webgl-bastion-hq-ownership-20261117.test.mjs \
  tests/webgl-building-portrait-readability.test.mjs \
  tests/webgl-authored-barracks-portrait.test.mjs \
  tests/webgl-final-pbr-asset-sync.test.mjs \
