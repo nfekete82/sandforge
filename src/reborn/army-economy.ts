@@ -64,15 +64,6 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  const finishing=director&&s.commander?.enemyHQEliminatedAt!==undefined;
  if(director&&!s.economy)s.economy=e; // Keep paid turret cooldowns across macro ticks and save/reload.
  const count=(kind:UnitKind)=>army.filter(u=>u.kind===kind).length+own.reduce((n,b)=>n+b.queueTypes.filter(k=>k===kind).length,0);
- // A real 275-credit truck must travel to a public finite stockpile and
- // return alive before any income is earned. Only fund the first truck
- // when the opening combat barracks is ready and 150 credits remain.
- if(director&&g.world.mapVersion>=23&&g.supplyCaches.some(c=>c.remaining>0)&&
-   g.time>=28&&g.hasHeadquarters(1)&&own.some(b=>b.kind==='barracks'&&b.buildRemaining<=0)&&
-   count('supply')<1&&!underAttack&&g.credits[1]>=UNITS.supply.cost+150){
-   const hq=own.find(b=>b.kind==='headquarters'&&b.buildRemaining<=0);
-   if(hq)g.recruit(hq.id,'supply');
- }
  const has=(kind:BuildingKind)=>own.some(b=>b.kind===kind),complete=(kind:BuildingKind)=>own.some(b=>b.kind===kind&&b.buildRemaining<=0);
  const unfinished=own.find(b=>b.buildRemaining>0);
  const learnedDefense=director&&s.experience?defenseLessonsLost(s.experience)>0:false;
