@@ -94,7 +94,7 @@ export function createBuildingFoundation(kind,width){
    mesh.userData.foundationAperture=SILO_FOUNDATION_APERTURE;
   }else mesh.position.set(shape.x,y,shape.z);
   mesh.material.userData={sandforgeFoundationMaterial:true};
-  mesh.userData={visualOnly:true,nonPlayable:true,foundation:true};
+  mesh.userData={...mesh.userData,visualOnly:true,nonPlayable:true,foundation:true};
   mesh.castShadow=false;mesh.receiveShadow=true;mesh.raycast=()=>{};
   group.add(mesh);return mesh;
  };
