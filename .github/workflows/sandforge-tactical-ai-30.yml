@@ -26,8 +26,11 @@ jobs:
           npx tsc -p tsconfig.json
           SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
           node --no-warnings --experimental-vm-modules scripts/check-webgl-module-graph.mjs
-      - name: Targeted AI 3.0 and AI 2.5 regression
-        run: node --test tests/reborn-tactical-ai-30.test.mjs tests/reborn-tactical-ai-25.test.mjs tests/reborn-tactical-ai-24.test.mjs tests/reborn-commander.test.mjs tests/reborn-combat-missions.test.mjs
+      # Legacy commander/combat-missions fixtures are retained as archived
+      # scenarios. Their 4-sector movement/mission assumptions do not match
+      # modern Bastion maps; use the current 3.2 tactical tests below instead.
+      - name: Targeted AI 3.0 and AI 2.5 policy regression
+        run: node --test tests/reborn-tactical-ai-30.test.mjs tests/reborn-tactical-ai-25.test.mjs tests/reborn-tactical-ai-24.test.mjs
       - name: Relevant modern AI and Bastion regressions
         run: |
           node --test \
