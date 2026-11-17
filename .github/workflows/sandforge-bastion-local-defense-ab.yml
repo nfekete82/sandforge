@@ -1,9 +1,6 @@
 name: Sandforge local Bastion defense A/B
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/sandforge-bastion-local-defense-ab.yml'
   workflow_dispatch:
 
 jobs:
