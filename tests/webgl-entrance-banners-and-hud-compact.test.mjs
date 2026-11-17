@@ -146,6 +146,6 @@ test('compact Energiekern has actual barbed wire on three sides, with a clear en
  assert.ok(bounds.rightX>112*.70+12,'the generator fence expands only to the RIGHT');
  assert.ok(Math.abs(bounds.gateHalf-112*.30)<1e-6,
   'generator entrance must keep its 30% half-width opening');
- assert.match(code,/if\(\['barracks','headquarters','factory','generator','research'\]\.includes\(kind\)\)/);
+ assert.match(code,/if\(\['barracks','headquarters','factory','generator','research','silo'\]\.includes\(kind\)\)/);
  disposeBuildingYard(yard);
 });
