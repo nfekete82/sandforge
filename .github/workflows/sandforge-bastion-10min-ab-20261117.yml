@@ -1,9 +1,6 @@
 name: Sandforge Bastion security 10-minute A/B
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/sandforge-bastion-10min-ab-20261117.yml'
   workflow_dispatch:
 
 jobs:
