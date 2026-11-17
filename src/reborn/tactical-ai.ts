@@ -304,9 +304,24 @@ export class TacticalAI {
    (u.kind==='artillery'?250:u.kind==='heavy'?100:u.kind==='bomber'?120:0);
   const target=intruders.slice().sort((a,v)=>threatScore(a)-threatScore(v)||a.id-v.id)[0];
   const nearby=intruders.filter(u=>distance(u,target)<400),needed=fightingPower(nearby)*1.2;
-  const available=fighters.slice().sort((a,v)=>Number(old?.ids.includes(v.id))-Number(old?.ids.includes(a.id))||distance(a,target)-distance(v,target)||a.id-v.id);
+  // Base invasions remain a FULL emergency: all actually paid fighters
+  // may confront a landing on the HQ, barracks, factory or research yard.
+  // An isolated Bastion raid, by contrast, must not pull a distant
+  // 18-member offensive column halfway across the desert. Respond with
+  // genuinely LOCAL guards/reserves, preserve s.group for the main front.
+  const baseEmergency=protectedBases.some(base=>distance(base,target)<
+   (base.kind==='headquarters'?560:420));
+  const available=fighters.filter(u=>baseEmergency||
+    (distance(u,target)<900&&(!s.group.includes(u.id)||distance(u,target)<460)))
+   .sort((a,v)=>Number(old?.ids.includes(v.id))-Number(old?.ids.includes(a.id))||
+    distance(a,target)-distance(v,target)||a.id-v.id);
+  if(!available.length){
+   b.squads=b.squads.filter(q=>q.role!=='defense');
+   return new Set(); // No instant reinforcements or invisible teleports.
+  }
   const defenders:Unit[]=[];for(const u of available){defenders.push(u);if(fightingPower(defenders)>=needed)break;}
-  const medic=medics.slice().sort((a,v)=>distance(a,target)-distance(v,target))[0];
+  const medic=(baseEmergency?medics:medics.filter(u=>distance(u,target)<900))
+   .slice().sort((a,v)=>distance(a,target)-distance(v,target))[0];
   const ids=new Set([...defenders.map(u=>u.id),...(medic?[medic.id]:[])]);
   b.squads=[...b.squads.filter(q=>q.role!=='defense').map(q=>({...q,ids:q.ids.filter(id=>!ids.has(id))})),{role:'defense',ids:[...ids],target:target.id,since:old?.target===target.id?old.since:g.time}];
   // Previous doctrine RETREATED if a player unloaded a stronger squad
