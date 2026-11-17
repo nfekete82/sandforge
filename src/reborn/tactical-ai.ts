@@ -18,6 +18,7 @@ import {assignScreen,assignFlank,flankRouteScore,isContinuingFlank} from './batt
 import {assaultWaveDecision,reinforcementStagingPoint} from './assault-wave.js';
 import {homeDefensePlan} from './home-defense-doctrine.js';
 import {chooseSiegeShot,chooseRaidFront,allowSecondaryPressure,type SiegeShot,type RaidFront} from './ai25-doctrine.js';
+import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefenseMultiplier} from './ai32-doctrine.js';
 import type {Simulation,Unit,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
@@ -305,14 +306,21 @@ export class TacticalAI {
   const threatScore=(u:Unit)=>Math.min(...protectedSites.map(site=>distance(u,site)))-
    (u.kind==='artillery'?250:u.kind==='heavy'?100:u.kind==='bomber'?120:0);
   const target=intruders.slice().sort((a,v)=>threatScore(a)-threatScore(v)||a.id-v.id)[0];
-  const nearby=intruders.filter(u=>distance(u,target)<400),needed=fightingPower(nearby)*1.2;
+  const nearby=intruders.filter(u=>distance(u,target)<400);
+  // High-value captured Bastions get a stronger LOCAL counterattack.
+  // Guard assignments are still real paid units; never strip remote waves.
+  const baseEmergency=protectedBases.some(base=>distance(base,target)<
+   (base.kind==='headquarters'?560:420));
+  const threatenedBastion=g.territories.filter(t=>t.owner===1&&distance(target,t.point)<300)
+   .sort((a,b)=>distance(target,a.point)-distance(target,b.point)||a.id-b.id)[0];
+  const multiplier=g.world.mapVersion>=24
+   ?localBastionDefenseMultiplier(threatenedBastion?.income??0,baseEmergency):1.2;
+  const needed=fightingPower(nearby)*multiplier;
   // Base invasions remain a FULL emergency: all actually paid fighters
   // may confront a landing on the HQ, barracks, factory or research yard.
   // An isolated Bastion raid, by contrast, must not pull a distant
   // 18-member offensive column halfway across the desert. Respond with
   // genuinely LOCAL guards/reserves, preserve s.group for the main front.
-  const baseEmergency=protectedBases.some(base=>distance(base,target)<
-   (base.kind==='headquarters'?560:420));
   const available=fighters.filter(u=>baseEmergency||
     (distance(u,target)<900&&(!s.group.includes(u.id)||distance(u,target)<460)))
    .sort((a,v)=>Number(old?.ids.includes(v.id))-Number(old?.ids.includes(a.id))||
