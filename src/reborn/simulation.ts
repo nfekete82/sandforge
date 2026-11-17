@@ -31,7 +31,7 @@ import {factoryRepairPoint,validFactoryService,FACTORY_REPAIR_BAYS,FACTORY_REPAI
 import {factoryDoorExitCandidates,infantryDoorExitCandidates} from './production-exit.js';
 import {eliminationOutcome} from './match-outcome.js';
 // Only legacy save validation uses supply types; no active logistics controller.
-import {validSupplyJob,SUPPLY_RESTOCK_INTERVAL,type SupplyCache,type SupplyJob} from './supply-logistics.js';
+import {validSupplyJob,SUPPLY_RESTOCK_INTERVAL,type SupplyCache,type SupplyJob} from './legacy-supply-save.js';
 import {formationSlotPitch,vehicleSpacingGap,preservesVehicleProgress,vehicleYieldWaypoint} from './vehicle-spacing.js';
 import {UPGRADES,UPGRADE_KINDS,newResearchState,canResearchUpgrade,researchModifiers,
  validResearchState,strategicBlastDamage,validStrategicMissile,
