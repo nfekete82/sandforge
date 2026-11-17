@@ -8,7 +8,7 @@ import {airfieldPoint,airfieldGroundStructureColliders} from '../dist/src/reborn
 import {infantryStructureColliders} from '../dist/src/reborn/infantry-structure-collision.js';
 import {vehicleStructureColliders} from '../dist/src/reborn/vehicle-structure-collision.js';
 import {HELICOPTER_LOADING_TIMEOUT} from '../dist/src/reborn/transports.js';
-import {BOARDABLE_INFANTRY,selectedInfantryForTransport,selectedTransportManifest}
+import {BOARDABLE_INFANTRY,selectedInfantryForTransport,selectedCarrierForPickup,selectedTransportManifest}
  from '../scripts/webgl-transport-controls.js';
 
 function arena(){
@@ -97,6 +97,57 @@ test('helicopter parked for airfield maintenance departs safely before a new pic
  for(let i=0;i<190&&h.airfieldService;i++)g.step(.05);
  assert.equal(h.airfieldService,undefined,'actual authored takeoff completes');
  assert.equal(h.transport.task,'load','pickup resumes after hangar departure');
+});
+
+test('right-click infantry with selected carrier picks the passenger, not the transport',()=>{
+ const h={id:30,kind:'scout',owner:0,hp:360};
+ const jeep={id:31,kind:'rover',owner:0,hp:295};
+ const soldier={id:32,kind:'rocket',owner:0,hp:95};
+ const enemy={...soldier,id:33,owner:1};
+ assert.equal(selectedCarrierForPickup([h,jeep,soldier],new Set([h.id]),soldier),h);
+ assert.equal(selectedCarrierForPickup([h,jeep,soldier],new Set([jeep.id]),soldier),jeep);
+ assert.equal(selectedCarrierForPickup([h,jeep,soldier],new Set([h.id,jeep.id]),soldier),null);
+ assert.equal(selectedCarrierForPickup([h,jeep,enemy],new Set([h.id]),enemy),null);
+ assert.equal(selectedCarrierForPickup([h,jeep,soldier],new Set([h.id]),
+  {...soldier,carrier:50}),null);
+ assert.equal(selectedCarrierForPickup([h,jeep,soldier],new Set([h.id]),
+  {...soldier,kind:'tank'}),null);
+ const ui=readFileSync('scripts/webgl-battlefield.js','utf8');
+ const pickup=ui.indexOf('selectedCarrierForPickup(this.game.units,this.selected,passenger)');
+ const normal=ui.indexOf('const clickedEnemy=event.button===2');
+ assert.ok(pickup>=0&&pickup<normal,
+  'pickup must intercept the right-click BEFORE enemy/terrain/maintenance routing');
+ assert.match(ui,/this\.game\.transports\.collect\(carrier\.id,\[passenger\.id\]\)/);
+});
+
+test('carrier travels to clicked rocket soldier, lands/stops and takes him aboard',()=>{
+ for(const kind of ['scout','rover']){
+  const g=arena();
+  const carrier=g.spawn(0,{x:1600,y:1800},kind);
+  const soldier=g.spawn(0,{x:2180,y:2030},'rocket');
+  const start={x:carrier.x,y:carrier.y};
+  assert.equal(g.transports.collect(carrier.id,[soldier.id]),1,
+   kind+' must accept a carrier-initiated pickup');
+  assert.equal(carrier.transport.task,'load');
+  assert.equal(carrier.transport.phase,'approach',
+   kind+' must travel toward soldier instead of loading at its origin');
+  assert.equal(soldier.orders[0].kind,'board');
+  assert.equal(soldier.orders[0].target,carrier.id);
+  assert.ok(Math.hypot(carrier.transport.site.x-soldier.x,
+    carrier.transport.site.y-soldier.y)<120,
+   'pickup site should be near clicked passenger, not the carrier');
+  for(let i=0;i<1200&&!soldier.carrier;i++)g.step(.05);
+  assert.equal(soldier.carrier,carrier.id,kind+' actually collects passenger');
+  assert.ok(carrier.transport.cargo.includes(soldier.id));
+  assert.ok(Math.hypot(carrier.x-start.x,carrier.y-start.y)>180,
+   kind+' must move significantly towards the passenger');
+ }
+});
+
+test('helicopter cruises 10 percent faster without changing bomber or Humvee speeds',()=>{
+ assert.equal(UNITS.scout.speed,220);
+ assert.equal(UNITS.bomber.speed,350);
+ assert.equal(UNITS.rover.speed,235);
 });
 
 test('all four rotated hangars block walking through roof, while runway remains traversable',()=>{
