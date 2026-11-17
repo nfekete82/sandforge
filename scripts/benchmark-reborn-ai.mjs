@@ -84,6 +84,7 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
   redOrdersByKind:{},redProducedByKind:{},blueProducedByKind:{},redLossesByKind:{},blueLossesByKind:{},
   paidRecruitCredits:0,refundedRecruitCredits:0,vehiclesProduced:0,aircraftProduced:0,
   redSectors:startingRedSectors,captures:0,netCaptures:0,territoriesLost:0,blueCaptures:0,blueTerritoriesLost:0,
+  bastionControlSeconds:0,bastionRecaptures:0,exposedFrontierSeconds:0,guardedFrontierSeconds:0,
   blueUnitsLost:0,redUnitsLost:0,blueUnitDamage:0,redUnitDamage:0,redUnits:0,redCredits:0,
   firstVehicleShot:null,vehicleShots:0,shotsByKind:{},damageByRedKind:{},
   vehicleDeaths:0,vehicleRepairHp:0,vehicleEvacuations:0,vehicleReturned:0,repairedVehiclesReused:0,
@@ -222,11 +223,24 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
    }
    previousBases=currentBases;
    for(const t of g.territories){const previous=previousOwnership.get(t.id);
+    if(previous===0&&t.owner===1)metrics.bastionRecaptures++;
     if(previous!==1&&t.owner===1)metrics.captures++;
     if(previous===1&&t.owner!==1)metrics.territoriesLost++;
     if(previous!==0&&t.owner===0)metrics.blueCaptures++;if(previous===0&&t.owner!==0)metrics.blueTerritoriesLost++;
    }
    previousOwnership=new Map(g.territories.map(t=>[t.id,t.owner]));
+   // Area under the public sector-control curve, in Bastion-seconds.
+   // End-of-game holdings alone hide sectors lost midway through a battle.
+   // Sample nearby actual paid defenders at 1 Hz, never issue commands.
+   metrics.bastionControlSeconds+=g.territories.filter(t=>t.owner===1).length*dt;
+   if(step%20===0)for(const sector of g.territories){
+    if(sector.owner!==1||!sector.neighbors.some(id=>g.territories[id]?.owner!==1))continue;
+    metrics.exposedFrontierSeconds++;
+    if(g.units.some(u=>u.owner===1&&u.hp>0&&!u.carrier&&
+     !['engineer','medic','scout'].includes(u.kind)&&
+     Math.hypot(u.x-sector.point.x,u.y-sector.point.y)<185))
+     metrics.guardedFrontierSeconds++;
+   }
    for(const b of g.memories[1])if(b.owner===0&&b.hp>0){seenBuildings.add(b.id);if(b.id===initialHQId)metrics.firstEnemyHQSeen??=now;}
    const red=g.units.filter(u=>u.owner===1&&u.hp>0),deployed=red.filter(u=>!u.carrier),available=red.filter(u=>vehicles.has(u.kind));
    metrics.peakVehicles=Math.max(metrics.peakVehicles,available.length);metrics.peakArmy=Math.max(metrics.peakArmy,red.length);
