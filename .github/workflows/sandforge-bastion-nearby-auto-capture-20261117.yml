@@ -1,0 +1,35 @@
+name: Sandforge nearby Bastion auto-capture QA
+on:
+  push:
+    branches: [fix/sandforge-bastion-nearby-auto-capture-20261117]
+  pull_request:
+    branches: [feat/sandforge-supply-pbr-animated-20261117]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  auto-capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile simulation and audit browser modules
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --no-warnings --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Nearby no-click capture and older collision / HQ defense regressions
+        run: |
+          node --test \
+            tests/sandforge-bastion-nearby-auto-capture-20261117.test.mjs \
+            tests/sandforge-bastion-navigation.test.mjs \
+            tests/webgl-bastion-hq-ownership-20261117.test.mjs \
+            tests/reborn-bastion-priority-20261117.test.mjs \
+            tests/reborn-ai3-bastion-rush-20261117.test.mjs
