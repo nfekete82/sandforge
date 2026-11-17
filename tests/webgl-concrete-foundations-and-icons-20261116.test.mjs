@@ -96,6 +96,18 @@ test('fine concrete and repair materials have real shared normal relief, no repe
  material.dispose();mesh.geometry.dispose();
 });
 
+test('projected silo liner respects construction ghost opacity',()=>{
+ const source=new THREE.ShaderMaterial({uniforms:{uOpacity:{value:1}}});
+ const ghost=previewServiceMaterial(source,{opacity:.34});
+ assert.ok(ghost.isShaderMaterial);
+ assert.equal(ghost.uniforms.uOpacity.value,.34);
+ assert.equal(ghost.transparent,true);
+ assert.equal(ghost.depthWrite,false);
+ assert.equal(source.uniforms.uOpacity.value,1,
+  'preview opacity may not change the finished silo material');
+ ghost.dispose();source.dispose();
+});
+
 test('building PBR microrelief uses shared 256px stochastic textures without visible scanlines',()=>{
  const material=readFileSync('scripts/webgl-building-pbr.js','utf8');
  assert.match(material,/const n=256,pixels=new Uint8Array/);
