@@ -49,7 +49,11 @@ test('missile silo and research center share desert khaki and olive PBR paint',(
   for(const materialName of ['SF_camoOlive','SF_camoSand'])
    assert.ok(meshes(research).some(n=>n.material.name===materialName),
     'research lab camouflage must remain available');
-  assert.ok(meshes(silo).length<=20,'static wall patches must remain batched');
+  // One additional dedicated depth-mask mesh is necessary to occlude
+  // the terrain beneath the real shaft; all other static pieces stay batched.
+  assert.equal(meshes(silo).filter(n=>n.name==='Silo_TerrainOcclusion').length,1);
+  assert.ok(meshes(silo).length<=21,
+   'static details remain batched; allow one dedicated shaft depth mask');
   assert.ok(silo.getObjectByName('Silo_RocketBody'));
   assert.ok(silo.getObjectByName('Silo_RocketNose'));
   assert.ok(silo.getObjectByName('Silo_RocketStageSeam'));
