@@ -59,6 +59,10 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  // Public sector ownership is fair knowledge; unseen enemy structures aren't.
  const unheld=g.territories.filter(t=>t.owner!==1);
  const securingBastions=unheld.length>0;
+ // Public 3:1 sector ownership means a severe economic deficit.
+ const pressured=g.world.mapVersion>=23&&g.territories.length===4&&
+  g.territories.filter(t=>t.owner===0).length>=3&&
+  g.territories.filter(t=>t.owner===1).length<=1;
  const canKeepBlockingObjective=(mission:WarMission,remembered:Memory|undefined)=>{
   if(!remembered||g.territories[mission.sector]?.owner===1)return false;
   const target=g.territories[mission.sector];
@@ -90,7 +94,14 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
   }):!!context&&g.time-old.since>30&&nearbyLosses>=3&&
     context.fronts.some(f=>f.sector===old.sector&&f.failures>=2&&g.time-f.at<90));
   const unready=context&&old.kind==='structure'&&g.time-old.since>30&&!context.force.some(u=>u.kind==='artillery')&&buildings.filter(b=>b.kind==='turret'&&distance(b,old)<800).length>=2&&g.territories.some(t=>t.owner!==1&&t.neighbors.some(id=>g.territories[id].owner===1)&&!buildings.some(b=>b.kind==='turret'&&distance(b,t.point)<740));
-  if(valid&&!costly&&!unready&&g.time-old.progressAt<100){
+  const blockingOld=pressured&&old.kind==='capture'&&buildings.some(b=>
+   b.kind==='headquarters'&&b.territory===old.sector||
+   b.kind==='turret'&&distance(b,old)<660);
+  const saferEnemySector=blockingOld&&g.territories.some(t=>t.owner===0&&t.id!==old.sector&&
+   !buildings.some(b=>b.kind==='headquarters'&&b.territory===t.id||
+    b.kind==='turret'&&distance(b,t.point)<660)&&
+   !g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&distance(u,t.point)<350));
+  if(valid&&!costly&&!unready&&!saferEnemySector&&g.time-old.progressAt<100){
    if(remembered){old.x=remembered.x;old.y=remembered.y;if(remembered.hp<old.hp){old.progressAt=g.time;old.hp=remembered.hp;}}
    if(enemy){old.x=enemy.x;old.y=enemy.y;}
    // A newly observed tower covering an HQ approach is a concrete reason to
@@ -132,13 +143,14 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
   // Never infer enemy movement behind fog or ignore a visible raiding squad.
   const visibleGuards=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&
    g.canSee(1,u)&&distance(u,t.point)<350);
-  if(clear&&t.owner===-1&&!visibleGuards)openBastions.add(t.id);
+  if(clear&&!visibleGuards&&(t.owner===-1||pressured&&t.owner===0))openBastions.add(t.id);
   // Neutral unfortified income is the fastest way to support paid armies.
   // Public enemy-held sectors still matter (especially recent losses), but
   // don't outrank a safe nearby Bastion just for being colored blue.
   const retake=context?.experience?.lastLostSector===t.id;
   const score=distance(origin,t.point)-t.income*10-
    (clear&&t.owner===-1?1800:0)-
+   (pressured&&clear&&t.owner===0&&!visibleGuards?1700:0)-
    (retake?1450:0)+(blockers.length?1000:0)+(t.owner===0?200:0);
   choices.push({kind:'capture',p:t.point,sector:t.id,objective:null,hp:0,score});
   // A physical shield must be destroyed before the Bastion can be secured.

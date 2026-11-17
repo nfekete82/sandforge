@@ -1,0 +1,38 @@
+name: Sandforge AI 3.0 Bastion-rush defense QA
+on:
+  push:
+    branches: [feat/sandforge-ai3-bastion-rush-counter-20261117]
+  pull_request:
+    branches: [integration/sandforge-current-20261117]
+    paths:
+      - 'src/reborn/tactical-ai.ts'
+      - 'src/reborn/army-economy.ts'
+      - 'src/reborn/campaign-commander.ts'
+      - 'tests/reborn-ai3-bastion-rush-20261117.test.mjs'
+      - '.github/workflows/sandforge-ai3-bastion-rush-20261117.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  headless-ai3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile AI simulation without untracked Mac-only PBR buildings
+        run: npx tsc -p tsconfig.json
+      - name: Early game, three-to-one comeback and original AI regression tests
+        run: |
+          node --test \
+            tests/reborn-ai3-bastion-rush-20261117.test.mjs \
+            tests/reborn-bastion-priority-20261117.test.mjs \
+            tests/reborn-bastion-expansion-20261117.test.mjs \
+            tests/reborn-ai-director.test.mjs \
+            tests/reborn-dynamic-territory-warfare.test.mjs
