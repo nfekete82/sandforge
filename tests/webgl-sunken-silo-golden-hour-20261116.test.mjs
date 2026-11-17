@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {readFileSync} from 'node:fs';
-import {createStrategicBuilding,trimSiloRocketForGhost} from '../scripts/webgl-strategic-buildings.js';
+import {createStrategicBuilding,trimSiloRocketForGhost,prepareSiloForPortrait} from '../scripts/webgl-strategic-buildings.js';
 import {createBuildingYard,disposeBuildingYard} from '../scripts/webgl-building-yard.js';
 import {DESERT_GOLDEN_HOUR,desertGoldenHourEnabled}
  from '../scripts/webgl-golden-hour.js';
@@ -95,52 +95,18 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    (stageBottom-occlusion.position.y))<1e-6,
    'virtual and physical missile must have the SAME underwater endpoint');
   assert.equal(typeof occlusion.onBeforeRender,'function');
-  // The prior colorless stencil overpaint used depthTest=false and leaked
-  // the entire 125-unit cylinder through the sand, yard and perimeter fence.
-  // Verify that no global-stencil state remains and that the PBR overlay
-  // clips each fragment by where its camera ray crosses the launch opening.
-  assert.equal(model.getObjectByName('Silo_RocketStencilMask'),undefined,
-   'no framebuffer stencil pass may draw rocket pixels outside the silo');
-  const submerged=model.getObjectByName('Silo_RocketBodyUnderground');
-  assert.ok(submerged?.isMesh);
-  assert.equal(submerged.material.isMeshStandardMaterial,true);
-  assert.equal(submerged.material.stencilWrite,false,
-   'underground rocket must not depend on stale global stencil pixels');
-  assert.equal(submerged.material.depthTest,false,
-   'underground PBR is drawn over the fake ground-level occlusion plane');
-  assert.equal(submerged.material.depthWrite,false);
-  assert.strictEqual(submerged.material.map,body.material.map,
-   'submerged geometry shares exact upper-cylinder PBR albedo');
-  assert.equal(submerged.material.metalness,body.material.metalness);
-  assert.equal(submerged.material.roughness,body.material.roughness);
-  assert.equal(submerged.material.color.getHex(),body.material.color.getHex());
-  assert.equal(submerged.material.vertexColors,true);
-  assert.equal(submerged.position.y,body.position.y);
-  assert.equal(submerged.position.x,body.position.x);
-  assert.equal(submerged.userData.viewRayClipped,true);
-  assert.equal(typeof submerged.material.onBeforeCompile,'function');
-  assert.equal(typeof submerged.onBeforeRender,'function');
-  assert.ok(submerged.geometry.index.count>0&&
-   submerged.geometry.index.count<body.geometry.index.count,
-   'only subterranean side triangles are drawn in the masked pass');
-  // Simulate Three's shader hook and verify the GPU geometry pass can only
-  // show physical rocket pixels projected THROUGH the circular opening.
-  const program={
-   uniforms:{},
-   vertexShader:'#include <common>\n#include <worldpos_vertex>',
-   fragmentShader:'#include <common>\n#include <clipping_planes_fragment>'
-  };
-  submerged.material.onBeforeCompile(program);
-  assert.ok(program.vertexShader.includes('vRocketWorldPosition='));
-  assert.ok(program.fragmentShader.includes('if(t<=0.0||t>=1.0)discard;'));
-  assert.ok(program.fragmentShader.includes(
-   'dot(crossing,crossing)>'));
-  assert.ok(program.fragmentShader.includes('if(length(ray)>=wall)discard;'));
-  assert.ok(program.fragmentShader.includes('if(delta<0.0)discard;'));
-  assert.equal(program.uniforms.uSiloOpeningRadius.value,
-   shader.uniforms.uRadius.value);
-  assert.equal(program.uniforms.uSiloDepthLimit.value,95);
-  assert.strictEqual(program.uniforms.uSiloWorldToLocal.value?.isMatrix4,true);
+  // Only ONE real rocket mesh and ONE ground-level shaft shader.
+  // Never render an independent long PBR overlay with depthTest disabled:
+  // that caused the rocket to extend outside the silo, across the sand and
+  // through the wire fence despite having a seemingly correct clip shader.
+  assert.equal(model.getObjectByName('Silo_RocketStencilMask'),undefined);
+  assert.equal(model.getObjectByName('Silo_RocketBodyUnderground'),undefined);
+  assert.equal(model.children.filter(m=>m.isMesh&&m.material?.depthTest===false).length,0,
+   'no underground cylinder is allowed to paint on top of terrain');
+  assert.ok(shader.fragmentShader.includes('tRocket<min(tWall,tFloor)'),
+   'depth shader itself renders the buried missile ONLY inside the circular opening');
+  assert.equal(body.material.depthTest,true,
+   'the real metallic hull must obey the game depth buffer');
   assert.equal(deck.material.name,'SF_metal','main launch deck is stamped steel');
   assert.equal(deck.material.map?.name,'Sandforge silo stamped steel maintenance panels');
   assert.ok(deck.material.metalness>.7&&deck.material.roughness<.5);
@@ -225,8 +191,8 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    painted.push(o)});
   assert.ok(painted.some(m=>m.material.name==='SF_base'));
   assert.ok(painted.some(m=>m.material.name==='SF_armor'));
-  assert.ok(model.children.filter(o=>o.isMesh).length<=25,
-   'static batching remains bounded: only one additional underground PBR pass');
+  assert.ok(model.children.filter(o=>o.isMesh).length<=24,
+   'static batching remains bounded without any underground rocket overdraw');
  }
  assert.equal(BUILDINGS.silo.cost,5000);
  assert.equal(BUILDINGS.silo.buildTime,100);
@@ -296,8 +262,8 @@ test('translucent silo building ghost hides the buried rocket without altering g
  const scene=readFileSync('scripts/webgl-battlefield.js','utf8');
  assert.match(scene,/trimSiloRocketForGhost\(placeholder\)/,
   'ghost-only trim is called before translucent materials are applied');
- assert.match(scene,/const buried=placeholder\.getObjectByName\('Silo_RocketBodyUnderground'\)/,
-  'transparent ghost hides the underground PBR body');
+ assert.doesNotMatch(scene,/Silo_RocketBodyUnderground/,
+  'no extra underground missile renderer is needed in placement previews');
  assert.equal(trimSiloRocketForGhost(new THREE.Group()),false,
   'non-silo buildings should never be modified');
  assert.equal(trimSiloRocketForGhost(ghost),true,
@@ -322,6 +288,37 @@ test('translucent silo building ghost hides the buried rocket without altering g
    pos.getY(ix[i])+reversedHull.position.y);
  assert.ok(lowestReverse>=2.2,
   'ghost clipping must still work when CylinderGeometry indices run bottom-first');
+});
+
+test('HUD silo portrait is framed on the visible rocket and bunker, not a long buried tube',()=>{
+ const live=createStrategicBuilding('silo',0);
+ const portrait=createStrategicBuilding('silo',0);
+ const before=new THREE.Box3().setFromObject(portrait);
+ const liveRocket=live.getObjectByName('Silo_RocketBody');
+ assert.equal(prepareSiloForPortrait(portrait),true);
+ const after=new THREE.Box3().setFromObject(portrait);
+ const portraitRocket=portrait.getObjectByName('Silo_RocketBody');
+ const nose=portrait.getObjectByName('Silo_RocketNose');
+ const mask=portrait.getObjectByName('Silo_TerrainOcclusion');
+ assert.ok(after.min.y>before.min.y+40,
+  'portrait bounds must not include the hidden missile extending far below the deck');
+ assert.ok(after.max.y<=before.max.y+.01);
+ assert.ok(portraitRocket.position.y-portraitRocket.geometry.parameters.height/2>mask.position.y,
+  'HUD rocket stops at the launch opening rather than hanging underneath it');
+ assert.equal(portraitRocket.position.y+portraitRocket.geometry.parameters.height/2,
+  nose.position.y,'HUD cylinder still meets the rounded nose without a gap');
+ assert.equal(portraitRocket.geometry.getAttribute('color').count,
+  portraitRocket.geometry.getAttribute('position').count,
+  'portrait metal retains valid full-bright PBR vertex colors');
+ assert.equal(liveRocket.geometry.parameters.height,125,
+  'HUD edits must not shorten the playable missile');
+ assert.equal(portrait.getObjectByName('Silo_InnerShaftWall'),undefined);
+ assert.equal(portrait.getObjectByName('Silo_RecessedLaunchWell'),undefined);
+ assert.equal(prepareSiloForPortrait(portrait),false,
+  'portrait trim is idempotent');
+ const script=readFileSync('scripts/webgl-portraits.js','utf8');
+ assert.match(script,/if\(kind==='silo'&&!prepareSiloForPortrait\(model\)\)/,
+  'real HUD 3D portrait is corrected before its camera bounds are computed');
 });
 
 test('silo shares the slim military barbed-wire fence and clears its supply pallets',()=>{
