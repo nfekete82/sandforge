@@ -104,6 +104,43 @@ const siloSteelPlate=(()=>{
  return texture;
 })();
 
+/** Shared 256px weathered gunmetal albedo for the INNER silo wall.
+ * This is wrapped around the projected shaft, not drawn as a flat decal.
+ * Weld seams, stamped panel edges, rivets and oxidation remain visible at
+ * tactical zoom; all silos reuse one texture allocation.
+ */
+const siloInnerSteelPaint=(()=>{
+ const n=256,data=new Uint8Array(n*n*4);
+ for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+  const px=x%32,py=y%64;
+  const hash=(Math.imul(x+157,374761393)^Math.imul(y+37,668265263))>>>0;
+  const noise=((hash^(hash>>>13))&63)-31;
+  const broad=Math.sin(x*.095+y*.043)*5.5+
+   Math.cos(x*.039-y*.081)*4;
+  const seam=px<=2?-23:px===3?13:py<=1?-13:py===2?9:0;
+  const bolt=((px-8)**2+(py-12)**2<7||
+   (px-24)**2+(py-52)**2<7)?-28:0;
+  const scratch=(x%37===0&&noise>7)?-11:0;
+  const oxidation=6*Math.max(0,Math.sin(x*.043+y*.076));
+  const tone=seam+bolt+scratch+broad+noise*.26-oxidation;
+  const at=(y*n+x)*4;
+  for(let c=0;c<3;c++)
+   data[at+c]=Math.max(0,Math.min(255,
+    Math.round([91,102,109][c]+tone)));
+  data[at+3]=255;
+ }
+ const map=new THREE.DataTexture(data,n,n,THREE.RGBAFormat);
+ map.name='Sandforge silo deep weathered steel shaft wall';
+ map.colorSpace=THREE.SRGBColorSpace;
+ map.wrapS=map.wrapT=THREE.RepeatWrapping;
+ map.magFilter=THREE.LinearFilter;
+ map.minFilter=THREE.LinearMipmapLinearFilter;
+ map.generateMipmaps=true;
+ map.anisotropy=8;
+ map.needsUpdate=true;
+ return map;
+})();
+
 /** Static destructible base wall, rendered once and shared by preview and game. */
 function createDefensiveWall(owner){
  const root=new THREE.Group();root.name='Strategic_wall';
@@ -472,7 +509,8 @@ export function createStrategicBuilding(kind,owner=0){
     uCameraLocal:{value:new THREE.Vector3(0,0,250)},
     uRadius:{value:shaftRadius-.8},
     uDepth:{value:shaftDepth},
-    uOpacity:{value:1.0}
+    uOpacity:{value:1.0},
+    uWallTexture:{value:siloInnerSteelPaint}
    },
    vertexShader:`
     varying vec2 vSiloXY;
@@ -486,6 +524,7 @@ export function createStrategicBuilding(kind,owner=0){
     uniform float uRadius;
     uniform float uDepth;
     uniform float uOpacity;
+    uniform sampler2D uWallTexture;
     varying vec2 vSiloXY;
     const float PI=3.141592653589793;
     float band(float depth,float at,float halfWidth){
@@ -512,12 +551,16 @@ export function createStrategicBuilding(kind,owner=0){
       float collars=band(down,14.0,1.35)*0.24+
        band(down,38.0,1.6)*0.26+
        band(down,67.0,1.9)*0.23;
-      float depthFade=1.0-0.76*down/uDepth;
-      float lightSide=0.65+0.35*max(0.0,
+      // UVs follow the 3D wall's angular position and underground depth.
+      vec2 steelUV=vec2(angle/(2.0*PI)*2.0,down*.029);
+      vec3 steel=texture2D(uWallTexture,steelUV).rgb;
+      float depthFade=1.0-0.72*down/uDepth;
+      float lightSide=0.63+0.31*max(0.0,
        dot(-normalize(hit.xy),normalize(eye.xy-hit.xy)));
-      float streak=(sin(angle*71.0+down*.075)+sin(angle*43.0-down*.026))*.022;
-      float shade=(.16+rib*.22-seam*.07+collars+streak)*depthFade*lightSide;
-      metal=vec3(.026,.038,.045)+vec3(.62,.77,.82)*max(shade,0.0);
+      float streak=(sin(angle*71.0+down*.075)+sin(angle*43.0-down*.026))*.017;
+      float detail=0.73+rib*.24-seam*.19+collars+streak;
+      metal=steel*max(.15,detail)*depthFade*lightSide+
+       vec3(.009,.012,.015);
      }else{
       // No visible stone or bright floor: the bottom lies 95 units below
       // the mouth and almost disappears in shadow.
@@ -592,20 +635,19 @@ export function createStrategicBuilding(kind,owner=0){
     9.4,Math.sin(a)*77.6,8);
   }
 
-  // Recess the missile deeper. Only a short, rounded ballistic ogive and a
-  // small upper section of the smooth cylinder rise above the steel hatch.
-  // The blunt nose follows a curved ogive profile, not the former sharp cone.
-  const hull=cyl(15.7,16.6,31,'rocketBody',rocketX,-4,0,48);
+  // The 1.42-high terrain mask hid nearly all of the previous hull.
+  // Reveal a visible cylinder while its lower half stays in the pit.
+  const hull=cyl(15.7,16.6,38,'rocketBody',rocketX,.5,0,48);
   hull.name='Silo_RocketBody';
   const ogiveProfile=[
    [15.7,0],[15.55,2.4],[14.8,5.2],[13.4,8.3],
    [11.5,11.2],[8.6,14.0],[5.5,16.1],[2.5,17.3],[0,17.7]
   ].map(([radius,height])=>new THREE.Vector2(radius,height));
   const ogive=add(new THREE.LatheGeometry(ogiveProfile,48),
-   'rocketNose',rocketX,11.5,0);
+   'rocketNose',rocketX,19.5,0);
   ogive.name='Silo_RocketNose';
   // Lower engine remains concealed beneath the gunmetal hatch opening.
-  cyl(11.5,13.6,7,'vent',rocketX,-20.6,0,24);
+  cyl(11.5,13.6,7,'vent',rocketX,-21,0,24);
     // Low camouflaged command/maintenance block to the RIGHT of the pit.
   box(43,22,66,'base',91,16,-10);
   box(47,3,70,'armor',91,28.5,-10);
