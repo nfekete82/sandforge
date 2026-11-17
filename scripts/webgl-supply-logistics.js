@@ -31,9 +31,10 @@ export function createSupplyTruckVisual(owner){
  cube(g,'SupplyCab',37,23,24,cab,0,27,24);
  cube(g,'SupplyWindscreen',30,11,2,steel,0,33,37);
  cube(g,'SupplyBonnet',37,13,15,cab,0,23,42);
- cube(g,'SupplyCargoBed',40,10,44,wood,0,23,-16);
- cube(g,'SupplyCanvasCover',42,20,43,canvas,0,37,-16);
- cube(g,'SupplyCargoTop',44,4,47,khaki,0,48,-16);
+ cube(g,'SupplyCargoBed',42,5,48,wood,0,23,-16);
+ // Open provisional flatbed, not a large black canvas box while GLB loads.
+ for(const side of [-1,1])cube(g,'SupplySideRail'+side,3,13,46,khaki,side*20,30,-16);
+ cube(g,'SupplyFrontRail',42,14,3,khaki,0,30,8);
  for(const side of [-1,1]){
   cube(g,'SupplyTeamStripe'+side,2,6,42,faction,side*21,37,-16);
   for(const z of [-28,1,30]){
@@ -52,33 +53,37 @@ export function createSupplyTruckVisual(owner){
  return g;
 }
 export function createSupplyCacheVisual(){
+ // Loader-independent fallback matches the authored 3D depot: open concrete,
+ // full overhead visibility and eighteen separate pallets; no dark tarpaulin.
  const root=new THREE.Group();root.name='SF_Neutral_SupplyCache';
  root.userData={visualOnly:true,nonPlayable:true};
- const ring=mesh(root,'SF_SupplyLocationMark',
-  new THREE.RingGeometry(53,56,40),
-  new THREE.MeshBasicMaterial({color:'#dec995',transparent:true,opacity:.48,depthWrite:false,side:THREE.DoubleSide}),0,1.3,0);
- ring.rotation.x=-Math.PI/2;
- // Two side-loaded containers + pallets, sand-coloured tarp and crates.
- cube(root,'SF_DepotPalletA',75,5,43,wood,-24,4,0);
- cube(root,'SF_DepotPalletB',75,5,43,wood,35,4,26);
- for(const [i,x,z] of [[0,-49,-8],[1,-4,-10],[2,26,26],[3,59,27],[4,-49,23],[5,58,-9]]){
-  const block=cube(root,'SF_DepotCrate_'+i,35,23,32,i%2?khaki:sand,x,18,z);
-  block.rotation.y=(i%3-1)*.17;
-  cube(root,'SF_DepotLid_'+i,36,4,33,wood,x,31,z);
-  for(const side of [-1,1])
-   cube(root,'SF_DepotMetalBand_'+i+'_'+side,3,21,33,steel,x+side*14,19,z);
+ const concrete=mat('#aaa99e'),concreteLight=mat('#c6c0b0');
+ const curb=mat('#85867b'),hazard=mat('#ccaf6a');
+ cube(root,'SF_DepotConcretePad',266,4,230,concrete,0,2,-42);
+ cube(root,'SF_DepotConcreteTop',259,1,225,concreteLight,0,4.5,-42);
+ for(const x of [-131,131])cube(root,'SF_DepotCurb_'+x,3,3,228,curb,x,5,-42);
+ for(const z of [-155,72])cube(root,'SF_DepotCurb_'+z,262,3,3,curb,0,5,z);
+ for(const x of [-24,24])cube(root,'SF_DepotLoadingLane'+x,2,.3,54,hazard,x,5.5,40);
+ const piles=[];
+ for(let i=0;i<18;i++){
+  const row=Math.floor(i/6),col=i%6,side=col<3?-1:1,slot=col%3;
+  const x=side*(46+slot*34),z=-114+row*58;
+  const group=new THREE.Group();
+  group.name='SF_DepotStock_'+String(i).padStart(2,'0');root.add(group);
+  cube(group,'SupplyPallet',28,5,30,wood,x,9,z);
+  cube(group,'SupplyCrate',24,18,24,i%3===0?khaki:sand,x,24,z);
+  cube(group,'SupplyCrateTop',25,2,25,wood,x,34,z);
+  for(const sideRail of [-1,1])cube(group,'SupplyCrateReinforcement',2,18,24,steel,
+   x+sideRail*10.5,24,z);
+  if(i%4===0)cube(group,'SupplyExtraCrate',22,16,22,khaki,x,45,z);
+  piles.push(group);
  }
- const canopy=cube(root,'SF_DepotTarpaulin',108,4,72,canvas,4,48,4);
- canopy.rotation.z=-.035;
- for(const x of [-46,46])for(const z of [-26,34])
-  cyl(root,'SF_DepotStrut'+x+z,2,2,48,6,steel,x,24,z);
- const sign=cube(root,'SF_DepotSupplyMark',33,18,3,stripe,-2,62,4);
- sign.name='SF_SupplySource_NotAFactionBuilding';
- const piles=root.children.filter(n=>n.name.startsWith('SF_DepotCrate'));
  root.userData.piles=piles;
  return root;
 }
-/** The authored warehouse stays on screen after the final crate is taken.
+/** Low-profile concrete logistics yard. 18 crates remain readable from above
+ * and disappear/return in lockstep with the server-authoritative stock. */
+/** The depot slab stays on screen after the final crate is taken.
  * Its eighteen large pallet groups disappear with decreasing stock and
  * return as the neutral depot automatically refills.
  */
