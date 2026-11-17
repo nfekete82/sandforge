@@ -295,7 +295,12 @@ export class TacticalAI {
   // the rear side of the factory/research yard is a base invasion too.
   // Only currently visible hostile units reached this branch; no fog leaks.
   const protectedBases=g.bases.filter(base=>base.owner===1&&base.hp>0);
-  const threatScore=(u:Unit)=>Math.min(...protectedBases.map(base=>distance(u,base)))-
+  // A raider stepping into an owned Bastion is a real defense emergency,
+  // even when the HQ is thousands of units away. Base-only prioritization
+  // previously let the opposing army take our economic frontline for free.
+  const protectedSites:Point[]=[...protectedBases,
+   ...g.territories.filter(t=>t.owner===1).map(t=>t.point)];
+  const threatScore=(u:Unit)=>Math.min(...protectedSites.map(site=>distance(u,site)))-
    (u.kind==='artillery'?250:u.kind==='heavy'?100:u.kind==='bomber'?120:0);
   const target=intruders.slice().sort((a,v)=>threatScore(a)-threatScore(v)||a.id-v.id)[0];
   const nearby=intruders.filter(u=>distance(u,target)<400),needed=fightingPower(nearby)*1.2;
@@ -1315,7 +1320,13 @@ export class TacticalAI {
   this.airlift(army,home);const explorers=this.recon(army.filter(u=>!recovering.has(u.id)),home),boarding=new Set([...army.filter(u=>u.orders[0]?.kind==='board').map(u=>u.id),...(s.airlift?.phase==='pickup'?s.airlift.passengers??[]:[])]),fighters=army.filter(u=>combat(u)&&!recovering.has(u.id)&&!explorers.has(u.id)&&!boarding.has(u.id)),medics=army.filter(u=>u.kind==='medic'&&!recovering.has(u.id)&&!boarding.has(u.id)).slice(0,2);
   developArmy(g,s,army,p=>this.danger(p));
   for(const w of army.filter(u=>u.kind==='engineer'&&!u.orders.length)){const b=g.bases.filter(b=>b.owner===1&&b.hp>0&&b.hp<buildingSpec(b).hp&&b.buildRemaining<=0).sort((a,b)=>distance(w,a)-distance(w,b))[0];if(b)g.command([w.id],{...b,kind:'repair',target:b.id});}
-  const intruders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<(b.kind==='headquarters'?560:420)));
+  const ownedBastions=g.territories.filter(t=>t.owner===1);
+  // Protect captured Bastions as well as production. Only enemies physically
+  // VISIBLE to RED can trigger it. The threat must approach the actual
+  // capture circle, not merely occupy another sector behind the fog.
+  const intruders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&
+   (g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<(b.kind==='headquarters'?560:420))
+    ||ownedBastions.some(t=>distance(u,t.point)<260)));
   if(g.world.mapVersion>=3&&this.mode==='director'){
    const defense=this.localDefense(fighters,medics,intruders,home);
    // Earlier paid raids follow the shorter home-defense buildup.
