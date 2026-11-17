@@ -63,7 +63,13 @@ test('symmetry: losing all own structures is defeat, simultaneous losses are not
 
 test('building history survives save/load; unfinished last-strike wins on restoration',()=>{
  const game=fresh();
- game.hadBuildings=[true,true];
+ game.credits[0]=10000;
+ const worker=game.units.find(u=>u.owner===0&&u.kind==='engineer');
+ const point=game.headquartersCandidates(0).find(p=>game.buildError(0,'headquarters',p)===null);
+ assert.ok(worker&&point);
+ assert.ok(game.build(0,'headquarters',point,[worker.id]));
+ // Enemy previously had a base and its last structure is now gone.
+ game.hadBuildings[1]=true;
  game.step(.05);
  assert.equal(game.status,'victory');
  const saved=game.save();
