@@ -12,6 +12,14 @@ export const MODEL_HEIGHTS=Object.freeze({
 });
 export const DIMENSIONS_VERSION=3;
 
+// Visual-only: the defensive tower was about 12% too massive next to infantry.
+// The authored model, streaming fallback and construction ghost share this.
+// Do NOT change BUILDINGS.turret radius/width or weapon range.
+export const TURRET_VISUAL_SCALE=0.88;
+export function visualBuildingScale(kind){
+ return kind==='turret'?TURRET_VISUAL_SCALE:1;
+}
+
 /** Wider selection footprint at tactical zoom. Render-only: never changes
  * unit collision, targeting, squad formation or the saved simulation state.
  * Keep rings outside visual hulls for tanks, helicopters and infantry. */
@@ -105,7 +113,11 @@ export function calibratedScale(kind,type,bounds,targetWidth){
  // collision radius, income, build placement and saved games are untouched.
  if(kind==='generator'&&type==='building')
   return Math.min(byWidth*.63,MODEL_HEIGHTS.generator/height);
- // Footprint stays aligned with the original building collision width;
- // huge roofs, towers and dish antennas must not dwarf nearby units.
- return Math.min(byWidth,(MODEL_HEIGHTS[kind]??135)/height);
+ // Defense turrets are visually 12% smaller than their old calibrated
+ // dimensions, while their gameplay collision/placement footprint is intact.
+ // Keeping this after width/height normalization avoids it being cancelled by
+ // the GLB calibration for large authored turret meshes.
+ // Other buildings retain their previous visual size.
+ return Math.min(byWidth,(MODEL_HEIGHTS[kind]??135)/height)*
+  (type==='building'?visualBuildingScale(kind):1);
 }
