@@ -815,25 +815,18 @@ export class TacticalAI {
    .slice(0,3);
   const frontAngle=Math.atan2(g.world.size/2-home.y,g.world.size/2-home.x);
   const angles=[-.85,.85,Math.PI,-.15,1.8];
-  // The home-defense budget already includes PAID, non-assault guards.
-  // With 4+ reserves, post two of them at *different* exposed Bastions,
-  // instead of leaving three idle at HQ while the front sectors are retaken.
-  // Never steal attacking troops, keep at least half the reserve around HQ,
-  // and use public sector ownership without looking through Fog of War.
+  // One of at least two PAID reserve soldiers is posted at a captured
+  // frontier Bastion (not only behind the HQ). Never remove the first home
+  // defender and never send more than one away from production defenses.
+  // Public sector neighbors/income are permitted; no fogged enemy knowledge.
   const border=g.territories.filter(t=>t.owner===1&&
     t.neighbors.some(id=>g.territories[id]?.owner!==1))
    .sort((a,b)=>Number(b.neighbors.some(id=>g.territories[id]?.owner===0))-
       Number(a.neighbors.some(id=>g.territories[id]?.owner===0))||
-      b.income-a.income||distance(home,a.point)-distance(home,b.point)||a.id-b.id);
-  const frontSlots=Math.min(2,border.length,Math.floor(guards.length/2));
-  const assigned=new Set<number>();
+      b.income-a.income||distance(home,a.point)-distance(home,b.point)||a.id-b.id)[0];
   for(const [i,u] of guards.entries()){
-   const eligible=i>0&&i<=frontSlots?border.filter(t=>!assigned.has(t.id)):[];
-   // Preserve a guard that is already positioned at a live frontier:
-   // changing Bastion incomes must not trigger a full-map redeployment.
-   const fort=eligible.find(t=>distance(u,t.point)<200)??eligible[0]??null;
-   if(fort)assigned.add(fort.id);
-   // All unassigned soldiers stay around HQ and production structures.
+   const fort=i===1&&guards.length>=2&&border?border:null;
+   // Keep all remaining reserves around HQ and production structures.
    const base=fort?.point??protectedBases[i%Math.max(1,protectedBases.length)]??home;
    const angle=fort?Math.atan2(home.y-base.y,home.x-base.x):
     frontAngle+angles[i%angles.length];
