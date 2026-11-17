@@ -56,7 +56,7 @@ import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
-import {createSupplyTruckVisual,createSupplyCacheVisual,updateSupplyCacheVisual,setSupplyTruckCargo,animateSupplyTruckRig} from '/webgl-supply-logistics.js';
+import {createSupplyTruckVisual,createSupplyCacheVisual,updateSupplyCacheVisual,setSupplyTruckCargo,animateSupplyTruckRig,updateSupplyLoadingIndicator} from '/webgl-supply-logistics.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
 // exclusively by the original Simulation. 3D nodes are presentation only.
@@ -1178,6 +1178,7 @@ export class SandforgeBattlefield {
     if(Math.abs(visualGround-terrainGround)<.03)delete entry.previousServiceGround;
    }
    entry.node.position.copy(this.pos(x,z,visualGround+unitRenderAltitude(u.kind,u.flightHeight??1)));
+   if(u.kind==='supply')updateSupplyLoadingIndicator(entry,u.supply);
    const hullAngle=['tank','artillery'].includes(u.kind)&&Number.isFinite(u.hullAngle)?u.hullAngle:u.angle;
    entry.node.rotation.y=unitVisualYaw(u.kind,hullAngle);
    if(u.kind==='tank'||u.kind==='artillery')this.orientTankRig(entry,u);
