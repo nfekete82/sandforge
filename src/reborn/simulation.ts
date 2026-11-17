@@ -2152,8 +2152,10 @@ export class Simulation {
       }
       t.progress+=dt;
       if(t.progress+1e-8>=captureSeconds({version:this.world.mapVersion,territory:t,attacker:owner,units:this.units,bases:this.bases})){
+        // Sector control belongs to the Bastion ONLY. Never transfer or
+        // resurrect a destroyed enemy headquarters when its sector changes
+        // hands: its original owner/HP remain intact for elimination rules.
         t.owner=owner;t.progress=0;t.capturing=-1;ownershipChanged=true;
-        for(const b of this.bases)if(b.kind==='headquarters'&&b.territory===t.id&&b.hp<=0){b.owner=owner as Faction;b.hp=RULES.headquarters.hp*.5;b.queue=[];b.queueTypes=[];b.queueCosts=[];b.production=0;}
         if(owner===0)this.notices.push(`${t.name} gesichert · +${t.income} Credits / 10 s`);
         else if(this.canSee(0,t.point))this.notices.push(`${t.name} unter feindlicher Kontrolle.`);
         this.revision++;
