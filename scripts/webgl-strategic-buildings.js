@@ -206,6 +206,9 @@ export function createStrategicBuilding(kind,owner=0){
   mats.metal.roughness=.43;
   mats.metal.metalness=.76;
   mats.metal.bumpScale=.12;
+  // This is an authored steel albedo, not a candidate for the generic
+  // khaki world-space camouflage shader or moving construction-ghost paint.
+  mats.metal.userData={...mats.metal.userData,sandforgeAuthoredMetal:true};
   mats.warning=new THREE.MeshStandardMaterial({color:'#cda956',roughness:.62,metalness:.18});
   mats.rocketBody=new THREE.MeshStandardMaterial({color:'#a8b3b2',map:materialGrain,
    bumpMap:materialGrain,bumpScale:.075,roughness:.38,metalness:.82});
