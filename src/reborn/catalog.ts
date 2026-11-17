@@ -16,7 +16,8 @@ export const UNITS:Record<UnitKind,UnitSpec>={
  engineer:{...foot,producers:['headquarters'],name:'Pionier',cost:200,buildTime:7,hp:110,damage:8,range:145,cooldown:1.3,speed:105,description:'Pionier mit Schraubenschlüssel für Bau und Reparatur sowie einer leichten Pistole zur Selbstverteidigung. Repariert Fahrzeuge im Umkreis von 90 M mit 18 LP/s und Anlagen per Rechtsklick.'},
  heavy:{...foot,name:'Schwere Infanterie',cost:250,buildTime:9,hp:420,speed:78,damage:120,range:220,cooldown:1.15,width:44,producers:['barracks'],description:'Überlegener Infanteriekämpfer mit 420 LP und schwerem automatischem Gewehr. Gegen Panzerung verringerter Schaden.'},
  rocket:{...foot,name:'Raketenwerfer-Soldat',cost:375,buildTime:16,hp:95,speed:92,sight:465,range:365,damage:145,cooldown:4.1,radius:11,width:40,targetsAir:true,producers:['barracks'],description:'Getarnter Panzer- und Flugabwehrschütze mit gelenkter Schulterrakete. Stark gegen einzelne Fahrzeuge und Luftziele, aber langsame Nachladezeit, geringer Flächenschaden, verwundbar gegen MG und schwach gegen Infanterie.'},
- supply:{name:'Nachschubtransporter',group:'Fahrzeuge',cost:275,buildTime:12,hp:260,speed:175,sight:310,range:0,damage:0,cooldown:1,radius:19,width:76,producers:['headquarters'],flying:false,description:'Sammelt automatisch bis zu 45 Credits je Fahrt von begrenzten Vorratslagern und liefert sie zur eigenen Kommandozentrale. Zerstoerte Transporter verlieren ihre Ladung.'},
+ // Legacy kind retained for old-save validation, no active producer and no UI.
+ supply:{name:'Nachschubtransporter (Legacy)',group:'Fahrzeuge',cost:275,buildTime:12,hp:260,speed:175,sight:310,range:0,damage:0,cooldown:1,radius:19,width:76,producers:[],flying:false,description:'Eingestellte Einheit; beim Laden alter Spielstände erstattet.'},
  rover:{name:'Humvee',group:'Fahrzeuge',cost:350,buildTime:11,hp:295,speed:235,sight:465,range:240,damage:13,cooldown:.68,radius:18,width:76,producers:['factory'],flying:false,description:'Schneller Humvee mit schwerem Dach-MG, animierten Geländereifen und vier Sitzplätzen. Eigene Infanterie per Rechtsklick einladen und am Ziel ausladen.'},
  tank:{name:'Kampfpanzer',group:'Fahrzeuge',cost:550,buildTime:18,hp:1000,speed:80,sight:390,range:300,damage:155,cooldown:2.35,targetsAir:false,radius:22,width:90,producers:['factory'],flying:false,description:'Schwerer Kampfpanzer mit 1.000 LP: gelenkte Panzerabwehrraketen gegen Fahrzeuge und Gebäude (300 M), unabhängiges starkes Dach-MG gegen Infanterie. Widerstandsfähig gegen normale Gewehre.'},
  artillery:{name:'Raketenwerfer',group:'Fahrzeuge',cost:600,buildTime:18,hp:340,speed:65,sight:RULES.turret.sight+80,range:RULES.turret.range+80,damage:120,cooldown:3.8,targetsAir:false,radius:20,width:94,producers:['factory'],flying:false,description:'Schwerer 6×6-Raketenwerfer mit sechs Werferrohren. 680 M Reichweite und 830 M Sicht: bekämpft Bodenziele außerhalb der Turmreichweite.'},
@@ -25,7 +26,7 @@ export const UNITS:Record<UnitKind,UnitSpec>={
 };
 export interface BuildingSpec {name:string;cost:number;buildTime:number;hp:number;sight:number;radius:number;width:number;income:number;description:string}
 export const BUILDINGS:Record<BuildingKind,BuildingSpec>={
- headquarters:{...RULES.headquarters,name:'Kommandozentrale',cost:300,buildTime:20,width:225,income:10,description:'Hauptquartier der Blauen Legion. Bildet Pioniere und Nachschubtransporter aus. Transporter liefern Credits aus begrenzten Vorratslagern; errichte Kaserne, Fabrik und Flugfeld für weitere Einheiten.'},
+ headquarters:{...RULES.headquarters,name:'Kommandozentrale',cost:300,buildTime:20,width:225,income:10,description:'Hauptquartier der Blauen Legion. Bildet Pioniere aus und liefert 10 Credits alle 10 Sekunden. Die Heimat-Bastion liefert 50 Credits, weitere Bastionen 15 bis 35 Credits je Intervall.'},
  barracks:{name:'Kaserne',cost:200,buildTime:12,hp:800,sight:300,radius:53,width:158,income:0,description:'Bildet Infanterie, Sanitäter, schwere Infanterie und Raketenwerfer-Soldaten aus.'},
  factory:{name:'Fahrzeugfabrik',cost:350,buildTime:18,hp:1100,sight:310,radius:70,width:200,income:0,description:'Große Fahrzeugfabrik mit zwei Außenwerkstattplätzen. Produziert Humvees, Kampfpanzer und Raketenwerfer. Reparatur per Einheit für Credits.'},
  airfield:{name:'Flugfeld',cost:450,buildTime:22,hp:1200,sight:410,radius:91,width:218,income:0,description:'Kleines Feldflugfeld: ein Hangar links, kurze Landebahn direkt rechts und ein kleiner Tower. Bomber und Transporthelikopter können dort landen und für Credits reparieren.'},
@@ -38,7 +39,7 @@ export const BUILDINGS:Record<BuildingKind,BuildingSpec>={
 };
 export const unitSpec=(u:{kind?:UnitKind}):UnitSpec=>UNITS[u.kind??'infantry'];
 export const buildingSpec=(b:{kind?:BuildingKind}):BuildingSpec=>BUILDINGS[b.kind??'headquarters'];
-export const unitKinds=Object.keys(UNITS) as UnitKind[];
+export const unitKinds=Object.keys(UNITS).filter(kind=>kind!=='supply') as UnitKind[];
 export const buildingKinds=Object.keys(BUILDINGS) as BuildingKind[];
 
 export const canAttack=(u:{kind?:UnitKind},target:{kind?:UnitKind|BuildingKind;queue?:unknown}):boolean=>'queue' in target||unitSpec(u).targetsAir!==false||!unitSpec(target as {kind?:UnitKind}).flying;
