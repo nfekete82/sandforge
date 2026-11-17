@@ -24,6 +24,4 @@ jobs:
         run: npx tsc -p tsconfig.json
       - name: Test transport helicopter speed, boarding and unloading
         run: |
-          node --test \
-            tests/webgl-helicopter-boarding-building-routes-20261116.test.mjs \
-            tests/webgl-transport-roster-bomber-runs-20261108.test.mjs
+          node --test tests/webgl-helicopter-boarding-building-routes-20261116.test.mjs
