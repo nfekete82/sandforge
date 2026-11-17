@@ -56,7 +56,7 @@ import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
-import {createSupplyTruckVisual,createSupplyCacheVisual,updateSupplyCacheVisual,setSupplyTruckCargo} from '/webgl-supply-logistics.js';
+import {createSupplyTruckVisual,createSupplyCacheVisual,updateSupplyCacheVisual,setSupplyTruckCargo,animateSupplyTruckRig} from '/webgl-supply-logistics.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
 // exclusively by the original Simulation. 3D nodes are presentation only.
@@ -280,6 +280,8 @@ export class SandforgeBattlefield {
  asset(kind,owner,type){
   const prefix='/src/assets/reborn/';
   if(type==='building')return prefix+'buildings-3d/'+kind+'-'+owner+'.glb';
+  // True textured GLBs with six wheel pivots and two working cargo doors.
+  if(type==='unit'&&kind==='supply')return prefix+'supply-pbr/supply-'+owner+'.glb';
   // Rocket specialists share the fully animated Atlas infantry skeleton.
   // Keep the original prototype rig and clips, replace only its rifle mesh.
   if(type==='unit'&&kind==='rocket')return prefix+'prototype/infantry-'+owner+'.glb';
@@ -295,16 +297,16 @@ export class SandforgeBattlefield {
   // ?lite=1 mode. Queue pressure must not permanently demote a paid tank to
   // the emergency cuboid geometry.
   const priorityTank=type==='unit'&&entity.kind==='tank';
-  if(type==='unit'&&entity.kind==='supply')return; // wholly authored six-wheel model, no GLB download
+  const prioritySupply=type==='unit'&&entity.kind==='supply';
   if((this.lite&&type!=='building'&&
-      !['medic','rocket','tank'].includes(entity.kind))||
+      !['medic','rocket','tank','supply'].includes(entity.kind))||
      (type==='building'&&isStrategicBuilding(entity.kind))||entry.requested||
-     (!priorityTank&&this.loadingCount+this.modelQueue.length>=this.maxModels))return;
+     (!priorityTank&&!prioritySupply&&this.loadingCount+this.modelQueue.length>=this.maxModels))return;
   entry.requested=true;
   const url=this.asset(entity.kind,entity.owner,type);
   if(type==='building'&&['factory','barracks'].includes(entity.kind))
    this.modelQueue.unshift({url,entry,type});
-  else if(type==='unit'&&['tank','medic'].includes(entity.kind))
+  else if(type==='unit'&&['tank','medic','supply'].includes(entity.kind))
    this.modelQueue.unshift({url,entry,type});
   else this.modelQueue.push({url,entry,type});
   this.pumpModelQueue();
@@ -478,6 +480,10 @@ export class SandforgeBattlefield {
      paintFactionRoofStripes(model,entry.kind,entry.owner);
      paintFactionEntranceBanners(model,entry.kind,entry.owner);
     }
+    if(type==='unit'&&entry.kind==='supply'){
+     model.userData.sandforgeOriginalPBR=true;
+     setSupplyTruckCargo(model,false);
+    }
     if(type==='unit'&&entry.kind==='medic')polishMedicModel(model);
     if(type==='unit'&&entry.kind==='engineer')
      entry.engineerTools=equipEngineerTools(model);
@@ -539,7 +545,8 @@ export class SandforgeBattlefield {
      if(type==='building')finishBuildingFacadeShading(model);
     }
     if(type==='building'&&entry.kind==='barracks')addBarracksContactShadows(model);
-    if(type==='unit')attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
+    if(type==='unit'&&entry.kind!=='supply')
+     attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
     entry.visualBaseY=model.position.y;entry.visualBaseZ=model.position.z;
     if(type==='building'){
      this.attachBuildingMotion(entry,data);
@@ -547,7 +554,9 @@ export class SandforgeBattlefield {
     }
     if(type==='unit'&&['tank','artillery'].includes(entry.kind))this.installTankRig(entry,model);
     entry.modelLoadError=null;entry.modelLoadRetries=0;
-    if(type==='unit'&&data.animations.length){
+    // Authored wheel clips exist for GLB inspection; actual wheel rotation
+    // follows real displacement, so parked trucks never spin.
+    if(type==='unit'&&data.animations.length&&entry.kind!=='supply'){
      const mixer=new THREE.AnimationMixer(model);
      const idle=data.animations.find(a=>/idle|stand|hover|engine/i.test(a.name))||data.animations[0];
      const walk=data.animations.find(a=>/walk|run|move|drive|roll|fly|operation/i.test(a.name))||idle;
@@ -637,7 +646,7 @@ export class SandforgeBattlefield {
    if(rotor)entry.motion={kind:'research',rotor,mode:'anchored-dish'};
   }
   if(type==='building')finishBuildingFacadeShading(placeholder);
-  if(unit)attachTeamMarkings(entry,entity.owner,entity.kind,footprint,height);
+  if(unit&&entity.kind!=='supply')attachTeamMarkings(entry,entity.owner,entity.kind,footprint,height);
   if(type==='unit'&&['tank','artillery'].includes(entity.kind))this.installTankRig(entry,placeholder);
   this.scheduleDetail(entry,entity,type);return entry;
  }
@@ -1080,19 +1089,41 @@ export class SandforgeBattlefield {
  syncSupplyCaches(){
   if(this.supplyCacheGame!==this.game){
    for(const node of this.supplyCacheNodes.values()){
-    this.scene.remove(node);disposeOwnedMeshes(node);
+    this.scene.remove(node);
+    // All GLTF meshes are shared/cached. Dispose ONLY fallback meshes.
+    if(node.userData.fallback)disposeOwnedMeshes(node.userData.fallback);
    }
    this.supplyCacheNodes.clear();this.supplyCacheGame=this.game;
   }
   for(const cache of this.game.supplyCaches??[]){
    let node=this.supplyCacheNodes.get(cache.id);
    if(!node){
-    node=createSupplyCacheVisual();
+    node=new THREE.Group();node.name='SF_Depot_'+cache.id;
+    node.userData.visualOnly=true;node.userData.nonPlayable=true;
+    const fallback=createSupplyCacheVisual();
+    node.userData.fallback=fallback;node.add(fallback);
     node.position.copy(this.pos(cache.x,cache.y,this.heightAt(cache.x,cache.y)+.3));
     this.scene.add(node);this.supplyCacheNodes.set(cache.id,node);
+    const session=this.game;
+    // Identical large depot GLB is cached once, cloned without cloning its
+    // geometry/textures, and never reloads on each stock change.
+    this.getModel('/src/assets/reborn/supply-pbr/supply-depot-neutral.glb').then(data=>{
+     if(this.game!==session||this.supplyCacheNodes.get(cache.id)!==node)return;
+     const model=data.scene.clone(true);
+     model.userData.sandforgeOriginalPBR=true;
+     model.traverse(obj=>{
+      if(obj.isMesh){obj.castShadow=true;obj.receiveShadow=true;obj.raycast=()=>{};}
+     });
+     const old=node.userData.fallback;
+     node.remove(old);disposeOwnedMeshes(old);node.userData.fallback=null;
+     node.userData.pbrModel=model;node.add(model);
+     updateSupplyCacheVisual(node,cache,{time:this.game.time});
+    }).catch(err=>console.warn('Depot GLB-Fallback:',err.message));
    }
-   updateSupplyCacheVisual(node,cache);
-   node.visible=node.visible&&this.game.hasExplored(0,cache);
+   const loading=this.game.units.some(u=>u.kind==='supply'&&u.hp>0&&
+    u.supply?.phase==='loading'&&u.supply.cacheId===cache.id);
+   updateSupplyCacheVisual(node,cache,{time:this.game.time,loading});
+   node.visible=this.game.hasExplored(0,cache);
   }
  }
  sync(force=false,dt=0,active=true,alpha=1){
@@ -1110,7 +1141,7 @@ export class SandforgeBattlefield {
    const oldEntry=this.units.get(u.id);if(oldEntry)oldEntry.productionMotion=null;
    let entry=this.units.get(u.id);
    if(!entry){entry=this.spawnNode(u,'unit');this.units.set(u.id,entry);}
-   if(u.kind==='supply')setSupplyTruckCargo(entry.placeholder,Boolean(u.supply?.cargo));
+   if(u.kind==='supply')setSupplyTruckCargo(entry.detail??entry.placeholder,Boolean(u.supply?.cargo));
    if(entry.factionOwner!==u.owner){
     applyFactionAccents(entry,u,'unit');
     attachTeamMarkings(entry,u.owner,u.kind,entry.modelFootprint??(UNITS[u.kind]?.width??60),entry.modelHeight??42);
@@ -1119,6 +1150,8 @@ export class SandforgeBattlefield {
    // Interpolate between authoritative 20 Hz snapshots for smooth 60–120 FPS
    // visuals. Simulation, pathfinding and orders use true u.x/u.y only.
    const travel=Math.hypot(u.x-u.previousX,u.y-u.previousY);
+   if(u.kind==='supply')
+    animateSupplyTruckRig(entry.detail??entry.placeholder,u,entry,travel,this.game.time,dt,active);
    // AI orders, path retries and the rally hand-off can report moving=true
    // while an actor has made no actual progress. Never rotate rover tyres
    // from the command flag alone; use authoritative 20-Hz displacement.
@@ -1854,7 +1887,7 @@ export class SandforgeBattlefield {
   view.querySelector('#sf-credits').textContent=g.testMode?'∞':format(g.credits[0]);
   const supplyTrucks=g.units.filter(u=>u.owner===0&&u.kind==='supply'&&u.hp>0);
   view.querySelector('#sf-income').textContent='+ '+format(g.income(0))+
-   ' / 10s · '+supplyTrucks.length+' NACH SCHUB';
+   ' / 10s · '+supplyTrucks.length+' TRANSPORTER';
   view.querySelector('#sf-capacity').innerHTML=g.count(0)+' <em>/ '+RULES.capacity+'</em>';
   view.querySelector('#sf-stats').textContent='Credits '+(g.testMode?'∞':format(g.credits[0]))+' · '+g.count(0)+'/'+RULES.capacity;
   view.querySelector('#sf-sectors').textContent=g.territories.filter(t=>t.owner===0).length+' / '+g.territories.length+' SEKTOREN';
@@ -1931,7 +1964,8 @@ export class SandforgeBattlefield {
   for(const tile of actions.querySelectorAll('[data-supply-cache]')){
    const cache=g.supplyCaches.find(s=>String(s.id)===tile.dataset.supplyCache);
    if(!cache)continue;
-   const stock=cache.remaining+' / '+cache.capacity+' CREDITS';
+   const stock=cache.remaining+' / '+cache.capacity+' CREDITS'+
+    (cache.remaining<cache.capacity?' · AUFFÜLLUNG':'');
    if(tile.querySelector('small')?.textContent!==stock)
     tile.querySelector('small').textContent=stock;
    tile.classList.toggle('unknown',cache.remaining<=0);

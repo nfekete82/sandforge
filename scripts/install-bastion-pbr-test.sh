@@ -72,6 +72,11 @@ node --test \
  tests/webgl-silo-desert-camouflage-20261110.test.mjs \
  tests/webgl-research-modal-terrain-polish-20261116.test.mjs \
  tests/webgl-airfield-security-fence.test.mjs
+# Verify the actual three GLB files produced by this Mac's full PBR build,
+# including moving joints, separate depletable pallets and economy refills.
+SANDFORGE_SUPPLY_GLB_TEST_DIR=src/assets/reborn/supply-pbr node --test \
+ tests/reborn-supply-pbr-glbs-20261117.test.mjs \
+ tests/reborn-supply-logistics-20261117.test.mjs
 trap - ERR
 echo "Bastion + finale PBR-Kaserne + PBR-Kommandozentrale geladen. Backup: $BACKUP"
 echo "Preview: PORT=8111 npm run preview"

@@ -30,7 +30,7 @@ import {airfieldPoint,airfieldLerp,airfieldTaxiPoint,validAirfieldService,AIRFIE
 import {factoryRepairPoint,validFactoryService,FACTORY_REPAIR_BAYS,FACTORY_REPAIR_HP_PER_CREDIT,FACTORY_REPAIR_FRACTION_PER_SECOND,type FactoryService} from './factory-maintenance.js';
 import {factoryDoorExitCandidates,infantryDoorExitCandidates} from './production-exit.js';
 import {eliminationOutcome} from './match-outcome.js';
-import {generateSupplyCaches,newSupplyJob,stepSupplyLogistics,validSupplyJob,
+import {generateSupplyCaches,newSupplyJob,stepSupplyLogistics,validSupplyJob,SUPPLY_RESTOCK_INTERVAL,
  type SupplyCache,type SupplyJob} from './supply-logistics.js';
 import {formationSlotPitch,vehicleSpacingGap,preservesVehicleProgress,vehicleYieldWaypoint} from './vehicle-spacing.js';
 import {UPGRADES,UPGRADE_KINDS,newResearchState,canResearchUpgrade,researchModifiers,
@@ -2280,7 +2280,11 @@ export class Simulation {
         s.supplyCaches.length>16||s.supplyCaches.some(c=>!c||
          !Number.isSafeInteger(c.id)||c.id<0||!finite(c.remaining)||
          c.remaining<0||!finite(c.capacity)||c.capacity<=0||
-         c.remaining>c.capacity||!point(c))))||
+         c.remaining>c.capacity||!point(c)||
+         (c.lastPickupAt!==undefined&&(!finite(c.lastPickupAt)||
+          c.lastPickupAt<0||c.lastPickupAt>s.time+.001))||
+         (c.restockClock!==undefined&&(!finite(c.restockClock)||
+          c.restockClock<0||c.restockClock>SUPPLY_RESTOCK_INTERVAL+.001)))))||
       (s.hadBuildings!==undefined&&(!Array.isArray(s.hadBuildings)||
         s.hadBuildings.length!==2||s.hadBuildings.some(value=>typeof value!=='boolean')))||
       (s.strategicMissiles!==undefined&&(!Array.isArray(s.strategicMissiles)||
@@ -2334,7 +2338,11 @@ export class Simulation {
          c.capacity!==game.supplyCaches[i].capacity))
         throw Error('Ungültige Nachschublager im Spielstand.');
       for(let i=0;i<s.supplyCaches.length;i++)
-        game.supplyCaches[i].remaining=s.supplyCaches[i].remaining;
+        Object.assign(game.supplyCaches[i],{
+         remaining:s.supplyCaches[i].remaining,
+         lastPickupAt:s.supplyCaches[i].lastPickupAt??0,
+         restockClock:s.supplyCaches[i].restockClock??0
+        });
     }
     // Saved history is authoritative. For existing v2 saves without this
     // field infer from live/dead HQ records, observed buildings or units
