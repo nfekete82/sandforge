@@ -104,49 +104,6 @@ const siloSteelPlate=(()=>{
  return texture;
 })();
 
-/** Dark steel liner seen through the missile-silo opening. Since the desert
- * terrain remains an uninterrupted world mesh, a ground-level depth occluder
- * is required to prevent the sand from filling the shaft. Its texture paints
- * descending metal panels, ribs and retaining rings with a radial depth fade;
- * unlike a flat black circle the interior stays readable at RTS camera zoom.
- * The single small texture is shared by all silos, including preview/HUD.
- */
-const siloShaftDepthPaint=(()=>{
- const n=256,pixels=new Uint8Array(n*n*4),TAU=Math.PI*2;
- for(let y=0;y<n;y++)for(let x=0;x<n;x++){
-  const dx=(x+.5-n/2)/(n/2),dy=(y+.5-n/2)/(n/2);
-  const r=Math.hypot(dx,dy),angle=Math.atan2(dy,dx);
-  // Near the outer edge, brighter vertical plating descends into a dark
-  // center. These rings represent steel bracing, not a floating top decal.
-  const depth=Math.max(0,Math.min(1,(r-.20)/.80));
-  const segment=Math.cos(16*angle);
-  const rib=Math.pow(Math.max(0,segment),30)*19*depth;
-  const seam=Math.pow(Math.max(0,-segment),32)*-13*depth;
-  // Smaller projected radii push the reinforcement hoops visibly deeper.
-  // Old radii .67 and .84 crowded the entrance immediately below the lip.
-  const hoop=Math.max(0,1-Math.abs(r-.39)/.013)*12+
-   Math.max(0,1-Math.abs(r-.56)/.014)*15;
-  const edge=Math.max(0,1-Math.abs(r-.96)/.024)*4;
-    const hash=(Math.imul(x+43,374761393)^Math.imul(y+67,668265263))>>>0;
-  const grain=((hash^(hash>>>11))&15)-7;
-  const shade=14+49*depth+rib+seam+hoop+edge+grain*.52;
-  const at=(y*n+x)*4;
-  pixels[at]=Math.max(0,Math.min(255,Math.round(shade*.86)));
-  pixels[at+1]=Math.max(0,Math.min(255,Math.round(shade*.99)));
-  pixels[at+2]=Math.max(0,Math.min(255,Math.round(shade*1.03)));
-  pixels[at+3]=255;
- }
- const map=new THREE.DataTexture(pixels,n,n,THREE.RGBAFormat);
- map.name='Sandforge silo inner gunmetal shaft depth';
- map.colorSpace=THREE.SRGBColorSpace;
- map.magFilter=THREE.LinearFilter;
- map.minFilter=THREE.LinearMipmapLinearFilter;
- map.generateMipmaps=true;
- map.anisotropy=8;
- map.needsUpdate=true;
- return map;
-})();
-
 /** Static destructible base wall, rendered once and shared by preview and game. */
 function createDefensiveWall(owner){
  const root=new THREE.Group();root.name='Strategic_wall';
@@ -515,15 +472,12 @@ export function createStrategicBuilding(kind,owner=0){
     uCameraLocal:{value:new THREE.Vector3(0,0,250)},
     uRadius:{value:shaftRadius-.8},
     uDepth:{value:shaftDepth},
-    uOpacity:{value:1.0},
-    uSurfaceMap:{value:siloShaftDepthPaint}
+    uOpacity:{value:1.0}
    },
    vertexShader:`
     varying vec2 vSiloXY;
-    varying vec2 vSiloUV;
     void main(){
      vSiloXY=position.xy;
-     vSiloUV=uv;
      gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
     }
    `,
@@ -532,9 +486,7 @@ export function createStrategicBuilding(kind,owner=0){
     uniform float uRadius;
     uniform float uDepth;
     uniform float uOpacity;
-    uniform sampler2D uSurfaceMap;
     varying vec2 vSiloXY;
-    varying vec2 vSiloUV;
     const float PI=3.141592653589793;
     float band(float depth,float at,float halfWidth){
      return 1.0-smoothstep(halfWidth,halfWidth+1.1,abs(depth-at));
