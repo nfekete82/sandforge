@@ -48,8 +48,6 @@ cpSync('scripts/webgl-strategic-buildings.js','dist/webgl-strategic-buildings.js
 cpSync('scripts/webgl-rocket-infantry.js','dist/webgl-rocket-infantry.js');
 cpSync('scripts/webgl-engineer-tools.js','dist/webgl-engineer-tools.js');
 cpSync('scripts/webgl-medic-polish.js','dist/webgl-medic-polish.js');
-cpSync('scripts/webgl-supply-logistics.js','dist/webgl-supply-logistics.js');
-cpSync('scripts/webgl-supply-custom.js','dist/webgl-supply-custom.js');
 cpSync('scripts/webgl-strategic-effects.js','dist/webgl-strategic-effects.js');
 cpSync('scripts/webgl-double-click-select.js','dist/webgl-double-click-select.js');
 cpSync('scripts/webgl-unit-commands.js','dist/webgl-unit-commands.js');
@@ -152,10 +150,6 @@ execFileSync(process.execPath,['scripts/generate-energy-core-pbr.mjs'],{stdio:'i
 // Both airfield factions are deterministic low-poly PBR assets in Git source.
 // Real flightline service still animates doors and controls aircraft docking.
 execFileSync(process.execPath,['scripts/generate-airfield-pbr.mjs'],{stdio:'inherit'});
-// Deterministic, genuinely textured supply vehicle and depot GLBs. Includes
-// six separate wheel animation pivots, twin cargo-door clips, ramp and crate
-// groups for resource depletion/replenishment. No external large binaries.
-execFileSync(process.execPath,['scripts/generate-supply-pbr.mjs'],{stdio:'inherit'});
 cpSync('src/assets', 'dist/src/assets', {recursive:true});
 // Incremental local builds must also discard the retired aircraft assets.
 for(const team of [0,1])for(const extension of ['glb','png','json'])rmSync(`dist/src/assets/reborn/animation/gunship-${team}.${extension}`,{force:true});
