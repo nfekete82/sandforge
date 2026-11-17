@@ -47,8 +47,16 @@ test('phase 1: free adjacent Bastion outranks a visible turret-blocked Bastion',
  const neighbors=redHQSector.neighbors.map(id=>g.territories[id]).filter(t=>t.owner===-1);
  assert.ok(neighbors.length>=2);
  const defended=neighbors[0],free=neighbors[1];
+ // At ~550 units between Bastions, a tower on the first capture circle
+ // also covers the second one! Place this observed turret farther back so
+ // the second target really is out of its 660-unit defended-area threshold.
+ const separation=distance(defended.point,free.point);
+ const shift=Math.max(70,710-separation);
  const turret={id:88001,owner:0,kind:'turret',hp:650,
-  x:defended.point.x,y:defended.point.y,territory:defended.id};
+  x:defended.point.x+(defended.point.x-free.point.x)/separation*shift,
+  y:defended.point.y+(defended.point.y-free.point.y)/separation*shift,
+  territory:defended.id};
+ assert.ok(distance(turret,free.point)>660,'free Bastion must actually be outside gun cover');
  g.memories[1].push(turret);
  const goal=chooseMission(g,newCampaign(),redHQ);
  assert.equal(goal?.kind,'capture');
