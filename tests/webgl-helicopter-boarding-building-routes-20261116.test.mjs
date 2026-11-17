@@ -14,6 +14,10 @@ import {BOARDABLE_INFANTRY,selectedInfantryForTransport,selectedCarrierForPickup
 function arena(){
  const g=new Simulation(261116,4);
  g.aiClock=1e8;g.units=[];g.bases=[];
+ // This synthetic transport arena has NEVER had buildings. The constructor
+ // started with real HQs; clearing those fixtures must also clear the new
+ // persistent 'ever built' flags, otherwise both factions lose on tick one.
+ g.hadBuildings=[false,false];
  g.world.blocked.fill(0);g.world.opaque.fill(0);
  g.world.components.fill(0);g.status='playing';g.paused=false;
  g.tactical.plan=()=>{};
@@ -22,6 +26,14 @@ function arena(){
  return g;
 }
 
+test('structure-free transport test arena remains playable for both surviving armies',()=>{
+ const g=arena(),blue=g.spawn(0,{x:1800,y:2000},'infantry');
+ assert.deepEqual(g.hadBuildings,[false,false]);
+ for(let i=0;i<15;i++)g.step(.05);
+ assert.equal(g.status,'playing','HQ-less transport arena cannot finish before boarding');
+ assert.ok(g.units.some(u=>u.id===blue.id&&u.hp>0));
+ assert.ok(g.units.some(u=>u.owner===1&&u.hp>0));
+});
 test('rocket soldiers have the same helicopter eligibility as other ground infantry',()=>{
  assert.equal(BOARDABLE_INFANTRY.has('rocket'),true);
  const h={id:80,kind:'scout',owner:0,hp:360};
