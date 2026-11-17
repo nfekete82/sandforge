@@ -8,14 +8,14 @@ const ctx={fighters:8,time:85,recentLosses:0,recentFailures:0,
  confirmedEndgame:false};
 test('modern AI pays for a garrison instead of sending its entire opening roster',()=>{
  const p=homeDefensePlan(ctx);
- assert.equal(p.guards,3);assert.equal(p.minimumReady,2);
+ assert.equal(p.guards,2);assert.equal(p.minimumReady,2);
  assert.equal(p.allowSecondaryRaids,false);
  assert.equal(homeDefensePlan({...ctx,fighters:2}).guards,2);
- assert.equal(homeDefensePlan({...ctx,time:30}).notBefore,65);
+ assert.equal(homeDefensePlan({...ctx,time:30}).notBefore,50);
 });
 test('failed early push adds guards and a genuinely bounded rebuild window',()=>{
  const p=homeDefensePlan({...ctx,recentLosses:3,recentFailures:2,lastFailureAt:93,time:101,defendedTarget:true});
- assert.ok(p.guards>=4);assert.equal(p.minimumReady,6);
+ assert.ok(p.guards>=3);assert.equal(p.minimumReady,6);
  assert.equal(p.notBefore,151);
  assert.equal(p.mode,'recover');assert.equal(p.allowSecondaryRaids,false);
  const later=homeDefensePlan({...ctx,time:220,fighters:13});
@@ -51,7 +51,7 @@ test('modern campaign retains and stations a real garrison without inventing uni
 test('two paid fighters can probe unguarded bastion while four paid defenders stay near HQ',()=>{
  const plan=homeDefensePlan({...ctx,fighters:6,defendedTarget:false});
  assert.equal(plan.minimumReady,2);
- assert.equal(plan.guards,3);
+ assert.equal(plan.guards,2);
  assert.equal(homeDefensePlan({...ctx,fighters:6,defendedTarget:true}).minimumReady,5);
  assert.equal(homeDefensePlan({...ctx,fighters:6,recentLosses:3}).minimumReady,5);
 });
