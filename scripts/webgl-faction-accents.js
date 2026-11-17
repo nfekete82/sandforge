@@ -101,6 +101,7 @@ export function tintFactionMaterials(root,owner,kind,type){
     // with the generic world-space patch shader.
     if(type==='building'&&mat.metalness<.9&&
        !mat.userData?.sandforgeColorMapCamo&&
+       !mat.userData?.sandforgeAuthoredMetal&&
        !(mat.emissiveIntensity>.29&&mat.emissive?.getHex?.()!==0))
       applyDesertBuildingCamo(mat);
     tinted++;
