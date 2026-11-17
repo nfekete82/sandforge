@@ -25,6 +25,15 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
   assert.equal(interior.material.side,THREE.BackSide,'view the shaft from INSIDE');
   assert.ok(interior.geometry.parameters.height>30,'shaft walls must show real depth');
   assert.ok(well.position.y<-20,'deep floor must not read as a black disk on the roof');
+  const occlusion=model.getObjectByName('Silo_TerrainOcclusion');
+  assert.ok(occlusion?.isMesh,'underground launch shaft requires a terrain occlusion mask');
+  assert.ok(occlusion.material.isMeshBasicMaterial);
+  assert.equal(occlusion.material.name,'SF_SiloDepthOcclusion');
+  assert.ok(occlusion.geometry.parameters.radius>=59);
+  assert.ok(occlusion.position.y>1.15&&occlusion.position.y<lip.position.y-5,
+   'near-black occluder must hide terrain but sit well below hatch top');
+  assert.ok(occlusion.material.color.r<.02,'the depth mask stays nearly black');
+  assert.equal(occlusion.userData.hidesUnderlyingTerrain,true);
   assert.equal(deck.material.name,'SF_metal','main launch deck is stamped steel');
   assert.equal(deck.material.map?.name,'Sandforge silo stamped steel maintenance panels');
   assert.ok(deck.material.metalness>.7&&deck.material.roughness<.5);
