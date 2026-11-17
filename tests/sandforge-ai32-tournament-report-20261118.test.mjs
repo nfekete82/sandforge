@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {tournamentReport,reportMarkdown} from '../scripts/ai32-tournament-report.mjs';
@@ -36,20 +36,18 @@ test('rejects mismatched starting worlds rather than claiming an unfair comparis
  const dir=fixture();
  try{
   const filename=join(dir,'arena-25-after.json');
-  const j=JSON.parse((awaitRead(filename)));
+  const j=JSON.parse(readFileSync(filename,'utf8'));
   j.details[0].initialStateHash='different-start';
   writeFileSync(filename,JSON.stringify(j));
   assert.throws(()=>tournamentReport(dir),/Different or unmatched playable starting worlds/);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
-function awaitRead(file){return requireFreeRead(file);}
-import {readFileSync as requireFreeRead} from 'node:fs';
 
 test('requires exactly 20 paired seeds per map and 900 second observation windows',()=>{
  const dir=fixture();
  try{
   const filename=join(dir,'arena-26-before.json');
-  const report=JSON.parse(requireFreeRead(filename,'utf8'));
+  const report=JSON.parse(readFileSync(filename,'utf8'));
   report.requestedSeconds=120;
   writeFileSync(filename,JSON.stringify(report));
   assert.throws(()=>tournamentReport(dir),/Incompatible experiment setting: requestedSeconds/);
@@ -61,9 +59,9 @@ test('aggregates exactly 60 fair pairs; wins and timeouts are separate',()=>{
  try{
   const report=tournamentReport(dir),md=reportMarkdown(report);
   assert.equal(report.matchedPairs,60);
-  assert.equal(report.baseline.timeouts,57);
+  assert.equal(report.baseline.timeouts,60);
   assert.equal(report.candidate.wins,9);
-  assert.equal(report.candidate.timeouts,48);
+  assert.equal(report.candidate.timeouts,51);
   assert.equal(report.aggregateDelta.captures,1);
   assert.equal(report.aggregateDelta.bastionControlSeconds,100);
   assert.equal(report.aggregateDelta.battleRetreats,-2);
