@@ -13,7 +13,7 @@ function glb(name){
  const jsonSize=bytes.readUInt32LE(12),json=JSON.parse(bytes.subarray(20,20+jsonSize).toString('utf8').trim());
  const binOffset=20+jsonSize;
  assert.equal(bytes.toString('ascii',binOffset+4,binOffset+8),'BIN\0');
- assert.equal(json.buffers[0].byteLength<=bytes.readUInt32LE(binOffset),'true');
+ assert.ok(json.buffers[0].byteLength<=bytes.readUInt32LE(binOffset),'GLB BIN chunk has sufficient bytes');
  assert.ok(json.meshes?.length>12,'meaningful detailed geometry');
  assert.ok(json.materials?.length>=10,'multi-material PBR atlas');
  assert.ok(json.images?.length>=10,'textures embedded in the GLB');
