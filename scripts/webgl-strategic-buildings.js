@@ -255,6 +255,10 @@ export function createStrategicBuilding(kind,owner=0){
    bumpMap:materialGrain,bumpScale:.045,roughness:.36,metalness:.84});
   mats.rocketNose=new THREE.MeshStandardMaterial({color:'#aeb8b7',map:materialGrain,
    bumpMap:materialGrain,bumpScale:.045,roughness:.36,metalness:.84});
+  // One thin matte-black steel gasket hides the edge where the physically
+  // lit rocket meets its ray-projected continuation in the deep shaft.
+  mats.rocketJoint=new THREE.MeshStandardMaterial({
+   color:'#15191a',roughness:.76,metalness:.52});
     // Give the large bunker and hatch faces a real tiled camouflage albedo.
   // Keep fine concrete grain as bump; rocket, hatches' dark iron, metallic
   // machinery and team-colored glass keep their own original materials.
@@ -619,6 +623,10 @@ export function createStrategicBuilding(kind,owner=0){
       float deepFade=1.0-.89*smoothstep(6.0,uDepth-7.0,below);
       metal=(uRocketColor*rocketGrain*(ambientMetal+warmMetal)
        +specularMetal)*deepFade;
+      // Black seal just below the rim covers the artificial rendering seam
+      // while the real alloy color returns within one unit of shaft depth.
+      float jointShade=mix(.30,1.0,smoothstep(0.0,1.10,below));
+      metal*=jointShade;
      }else if(tWall>tPlane+0.001 && tWall<tFloor){
       vec3 hit=eye+dir*tWall;
       float down=clamp(-hit.z,0.0,uDepth);
@@ -749,6 +757,13 @@ export function createStrategicBuilding(kind,owner=0){
   mats.rocketBody.needsUpdate=true;
   const hull=add(hullGeometry,'rocketBody',rocketX,hullCenterY,0);
   hull.name='Silo_RocketBody';
+  // Narrow mechanical seal at the exact intersection with the launch well.
+  // Only this one ring; no distracting grooves along the missile body.
+  const joint=add(new THREE.TorusGeometry(
+   rocketRadius+.10,.42,8,64),'rocketJoint',
+   rocketX,depthMaskY+.43,0,-Math.PI/2);
+  joint.name='Silo_RocketHatchJoint';
+  joint.castShadow=false;joint.receiveShadow=false;
   // Never paint submerged missile geometry over the physical terrain:
   // the shallow depth mask itself renders the dark continuation of the
   // rocket inside the opening. A second 3D mesh with depthTest disabled
