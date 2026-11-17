@@ -36,6 +36,19 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
   const shader=occlusion.material;
   assert.equal(shader.uniforms.uDepth.value,95,
    'inner wall projection extends 95 world units down');
+  const steel=shader.uniforms.uWallTexture.value;
+  assert.ok(steel?.isDataTexture,'shaft metal must use an actual texture, not smooth stripes');
+  assert.equal(steel.name,'Sandforge silo deep weathered steel shaft wall');
+  assert.equal(steel.image.width,256);
+  assert.equal(steel.image.height,256);
+  assert.equal(steel.wrapS,THREE.RepeatWrapping);
+  assert.equal(steel.wrapT,THREE.RepeatWrapping);
+  const red=new Set();
+  for(let i=0;i<steel.image.data.length;i+=64)
+   red.add(steel.image.data[i]);
+  assert.ok(red.size>18,'steel albedo must contain uneven wear and panel joints');
+  assert.ok(shader.fragmentShader.includes('texture2D(uWallTexture,steelUV)'),
+   'metal surface must wrap around real projected cylinder coordinates');
   assert.ok(shader.fragmentShader.includes('float tWall='),
    'ray-marched shaft must intersect its cylindrical back wall');
   assert.ok(shader.fragmentShader.includes('float tFloor='),
@@ -64,8 +77,16 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    'curved shoulder softens the missile tip');
   assert.ok(body.material.metalness>.75&&nose.material.metalness>.75,
    'both rocket stages are metallic, not a flat black cone');
-  assert.ok(body.position.y<=-4&&nose.position.y<=11.5,
-   'the rocket rests deep in the well; only its upper nose emerges');
+  assert.ok(body.position.y>=0&&body.position.y<=2,
+   'smooth metal body sits low enough to be partly submerged in the shaft');
+  assert.ok(body.position.y+body.geometry.parameters.height/2>=
+   occlusion.position.y+16,
+   'at least 16 model units of cylindrical rocket must remain visible above the mask');
+  assert.ok(body.position.y-body.geometry.parameters.height/2<occlusion.position.y-12,
+   'lower rocket half must remain inside the pit, not on the rim');
+  assert.equal(nose.position.y,
+   body.position.y+body.geometry.parameters.height/2,
+   'rounded ogive must connect directly to cylinder without a floating gap');
   const code=readFileSync('scripts/webgl-strategic-buildings.js','utf8');
   assert.match(code,/for\(let i=0;i<12;i\+\+\)\{\s*const a=i\*Math\.PI\/6;\s*const bar=box\(3\.5,30,2\.8,'steel'/,
    'twelve physical steel strips remain at the upper shaft wall');
@@ -86,8 +107,8 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
   assert.ok(lip.position.y<11,'hatch ring sits barely above the desert ground');
   assert.ok(well.position.y<lip.position.y-6,'dark shaft floor is visibly lower');
   assert.ok(body.position.y<lip.position.y+5,'only upper stage rises from the hole');
-  assert.ok(nose.position.y<lip.position.y+9&&nose.position.y>lip.position.y,
-   'short rounded nose begins near the rim, not atop a tall launch tower');
+  assert.ok(nose.position.y>lip.position.y+9&&nose.position.y<lip.position.y+17,
+   'round nose starts above the visible steel cylinder but stays compact');
   assert.equal(body.position.x,well.position.x,'rocket is centered in its shaft');
   assert.equal(nose.position.x,well.position.x);
   const bb=new THREE.Box3().setFromObject(model);
