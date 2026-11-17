@@ -1729,8 +1729,16 @@ export class Simulation {
         // the tracked primary receives full damage, adjacent targets only
         // 32% and a smaller 32m blast. Tank/artillery payloads are unchanged.
         const secondary=guidedRocket&&target.id!==missile.target?.32:1;
+        // weaponDamage(rocket, infantry) ALREADY applies the 10% direct
+        // infantry modifier when the guided projectile is launched.
+        // Applying another .10 on impact turned 145 into just 1.45 HP,
+        // making a paid rocket soldier effectively unable to kill infantry.
+        // Keep the extra .10 on nearby SPLASH victims (not the tracked
+        // direct hit), and keep unchanged tank-rocket infantry splash (.28).
+        const infantrySplash=guidedRocket
+          ?target.id===missile.target?1:.10:.28;
         const amount=missile.damage*(1-.5*distance(target,missile.to)/radius)*secondary*
-          (antiArmor&&!armored?(guidedRocket?.10:.28):1);
+          (antiArmor&&!armored?infantrySplash:1);
         this.strike(missile.source,target,amount);
       }
       this.blasts.push({...missile.to,id:missile.id,at:this.time});
