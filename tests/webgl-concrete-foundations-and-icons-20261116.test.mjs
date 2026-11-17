@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {
- FOUNDATION_PAD_KINDS,foundationPadSpec,createBuildingFoundation,disposeBuildingFoundation
+ FOUNDATION_PAD_KINDS,SILO_FOUNDATION_APERTURE,foundationPadSpec,createBuildingFoundation,disposeBuildingFoundation
 } from '../scripts/webgl-foundation-slabs.js';
 import {servicePaint,previewServiceMaterial,disposeServicePaint}
  from '../scripts/webgl-service-materials.js';
@@ -33,6 +33,31 @@ test('low-profile detailed PBR foundations follow the actual building footprint'
  }
  assert.equal(createBuildingFoundation('wall',60),null,'wall segments have no tiled aprons');
  assert.equal(createBuildingFoundation('airfield',218),null,'runway already owns its concrete');
+});
+
+test('silo foundation leaves the whole rocket shaft uncovered',()=>{
+ const foundation=createBuildingFoundation('silo',265);
+ try{
+  assert.equal(SILO_FOUNDATION_APERTURE.x,-17);
+  assert.ok(SILO_FOUNDATION_APERTURE.radius>=61);
+  for(const name of ['FacilityConcreteFoundationSurface','FacilityConcreteFoundationLip']){
+   const mesh=foundation.getObjectByName(name);
+   assert.equal(mesh.geometry.type,'ExtrudeGeometry',name+' must not be a solid slab');
+   const shape=mesh.geometry.parameters.shapes;
+   assert.equal(shape.holes.length,1,name+' must contain real open geometry');
+   const hole=shape.holes[0];
+   const points=hole.getPoints(64);
+   const minX=Math.min(...points.map(p=>p.x));
+   const maxX=Math.max(...points.map(p=>p.x));
+   assert.ok(minX<-78&&maxX>44,'cutout must surround the offset rocket axis');
+   assert.equal(mesh.userData.foundationAperture,SILO_FOUNDATION_APERTURE);
+   assert.ok(Math.abs(mesh.rotation.x+Math.PI/2)<1e-6);
+  }
+  const regular=createBuildingFoundation('research',170);
+  assert.equal(regular.getObjectByName('FacilityConcreteFoundationSurface').geometry.type,
+   'BoxGeometry','all other buildings keep their original foundations');
+  disposeBuildingFoundation(regular);
+ }finally{disposeBuildingFoundation(foundation);}
 });
 
 test('same foundation generator is wired to live buildings and the build ghost',()=>{
