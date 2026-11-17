@@ -660,8 +660,8 @@ export class Simulation {
     for(const b of this.bases)if(b.hp>0)this.hadBuildings[b.owner]=true;
     this.supplyCaches=generateSupplyCaches(this.world,this.territories,
       this.startRegions.map(r=>r.center),this.seed);
-    if(this.world.mapVersion>=23&&this.territories.length===4)
-      for(const t of this.territories)t.income=5;
+    // All modern maps now earn credits through bastions, not neutral depots.
+
     this.spatial.rebuild(this.units);this.updateVision();
   }
   static campaign(seed=randomMapSeed(),version:MapVersion=MAP_VERSION,profile?:TerrainProfile):Simulation {return new Simulation(seed,version,false,true,profile);}
@@ -710,9 +710,8 @@ export class Simulation {
     countDeployed(this.stats,owner,kind,this.count(owner));return u;
   }
   income(owner:Faction):number {
-    const strategicLogistics=this.world.mapVersion>=23&&this.territories.length===4;
     return this.bases.filter(b=>b.owner===owner&&b.hp>0&&b.buildRemaining<=0).reduce((n,b)=>
-      n+(strategicLogistics&&b.kind==='headquarters'?20:buildingSpec(b).income),0)+
+      n+buildingSpec(b).income,0)+
       this.territories.filter(t=>t.owner===owner).reduce((n,t)=>n+t.income,0);
   }
   /** Re-enable logistics after a manual move/STOPP, optionally pick a marked
