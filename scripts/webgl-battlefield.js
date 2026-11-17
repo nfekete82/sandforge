@@ -14,7 +14,7 @@ import {hydrateUnitIcons,hydrateBuildingIcons,unitIcon,buildingIcon,buildingIcon
 import {createSandforgeResearchDeck} from '/webgl-research-deck.js';
 import {createSandforgeConfirmDialog} from '/webgl-confirm-dialog.js';
 import {SandforgeActorPresentation} from '/webgl-actor-presentation.js';
-import {calibratedScale,visualUnitScale,unitVisualYaw,unitRenderAltitude,buildingFacingAngle,nextBuildingFacing,buildingFacingDegrees,turretAimLocalYaw,selectionRingRadius} from '/webgl-scale.js';
+import {calibratedScale,visualUnitScale,visualBuildingScale,unitVisualYaw,unitRenderAltitude,buildingFacingAngle,nextBuildingFacing,buildingFacingDegrees,turretAimLocalYaw,selectionRingRadius} from '/webgl-scale.js';
 import {SandforgeGroundingPass} from '/webgl-grounding.js';
 import {createBuildingYard,disposeBuildingYard} from '/webgl-building-yard.js';
 import {createBuildingFoundation,disposeBuildingFoundation} from '/webgl-foundation-slabs.js';
@@ -258,6 +258,11 @@ export class SandforgeBattlefield {
    make(new THREE.BoxGeometry(w*.9,7,depth*.83),dark,0,56,0);
    make(new THREE.CylinderGeometry(6,9,45,10),dark,w*.2,80,-depth*.18);
   }
+  // Keep the low-detail turret (including the translucent placement ghost)
+  // the same size as the normalized authored 3D turret. This changes only
+  // the mesh group; BUILDINGS.turret and collision/attack ranges are untouched.
+  if(type==='building'&&kind==='turret')
+   group.scale.setScalar(visualBuildingScale(kind));
   return group;
  }
  async getModel(url){
