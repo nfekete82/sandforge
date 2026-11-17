@@ -145,11 +145,13 @@ export function animateSupplyTruckRig(root,unit,entry,travel,time,dt,active){
   if(door)door.rotation.y+=((opening?1.10:0)*(i===0?1:-1)-door.rotation.y)*step;
  });
 }
-\nfunction supplyOperationProgress(job){
+
+function supplyOperationProgress(job){
  if(job?.phase!=='loading'&&job?.phase!=='unloading')return null;
  const duration=job.phase==='loading'?2.4:1.4;
  return {mode:job.phase,fraction:Math.min(1,Math.max(0,(Number(job.clock)||0)/duration))};
-}\n// Shared billboarding assets: a single crate icon/text texture for every
+}
+// Shared billboarding assets: a single crate icon/text texture for every
 // delivery truck. No DOM element, label texture or 3D geometry allocated
 // on a hot frame; HUD only exists for active loading/unloading actors.
 let supplyOperationSprites=null;
