@@ -3,6 +3,7 @@ import {SandforgeProductionGates} from '/webgl-production-gates.js';
 import {SandforgeBuildingCollapse} from '/webgl-building-collapse.js';
 import {SandforgeAirfieldLaunch} from '/webgl-airfield-launch.js';
 import {nextPeriodicRefresh} from '/webgl-frame-scheduling.js';
+import {createAiDebugOverlay} from '/webgl-ai-debug.js';
 import {wheelsShouldRoll} from '/webgl-wheel-motion.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
 import {UNITS,BUILDINGS,MAX_GENERATORS_PER_FACTION,unitKinds,buildingKinds,unitSpec,buildingSpec} from '/src/reborn/catalog.js';
@@ -138,6 +139,9 @@ export class SandforgeBattlefield {
     new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.96,depthWrite:false}));
   this.tracer.frustumCulled=false;scene.add(this.tracer);
   this.buildInterface();this.addFog();this.createBastions();
+  // Read-only developer HUD, opt-in on staging (?aiDebug=1), always
+  // accessible via F9 in the local dev preview. Never touches game state.
+  this.aiDebug=createAiDebugOverlay(this.game);
   this.attachInput();this.sync(true);
  }
  entityPosition(p){return this.pos(p.x,p.y,this.heightAt(p.x,p.y)+unitRenderAltitude(p.kind,p.flightHeight??1));}
@@ -1291,6 +1295,8 @@ export class SandforgeBattlefield {
   this.updateSelectionRings();
   this.updateShots();
   const now=performance.now();
+  // Cheap, throttled developer-only text refresh; no work while hidden.
+  this.aiDebug?.update();
   // A periodic triple-refresh (fog/upload + complete HTML catalogue +
   // minimap raster) used to coincide every ~1.4 s, producing visible hitches.
   // Spread expensive periodic refreshes over successive RAF frames. Immediate
@@ -2959,6 +2965,9 @@ export class SandforgeBattlefield {
   },true);
   document.addEventListener('keydown',event=>{
    if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
+   if(event.code==='F9'&&!event.repeat&&this.aiDebug){
+    event.preventDefault();this.aiDebug.toggle();return;
+   }
    if(event.code==='KeyR'&&this.buildKind){
     if(event.repeat)return;
     event.preventDefault();
