@@ -1,7 +1,9 @@
 name: Sandforge Bastion defense 24-match validation
 
 on:
-  pull_request:
+  push:
+    branches:
+      - integration/sandforge-current-20261117
   workflow_dispatch:
 
 jobs:
