@@ -45,8 +45,7 @@ jobs:
           node --test \
             tests/webgl-medic-dune-ripples-20261117.test.mjs \
             tests/webgl-sand-scenic-camouflage.test.mjs \
-            tests/sandforge-bastion-navigation.test.mjs \
-            tests/sandforge-spacious-desert.test.mjs
+            tests/sandforge-bastion-navigation.test.mjs
           # The deprecated historical test uses direct tower-centre routing,
           # even though those positions are now solid. Modern topology,
           # capture-ring access and actual pathing are validated above.
