@@ -1,7 +1,7 @@
 name: Sandforge supply truck and open concrete depot QA
 on:
   push:
-    branches: [fix/sandforge-supply-truck-open-depot-20261117, fix/sandforge-supply-auto-return-20261117]
+    branches: [fix/sandforge-supply-truck-open-depot-20261117, fix/sandforge-supply-auto-return-20261117, fix/sandforge-supply-cargo-open-clean-depot-20261117]
   pull_request:
     branches: [feat/sandforge-supply-pbr-animated-20261117]
   workflow_dispatch:
@@ -29,7 +29,7 @@ jobs:
       - name: Syntax and regression tests
         run: |
           for src in scripts/webgl-supply-custom.js scripts/webgl-supply-logistics.js scripts/webgl-battlefield.js scripts/webgl-ground-tracks.js scripts/webgl-vehicle-dust.js scripts/webgl-global-catalog.js scripts/generate-supply-pbr.mjs; do node --check "$src"; done
-          node --test tests/reborn-supply-pbr-glbs-20261117.test.mjs tests/reborn-supply-logistics-20261117.test.mjs tests/sandforge-supply-open-yard-vehicle-20261117.test.mjs tests/sandforge-supply-auto-rally-20261117.test.mjs
+          node --test tests/reborn-supply-pbr-glbs-20261117.test.mjs tests/reborn-supply-logistics-20261117.test.mjs tests/sandforge-supply-open-yard-vehicle-20261117.test.mjs tests/sandforge-supply-auto-rally-20261117.test.mjs tests/sandforge-supply-cargo-depot-polish-20261117.test.mjs
       - name: Browser module packaging
         run: |
           SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs

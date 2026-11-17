@@ -40,14 +40,15 @@ test('deterministically exported six-wheel faction GLBs contain real camo PBR ma
   }
  }
 });
-test('depot GLB contains a true storage hall and eighteen individually hideable pallet stacks',()=>{
+test('depot GLB is open concrete with eighteen individually hideable smaller pallets',()=>{
  const g=glb('supply-depot-neutral.glb');
  assert.ok(g.json.meshes.length>=32,'substantial warehouse geometry and crates');
  const groups=g.names.filter(n=>/^SF_DepotStock_\d{2}$/.test(n));
  assert.equal(groups.length,18,'never draw all 18 tiny crates as one unhideable mesh');
- assert.ok(g.names.includes('SF_DepotLoadingRamp'));
+ assert.ok(g.names.includes('SF_DepotConcretePad'));
+ assert.ok(!g.names.includes('SF_DepotLoadingRamp'),'no unloading ramp exists');
  assert.ok(g.names.includes('SF_Depot_LoadBeacon'));
- assert.ok(g.json.animations.some(a=>a.name==='DepotRampLower'));
+ assert.ok(!g.json.animations.some(a=>a.name==='DepotRampLower'));
  assert.ok(g.json.animations.some(a=>a.name==='DepotBeaconPulse'));
 });
 test('WebGL integration loads authored models, never adds generic floating badges, keeps emptied warehouse',()=>{

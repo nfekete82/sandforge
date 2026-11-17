@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {setCustomSupplyCargo,animateCustomSupplyTruck} from './webgl-supply-custom.js';
+import {setCustomSupplyCargo,animateCustomSupplyTruck,supplyVisibleCrateCount} from './webgl-supply-custom.js';
 
 /** Lightweight, wholly authored and self-contained Sandforge logistics art.
  * No external GLB, atlas, texture fetch or runtime geometry creation per frame.
@@ -46,8 +46,12 @@ export function createSupplyTruckVisual(owner){
  }
  const cargo=new THREE.Group();cargo.name='SF_Supply_Cargo';
  cargo.position.set(0,5,-16);g.add(cargo);
- for(const x of [-10,10])for(const z of [-11,11])
-  cube(cargo,'Supplies_LoadedCrate',16,15,17,sand,x,51,z);
+ for(let i=0;i<8;i++){
+  const group=new THREE.Group();group.name='SF_Supply_CargoStack_'+i;
+  cargo.add(group);
+  const x=i%2?-10:10,z=-18+Math.floor(i/2)*12;
+  cube(group,'Supplies_LoadedCrate_'+i,15,13,11,i%3===0?khaki:sand,x,51,z);
+ }
  cargo.visible=false;
  g.userData.cargoGroup=cargo;
  return g;
@@ -58,24 +62,27 @@ export function createSupplyCacheVisual(){
  const root=new THREE.Group();root.name='SF_Neutral_SupplyCache';
  root.userData={visualOnly:true,nonPlayable:true};
  const concrete=mat('#aaa99e'),concreteLight=mat('#c6c0b0');
- const curb=mat('#85867b'),hazard=mat('#ccaf6a');
+ const curb=mat('#85867b');
  cube(root,'SF_DepotConcretePad',266,4,230,concrete,0,2,-42);
  cube(root,'SF_DepotConcreteTop',259,1,225,concreteLight,0,4.5,-42);
  for(const x of [-131,131])cube(root,'SF_DepotCurb_'+x,3,3,228,curb,x,5,-42);
  for(const z of [-155,72])cube(root,'SF_DepotCurb_'+z,262,3,3,curb,0,5,z);
- for(const x of [-24,24])cube(root,'SF_DepotLoadingLane'+x,2,.3,54,hazard,x,5.5,40);
+ // No ramp, road paint, hazard stripes or grid lines on the concrete.
  const piles=[];
  for(let i=0;i<18;i++){
   const row=Math.floor(i/6),col=i%6,side=col<3?-1:1,slot=col%3;
-  const x=side*(46+slot*34),z=-114+row*58;
+  const x=side*(46+slot*32),z=-117+row*60;
   const group=new THREE.Group();
   group.name='SF_DepotStock_'+String(i).padStart(2,'0');root.add(group);
-  cube(group,'SupplyPallet',28,5,30,wood,x,9,z);
-  cube(group,'SupplyCrate',24,18,24,i%3===0?khaki:sand,x,24,z);
-  cube(group,'SupplyCrateTop',25,2,25,wood,x,34,z);
-  for(const sideRail of [-1,1])cube(group,'SupplyCrateReinforcement',2,18,24,steel,
-   x+sideRail*10.5,24,z);
-  if(i%4===0)cube(group,'SupplyExtraCrate',22,16,22,khaki,x,45,z);
+  cube(group,'SupplyPallet',26,4.2,26,wood,x,7.2,z);
+  for(const dx of [-8,8])
+   cube(group,'SupplyPalletSupport',2.6,3.3,24,wood,x+dx,5.5,z);
+  cube(group,'SupplyCrate',16,17,15,i%3===0?khaki:sand,x-3,18,z);
+  cube(group,'SupplyCrateTop',17,2,16,wood,x-3,27.5,z);
+  if(i%3===1)
+   cube(group,'SupplySmallCrate',12,17,12,khaki,x+8,18,z+5);
+  if(i%6===4)
+   cube(group,'SupplySecondCrate',14,17,14,wood,x-3,35,z);
   piles.push(group);
  }
  root.userData.piles=piles;
@@ -101,8 +108,6 @@ export function updateSupplyCacheVisual(root,cache,{time=0,loading=false}={}){
    stocks.forEach((stock,i)=>{stock.visible=i<count;});
    root.userData.lastStockModel=model;root.userData.lastStockCount=count;
   }
-  const ramp=model.getObjectByName('SF_DepotLoadingRamp');
-  if(ramp)ramp.rotation.x+=((loading?-.45:0)-ramp.rotation.x)*.12;
   const beacon=model.getObjectByName('SF_Depot_LoadBeacon');
   if(beacon)beacon.scale.y=1+.12*Math.sin(time*2.2);
  }else{
@@ -114,13 +119,19 @@ export function updateSupplyCacheVisual(root,cache,{time=0,loading=false}={}){
 }
 export function setSupplyTruckCargo(root,job){
  if(setCustomSupplyCargo(root,job))return;
- const loaded=typeof job==='object'?Boolean(job?.cargo):Boolean(job);
+ const count=supplyVisibleCrateCount(job,8);
  let cargo=root?.userData?.cargoGroup;
  if(!cargo&&root?.getObjectByName){
   cargo=root.getObjectByName('SF_Supply_Cargo');
   if(cargo)root.userData.cargoGroup=cargo;
  }
- if(cargo&&cargo.visible!==Boolean(loaded))cargo.visible=Boolean(loaded);
+ if(cargo){
+  const stacks=cargo.children.filter(n=>n.name.startsWith('SF_Supply_CargoStack_'));
+  if(stacks.length===8)stacks.forEach((n,i)=>{n.visible=i<count;});
+  // Legacy PBR fallback has one cargo group: at least hard-empty it when
+  // the simulation settles the delivery; never render permanent crates.
+  cargo.visible=count>0;
+ }
 }
 /** Actual 20 Hz physical movement, not free-running mixer clips, drives all
  * 6 truck wheels. Opening the large rear doors follows loading/unloading

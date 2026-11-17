@@ -202,14 +202,19 @@ export function stepSupplyLogistics(g:Simulation,dt:number):void{
    b.hp>0&&b.buildRemaining<=0).sort((a,b)=>distance(a,u)-distance(b,u))[0];
   if(!hq){job.phase='idle';job.clock=0;u.orders=[];continue;}
   if(job.phase==='to-hq'){
-   // The depot can be destroyed while the truck is away. Recompute a
-   // delivery approach only if the current goal is invalid/unreachable.
+   // Delivery is a REAL physical radius around the friendly, finished HQ.
+   // Old code also required the precise approach waypoint (<85). The
+   // visually larger HQ vehicle facade can block that waypoint, leaving a
+   // fully loaded hauler stationary next to its HQ forever.
+   if(distance(u,hq)<=225){
+    job.phase='unloading';job.clock=0;u.orders=[];u.path=[];
+    continue;
+   }
+   // Still outside: move normally. Never teleport, award credits early or
+   // ignore vehicle obstacles. Completed unloading remains timer-driven.
    if(!job.destination||!hasTravel(u,job.destination)){
     job.destination=supplyDeliveryPoint(g,u,hq);
     resetMovement(u,job.destination);
-   }
-   if(distance(u,hq)<225&&distance(u,job.destination)<85){
-    job.phase='unloading';job.clock=0;u.orders=[];u.path=[];
    }
    continue;
   }
