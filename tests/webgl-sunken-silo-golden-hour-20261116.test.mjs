@@ -86,8 +86,31 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    'nose and hull have exactly the same metalness');
   assert.strictEqual(shader.uniforms.uRocketGrain.value,body.material.map,
    'projected underground hull must use the same grain as the physical rocket');
+  assert.ok(shader.uniforms.uRocketMapScale.value.equals(body.material.map.repeat),
+   'same grain tiling must apply to real and projected missile metal');
+  assert.ok(shader.uniforms.uRocketSunColor.value.equals(
+   new THREE.Color(DESERT_GOLDEN_HOUR.sunColor)),
+   'underground metal must reflect the actual warm desert sun color');
   assert.ok(shader.fragmentShader.includes('texture2D(uRocketGrain,rocketUV)'),
    'underground rocket samples the actual upper-stage metal texture');
+  assert.match(shader.fragmentShader,/rocketUV=vec2\([\s\S]*?\*uRocketMapScale;/,
+   'the exact upper-cylinder texture repeat must be used below the rim');
+  assert.ok(shader.fragmentShader.includes('pow(sun,1.75)'),
+   'silo shading must match directional physical metal highlights, not uniform grey');
+  assert.ok(shader.fragmentShader.includes('warmMetal=uRocketSunColor*'),
+   'the buried missile needs warm golden-hour illumination instead of bluish black');
+  assert.ok(shader.fragmentShader.includes('smoothstep(4.0,uDepth-7.0,below)'),
+   'underground fade must begin below the join, not at the visible top seam');
+  const sunCam=new THREE.PerspectiveCamera();
+  sunCam.position.set(350,300,380);
+  sunCam.updateMatrixWorld(true);
+  model.updateMatrixWorld(true);
+  occlusion.onBeforeRender(null,null,sunCam);
+  const worldSun=new THREE.Vector3(...DESERT_GOLDEN_HOUR.sunOffset).normalize();
+  const expectedSun=worldSun.transformDirection(
+   new THREE.Matrix4().copy(occlusion.matrixWorld).invert());
+  assert.ok(shader.uniforms.uRocketSunDir.value.distanceTo(expectedSun)<1e-6,
+   'silo shader sunlight must follow the model rotation just like PBR lights');
   assert.doesNotMatch(shader.fragmentShader,/float brush=\.004\*sin/,
    'no artificial vertical streaks on the underwater rocket cylinder');
   const stageBottom=body.position.y-body.geometry.parameters.height/2;
