@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {UNITS,BUILDINGS,TANK_MG,weaponDamage,combatDpsAgainst} from '../dist/src/reborn/catalog.js';
+import {RULES} from '../dist/src/reborn/config.js';
 
 const unit=kind=>({kind});
 const structure=kind=>({kind,queue:[]});
@@ -68,8 +69,8 @@ test('combat balance: tank MG, artillery standoff and turret remain distinct cou
   TANK_MG.damage/TANK_MG.cooldown,'tank roof MG is the infantry weapon');
  close(combatDpsAgainst(unit('tank'),unit('tank')),
   UNITS.tank.damage/UNITS.tank.cooldown,'tank main gun is anti-armor');
- assert.ok(UNITS.artillery.range>BUILDINGS.turret.sight-151,
-  'artillery should have its original range advantage over the defense turret');
+ assert.ok(UNITS.artillery.range>RULES.turret.range,
+  'artillery outranges the real turret weapon, not its observation radius');
  assert.equal(UNITS.artillery.range,680);
  assert.equal(BUILDINGS.turret.sight,750);
  assert.equal(BUILDINGS.turret.hp,650);
