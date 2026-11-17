@@ -88,6 +88,7 @@ cpSync('scripts/webgl-barracks-props.js','dist/webgl-barracks-props.js');
 cpSync('scripts/webgl-barracks-contact-shadows.js','dist/webgl-barracks-contact-shadows.js');
 cpSync('scripts/webgl-barracks-prop-materials.js','dist/webgl-barracks-prop-materials.js');
 cpSync('scripts/webgl-airfield-service.js','dist/webgl-airfield-service.js');
+cpSync('scripts/webgl-airfield-runway-clearance.js','dist/webgl-airfield-runway-clearance.js');
 cpSync('scripts/webgl-airfield-security-fence.js','dist/webgl-airfield-security-fence.js');
 cpSync('scripts/webgl-research-deck.js','dist/webgl-research-deck.js');
 cpSync('scripts/webgl-confirm-dialog.js','dist/webgl-confirm-dialog.js');
