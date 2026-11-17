@@ -72,7 +72,9 @@ test('a contested nearby Bastion cannot silently flip while opposing infantry st
 });
 
 test('a living enemy headquarters still blocks automatic nearby capture',()=>{
- const game=Simulation.campaign(2026,24,'dunes');
+ // The campaign bootstrap starts without an HQ; use the completed-base
+ // simulation fixture to test the actual living HQ capture lock.
+ const game=new Simulation(2026,24);
  game.tactical.plan=()=>{};game.aiClock=-1e8;
  const enemyHQ=game.bases.find(b=>b.owner===1&&b.kind==='headquarters');
  assert.ok(enemyHQ);
