@@ -90,10 +90,19 @@ test('reborn: fog, AI, partial capture and production survive a deterministic sa
  assert.throws(()=>Simulation.load({version:1}));const corrupt=g.save();corrupt.credits[0]=-20;assert.throws(()=>Simulation.load(corrupt));
 });
 
-test('reborn: captured HQ/sectors do not end a battle until all enemy units and buildings are gone',()=>{
- const g=peaceful();g.bases[1].owner=0;g.step();assert.equal(g.status,'playing');for(const id of [4,5,11])g.territories[id].owner=0;g.step();assert.equal(g.status,'playing');
- g.units=g.units.filter(u=>u.owner!==1);g.step();assert.equal(g.status,'victory');
- const lost=peaceful();lost.bases[0].hp=0;lost.step();assert.equal(lost.status,'playing');lost.units=lost.units.filter(u=>u.owner!==0);lost.step();assert.equal(lost.status,'defeat');
+test('reborn: Bastion control cannot end a battle while enemy units or buildings survive',()=>{
+ const g=peaceful();
+ for(const id of [4,5,11])g.territories[id].owner=0;
+ g.step();assert.equal(g.status,'playing','captured sectors are not enemy elimination');
+ const enemyHQ=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
+ assert.ok(enemyHQ&&enemyHQ.hp>0);
+ enemyHQ.hp=0;g.step();
+ assert.equal(g.status,'playing','destroying the enemy HQ alone is not enough');
+ assert.equal(enemyHQ.owner,1,'destroyed HQ never transfers to blue');
+ g.units=g.units.filter(u=>u.owner!==1);
+ g.step();assert.equal(g.status,'victory','only all enemy assets being destroyed ends the battle');
+ const lost=peaceful();lost.bases[0].hp=0;lost.step();assert.equal(lost.status,'playing');
+ lost.units=lost.units.filter(u=>u.owner!==0);lost.step();assert.equal(lost.status,'defeat');
 });
 
 test('reborn: Bastion capture never resurrects or transfers a destroyed enemy HQ',()=>{
