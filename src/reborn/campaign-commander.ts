@@ -106,6 +106,7 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  const fieldArmy=army.length>=5&&army.some(u=>['tank','artillery'].includes(u.kind));
  const choices:{kind:WarMission['kind'];p:Point;sector:number;objective:number|null;hp:number;score:number}[]=[];
  const finishing=s.enemyHQEliminatedAt!==undefined;
+ const openBastions=new Set<number>();
  // No HQ rush while Bastions remain unheld. Existing capture missions
  // preemptively neutralize only a tower/HQ physically blocking their circle.
  for(const b of securingBastions?[]:buildings){
@@ -127,6 +128,11 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
    b.kind==='headquarters'&&b.territory===t.id||
    b.kind==='turret'&&distance(b,t.point)<660);
   const clear=blockers.length===0;
+  // Only a genuinely unguarded neutral Bastion is an immediate safe push.
+  // Never infer enemy movement behind fog or ignore a visible raiding squad.
+  const visibleGuards=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&
+   g.canSee(1,u)&&distance(u,t.point)<350);
+  if(clear&&t.owner===-1&&!visibleGuards)openBastions.add(t.id);
   // Neutral unfortified income is the fastest way to support paid armies.
   // Public enemy-held sectors still matter (especially recent losses), but
   // don't outrank a safe nearby Bastion just for being colored blue.
@@ -163,15 +169,24 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
   s.alternatives=alternatives.sort((a,b)=>a.score-b.score||a.sector-b.sector).slice(0,8);
  }
  choices.sort((a,b)=>a.score-b.score||a.sector-b.sector||(a.objective??0)-(b.objective??0));
+ // Open Bastions outrank fighting a distant blockade. Still validate a
+ // REAL safe route; if all free routes are blocked, siege the observed
+ // obstacle instead of doing nothing. This also fixes the long-range
+ // "turret first" case where a guarded circle and a free circle were
+ // both in scoring range but raw distance chose the unnecessary gun.
+ const safe=(c:typeof choices[number])=>c.kind==='capture'&&openBastions.has(c.sector);
+ const ordered=securingBastions?
+  [...choices.filter(safe),...choices.filter(c=>!safe(c))]:choices;
  const routed:{c:typeof choices[number];route:{length:number;risk:number}}[]=[];
- // Test as many as sixteen scored candidates (not merely the first three).
- // An unreachable attractive bunker must not conceal the next valid flank.
- if(context)for(const c of choices.slice(0,context.intelligent?16:choices.length)){
+ // Inspect all safe public fronts first, then the best available siege.
+ // A blocked/unreachable neutral must never permanently freeze the army.
+ if(context)for(const c of ordered.slice(0,context.intelligent?24:ordered.length)){
   const route=context.route(c.p);if(route)routed.push({c,route});
-  if(routed.length===(context.intelligent?4:3))break;
+  if(routed.length===(context.intelligent?8:6))break;
  }
  routed.sort((a,b)=>a.c.score+a.route.length*.15+a.route.risk*12-b.c.score-b.route.length*.15-b.route.risk*12);
- const next=context?routed[0]?.c:choices[0];
+ const safeRoute=routed.filter(r=>safe(r.c)&&r.route.risk<8)[0];
+ const next=context?(safeRoute??routed[0])?.c:ordered[0];
  return s.mission=next?{kind:next.kind,x:next.p.x,y:next.p.y,sector:next.sector,objective:next.objective,hp:next.hp,since:g.time,progressAt:g.time,distance:distance(origin,next.p)}:undefined;
 }
 /** Coarse, deterministic fog frontiers. Sampling terrain is public navigation
