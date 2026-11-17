@@ -14,6 +14,7 @@ const TAU=Math.PI*2;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const pal={
  sand:[188,163,122],light:[215,193,158],stone:[151,136,111],
+ concrete:[170,170,158],concreteLight:[188,185,168],concreteDark:[121,123,116],
  camo:[174,150,108],camoDark:[118,122,91],olive:[89,103,79],
  khaki:[149,143,104],canvas:[151,143,112],wood:[113,83,51],
  woodLight:[169,127,76],steel:[96,105,102],edge:[53,60,59],
@@ -301,98 +302,54 @@ function crate(a,n,x,y,z,width=19,depth=17,kind='wood'){
  }
 }
 function depot(){
- const a=newScene('SF_Supply_Depot_PBR_Root',0),{box,wedge,beam,node}=a;
- // Real storage building remains readable, but has a large clean loading bay
- // and correctly scaled pallets. No scattered toy-sized loose objects.
- box('stone',[0,2,-71],[195,4,154]);
- box('edge',[0,4,-71],[192,2,150]);
- box('camo',[0,32,-112],[183,57,6]);
- for(const side of [-1,1]){
-  box('camo',[side*91,35,-72],[6,64,143]);
-  for(const z of [-129,-90,-53]){
-   box('steel',[side*94,35,z],[5,53,5]);
-   box('olive',[side*95,36,z+15],[3,19,25]);
-  }
+ const a=newScene('SF_Supply_Depot_PBR_Root',0),{box,node}=a;
+ // Low concrete logistics yard. Absolutely NO hall, canopy, walls or roof:
+ // the player must see the supply pallets and every disappearing crate
+ // from every isometric zoom and overhead camera angle.
+ const slab=node('SF_DepotConcretePad');
+ box('concrete',[0,2,-42],[266,4,230],slab);
+ box('concreteLight',[0,4.5,-42],[260,1,225],slab);
+ // Thin curbs and expansion joints are kept flush so they never obscure stock.
+ for(const x of [-131,131]){
+  box('concreteDark',[x,5,-42],[3,3,228],slab);
+  for(const z of [-134,-78,-22,34])
+   box('edge',[x,6,z],[3,.8,2],slab);
  }
- // Open front bay under a dark trussed roof; crates physically underneath.
- box('camo',[-79,34,-6],[26,60,7]);
- box('camo',[79,34,-6],[26,60,7]);
- box('camo',[0,58,-6],[145,12,7]);
- for(const x of [-62,62])box('steel',[x,31,-2],[7,54,8]);
- box('black',[0,36,-9],[112,42,2]);
- // Roof and canopy panels in same muted camo PBR palette as headquarters.
- box('edge',[0,69,-75],[204,8,159]);
- box('camo',[0,75,-72],[202,8,160]);
- box('camoDark',[-47,80,-74],[62,1.5,141]);
- box('khaki',[39,80,-75],[54,1.5,141]);
- for(const z of [-140,-111,-82,-53,-25]){
-  box('steel',[0,81,z],[205,3,3]);
- }
- for(const x of [-100,100])box('edge',[x,77,-75],[6,9,162]);
- // Deeper covered front platform; intentionally wide access lane in the middle.
- box('stone',[0,3,21],[185,6,60]);
- for(const x of [-91,91])box('edge',[x,5,21],[5,7,61]);
- for(const z of [7,38])box('hazard',[0,6,z],[160,1.3,3]);
- for(const x of [-87,87]){
-  box('steel',[x,35,30],[7,61,7]);
-  beam('edge',[x,60,30],[x*.85,76,-5],6);
-  box('edge',[x,65,30],[16,5,14]);
- }
- box('camo',[0,78,12],[191,7,105]);
- box('camoDark',[-44,82,7],[61,1.5,96]);
- box('light',[40,82,15],[46,1.5,80]);
- for(const x of [-91,91])box('steel',[x,80,12],[5,8,107]);
- for(const z of [-38,10,52])box('edge',[0,82,z],[188,3,4]);
- for(const x of [-60,60])box('amber',[x,71,50],[33,3.5,4]);
- // Raised rear annex: real large shipping container, NOT a tiny shed.
- box('steel',[121,16,-102],[62,29,81]);
- box('camo',[121,38,-102],[65,18,84]);
- box('light',[121,49,-102],[68,4,88]);
- box('team',[154,27,-98],[2,6,56]);
- for(const z of [-136,-117,-99,-81,-62])box('edge',[154,30,z],[4,34,2]);
- for(const x of [102,142])box('black',[x,21,-58],[9,20,3]);
- // Roof utilities integrated into the surface instead of floating pieces.
- box('edge',[-38,83,-108],[42,4,32]);
- for(let i=0;i<7;i++)box('steel',[-55+i*5.5,87,-108],[2,4,29]);
- box('stone',[55,84,-118],[27,9,33]);
- for(let i=0;i<5;i++)box('black',[45+i*5,90,-117],[2,2,27]);
- // Corner markings and large, solid readable cargo doors.
- for(const x of [-63,63]){
-  box('olive',[x,29,-2],[31,35,4]);
-  box('team',[x,28,1],[20,5,2]);
-  box('edge',[x,51,2],[31,3,4]);
-  for(let i=0;i<4;i++)box('steel',[x-11+i*7,32,3],[2,24,2]);
- }
- // Eighteen intentionally full-sized stock groups. Their occupancy is mapped
- // to authoritative credits; disappearing/reappearing is visual only.
+ for(const z of [-155,72])box('concreteDark',[0,5,z],[262,3,3],slab);
+ for(const z of [-110,-54,2,58])
+  box('concreteDark',[0,5.12,z],[252,.18,.8],slab);
+ for(const x of [-92,-46,0,46,92])
+  box('concreteDark',[x,5.15,-42],[.75,.18,215],slab);
+ // A dedicated drive-in lane is painted on the slab, not walled off.
+ for(const x of [-24,24])
+  box('hazard',[x,5.48,40],[2,.25,54],slab);
+ for(const z of [47,58,69])
+  for(const x of [-110,-88,88,110])
+   box('hazard',[x,5.48,z],[14,.24,1.6],slab);
+ // Two clear three-by-three pallet banks (18 independently hideable groups).
+ // All supplies sit ON the concrete, large enough to read from RTS altitude.
  for(let i=0;i<18;i++){
-  const row=Math.floor(i/6),col=i%6;
-  // Stock sits in side bays leaving a broad central lane for trucks.
-  const side=col<3?-1:1,slot=col%3;
-  const x=side*(60+slot*12),z=-44+row*33;
+  const row=Math.floor(i/6),col=i%6,side=col<3?-1:1,slot=col%3;
+  const x=side*(46+slot*34),z=-114+row*58;
   const group=node('SF_DepotStock_'+String(i).padStart(2,'0'));
-  crate(a,group,x,20,z,18,17,i%3===0?'metal':'wood');
-  if(i%4===0)crate(a,group,x,41,z,16,16,'metal');
-  if(i%3===1){
-   box('canvas',[x,35,z],[19,4,20],group);
-   box('wood',[x,38,z],[18,2,18],group);
+  box('wood',[x,9,z],[28,6,30],group);
+  for(const dx of [-10,10])box('wood',[x+dx,5.5,z],[4,5,28],group);
+  crate(a,group,x,24,z,24,24,i%3===0?'metal':'wood');
+  if(i%4===0)crate(a,group,x,45,z,22,22,'metal');
+  if(i%4===1){
+   box('canvas',[x,37,z],[25,3,25],group);
+   box('steel',[x,40,z],[19,2,19],group);
   }
  }
- // Pallet support shelves large enough to be legible from RTS zoom.
- for(const side of [-1,1])for(const z of [-45,-11,22]){
-  // All pallets live in the two storage bays, never as tiny debris
-  // in the middle of the supply truck's broad drive-through route.
-  box('wood',[side*77,10,z],[44,6,27]);
-  for(const x of [side*59,side*95])box('wood',[x,5,z],[8,7,25]);
- }
- // One industrial loading-ramp gate; animated independently.
- const ramp=node('SF_DepotLoadingRamp',0,[0,6,46]);
- box('steel',[0,0,7],[51,3,28],ramp);
- box('hazard',[0,1,17],[52,1,4],ramp);
- for(const x of [-22,22])box('edge',[x,1,7],[3,3,25],ramp);
- const lamp=node('SF_Depot_LoadBeacon',0,[0,84,53]);
- box('edge',[0,0,0],[10,6,10],lamp);
- box('amber',[0,6,0],[7,7,7],lamp);
+ // Ground-level loading ramp and beacon remain animated/recognisable.
+ const ramp=node('SF_DepotLoadingRamp',0,[0,5.8,65]);
+ box('steel',[0,0,6],[51,2,30],ramp);
+ for(const x of [-24,24])box('edge',[x,1,6],[2.2,2.2,30],ramp);
+ box('hazard',[0,1,20],[52,.6,2.2],ramp);
+ const lamp=node('SF_Depot_LoadBeacon',0,[109,7,58]);
+ box('edge',[0,1,0],[11,3,11],lamp);
+ box('steel',[0,5,0],[7,6,7],lamp);
+ box('amber',[0,9,0],[7,6,7],lamp);
  const clip={name:'DepotRampLower',tracks:[{node:ramp,path:'rotation',
   times:[0,.3,1],values:[0,0,0,1,Math.sin(-.14),0,0,Math.cos(-.14),
    Math.sin(-.25),0,0,Math.cos(-.25)]}]};
