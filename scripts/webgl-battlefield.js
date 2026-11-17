@@ -2233,11 +2233,22 @@ export class SandforgeBattlefield {
      '" '+(!readyAtBase?'disabled':'')+'>↑ '+(base.kind==='airfield'?'STARTEN':'FREIGEBEN')+
      ' ('+readyAtBase+')</button></div>':'';
   const healthPct=item?Math.max(0,Math.min(100,100*hp/Math.max(1,maxHp))):0;
-  const supplyStatus=kind==='supply'&&chosen.length===1
-   ?'<div class="sf-strategic-meter">NACH SCHUB · LADUNG '+(chosen[0].supply?.cargo??0)+
-     ' / 45 · '+(chosen[0].supply?.auto?'AUTOMATIK':'MANUELL')+'</div>'+
-     '<div class="sf-service-controls"><button type="button" data-action="supply-auto">'+
-     'NACH SCHUB SAMMELN</button></div>'
+  // A truck with a stopped manual order must not look like a running
+  // harvester. Show both cargo and its actual autonomous state.
+  const supplyJob=kind==='supply'&&chosen.length===1?chosen[0].supply:null;
+  const supplyPhase={
+   seek:'SUCHT VORRATSLAGER', 'to-cache':'FÄHRT ZUM LAGER',
+   loading:'LÄDT KISTEN', 'to-hq':'FÄHRT ZUR KOMMANDOZENTRALE',
+   unloading:'ENTLÄDT CREDITS',idle:'WARTET'
+  };
+  const supplyStatus=supplyJob
+   ?'<div class="sf-strategic-meter">NACHSCHUB · '+(supplyJob.cargo??0)+
+     ' / 45 CREDITS · '+(!supplyJob.auto?'MANUELL ANGEHALTEN':
+       !g.supplyCaches?.length?'KEIN VORRATSLAGER AUF DIESER KARTE':
+       (supplyPhase[supplyJob.phase]??'AUTOMATIK'))+'</div>'+
+     '<div class="sf-service-controls"><button type="button" data-action="supply-auto" '+
+     (!g.supplyCaches?.length?'disabled':'')+'>'+
+     (supplyJob.auto?'ROUTE NEU STARTEN':'AUTOMATIK STARTEN')+'</button></div>'
    :'';
   const selectedMarkup='<small>'+meta+'</small><strong>'+plain(heading)+'</strong>'+
    (item?'<div class="sf-health-row" aria-label="Lebenspunkte '+hp+' von '+maxHp+'">'+
@@ -2910,6 +2921,18 @@ export class SandforgeBattlefield {
     if(assigned){
      this.showCommandPulse(p,false);
      this.message(assigned+' Transporter zu Vorratslager '+(cache.id+1)+' beordert');
+     this.drawInterface();return;
+    }
+   }
+   // Right-clicking a friendly HQ is a delivery/autopilot command, not a
+   // manual movement order that silently disables logistics with cargo.
+   const hq=this.game.bases.find(b=>b.owner===0&&b.hp>0&&
+    b.buildRemaining<=0&&b.kind==='headquarters'&&dist(b,p)<b.radius+60);
+   if(ids.length&&hq){
+    const assigned=this.game.setSupplyAuto(ids,true);
+    if(assigned){
+     this.showCommandPulse(p,false);
+     this.message(assigned+' Transporter: automatische Rückfahrt / Nachschub gestartet');
      this.drawInterface();return;
     }
    }
