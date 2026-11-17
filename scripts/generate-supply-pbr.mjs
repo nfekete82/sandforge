@@ -26,7 +26,9 @@ const crcTable=Array.from({length:256},(_,n)=>{let c=n;for(let i=0;i<8;i++)c=c&1
 const be=n=>{const b=Buffer.alloc(4);b.writeUInt32BE(n);return b};
 function pngChunk(name,data){const tag=Buffer.from(name),raw=Buffer.concat([tag,data]);let c=0xffffffff;for(const byte of raw)c=crcTable[(c^byte)&255]^(c>>>8);return Buffer.concat([be(data.length),tag,data,be((c^0xffffffff)>>>0)])}
 function png(name,color){
- const w=96,h=96,scan=Buffer.alloc(h*(1+w*4));
+ // 192 px baked albedo per material, fine enough for close RTS camera
+ // while keeping shared assets and streaming memory under control.
+ const w=192,h=192,scan=Buffer.alloc(h*(1+w*4));
  let state=seedHash(name);
  const rand=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296};
  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
@@ -367,7 +369,7 @@ function depot(){
   const row=Math.floor(i/6),col=i%6;
   // Stock sits in side bays leaving a broad central lane for trucks.
   const side=col<3?-1:1,slot=col%3;
-  const x=side*(45+slot*18),z=-44+row*33;
+  const x=side*(60+slot*12),z=-44+row*33;
   const group=node('SF_DepotStock_'+String(i).padStart(2,'0'));
   crate(a,group,x,20,z,18,17,i%3===0?'metal':'wood');
   if(i%4===0)crate(a,group,x,41,z,16,16,'metal');
@@ -378,8 +380,10 @@ function depot(){
  }
  // Pallet support shelves large enough to be legible from RTS zoom.
  for(const side of [-1,1])for(const z of [-45,-11,22]){
-  box('wood',[side*62,10,z],[70,6,27]);
-  for(const x of [side*38,side*86])box('wood',[x,5,z],[8,7,25]);
+  // All pallets live in the two storage bays, never as tiny debris
+  // in the middle of the supply truck's broad drive-through route.
+  box('wood',[side*77,10,z],[44,6,27]);
+  for(const x of [side*59,side*95])box('wood',[x,5,z],[8,7,25]);
  }
  // One industrial loading-ramp gate; animated independently.
  const ramp=node('SF_DepotLoadingRamp',0,[0,6,46]);
