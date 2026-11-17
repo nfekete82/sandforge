@@ -129,6 +129,13 @@ cpSync('src/reborn/style.css', 'dist/style.css');
 cpSync('src/reborn/retro-desert.css', 'dist/retro-desert.css');
 cpSync('src/reborn/qwen-general.worker.js', 'dist/src/reborn/qwen-general.worker.js');
 cpSync('legacy', 'dist/legacy', {recursive:true});
+// Headless module audit validates browser imports without requiring the
+// large, untracked Mac-local FINAL PBR building models. Runtime and default
+// production builds still execute the complete authored-asset pipeline.
+if(process.env.SANDFORGE_MODULE_AUDIT==='1'){
+ console.log('WebGL module audit: browser JS and Three vendor modules packaged.');
+ process.exit(0);
+}
 // The final barracks and dome HQ live in existing local PBR worktrees.
 // Verify/import both GLB factions BEFORE building assets; never silently
 // fall back to the old, gold-tinted stock building models in this branch.
