@@ -296,7 +296,12 @@ function crate(a,n,x,y,z,width=19,depth=17,kind='wood'){
   box('khaki',[x,y+9,z],[width+1,3,depth+1],n);
   for(const side of [-1,1]){
    box('steel',[x+side*width/2,y,z],[2,13,depth-2],n);
-   box('black',[x+side*(width/2-3),y+6,z+depthfunction depot(){
+   box('black',[x+side*(width/2-3),y+6,z+depth/2],[2,3,2],n);
+  }
+  box('black',[x,y-1,z+depth/2+.4],[width-4,2,1.2],n);
+ }
+}
+function depot(){
  const a=newScene('SF_Supply_Depot_PBR_Root',0),{box,node}=a;
  // Low concrete logistics yard. Absolutely NO hall, canopy, walls or roof:
  // the player must see the supply pallets and every disappearing crate
@@ -350,8 +355,6 @@ function crate(a,n,x,y,z,width=19,depth=17,kind='wood'){
    Math.sin(-.25),0,0,Math.cos(-.25)]}]};
  const beacon={name:'DepotBeaconPulse',tracks:[{node:lamp,path:'scale',
   times:[0,.5,1],values:[1,1,1,1.18,1.2,1.18,1,1,1]}]};
- a.buildGLB('supply-depot-neutral.glb',[clip,beacon]);
-}.18,1.2,1.18,1,1,1]}]};
  a.buildGLB('supply-depot-neutral.glb',[clip,beacon]);
 }
 mkdirSync(OUT,{recursive:true});
