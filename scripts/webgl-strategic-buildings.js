@@ -795,6 +795,7 @@ export function prepareSiloForPortrait(root){
  const hull=root?.getObjectByName?.('Silo_RocketBody');
  const rim=root?.getObjectByName?.('Silo_TerrainOcclusion');
  if(!hull?.isMesh||hull.geometry?.type!=='CylinderGeometry'||!rim)return false;
+ if(hull.userData.sandforgePortraitRocketTrim)return false;
  const original=hull.geometry;
  const height=original.parameters.height;
  const top=hull.position.y+height/2;
