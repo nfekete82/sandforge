@@ -216,9 +216,22 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
   assert.equal(body.material.color.getHex(),nose.material.color.getHex(),
    'smooth cylinder and nose share one uniform brushed-steel appearance');
   assert.ok(body.geometry.parameters.height>=30);
+  // Only one narrow BLACK gasket is permitted at the real/shader join;
+  // the rocket body stays free of decorative stage rings and grooves.
   const smallRings=model.children.filter(o=>o.isMesh&&
    o.geometry.type==='TorusGeometry'&&o.geometry.parameters.radius<25);
-  assert.equal(smallRings.length,0,'rocket body may not carry any decorative rings');
+  assert.equal(smallRings.length,1,'exactly one black seam, no extra rocket grooves');
+  const joint=model.getObjectByName('Silo_RocketHatchJoint');
+  assert.strictEqual(smallRings[0],joint);
+  assert.equal(joint.material.name,'SF_rocketJoint');
+  assert.ok(joint.material.color.getHex()<0x252525,
+   'the separator is matte-black, not a bright silver stage ring');
+  assert.ok(joint.geometry.parameters.tube<=.45,
+   'seal must be thin enough not to look like a new rocket stage');
+  assert.equal(joint.position.y,occlusion.position.y+.43,
+   'black gasket must exactly cover the PBR-to-shader transition');
+  assert.ok(shader.fragmentShader.includes('float jointShade='),
+   'submerged rocket must carry the matching dark transition below the gasket');
   assert.ok(lip.position.y<11,'hatch ring sits barely above the desert ground');
   assert.ok(well.position.y<lip.position.y-6,'dark shaft floor is visibly lower');
   assert.ok(body.position.y<lip.position.y+5,'only upper stage rises from the hole');
@@ -233,8 +246,8 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    painted.push(o)});
   assert.ok(painted.some(m=>m.material.name==='SF_base'));
   assert.ok(painted.some(m=>m.material.name==='SF_armor'));
-  assert.ok(model.children.filter(o=>o.isMesh).length<=24,
-   'static batching remains bounded without any underground rocket overdraw');
+  assert.ok(model.children.filter(o=>o.isMesh).length<=25,
+   'one thin gasket adds at most one draw call without underground overdraw');
  }
  assert.equal(BUILDINGS.silo.cost,5000);
  assert.equal(BUILDINGS.silo.buildTime,100);
@@ -306,6 +319,8 @@ test('translucent silo building ghost hides the buried rocket without altering g
   'ghost-only trim is called before translucent materials are applied');
  assert.doesNotMatch(scene,/Silo_RocketBodyUnderground/,
   'no extra underground missile renderer is needed in placement previews');
+ assert.match(scene,/if\(joint\)joint\.visible=false;/,
+  'the completed-silo gasket is hidden from translucent build previews');
  assert.equal(trimSiloRocketForGhost(new THREE.Group()),false,
   'non-silo buildings should never be modified');
  assert.equal(trimSiloRocketForGhost(ghost),true,
