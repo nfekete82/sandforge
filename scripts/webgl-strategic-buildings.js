@@ -506,7 +506,10 @@ export function createStrategicBuilding(kind,owner=0){
   // its continuation inside the projected underground shaft. The flat mask
   // otherwise hides the lower 3D mesh regardless of how long we make it.
   const hullHeight=125,hullTopY=35.5,hullCenterY=hullTopY-hullHeight/2;
-  const depthMaskY=1.42;
+  // The visible physical stage, its rounded nose and the virtual stage
+  // behind the terrain mask must use ONE radius; tapering the old 16.6-unit
+  // base against a 15.7-unit shader radius made it look offset/slanted.
+  const rocketRadius=15.7,depthMaskY=1.42;
   const depthMaskMaterial=new THREE.ShaderMaterial({
    name:'SF_SiloDepthOcclusion',
    side:THREE.DoubleSide,depthTest:true,depthWrite:true,
@@ -516,8 +519,9 @@ export function createStrategicBuilding(kind,owner=0){
     uDepth:{value:shaftDepth},
     uOpacity:{value:1.0},
     uWallTexture:{value:siloInnerSteelPaint},
-    uRocketRadius:{value:15.7},
-    uRocketBottom:{value:hullTopY-hullHeight-depthMaskY}
+    uRocketRadius:{value:rocketRadius},
+    uRocketBottom:{value:hullTopY-hullHeight-depthMaskY},
+    uRocketColor:{value:mats.rocketBody.color.clone()}
    },
    vertexShader:`
     varying vec2 vSiloXY;
@@ -534,6 +538,7 @@ export function createStrategicBuilding(kind,owner=0){
     uniform sampler2D uWallTexture;
     uniform float uRocketRadius;
     uniform float uRocketBottom;
+    uniform vec3 uRocketColor;
     varying vec2 vSiloXY;
     const float PI=3.141592653589793;
     float band(float depth,float at,float halfWidth){
@@ -569,11 +574,15 @@ export function createStrategicBuilding(kind,owner=0){
       vec2 radial=normalize(rocketHit.xy);
       // Match the smooth physical brushed-alloy upper stage: darker with
       // depth, without ribs, painted rings or a fake lower end cap.
-      float diffuse=.31+.34*max(0.0,dot(radial,normalize(vec2(-.66,.75))));
-      float brush=.016*sin(atan(rocketHit.y,rocketHit.x)*47.0+below*.035);
-      float deepFade=1.0-.91*smoothstep(1.0,uDepth-6.0,below);
-      metal=vec3(.59,.62,.62)*max(.12,diffuse+brush)*deepFade+
-       vec3(.007,.009,.010);
+      // Same alloy albedo as the physical missile, but lit as metal
+      // inside a dark underground well. The old hard-coded .59 grey was
+      // unlit and much brighter than the real PBR cylinder above it.
+      float diffuse=.045+.065*max(0.0,
+       dot(radial,normalize(vec2(-.66,.75))));
+      float brush=.004*sin(atan(rocketHit.y,rocketHit.x)*47.0+below*.035);
+      float deepFade=1.0-.88*smoothstep(1.0,uDepth-6.0,below);
+      metal=uRocketColor*max(.035,diffuse+brush)*deepFade+
+       vec3(.003,.0035,.004);
      }else if(tWall>tPlane+0.001 && tWall<tFloor){
       vec3 hit=eye+dir*tWall;
       float down=clamp(-hit.z,0.0,uDepth);
@@ -676,7 +685,8 @@ export function createStrategicBuilding(kind,owner=0){
   // open (no exposed flat circular cap or floating lower edge).
   // Subtle vertex shading darkens the lower shell so it blends naturally into
   // the unlit underground well rather than looking like a metal pillar.
-  const hullGeometry=new THREE.CylinderGeometry(15.7,16.6,hullHeight,48,20,true);
+  const hullGeometry=new THREE.CylinderGeometry(
+   rocketRadius,rocketRadius,hullHeight,48,20,true);
   const positions=hullGeometry.getAttribute('position');
   const shading=new Float32Array(positions.count*3);
   for(let i=0;i<positions.count;i++){
@@ -756,6 +766,28 @@ export function createStrategicBuilding(kind,owner=0){
   batched.userData.referenceInspiredCamo=true;
  }
  return batched;
+}
+
+/** Trim ONLY the translucent placement-ghost missile below the hatch.
+ * The completed silo keeps its full 125-unit deep rocket. The preview uses
+ * forced transparent renderOrder, which otherwise paints the entire long
+ * cylinder through the ghost's ground and floating below the foundation.
+ * CylinderGeometry builds its side indices top-down; a drawRange hides lower
+ * segments without allocating a second mesh or affecting the game model.
+ */
+export function trimSiloRocketForGhost(root,{cutY=2.2}={}){
+ const hull=root?.getObjectByName?.('Silo_RocketBody');
+ const geo=hull?.geometry;
+ if(!geo?.isCylinderGeometry||!geo.index)return false;
+ const {height,heightSegments,radialSegments}=geo.parameters;
+ const top=hull.position.y+height/2;
+ const visibleSegments=Math.max(1,Math.min(heightSegments,
+  Math.floor((top-cutY)/height*heightSegments)));
+ const segmentIndices=radialSegments*6;
+ geo.setDrawRange(0,visibleSegments*segmentIndices);
+ hull.userData.sandforgeGhostRocketCut=true;
+ hull.userData.sandforgeGhostVisibleSegments=visibleSegments;
+ return true;
 }
 
 /** Static roof details, window ribs and facade panels are aggressively merged
