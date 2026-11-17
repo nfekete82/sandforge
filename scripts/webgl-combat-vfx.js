@@ -8,7 +8,7 @@ import {guidedRocketAimY,aircraftAimOffsetY,adoptAircraftForCrash,disposeAircraf
 import {vehicleDustEligible,vehicleDustTail,VEHICLE_DUST_CAP,VEHICLE_DUST_CAP_LITE} from '/webgl-vehicle-dust.js';
 import {ORDNANCE_TRAIL_SEGMENTS,ORDNANCE_VISUALS,ordnanceVisualKind,ordnanceVisualProfile,appendOrdnanceTrail} from '/webgl-ordnance-profile.js';
 
-const vehicleKinds=new Set(['tank','rover','artillery']);
+const vehicleKinds=new Set(['tank','rover','supply','artillery']);
 const trackedKinds=new Set(['tank','artillery']);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);

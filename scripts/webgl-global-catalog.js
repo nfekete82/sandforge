@@ -10,7 +10,8 @@ export function globalCatalogAvailability(game,owner=0){
  return {
   buildings:true,
   infantry:finished('headquarters')||finished('barracks'),
-  vehicles:finished('factory'),
+  // HQ logistics unlocks vehicles early even before a vehicle factory exists.
+  vehicles:finished('headquarters')||finished('factory'),
   aircraft:finished('airfield'),
   territories:true // accessible through the minimap sector shortcut
  };
