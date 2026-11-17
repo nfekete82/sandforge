@@ -635,14 +635,30 @@ export function createStrategicBuilding(kind,owner=0){
     9.4,Math.sin(a)*77.6,8);
   }
 
-  // The launch platform's terrain mask is at y=1.42. Keep the lower
-  // rocket cylinder below that mask, but expose enough straight steel hull
-  // above the opening that the rounded nose cannot look like it floats.
-  // Derive the nose mount from the hull instead of a hard-coded altitude,
-  // so changing the stage height cannot leave a gap between meshes.
-  const hullHeight=52,hullCenterY=9.5;
-  const hull=cyl(15.7,16.6,hullHeight,'rocketBody',
-   rocketX,hullCenterY,0,48);
+  // The projected 95-unit shaft shows a much deeper interior than the
+  // old 52-unit missile model. Its closed bottom cap was therefore visible
+  // suspended in midair in front of that virtual wall. A real missile
+  // extends CONTINUOUSLY down into the shaft: keep its existing top altitude,
+  // extend the metal shell almost to the virtual floor and leave its bottom
+  // open (no exposed flat circular cap or floating lower edge).
+  // Subtle vertex shading darkens the lower shell so it blends naturally into
+  // the unlit underground well rather than looking like a metal pillar.
+  const hullHeight=125,hullTopY=35.5,hullCenterY=hullTopY-hullHeight/2;
+  const hullGeometry=new THREE.CylinderGeometry(15.7,16.6,hullHeight,48,20,true);
+  const positions=hullGeometry.getAttribute('position');
+  const shading=new Float32Array(positions.count*3);
+  for(let i=0;i<positions.count;i++){
+   const y=positions.getY(i)+hullCenterY;
+   const depth=Math.max(0,Math.min(1,(y+70)/95));
+   const brightness=.15+.85*depth*depth;
+   shading[i*3]=brightness;
+   shading[i*3+1]=brightness;
+   shading[i*3+2]=brightness;
+  }
+  hullGeometry.setAttribute('color',new THREE.Float32BufferAttribute(shading,3));
+  mats.rocketBody.vertexColors=true;
+  mats.rocketBody.needsUpdate=true;
+  const hull=add(hullGeometry,'rocketBody',rocketX,hullCenterY,0);
   hull.name='Silo_RocketBody';
   const ogiveProfile=[
    [15.7,0],[15.55,2.4],[14.8,5.2],[13.4,8.3],
