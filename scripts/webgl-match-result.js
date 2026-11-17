@@ -6,12 +6,12 @@ const OUTCOMES=Object.freeze({
  victory:{
   title:'SIEG',
   subtitle:'Gefecht beendet',
-  detail:'Alle gegnerischen Einheiten und Gebäude sind vernichtet.'
+  detail:'Alle gegnerischen Gebäude wurden zerstört oder die letzten Einheiten besiegt.'
  },
  defeat:{
   title:'NIEDERLAGE',
   subtitle:'Gefecht beendet',
-  detail:'Deine Einheiten und Gebäude wurden vollständig vernichtet.'
+  detail:'Deine Gebäude wurden zerstört oder alle Einheiten ausgeschaltet.'
  }
 });
 export function matchResultCopy(status){return OUTCOMES[status]??null;}

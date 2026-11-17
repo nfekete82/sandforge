@@ -127,7 +127,7 @@ test('large central outcome has distinct text for each side and no pause duplica
  assert.deepEqual(victory,{
   title:'SIEG',
   subtitle:'Gefecht beendet',
-  detail:'Alle gegnerischen Einheiten und Gebäude sind vernichtet.'
+  detail:'Alle gegnerischen Gebäude wurden zerstört oder die letzten Einheiten besiegt.'
  });
  assert.equal(matchResultCopy('defeat').title,'NIEDERLAGE');
  assert.equal(matchResultCopy('playing'),null);
@@ -161,7 +161,7 @@ test('winner displays the supplied gold-frame artwork while defeat remains text-
 
 test('outcome evaluation uses current live HP and excludes dead HQ capture stubs',()=>{
  const code=readFileSync('src/reborn/simulation.ts','utf8');
- assert.match(code,/this\.status=eliminationOutcome\(this\.units,this\.bases\)/);
+ assert.match(code,/this\.status=eliminationOutcome\(this\.units,this\.bases,this\.hadBuildings\)/);
  assert.doesNotMatch(code,/this\.bootstrapLost\(1\)/);
  assert.doesNotMatch(code,/campaignLayout\(this\.world\.mapVersion,this\.seed\)\.starts\[1\]\.every/);
  assert.doesNotMatch(code,/this\.status='victory'/);

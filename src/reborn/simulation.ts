@@ -109,6 +109,8 @@ export interface Save {
   memories:Memory[][]; aiClock:number; ai?:TacticalState; status:'playing'|'victory'|'defeat'; stats?:MatchStatistics;
   research?:[ResearchState,ResearchState];
   strategicMissiles?:StrategicMissile[];
+  /** Ever established a living structure (even if later destroyed). */
+  hadBuildings?:[boolean,boolean];
 }
 
 /** Uniform buckets keep combat/vision queries independent of total army size. */
@@ -343,6 +345,8 @@ export class Simulation {
   seed:number; time=0; nextId=1; credits=[RULES.initialCredits as number,RULES.initialCredits as number];
   incomeClock=0; aiClock=0; status:'playing'|'victory'|'defeat'='playing';
   stats:MatchStatistics=newMatchStatistics();
+  /** HQ-less startup cannot be mistaken for building elimination. */
+  hadBuildings:[boolean,boolean]=[false,false];
   units:Unit[]=[]; bases:Base[]=[]; territories:Territory[];
   visible=[new Uint8Array(RULES.grid**2),new Uint8Array(RULES.grid**2)];
   explored=[new Uint8Array(RULES.grid**2),new Uint8Array(RULES.grid**2)];
@@ -646,6 +650,7 @@ export class Simulation {
       const p=this.world.nearest({x:soldier.x+45*sign,y:soldier.y},this.obstacles(),this.units,soldier)!;
       this.spawn(owner,p,'engineer');
     }
+    for(const b of this.bases)if(b.hp>0)this.hadBuildings[b.owner]=true;
     this.spatial.rebuild(this.units);this.updateVision();
   }
   static campaign(seed=randomMapSeed(),version:MapVersion=MAP_VERSION,profile?:TerrainProfile):Simulation {return new Simulation(seed,version,false,true,profile);}
@@ -854,6 +859,9 @@ export class Simulation {
     if(!instant&&!this.command(workers.map(u=>u.id),{...p,kind:'build',target:id},append)){
       this.bases.pop();this.notices.push('Kein ausgewählter Pionier kann diese Baustelle erreichen.');return null;
     }
+    // Only a successfully placed site qualifies. Keep the historical bit
+    // after its HP reaches zero or the construction is later canceled.
+    this.hadBuildings[owner]=true;
     this.credits[owner]-=spec.cost;
     if(instant){
       this.credits[0]=Simulation.TEST_CREDITS;
@@ -1686,6 +1694,9 @@ export class Simulation {
   private stepMeasured(dt=RULES.tick):void {
     if(this.paused||this.status!=='playing'||dt<=0)return;
     this.movementCollision=undefined;
+    // Reconcile externally restored/test-injected sites before combat can
+    // destroy the last one during this same fixed tick.
+    for(const b of this.bases)if(b.hp>0)this.hadBuildings[b.owner]=true;
     if(this.testMode)this.credits[0]=Simulation.TEST_CREDITS;
     // One fixed tick only: callers accumulate elapsed time; no wall-clock economy.
     dt=Math.min(dt,.1);this.time+=dt;this.incomeClock+=dt;this.fogClock+=dt;
@@ -2183,11 +2194,11 @@ export class Simulation {
       if(fullPlan)this.think();else this.tactical.openingEconomy();
     }
     if(this.fogClock>=.2||ownershipChanged){this.fogClock=0;this.updateVision();}
-    // A faction is defeated only when absolutely no living forces remain.
-    // Boarding passengers, active units, small defensive structures and
-    // unfinished sites all prevent a premature match end.
-    // A destroyed HQ retained for sector capture has hp=0 and is ignored.
-    this.status=eliminationOutcome(this.units,this.bases);
+    // Classic RTS base elimination: destroying the last opposing structure
+    // wins even if stranded infantry, tanks or boarded troops remain. Before
+    // a faction constructs ANY building, its starting HQ-less army is safe.
+    // Destroyed HQ capture stubs (HP=0) never block the result.
+    this.status=eliminationOutcome(this.units,this.bases,this.hadBuildings);
     if(this.testMode)this.credits[0]=Simulation.TEST_CREDITS;
   }
   // The tactical director runs every three simulated seconds and can be the
@@ -2204,7 +2215,8 @@ export class Simulation {
   save():Save {
     return structuredClone({version:2,...(this.world.generated?.battlefield?{terrainProfile:this.world.generated.battlefield.profile,generatorVersion:this.world.generated.battlefield.generatorVersion}:{}),...(this.bootstrapVersion?{bootstrapVersion:this.bootstrapVersion}:{}),weatherVersion:1,productionVersion:1,supportVersion:1,rosterVersion:2,missiles:this.missiles,seed:this.seed,mapVersion:this.world.mapVersion,time:this.time,nextId:this.nextId,credits:this.credits,incomeClock:this.incomeClock,
       units:this.units,bases:this.bases,territories:this.territories,explored:this.explored.map(a=>Array.from(a)),memories:this.memories,aiClock:this.aiClock,ai:this.tactical.state,status:this.status,stats:this.stats,
-      research:this.research,strategicMissiles:this.strategicMissiles});
+      research:this.research,strategicMissiles:this.strategicMissiles,
+      hadBuildings:this.hadBuildings});
   }
   static load(raw:unknown,weatherEnabled=false):Simulation {
     const s=migrateTransportRoster(raw) as Save;
@@ -2218,6 +2230,8 @@ export class Simulation {
       researchModifiers(research[u.owner],u.kind??'infantry');
     const burst=(b:Burst|undefined,rounds:number)=>b===undefined||(b!==null&&Number.isInteger(b.target)&&Number.isInteger(b.remaining)&&b.remaining>0&&b.remaining<=rounds&&b.remaining+b.index===rounds&&Number.isInteger(b.index)&&b.index>=0&&b.index<4&&finite(b.at)&&b.at>=s.time-.11&&b.at<=s.time+.11);
     if(!s||s.version!==2||((s.mapVersion??0)>=23&&(!isTerrainProfile(s.terrainProfile)||![1,2].includes(s.generatorVersion as number)))||((s.mapVersion??0)<23&&(s.terrainProfile!==undefined||s.generatorVersion!==undefined))||(s.bootstrapVersion!==undefined&&s.bootstrapVersion!==1)||(s.weatherVersion!==undefined&&s.weatherVersion!==1)||(s.productionVersion!==undefined&&s.productionVersion!==1)||(s.mapVersion!==undefined&&![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26].includes(s.mapVersion))||!TacticalAI.valid(s.ai,s.time,point,mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows)||!finite(s.seed)||!finite(s.time)||s.time<0||!finite(s.incomeClock)||s.incomeClock<0||s.incomeClock>=10||
+      (s.hadBuildings!==undefined&&(!Array.isArray(s.hadBuildings)||
+        s.hadBuildings.length!==2||s.hadBuildings.some(value=>typeof value!=='boolean')))||
       (s.strategicMissiles!==undefined&&(!Array.isArray(s.strategicMissiles)||
         s.strategicMissiles.length>12||
         s.strategicMissiles.some(m=>!validStrategicMissile(m,mapWorldSize(s.mapVersion??0),s.time))))||
@@ -2258,6 +2272,17 @@ export class Simulation {
     game.bases=structuredClone(s.bases).map(b=>({...b,kind:b.kind??'headquarters',...(b.kind==='wall'?{}:game.world.clearSite(b,buildingSpec(b).radius)),radius:buildingSpec(b).radius,...(b.queueCosts?{}:b.queue.length?{queueCosts:b.queue.map((_,i)=>{const k=b.queueTypes?.[i]??'infantry';return !s.supportVersion&&k==='engineer'?150:UNITS[k].cost;})}:{}),queueTypes:b.queueTypes??b.queue.map(()=>'infantry'),buildRemaining:b.buildRemaining??0,cooldown:b.cooldown??0,
       ...(b.kind==='silo'?{siloCharge:b.siloCharge??SILO_CHARGE_SECONDS}:{}),
       ...(b.kind==='interceptor'?{interceptorAmmo:b.interceptorAmmo??INTERCEPTOR_MAX_AMMO}:{})}));
+    // Saved history is authoritative. For existing v2 saves without this
+    // field infer from live/dead HQ records, observed buildings or units
+    // produced by a structure. No inference based on elapsed time: doing so
+    // would falsely end an HQ-less opening campaign.
+    game.hadBuildings=s.hadBuildings?
+      [...s.hadBuildings] as [boolean,boolean]:
+      ([0,1] as const).map(owner=>
+        game.bases.some(b=>b.owner===owner)||
+        (s.stats?.factions[owner]?.producedUnits??0)>0||
+        (s.memories?.[1-owner]??[]).some(m=>m.owner===owner)
+      ) as [boolean,boolean];
     // Old HQs could queue the entire roster. Refund now-incompatible paid
     // orders once, while preserving valid orders and their active progress.
     let playerRefund=0;
@@ -2293,11 +2318,10 @@ export class Simulation {
       ...game.strategicMissiles.map(m=>m.id+1));
     game.weather.update(game.time);game.unitById=new Map(game.units.map(u=>[u.id,u]));
     game.tactical.restore(s.ai);
-    game.status=['playing','victory','defeat'].includes(s.status)?s.status:'playing';
-    // Old saves may contain an incorrectly triggered end state. Restore the
-    // unfinished battle rather than trapping the player in a false victory.
-    if(game.status!=='playing')
-      game.status=eliminationOutcome(game.units,game.bases);
+    // Always derive the result from live HP plus persisted building history.
+    // This also finishes a save taken immediately after the final enemy
+    // structure was destroyed but before the next fixed simulation tick.
+    game.status=eliminationOutcome(game.units,game.bases,game.hadBuildings);
     game.spatial.rebuild(game.units);game.updateVision();return game;
   }
 }
