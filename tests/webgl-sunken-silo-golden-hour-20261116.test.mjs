@@ -213,6 +213,10 @@ test('translucent silo building ghost hides the buried rocket without altering g
  assert.ok(visible>0&&visible<heightSegments/2,
   'placement ghost may only show the upper part of the missile');
  assert.equal(ghostBody.geometry.drawRange.count,visible*radialSegments*6);
+ assert.equal(ghostBody.geometry.index.count,ghostBody.geometry.drawRange.count,
+  'ghost must contain ONLY above-ground triangles, not merely draw a range of the original');
+ assert.ok(ghostBody.geometry.index.count<liveBody.geometry.index.count,
+  'the hidden underground geometry is removed from the preview index buffer');
  const indices=ghostBody.geometry.index.array;
  const positions=ghostBody.geometry.getAttribute('position');
  let lowest=Infinity;
@@ -230,6 +234,28 @@ test('translucent silo building ghost hides the buried rocket without altering g
   'ghost-only trim is called before translucent materials are applied');
  assert.equal(trimSiloRocketForGhost(new THREE.Group()),false,
   'non-silo buildings should never be modified');
+ assert.equal(trimSiloRocketForGhost(ghost),true,
+  'repeated ghost conversion must be idempotent');
+
+ // Regression for the original failure: source index buffers can start at
+ // the bottom (or change ordering between Three versions). Geometric cut
+ // must not depend on whichever triangles happen to come first.
+ const reordered=createStrategicBuilding('silo',0);
+ const reversedHull=reordered.getObjectByName('Silo_RocketBody');
+ const sourceIndex=Array.from(reversedHull.geometry.index.array);
+ const reverseTriangles=[];
+ for(let i=sourceIndex.length-3;i>=0;i-=3)
+  reverseTriangles.push(sourceIndex[i],sourceIndex[i+1],sourceIndex[i+2]);
+ reversedHull.geometry.setIndex(reverseTriangles);
+ assert.equal(trimSiloRocketForGhost(reordered),true);
+ const trimmed=reversedHull.geometry;
+ const pos=trimmed.getAttribute('position'),ix=trimmed.index.array;
+ let lowestReverse=Infinity;
+ for(let i=0;i<ix.length;i++)
+  lowestReverse=Math.min(lowestReverse,
+   pos.getY(ix[i])+reversedHull.position.y);
+ assert.ok(lowestReverse>=2.2,
+  'ghost clipping must still work when CylinderGeometry indices run bottom-first');
 });
 
 test('silo shares the slim military barbed-wire fence and clears its supply pallets',()=>{
