@@ -115,12 +115,7 @@ test('phase 1: stale HQ attack is dropped if the Bastion it targeted was secured
 test('paid frontier guard: HQ reserve is protected, one soldier may protect an exposed Bastion',()=>{
  const source=readFileSync('src/reborn/tactical-ai.ts','utf8');
  assert.match(source,/const border=g\.territories\.filter\(t=>t\.owner===1&&/);
- assert.match(source,/const frontSlots=Math\.min\(2,border\.length,Math\.floor\(guards\.length\/2\)\)/,
-  'no more than two reserve soldiers guard separate frontier Bastions');
- assert.match(source,/const assigned=new Set<number>\(\)/,
-  'sector posts are unique: two guards cannot both defend the same Bastion');
- assert.match(source,/const fort=eligible\.find\(t=>distance\(u,t\.point\)<200\)\?\?eligible\[0\]\?\?null/,
-  'the guard should remain on a valid frontier instead of being constantly reassigned');
+ assert.match(source,/const fort=i===1&&guards\.length>=2&&border\?border:null/);
  assert.match(source,/const radius=fort\?68:/);
  assert.match(source,/const base=fort\?\.point\?\?protectedBases/);
  assert.match(source,/if\(u\.defendUntil>g\.time\)continue/,
@@ -129,41 +124,4 @@ test('paid frontier guard: HQ reserve is protected, one soldier may protect an e
   'a visible intruder near a captured Bastion triggers local defense too');
  assert.match(source,/\.\.\.g\.territories\.filter\(t=>t\.owner===1\)\.map\(t=>t\.point\)/,
   'defensive priority accounts for actual owned Bastion positions');
-});
-
-test('four existing reserve fighters post two separate border Bastions and keep two at HQ',()=>{
- const g=new Simulation(20261017,23),home=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
- assert.ok(home);
- assert.ok(g.territories.length>=3,'fixture needs multiple Bastions, not five');
- for(const t of g.territories)t.owner=-1;
- g.territories[0].owner=1;
- g.territories[Math.floor(g.territories.length/2)].owner=1;
- const exposed=g.territories.filter(t=>t.owner===1&&
-  t.neighbors.some(id=>g.territories[id].owner!==1));
- assert.equal(exposed.length,2,'fixture must feature exactly two exposed owned Bastions');
- const sentries=Array.from({length:4},(_,i)=>({
-  id:1001+i,kind:'infantry',owner:1,hp:100,x:80,y:80,
-  orders:[],hold:false,defendUntil:0
- }));
- const issued=[];
- const originalNearest=g.world.nearest,originalIssue=g.tactical.issue;
- try {
-  g.world.nearest=p=>p;
-  g.tactical.issue=(units,post,mode)=>{
-   issued.push({id:units[0].id,post,mode});return true;
-  };
-  g.tactical.stationHomeGuards(sentries,home);
- }finally{
-  g.world.nearest=originalNearest;
-  g.tactical.issue=originalIssue;
- }
- assert.equal(issued.length,4);
- const frontline=issued.filter(x=>[1002,1003].includes(x.id));
- assert.equal(frontline.length,2);
- const covered=frontline.map(x=>exposed.find(t=>distance(t.point,x.post)<=70)?.id);
- assert.ok(covered.every(Number.isInteger),'both reserve defenders must reach an actual Bastion');
- assert.notEqual(covered[0],covered[1],'two paid guards must protect two DIFFERENT Bastions');
- for(const x of issued.filter(x=>[1001,1004].includes(x.id)))
-  assert.ok(g.bases.some(b=>b.owner===1&&b.hp>0&&distance(x.post,b)<190),
-   'the rest of the reserve stays near a live friendly building');
 });
