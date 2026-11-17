@@ -899,28 +899,34 @@ export class TacticalAI {
   if(this.raidDetachmentMode==='off'||this.doctrineMode!=='intelligent'||this.mode!=='director'||this.planningMode!=='tactical'
     ||this.g.world.mapVersion<3)return new Set();
   const g=this.g,s=this.state,b=s.battle??=newBattle();
-  if(g.world.mapVersion>=19){
-   // No two-man diversion while a modern base is still assembling or
-   // recovering from a failed attack. Main waves retain their own strength.
-   const recentFailures=b.fronts.filter(f=>g.time-f.at<100).length;
-   const recentLosses=s.losses.filter(l=>g.time-l.at<70).length;
-   const homePressure=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier
-    &&g.canSee(1,u)&&distance(u,home)<850);
-   if(!homeDefensePlan({fighters:fighters.length,time:g.time,recentLosses,
-     recentFailures,lastFailureAt:b.fronts.at(-1)?.at??-1,
-     observedHomePressure:homePressure,defendedTarget:false,
-     confirmedEndgame:false}).allowSecondaryRaids)return new Set();
-  }
+  const recentFailures=b.fronts.filter(f=>g.time-f.at<100).length;
+  const recentLosses=s.losses.filter(l=>g.time-l.at<70).length;
+  const homePressure=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier
+   &&g.canSee(1,u)&&distance(u,home)<850);
+  const defensePlan=g.world.mapVersion>=19?homeDefensePlan({
+   fighters:fighters.length,time:g.time,recentLosses,recentFailures,
+   lastFailureAt:b.fronts.at(-1)?.at??-1,observedHomePressure:homePressure,
+   defendedTarget:false,confirmedEndgame:false}):null;
+  const emergency=b.squads.some(q=>q.role==='defense'&&q.ids.length>0);
   const old=b.squads.find(q=>q.role==='raid');
-  // Losing two sectors triggers a small paid detachment sooner than the
-  // normal ten-fighter doctrine. No new units or economic bonuses.
   const comeback=g.world.mapVersion>=11&&g.time>=45&&comebackPressure(g.territories,1);
-  const candidates=fighters.filter(u=>!s.group.includes(u.id)&&['rover','infantry'].includes(u.kind)
+  // Reserve genuine paid HQ guards BEFORE selecting the mobile detachment.
+  // Otherwise a fast raider can steal the exact sentry needed at home.
+  const homeGuards=defensePlan?.guards??homeGarrisonSize(fighters.length,false);
+  const protectedIds=g.world.mapVersion>=24?new Set(fighters.slice()
+   .sort((a,v)=>distance(a,home)-distance(v,home)||a.id-v.id)
+   .slice(0,homeGuards).map(u=>u.id)):new Set<number>();
+  const candidates=fighters.filter(u=>!s.group.includes(u.id)&&
+    !protectedIds.has(u.id)&&['rover','infantry'].includes(u.kind)
     &&u.hp>=unitSpec(u).hp*.7&&!b.withdrawals.some(w=>w.unit===u.id&&w.until>g.time));
+  const mainScreen=s.group.filter(id=>fighters.some(u=>u.id===id)).length;
+  const earlyParallel=parallelFrontReady({
+   mapVersion:g.world.mapVersion,time:g.time,phase:s.phase,
+   fighters:fighters.length,main:mainScreen,eligible:candidates.length,
+   homeGuards,homePressure,recentLosses,recentFailures,emergency});
+  if(defensePlan&&!defensePlan.allowSecondaryRaids&&!earlyParallel)return new Set();
   const normal=allowSecondaryPressure(fighters.length,fighters.length-2,
     fighters.length-s.group.filter(id=>!fighters.some(u=>u.id===id)).length-2,candidates.length);
-  // Keep three paid fighters on main defense; never steal emergency defenders.
-  const emergency=b.squads.some(q=>q.role==='defense'&&q.ids.length>0);
   const selective=this.raidDetachmentMode==='selective'&&g.world.mapVersion===11;
   const currentFront=s.group.filter(id=>fighters.some(u=>u.id===id)).length;
   const homeThreat=selective&&g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier
@@ -929,7 +935,7 @@ export class TacticalAI {
     fighters:fighters.length,mainScreen:currentFront,
     eligibleRaiders:candidates.length,normalDoctrine:normal,
     behindByTwoSectors:comeback,observedHomeThreat:homeThreat}):
-    (normal||comeback&&fighters.length>=5&&candidates.length>=2);
+    (normal||earlyParallel||comeback&&fighters.length>=5&&candidates.length>=2);
   if(!permitted||emergency){
    b.squads=b.squads.filter(q=>q.role!=='raid');return new Set();
   }
