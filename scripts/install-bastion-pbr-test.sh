@@ -33,6 +33,7 @@ node --test \
  tests/webgl-bastion-hq-ownership-20261117.test.mjs \
  tests/reborn-ai-director.test.mjs \
  tests/reborn-bastion-priority-20261117.test.mjs \
+ tests/reborn-bastion-expansion-20261117.test.mjs \
  tests/reborn-map-ai.test.mjs \
  tests/reborn-control-retreat.test.mjs \
  tests/reborn-combat-balance-20261117.test.mjs \
