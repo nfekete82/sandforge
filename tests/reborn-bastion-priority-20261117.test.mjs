@@ -134,7 +134,7 @@ test('paid frontier guard: HQ reserve is protected, one soldier may protect an e
 test('four existing reserve fighters post two separate border Bastions and keep two at HQ',()=>{
  const g=new Simulation(20261017,23),home=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
  assert.ok(home);
- assert.ok(g.territories.length>=5);
+ assert.ok(g.territories.length>=3,'fixture needs multiple Bastions, not five');
  for(const t of g.territories)t.owner=-1;
  g.territories[0].owner=1;
  g.territories[Math.floor(g.territories.length/2)].owner=1;
