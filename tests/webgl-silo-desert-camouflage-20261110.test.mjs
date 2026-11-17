@@ -63,6 +63,10 @@ test('faction tint preserves the silo painted texture, rocket and signal equipme
  const rocketColor=rocket.material.color.getHex();
  const nose=silo.getObjectByName('Silo_RocketNose');
  const noseColor=nose.material.color.getHex();
+ const metalDeck=silo.getObjectByName('Silo_ExcavatedConcreteDeck');
+ const steelMap=metalDeck.material.map;
+ assert.equal(steelMap?.name,'Sandforge silo stamped steel maintenance panels');
+ assert.equal(metalDeck.material.userData.sandforgeAuthoredMetal,true);
  const before=meshes(silo).filter(n=>n.material.userData.sandforgeColorMapCamo);
  const texture=before[0].material.map;
  const count=tintFactionMaterials(silo,0,'silo','building');
@@ -76,6 +80,10 @@ test('faction tint preserves the silo painted texture, rocket and signal equipme
   'the generic shader must not repaint the authored camouflage map');
  assert.equal(rocket.material.color.getHex(),rocketColor);
  assert.equal(nose.material.color.getHex(),noseColor);
+ const paintedDeck=silo.getObjectByName('Silo_ExcavatedConcreteDeck');
+ assert.equal(paintedDeck.material.map,steelMap,'stamped deck albedo survives team changes');
+ assert.ok(!paintedDeck.material.userData.sandforgeDesertFinish,
+  'steel plating must never receive the generic camouflage shader');
  assert.ok(meshes(silo).some(n=>n.material.name==='SF_glow'&&n.material.emissiveIntensity>.4),
   'blue/red team indicators must remain visible');
  dispose(silo);
