@@ -1,0 +1,27 @@
+name: Sandforge faster transport helicopter QA
+on:
+  push:
+    branches: [feat/sandforge-faster-transport-helicopter-20261117]
+  pull_request:
+    branches: [feat/sandforge-supply-pbr-animated-20261117]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  helicopter-speed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile simulation
+        run: npx tsc -p tsconfig.json
+      - name: Test transport helicopter speed, boarding and unloading
+        run: |
+          node --test tests/webgl-helicopter-boarding-building-routes-20261116.test.mjs
