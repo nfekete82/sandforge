@@ -44,8 +44,8 @@ export function validBomberOrbit(raw:unknown,kind:string,worldSize:number):boole
 
 /** A bomber CAPTURING a bastion should circle the actual bastion, rather
  * than flying a tiny tangent circle around its own current position. The
- * authoritative capture range is 95: a centered 78-unit orbit leaves a
- * 17-unit safety margin and keeps the bomber inside on EVERY simulation tick.
+ * capture radius comes from RULES. A centered 78-unit orbit remains
+ * comfortably inside the capture zone on EVERY simulation tick.
  * It must not change capture rules, use a proxy aircraft or teleport.
  * Available radii are already save-validated by BOMBER_ORBIT_RADII.
  */
