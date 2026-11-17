@@ -95,6 +95,42 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    (stageBottom-occlusion.position.y))<1e-6,
    'virtual and physical missile must have the SAME underwater endpoint');
   assert.equal(typeof occlusion.onBeforeRender,'function');
+  // A single physical PBR material is what removes the seam. The dark
+  // shader projection is only a fallback; the submerged rocket must be drawn
+  // as real geometry, clipped to precisely the visible missile silhouette.
+  const rocketStencil=model.getObjectByName('Silo_RocketStencilMask');
+  const submerged=model.getObjectByName('Silo_RocketBodyUnderground');
+  assert.ok(rocketStencil?.isMesh&&submerged?.isMesh);
+  assert.equal(rocketStencil.material.isShaderMaterial,true);
+  assert.equal(rocketStencil.material.colorWrite,false,
+   'stencil pass must not paint anything itself');
+  assert.equal(rocketStencil.material.stencilWrite,true);
+  assert.equal(rocketStencil.material.stencilRef,1);
+  assert.equal(rocketStencil.material.stencilFunc,THREE.AlwaysStencilFunc);
+  assert.ok(rocketStencil.material.fragmentShader.includes(
+   'if(!(tRocket<min(tWall,tFloor)))discard;'),
+   'stencil may include rocket pixels only, never the surrounding steel walls');
+  assert.equal(typeof rocketStencil.onBeforeRender,'function');
+  assert.equal(submerged.material.isMeshStandardMaterial,true);
+  assert.equal(submerged.material.stencilFunc,THREE.EqualStencilFunc);
+  assert.equal(submerged.material.stencilRef,1);
+  assert.equal(submerged.material.stencilWrite,true);
+  assert.equal(submerged.material.depthTest,false,
+   'stenciled physical rocket draws through ground-level depth mask');
+  assert.equal(submerged.material.depthWrite,false);
+  assert.strictEqual(submerged.material.map,body.material.map,
+   'submerged geometry shares exact upper-cylinder PBR albedo');
+  assert.equal(submerged.material.metalness,body.material.metalness);
+  assert.equal(submerged.material.roughness,body.material.roughness);
+  assert.equal(submerged.material.color.getHex(),body.material.color.getHex());
+  assert.equal(submerged.material.vertexColors,true);
+  assert.equal(submerged.position.y,body.position.y);
+  assert.equal(submerged.position.x,body.position.x);
+  assert.equal(submerged.renderOrder>rocketStencil.renderOrder,true,
+   'real PBR rocket must render after the precise visibility stencil');
+  assert.ok(submerged.geometry.index.count>0&&
+   submerged.geometry.index.count<body.geometry.index.count,
+   'only subterranean side triangles are drawn in the masked pass');
   assert.equal(deck.material.name,'SF_metal','main launch deck is stamped steel');
   assert.equal(deck.material.map?.name,'Sandforge silo stamped steel maintenance panels');
   assert.ok(deck.material.metalness>.7&&deck.material.roughness<.5);
@@ -179,8 +215,8 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    painted.push(o)});
   assert.ok(painted.some(m=>m.material.name==='SF_base'));
   assert.ok(painted.some(m=>m.material.name==='SF_armor'));
-  assert.ok(model.children.filter(o=>o.isMesh).length<=24,
-   'existing static PBR batching keeps the graphics inexpensive');
+  assert.ok(model.children.filter(o=>o.isMesh).length<=26,
+   'static batching remains bounded: one rocket stencil and one PBR underground pass');
  }
  assert.equal(BUILDINGS.silo.cost,5000);
  assert.equal(BUILDINGS.silo.buildTime,100);
@@ -248,8 +284,10 @@ test('translucent silo building ghost hides the buried rocket without altering g
   'preview clipping must never damage the completed in-game missile');
  assert.equal(live.getObjectByName('Silo_TerrainOcclusion').material.uniforms.uDepth.value,95);
  const scene=readFileSync('scripts/webgl-battlefield.js','utf8');
- assert.match(scene,/if\(kind==='silo'\)trimSiloRocketForGhost\(placeholder\)/,
+ assert.match(scene,/trimSiloRocketForGhost\(placeholder\)/,
   'ghost-only trim is called before translucent materials are applied');
+ assert.match(scene,/\['Silo_RocketBodyUnderground','Silo_RocketStencilMask'\]/,
+  'transparent ghost hides the two underground stencil/PBR passes');
  assert.equal(trimSiloRocketForGhost(new THREE.Group()),false,
   'non-silo buildings should never be modified');
  assert.equal(trimSiloRocketForGhost(ghost),true,
