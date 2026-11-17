@@ -84,11 +84,11 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   if(target)g.command([w.id],{...target,kind:target.buildRemaining>0?'build':'repair',target:target.id});
  }
  let goal:BuildingKind|null=null;
- // Four-Bastion openings reward a paid capture screen before the first
- // optional generator. Normal building costs, durations and income apply.
+ // Modern bastion-based economies prioritize a combat barracks before
+ // optional generators, ensuring the AI can contest neutral income sites.
  const openingBarracks=director&&!has('barracks')&&(
   (g.world.mapVersion===11&&g.tactical.earlyEconomyMode==='barracks-first')||
-  (g.world.mapVersion>=23&&g.territories.length===4));
+  g.world.mapVersion>=23);
  const wantCore=director&&!openingBarracks&&(generators===0||siegeReserve===0)&&generatorBuildPriority({
   existing:generators,fighters:fighters.length,credits:g.credits[1],
   barracksReady:complete('barracks'),underAttack,finishing
@@ -181,7 +181,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   rocket:(desiredRockets>count('rocket')?52+(air>0?air*12:armor>0?armor*9:0):0)-count('rocket')*9,
   medic:(wounded>=2?30:Math.max(0,fighters.length-2)*4)-count('medic')*20,
   engineer:count('engineer')===0?(!complete('barracks')?80:fighters.length>=2?38:0):own.length>=4&&count('engineer')<2?15:0,
-  supply:0, // Purchased by dedicated paid logistics policy above.
+  supply:0, // Retired compatibility kind; never recruit.
   rover:complete('factory')?35+(g.explored[1].reduce((n,v)=>n+v,0)/g.explored[1].length<.4?6:0)-count('rover')*17:0,
   tank:complete('factory')?44+known*4+armor*6
    +(director&&income>=65?24:0)-count('tank')*(director?12:16):0,
