@@ -23,6 +23,19 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
   assert.equal(deck.geometry.parameters.shapes.holes.length,1,
    'concrete foundation is actually missing material in the missile shaft');
   assert.equal(interior.material.side,THREE.BackSide,'view the shaft from INSIDE');
+  assert.ok(interior.geometry.parameters.height>30,'shaft walls must show real depth');
+  assert.ok(well.position.y<-20,'deep floor must not read as a black disk on the roof');
+  assert.equal(deck.material.name,'SF_metal','main launch deck is stamped steel');
+  assert.equal(deck.material.map?.name,'Sandforge silo stamped steel maintenance panels');
+  assert.ok(deck.material.metalness>.7&&deck.material.roughness<.5);
+  assert.ok(lip.geometry.parameters.outerRadius>
+   deck.userData.shaftRadius+12,'reinforced steel rim surrounds the full aperture');
+  assert.equal(body.geometry.type,'CylinderGeometry');
+  assert.ok(body.geometry.parameters.height>=25,'a real metal rocket body is visible');
+  assert.equal(nose.geometry.type,'ConeGeometry');
+  assert.ok(nose.geometry.parameters.height>=28);
+  assert.ok(body.material.metalness>.75&&nose.material.metalness>.75,
+   'both rocket stages are metallic, not a flat black cone');
   assert.equal(model.getObjectByName('Silo_RocketStageSeam')?.isMesh,true);
   assert.ok(lip.position.y<11,'hatch ring sits barely above the desert ground');
   assert.ok(well.position.y<lip.position.y-6,'dark shaft floor is visibly lower');
