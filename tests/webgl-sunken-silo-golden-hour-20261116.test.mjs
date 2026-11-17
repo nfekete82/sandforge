@@ -32,7 +32,13 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
   assert.ok(occlusion.geometry.parameters.radius>=59);
   assert.ok(occlusion.position.y>1.15&&occlusion.position.y<lip.position.y-5,
    'near-black occluder must hide terrain but sit well below hatch top');
-  assert.ok(occlusion.material.color.r<.02,'the depth mask stays nearly black');
+  assert.equal(occlusion.material.map?.name,'Sandforge silo inner gunmetal shaft depth');
+  assert.equal(occlusion.material.map?.image.width,256);
+  assert.equal(occlusion.material.map?.image.height,256);
+  assert.equal(occlusion.material.depthWrite,true,'terrain mask must stay opaque');
+  assert.equal(occlusion.material.transparent,false,'terrain must never bleed through');
+  assert.ok(occlusion.material.map.image.data.some(v=>v>55&&v<110),
+   'visible gunmetal detail must replace the featureless black disk');
   assert.equal(occlusion.userData.hidesUnderlyingTerrain,true);
   assert.equal(deck.material.name,'SF_metal','main launch deck is stamped steel');
   assert.equal(deck.material.map?.name,'Sandforge silo stamped steel maintenance panels');
@@ -45,6 +51,13 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
   assert.ok(nose.geometry.parameters.height>=28);
   assert.ok(body.material.metalness>.75&&nose.material.metalness>.75,
    'both rocket stages are metallic, not a flat black cone');
+  assert.ok(body.position.y<6&&nose.position.y<37,
+   'rocket body and nose both sit at least eight units deeper in the shaft');
+  const code=readFileSync('scripts/webgl-strategic-buildings.js','utf8');
+  assert.match(code,/for\(let i=0;i<12;i\+\+\)\{\s*const a=i\*Math\.PI\/6;\s*const bar=box\(3\.5,30,2\.8,'steel'/,
+   'twelve 3D vertical steel ribs must be visible in the upper inner wall');
+  assert.match(code,/for\(const y of \[7\.2,4\.3,2\.1,-9\.4,-20\.8\]\)/,
+   'steel retaining rings must extend down the shaft');
   assert.equal(model.getObjectByName('Silo_RocketStageSeam')?.isMesh,true);
   assert.ok(lip.position.y<11,'hatch ring sits barely above the desert ground');
   assert.ok(well.position.y<lip.position.y-6,'dark shaft floor is visibly lower');
