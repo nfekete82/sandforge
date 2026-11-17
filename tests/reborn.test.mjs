@@ -96,7 +96,7 @@ test('reborn: captured HQ/sectors do not end a battle until all enemy units and 
  const lost=peaceful();lost.bases[0].hp=0;lost.step();assert.equal(lost.status,'playing');lost.units=lost.units.filter(u=>u.owner!==0);lost.step();assert.equal(lost.status,'defeat');
 });
 
-test('reborn: HQ siege and capture remain playable until the last enemy soldier is eliminated',()=>{
+test('reborn: Bastion capture never resurrects or transfers a destroyed enemy HQ',()=>{
  const g=peaceful();g.credits[1]=0;g.units=[];const b=g.bases[1],t=g.territories[5];
  for(const id of [4,11])g.territories[id].owner=0;
  const scout=g.spawn(0,{...t.point});advance(g,9);assert.equal(t.owner,1);assert.equal(t.progress,0);
@@ -106,8 +106,14 @@ test('reborn: HQ siege and capture remain playable until the last enemy soldier 
  g.updateVision();g.command(g.units.filter(u=>u.owner===0).map(u=>u.id),{...b,kind:'attack',target:b.id});advance(g,50);
  assert.equal(b.hp,0);assert.equal(t.owner,1);assert.equal(g.status,'playing');
  g.command(g.units.filter(u=>u.owner===0).map(u=>u.id),{...t.point,kind:'move'});advance(g,30);
- assert.equal(b.owner,0);assert.equal(b.hp,600);assert.equal(t.owner,0);
+ assert.equal(t.owner,0,'Bastion and territory are captured normally');
+ assert.equal(b.owner,1,'the destroyed enemy HQ never changes faction');
+ assert.equal(b.hp,0,'the captured territory must never restore a destroyed HQ');
  assert.equal(g.status,'playing','one surviving opponent prevents early victory');
+ const restored=Simulation.load(g.save());
+ assert.equal(restored.bases.find(x=>x.id===b.id).owner,1);
+ assert.equal(restored.bases.find(x=>x.id===b.id).hp,0,
+  'save/load must preserve destroyed enemy command center ownership');
  survivor.hp=0;g.step();assert.equal(g.status,'victory');
 });
 
