@@ -92,11 +92,6 @@ const css=`
 #sf-ai-debug-overlay .aid-empty{color:#99a8af;font-style:italic;}
 #sf-ai-debug-overlay .aid-footer{font-size:10px;color:#829da8;border-top:1px solid #344956;padding-top:8px;}
 `;
-const fields=[
- 'time','phase','campaign','objective','objectiveSub','credits','army','group','defenders',
- 'raiders','income','soldiers','vehicles','air','sectors','visible','stance','fronts',
- 'waves','raids','choice','reason','production'
-];
 export function createAiDebugOverlay(game,loc=location,doc=document){
  if(!aiDebugAllowed(loc))return null;
  if(!doc.getElementById('sf-ai-debug-style')){
