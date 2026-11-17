@@ -1,6 +1,6 @@
 /** WebGL hit routing is UI-only; the Simulation remains responsible for
  * transport capacity, pathfinding, transfer, destruction, and savegames. */
-export const BOARDABLE_INFANTRY=new Set(['infantry','medic','engineer','heavy']);
+export const BOARDABLE_INFANTRY=new Set(['infantry','medic','engineer','heavy','rocket']);
 export function selectedInfantryForTransport(units,selected,carrier){
  if(!carrier||!['rover','scout'].includes(carrier.kind)||carrier.hp<=0||carrier.carrier)return [];
  const chosen=selected instanceof Set?selected:new Set(selected??[]);
@@ -26,9 +26,12 @@ export function selectedTransportManifest(units,selected){
  if(!carrier)return null;
  const capacity=carrier.kind==='scout'?10:4;
  const ids=carrier.transport?.cargo??[];
+ const pendingIds=carrier.transport?.pickup??[];
+ const pending=Math.max(0,Math.min(capacity-ids.length,pendingIds.length));
  const slots=Array.from({length:capacity},(_,i)=>{
   const passenger=units.find(u=>u.id===ids[i]&&u.carrier===carrier.id&&u.hp>0);
   return passenger?{id:passenger.id,kind:passenger.kind,hp:passenger.hp}:null;
  });
- return {carrier,capacity,occupied:slots.filter(Boolean).length,slots};
+ return {carrier,capacity,occupied:slots.filter(Boolean).length,pending,
+  available:Math.max(0,capacity-ids.length-pending),slots};
 }

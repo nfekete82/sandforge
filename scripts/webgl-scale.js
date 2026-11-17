@@ -8,7 +8,7 @@
 export const MODEL_HEIGHTS=Object.freeze({
  infantry:61,medic:61,engineer:61,heavy:65,rocket:61,
  rover:42,tank:46,artillery:51,scout:48,bomber:51,
- headquarters:158,barracks:119,factory:125,airfield:137,generator:92,turret:95
+ headquarters:158,barracks:119,factory:125,airfield:137,generator:79,turret:95
 });
 export const DIMENSIONS_VERSION=3;
 
@@ -98,6 +98,13 @@ export function calibratedScale(kind,type,bounds,targetWidth){
   return humanHeight/height;
  }
  if(type==='unit')return Math.min(byWidth,(MODEL_HEIGHTS[kind]??50)/height);
+ // Energiekern V2 is intentionally ~40% NARROWER in actual gameplay render,
+ // not just in the authored GLB: the normal width calibration used to blow
+ // every small generator back up to its old 112-unit presentation width.
+ // This changes the mesh and construction ghost only. Its original 38-unit
+ // collision radius, income, build placement and saved games are untouched.
+ if(kind==='generator'&&type==='building')
+  return Math.min(byWidth*.63,MODEL_HEIGHTS.generator/height);
  // Footprint stays aligned with the original building collision width;
  // huge roofs, towers and dish antennas must not dwarf nearby units.
  return Math.min(byWidth,(MODEL_HEIGHTS[kind]??135)/height);

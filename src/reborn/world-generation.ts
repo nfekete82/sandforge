@@ -59,7 +59,7 @@ export function generateMap(seed:number,version:Exclude<MapVersion,0>=MAP_VERSIO
   const canyon=!modern&&version>=15?generateCanyonFeatures(seed,size,cols,rows,sites,corridors):{ridges:[],ruins:[]};
   if(modern){
     // Ruins keep their own stream and inherit the established road/site exclusions.
-    canyon.ruins=generateCanyonFeatures(streamSeed(seed,'ruins',candidate),size,cols,rows,sites,corridors).ruins
+    canyon.ruins=generateCanyonFeatures(streamSeed(seed,'ruins',candidate),size,cols,rows,sites,corridors,true).ruins
       .filter(r=>layout.headquarters.every(id=>Math.hypot(r.x-battlefieldStart(sites[id],size).x,r.y-battlefieldStart(sites[id],size).y)>870)&&
        sites.every(s=>Math.hypot(r.x-s.x,r.y-s.y)>BASTION_RUIN_CLEARANCE));
     rand=seededRandom(streamSeed(seed,'rocks',candidate));

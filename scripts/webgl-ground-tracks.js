@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {UNITS} from '/src/reborn/catalog.js';
 import {visualUnitScale} from '/webgl-scale.js';
 
-// Ephemeral footsteps and two-track vehicle impressions. All data stays in
+// Soft pale impressions, subtle even on their first frame. All data stays in
 // this presentation module: no save schema changes, gameplay colliders,
 // visibility leaks or per-footprint mesh allocations.
 function stampTexture(type){
@@ -12,23 +12,23 @@ function stampTexture(type){
  if(type==='foot'){
   const print=(x,y,w,h)=>{
    const grad=ctx.createRadialGradient(x,y,2,x,y,h*.72);
-   grad.addColorStop(0,'rgba(67,42,21,.83)');
-   grad.addColorStop(.65,'rgba(78,48,24,.54)');
-   grad.addColorStop(1,'rgba(78,48,24,0)');
+   grad.addColorStop(0,'rgba(110,86,58,.56)');
+   grad.addColorStop(.65,'rgba(125,96,66,.30)');
+   grad.addColorStop(1,'rgba(125,96,66,0)');
    ctx.fillStyle=grad;ctx.beginPath();ctx.ellipse(x,y,w,h,0,0,Math.PI*2);ctx.fill();
   };
   // A heel, sole and toe in a single small imprint.
   print(32,81,13,22);print(32,52,15,16);
  }else{
   const grad=ctx.createLinearGradient(0,0,64,0);
-  grad.addColorStop(0,'rgba(81,53,29,0)');
-  grad.addColorStop(.19,'rgba(69,43,25,.60)');
-  grad.addColorStop(.5,'rgba(50,33,21,.70)');
-  grad.addColorStop(.81,'rgba(69,43,25,.60)');
-  grad.addColorStop(1,'rgba(81,53,29,0)');
+  grad.addColorStop(0,'rgba(128,102,70,0)');
+  grad.addColorStop(.19,'rgba(121,94,68,.39)');
+  grad.addColorStop(.5,'rgba(106,83,61,.46)');
+  grad.addColorStop(.81,'rgba(121,94,68,.39)');
+  grad.addColorStop(1,'rgba(128,102,70,0)');
   ctx.fillStyle=grad;ctx.fillRect(6,4,52,120);
   for(let y=7;y<128;y+=17){
-   ctx.fillStyle='rgba(226,180,103,.22)';
+   ctx.fillStyle='rgba(220,194,148,.14)';
    ctx.fillRect(12,y,40,3);
   }
  }
@@ -101,8 +101,8 @@ export class SandforgeGroundTracks{
   // Bound permanent GPU work after long battles. The last few seconds of
   // footprints remain visible, but old zero-alpha decals no longer fill
   // thousands of GPU instances for the entire rest of the match.
-  this.foot=markPool(scene,'foot',lite?440:900,12,.79);
-  this.vehicle=markPool(scene,'vehicle',lite?500:1000,16,.64);
+  this.foot=markPool(scene,'foot',lite?440:900,12,.34);
+  this.vehicle=markPool(scene,'vehicle',lite?500:1000,16,.27);
   this.pool=[this.foot,this.vehicle];
   this.dummy=new THREE.Object3D();
   this.maxTrailSpan=140;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {FACTION_BLUE,FACTION_RED} from './sandforge-faction-palette.js';
 import {RULES} from '/src/reborn/config.js';
 import {captureSeconds} from '/src/reborn/territory-warfare.js';
 
@@ -15,7 +16,7 @@ export function createBastionCaptureBar(){
  background.renderOrder=1002;
  group.add(background);
  const fill=new THREE.Sprite(new THREE.SpriteMaterial({
-  color:'#62c6e9',transparent:true,depthTest:false,depthWrite:false
+  color:FACTION_BLUE,transparent:true,depthTest:false,depthWrite:false
  }));
  fill.scale.set(1,5,1);
  fill.renderOrder=1003;
@@ -47,7 +48,7 @@ export function updateBastionCaptureBar(group,territory,game,fogEnabled){
  const fill=group.userData.captureFill;
  fill.scale.x=Math.max(.01,66*fraction);
  fill.position.x=-33+fill.scale.x/2;
- fill.material.color.set(territory.capturing===0?'#62c6e9':'#f19b73');
+ fill.material.color.set(territory.capturing===0?FACTION_BLUE:FACTION_RED);
  group.userData.captureFraction=fraction;
  group.userData.captureSeconds=seconds;
 }

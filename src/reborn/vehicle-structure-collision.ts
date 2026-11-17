@@ -3,6 +3,7 @@ import type {BuildingKind} from './catalog.js';
 import {buildingArtWidth} from './visual-scale.js';
 import type {Base} from './simulation.js';
 import {wallColliderSamples} from './defensive-wall.js';
+import {airfieldGroundStructureColliders} from './airfield-maintenance.js';
 
 /** Share the exact visible vehicle wall with construction placement. */
 export function vehicleStructureCollider(kind:BuildingKind,point:{x:number;y:number},radius=BUILDINGS[kind].radius):{x:number;y:number;radius:number}{
@@ -17,5 +18,6 @@ export function vehicleStructureCollider(kind:BuildingKind,point:{x:number;y:num
  * buildings extend mostly upwards from their feet in the RTS sprite. */
 export function vehicleStructureColliders(bases:readonly Base[]):{x:number;y:number;radius:number}[]{
   return bases.filter(b=>b.hp>0).flatMap(b=>b.kind==='wall'?
-   wallColliderSamples(b,b.facing??0,25):[vehicleStructureCollider(b.kind,b,b.radius)]);
+   wallColliderSamples(b,b.facing??0,25):b.kind==='airfield'?
+   airfieldGroundStructureColliders(b,true):[vehicleStructureCollider(b.kind,b,b.radius)]);
 }

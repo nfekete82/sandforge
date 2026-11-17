@@ -54,16 +54,27 @@ test('all visible barracks yard props use texture maps (except emissive lamp gla
  disposeBuildingYard(yard);
 });
 
-test('non-PBR building perimeter fences retain their previous design and materials',()=>{
- for(const kind of ['factory','research']){
-  const yard=createBuildingYard(kind,160);
+test('factory, research centre and missile silo all use barracks-style slim wire',()=>{
+ for(const kind of ['factory','research','silo']){
+  const yard=createBuildingYard(kind,kind==='silo'?265:160);
   const perimeter=yard.getObjectByName('BasePerimeter_'+kind);
-  assert.ok(perimeter.getObjectByName('YardFenceRails'),kind+' keeps wooden rails');
-  assert.ok(perimeter.getObjectByName('YardFenceMesh'),kind+' keeps cross-bracing');
-  assert.equal(perimeter.getObjectByName('BarracksWireFenceStrands'),undefined);
-  assert.equal(perimeter.userData.barracksWireFence,undefined);
+  assert.ok(perimeter?.getObjectByName('BarracksWireFenceStrands')?.isInstancedMesh,
+   kind+' needs thin horizontal wire strands');
+  assert.ok(perimeter.getObjectByName('BarracksWireFenceBarbs')?.isInstancedMesh);
+  assert.equal(perimeter.getObjectByName('YardFenceRails'),undefined);
+  assert.equal(perimeter.getObjectByName('YardFenceMesh'),undefined);
+  assert.equal(perimeter.userData.barracksWireFence,true);
   disposeBuildingYard(yard);
  }
+});
+
+test('legacy interceptor fence still has X-bracing',()=>{
+ const yard=createBuildingYard('interceptor',160);
+ const perimeter=yard.getObjectByName('BasePerimeter_interceptor');
+ assert.ok(perimeter.getObjectByName('YardFenceRails'));
+ assert.ok(perimeter.getObjectByName('YardFenceMesh'));
+ assert.equal(perimeter.getObjectByName('BarracksWireFenceStrands'),undefined);
+ disposeBuildingYard(yard);
 });
 
 

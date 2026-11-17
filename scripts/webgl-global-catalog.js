@@ -12,11 +12,10 @@ export function globalCatalogAvailability(game,owner=0){
   infantry:finished('headquarters')||finished('barracks'),
   vehicles:finished('factory'),
   aircraft:finished('airfield'),
-  research:finished('research'),
   territories:true // accessible through the minimap sector shortcut
  };
 }
 
 export const GLOBAL_PRODUCTION_TABS=Object.freeze([
- 'buildings','infantry','vehicles','aircraft','research'
+ 'buildings','infantry','vehicles','aircraft'
 ]);

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import {SandforgeProductionGates} from '/webgl-production-gates.js';
+import {SandforgeBuildingCollapse} from '/webgl-building-collapse.js';
+import {SandforgeAirfieldLaunch} from '/webgl-airfield-launch.js';
 import {nextPeriodicRefresh} from '/webgl-frame-scheduling.js';
 import {wheelsShouldRoll} from '/webgl-wheel-motion.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
@@ -8,14 +10,19 @@ import {TERRAIN_LABELS} from '/src/reborn/battlefield-terrain.js';
 import {RULES} from '/src/reborn/config.js';
 import {installClassicHud} from '/webgl-classic-hud.js';
 import {globalCatalogAvailability} from '/webgl-global-catalog.js';
-import {hydrateUnitIcons,hydrateBuildingIcons,unitIcon,buildingIcon,buildingIconUrl,researchIconMarkup,researchEffectLabel,hydrateResearchArtworks} from '/webgl-portraits.js';
+import {hydrateUnitIcons,hydrateBuildingIcons,unitIcon,buildingIcon,buildingIconUrl,researchIconMarkup,hydrateResearchArtworks} from '/webgl-portraits.js';
+import {createSandforgeResearchDeck} from '/webgl-research-deck.js';
+import {createSandforgeConfirmDialog} from '/webgl-confirm-dialog.js';
 import {SandforgeActorPresentation} from '/webgl-actor-presentation.js';
 import {calibratedScale,visualUnitScale,unitVisualYaw,unitRenderAltitude,buildingFacingAngle,nextBuildingFacing,buildingFacingDegrees,turretAimLocalYaw,selectionRingRadius} from '/webgl-scale.js';
 import {SandforgeGroundingPass} from '/webgl-grounding.js';
 import {createBuildingYard,disposeBuildingYard} from '/webgl-building-yard.js';
+import {createBuildingFoundation,disposeBuildingFoundation} from '/webgl-foundation-slabs.js';
 import {polishBarracksProps} from '/webgl-barracks-props.js';
 import {addBarracksContactShadows} from '/webgl-barracks-contact-shadows.js';
 import {createAirfieldServiceYard,conformAirfieldSurface,updateAirfieldServiceYard,hideOldAirfieldHangar,disposeAirfieldServiceYard} from '/webgl-airfield-service.js';
+import {detachAirfieldPbr} from '/webgl-airfield-pbr.js';
+import {removeRunwaySkidArtifacts} from '/webgl-airfield-runway-clearance.js';
 import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '/webgl-factory-service.js';
 import {disposeServicePaint,previewServiceMaterial} from '/webgl-service-materials.js';
 import {createSegmentedSelectionRing} from '/webgl-selection-ring.js';
@@ -26,8 +33,10 @@ import {disposeOwnedMeshes,disposeTaggedMaterials} from '/webgl-resource-lifecyc
 import {releaseBastionRevision} from '/webgl-bastion-lifecycle.js';
 import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
 import {selectedInfantryForTransport,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
-import {pointerGestureIntent,submitConstruction,nearestEngineer,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
-import {sameKindVisibleUnits} from '/webgl-double-click-select.js';
+import {pointerGestureIntent,submitConstruction,nearestEngineer,keepPlacementAfterBuild,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
+import {validatedWallDrag,WALL_CHAIN_DRAG_THRESHOLD,WALL_CHAIN_MAX} from '/webgl-wall-drag.js';
+import {sameKindVisibleUnits,visibleFriendlyUnits} from '/webgl-double-click-select.js';
+import {FIELD_UNIT_COMMANDS,orderReturnToBase} from '/webgl-unit-commands.js';
 import {tracerWindow} from '/webgl-hit-response.js';
 import {applyFactionAccents} from '/webgl-faction-accents.js';
 import {finishBuildingFacadeShading} from '/webgl-building-shading.js';
@@ -38,16 +47,19 @@ import {SandforgeConstructionPresentation} from '/webgl-construction.js';
 import {createBastionCaptureBar,updateBastionCaptureBar} from '/webgl-bastion-capture.js';
 import {snapToPlayableEdge,worldToMinimap} from '/webgl-map-edges.js';
 import {attackBlinkAlpha} from '/src/reborn/attack-alerts.js';
-import {UPGRADES,UPGRADE_KINDS,canResearchUpgrade,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
-import {createStrategicBuilding,isStrategicBuilding} from '/webgl-strategic-buildings.js';
+import {UPGRADES,UPGRADE_KINDS,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
+import {createStrategicBuilding,isStrategicBuilding,trimSiloRocketForGhost} from '/webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry,disposeRocketLauncher} from '/webgl-rocket-infantry.js';
+import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building-roof-stripes.js';
+import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette.js';
+import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
 // exclusively by the original Simulation. 3D nodes are presentation only.
 const UP=new THREE.Vector3(0,1,0);
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-const colors={blue:'#62c6e9',red:'#f19b73',neutral:'#d3c09b'};
+const colors={blue:FACTION_BLUE,red:FACTION_RED,neutral:'#d3c09b'};
 const title=(v)=>v.name||v.kind||'';
 const format=(n)=>Math.round(n).toLocaleString('de-DE');
 const plain=(value)=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -87,6 +99,8 @@ export class SandforgeBattlefield {
   this.fogEnabled=true;this.selectedRings=new Map();this.animations=new Map();
   this.presentation=new SandforgeActorPresentation(scene,camera,game);
   this.productionGates=new SandforgeProductionGates(this);
+  this.buildingCollapse=new SandforgeBuildingCollapse(scene);
+  this.airfieldLaunch=new SandforgeAirfieldLaunch(this);
   this.grounding=new SandforgeGroundingPass(scene);
   this.construction=new SandforgeConstructionPresentation(renderer);
   // Dedicated second render pass: the building hologram must remain visible
@@ -97,6 +111,7 @@ export class SandforgeBattlefield {
   const hologramSun=new THREE.DirectionalLight('#fff6e2',2.1);
   hologramSun.position.set(420,750,310);this.buildPreviewScene.add(hologramSun);
   this.buildPreview=null;this.previewKind=null;this.placementFacing=0;
+  this.wallDrag=null;this.wallPreviewMeshes=null;
   this.buildHint=document.createElement('div');
   this.buildHint.id='sf3d-build-hint';this.buildHint.setAttribute('role','status');
   this.buildHint.style.cssText='position:fixed;z-index:18;pointer-events:none;display:none;min-width:156px;max-width:250px;padding:7px 10px;background:#14221ef0;border:1px solid #b5a177;color:#e7dbb7;font:bold 12px system-ui;box-shadow:0 5px 16px #0008';
@@ -129,7 +144,7 @@ export class SandforgeBattlefield {
  createFallback(kind,owner,type){
   if(type==='building'&&isStrategicBuilding(kind))return createStrategicBuilding(kind,owner);
   if(type==='unit'&&kind==='rocket')return createRocketInfantry(owner);
-  const group=new THREE.Group(),team=owner===0?'#397f9d':'#9f5541',metal=new THREE.MeshStandardMaterial({color:team,metalness:.55,roughness:.53}),
+  const group=new THREE.Group(),team=FACTION_PAINT[owner],metal=new THREE.MeshStandardMaterial({color:team,metalness:.55,roughness:.53}),
    dark=new THREE.MeshStandardMaterial({color:'#444743',metalness:.45,roughness:.7});
   // Placeholder structures use the same gentle ambient lift as detailed GLBs.
   // Materials are local to this fallback; soldier/vehicle surfaces stay untouched.
@@ -143,16 +158,50 @@ export class SandforgeBattlefield {
   if(type==='unit'){
    if(['tank','rover','artillery'].includes(kind)){
     const length=kind==='tank'?77:kind==='artillery'?84:57;
-    make(new THREE.BoxGeometry(44,15,length),metal,0,16,0);
+    // A combat tank must never appear as a bright team-blue four-wheeled
+    // toy car while the 12 MB authored tank GLB streams in (or fails).
+    // Even the temporary rig has a desert hull, armoured turret and tracks.
+    const hullPaint=kind==='tank'?new THREE.MeshStandardMaterial({
+     color:'#9b9176',metalness:.24,roughness:.84}):metal;
+    const trackPaint=kind==='tank'?new THREE.MeshStandardMaterial({
+     color:'#3a3b34',metalness:.16,roughness:.92}):dark;
+    const hull=make(new THREE.BoxGeometry(kind==='tank'?48:44,15,length),hullPaint,0,16,0);
     if(kind==='tank'){
-     // Keep the turret and gun independently steerable while GLB is loading.
-     const turret=new THREE.Group();turret.name='Tank_Turret';group.add(turret);
-     const cap=new THREE.Mesh(new THREE.BoxGeometry(32,12,length*.45),dark);
-     cap.position.set(0,30,-2);cap.castShadow=true;turret.add(cap);
-     const gun=new THREE.Group();gun.name='Tank_Gun';group.add(gun);
-     const tube=new THREE.Mesh(new THREE.CylinderGeometry(2.5,3.2,37,10),dark);
-     tube.rotation.x=Math.PI/2;tube.position.set(0,29,27);
+     hull.name='Tank_HullArmour';
+     const nose=make(new THREE.BoxGeometry(45,9,20),hullPaint,0,24,25);
+     nose.name='Tank_SlopedFrontArmour';nose.rotation.x=-.20;
+     const rear=make(new THREE.BoxGeometry(44,7,20),hullPaint,0,25,-25);
+     rear.name='Tank_RearArmour';
+     // Continuous low-profile crawler belts instead of automobile wheels.
+     for(const side of [-1,1]){
+      const x=side*27;
+      const belt=make(new THREE.BoxGeometry(11,15,75),trackPaint,x,12,0);
+      belt.name='Tank_TrackBelt_'+side;
+      const tread=make(new THREE.BoxGeometry(12,4,71),dark,x,20,0);
+      tread.name='Tank_TrackUpperTread_'+side;
+      for(const z of [-27,-9,9,27]){
+       const wheel=make(new THREE.CylinderGeometry(7,7,1.5,10),
+        dark,x+side*6,11,z);
+       wheel.name='Tank_RoadWheel_'+side+'_'+z;
+       wheel.rotation.z=Math.PI/2;
+      }
+     }
+     const turret=new THREE.Group();turret.name='Tank_Turret';
+     turret.position.set(0,32,-3);group.add(turret);
+     const armor=new THREE.Mesh(new THREE.CylinderGeometry(21,23,13,8),
+      hullPaint);armor.name='Tank_TurretArmour';
+     armor.castShadow=true;armor.receiveShadow=true;turret.add(armor);
+     const hatch=new THREE.Mesh(new THREE.CylinderGeometry(9,10,3,10),dark);
+     hatch.name='Tank_CommandHatch';hatch.position.y=8;
+     hatch.castShadow=true;turret.add(hatch);
+     const gun=new THREE.Group();gun.name='Tank_Gun';turret.add(gun);
+     const tube=new THREE.Mesh(new THREE.CylinderGeometry(2.8,3.7,52,10),dark);
+     tube.name='Tank_MainCannon';
+     tube.rotation.x=Math.PI/2;tube.position.set(0,0,35);
      tube.castShadow=true;gun.add(tube);
+     const muzzle=new THREE.Mesh(new THREE.CylinderGeometry(4.2,4.2,5,10),
+      trackPaint);muzzle.name='Tank_MuzzleBrake';
+     muzzle.rotation.x=Math.PI/2;muzzle.position.z=59;gun.add(muzzle);
     }else if(kind==='artillery'){
      // The lite-mode rocket launcher must look and behave like a six-tube
      // launcher, not a generic MG truck while its authored GLB is absent.
@@ -170,7 +219,8 @@ export class SandforgeBattlefield {
       muzzle.position.set(x,y,26);gun.add(muzzle);
      }
     }else make(new THREE.BoxGeometry(32,12,length*.45),dark,0,30,0);
-    for(const x of [-22,22])for(const z of [-length*.33,length*.33])make(new THREE.CylinderGeometry(10,10,7,12),dark,x,9,z).rotation.z=Math.PI*.5;
+    if(kind!=='tank')for(const x of [-22,22])for(const z of [-length*.33,length*.33])
+     make(new THREE.CylinderGeometry(10,10,7,12),dark,x,9,z).rotation.z=Math.PI*.5;
    }else if(['scout','bomber'].includes(kind)){
     make(new THREE.CapsuleGeometry(13,36,4,8),metal,0,15,0).rotation.x=Math.PI*.5;
     make(new THREE.BoxGeometry(95,2,15),dark,0,18,0);
@@ -228,14 +278,20 @@ export class SandforgeBattlefield {
   // still appear. Falling back to primitive grey cubes would make the actual
   // player's base look markedly worse than the 2D game.
   // Medics always load their authored 3D soldier, even in lite mode.
-  if((this.lite&&type!=='building'&&entity.kind!=='medic'&&entity.kind!=='rocket')||
+  // The tank is visually indispensable: load its real authored GLB even in
+  // ?lite=1 mode. Queue pressure must not permanently demote a paid tank to
+  // the emergency cuboid geometry.
+  const priorityTank=type==='unit'&&entity.kind==='tank';
+  if((this.lite&&type!=='building'&&
+      !['medic','rocket','tank'].includes(entity.kind))||
      (type==='building'&&isStrategicBuilding(entity.kind))||entry.requested||
-     this.loadingCount+this.modelQueue.length>=this.maxModels)return;
+     (!priorityTank&&this.loadingCount+this.modelQueue.length>=this.maxModels))return;
   entry.requested=true;
   const url=this.asset(entity.kind,entity.owner,type);
   if(type==='building'&&['factory','barracks'].includes(entity.kind))
    this.modelQueue.unshift({url,entry,type});
-  else if(type==='unit'&&entity.kind==='medic')this.modelQueue.unshift({url,entry,type});
+  else if(type==='unit'&&['tank','medic'].includes(entity.kind))
+   this.modelQueue.unshift({url,entry,type});
   else this.modelQueue.push({url,entry,type});
   this.pumpModelQueue();
  }
@@ -386,15 +442,28 @@ export class SandforgeBattlefield {
     const {entry,type}=task;
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
-    if(type==='building'&&entry.kind==='headquarters'&&
-      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls')){
-     // Keep original textured walls/roof instead of broad faction recolors.
+    if(type==='building'&&((entry.kind==='headquarters'&&
+      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
+      (entry.kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
+       model.getObjectByName('FactoryRollupDoor'))||
+      (entry.kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root'))||
+      (entry.kind==='generator'&&model.getObjectByName('SF_EnergyCore_PBR_Housing')))){
+     // Preserve authored HQ and factory desert PBR albedo, not legacy recolors.
      model.userData.sandforgeOriginalPBR=true;
      model.traverse(mesh=>{if(mesh.isMesh){
-      mesh.castShadow=true;mesh.receiveShadow=true;
+      // Transparent reactor glass should not cast an opaque cylinder shadow.
+      const glass=entry.kind==='generator'&&(
+       Array.isArray(mesh.material)?
+        mesh.material.some(m=>m?.transparent):mesh.material?.transparent);
+      mesh.castShadow=!glass;
+      mesh.receiveShadow=true;
      }});
     }
     if(type==='building'&&entry.kind==='barracks')polishBarracksProps(model);
+    if(type==='building'&&['barracks','headquarters'].includes(entry.kind)){
+     paintFactionRoofStripes(model,entry.kind,entry.owner);
+     paintFactionEntranceBanners(model,entry.kind,entry.owner);
+    }
     if(type==='unit'&&entry.kind==='engineer')
      entry.engineerTools=equipEngineerTools(model);
     if(type==='unit'&&entry.kind==='rocket')
@@ -403,9 +472,14 @@ export class SandforgeBattlefield {
     const dims=box0.getSize(new THREE.Vector3());
     const desired=type==='unit'?UNITS[entry.kind].width:BUILDINGS[entry.kind].width;
     const extent=Math.max(dims.x,dims.z);
+    // The final factory is 10% wider in its GLB. Preserve this gain after
+    // width-normalization: collision, pathing and the repair pad do not grow.
+    const finalFactoryArt=type==='building'&&entry.kind==='factory'&&
+      Boolean(model.getObjectByName('SF_Factory_PBR_roof'));
+    const artScale=finalFactoryArt?1.06:1;
     if(extent>.0001){
      const scale=calibratedScale(entry.kind,type,dims,desired)*
-       (type==='unit'?visualUnitScale(entry.kind):1);
+       (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
      model.scale.multiplyScalar(scale);
      model.position.set(-box0.getCenter(new THREE.Vector3()).x*scale,
       -box0.min.y*scale,-box0.getCenter(new THREE.Vector3()).z*scale);
@@ -431,11 +505,17 @@ export class SandforgeBattlefield {
      disposeOwnedMeshes(entry.placeholder);
      entry.placeholder=null;
     }
+    // Modern airfield hangar/tower is loaded at its proper flightline anchor
+    // in createAirfieldServiceYard(). Never draw this normalized duplicate.
+    if(type==='building'&&entry.kind==='airfield'&&
+       model.getObjectByName('SF_Airfield_PBR_Root'))model.visible=false;
     entry.node.add(model);entry.detail=model;
     const visualScale=calibratedScale(entry.kind,type,dims,desired)*
-      (type==='unit'?visualUnitScale(entry.kind):1);
+      (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
     entry.modelHeight=dims.y*visualScale;
     entry.modelFootprint=Math.max(dims.x,dims.z)*visualScale;
+    if(type==='building'&&model.userData.sandforgeOriginalPBR&&entry.kind==='factory')
+     finishDesertBuildingMaterials(model,'factory');
     if(!model.userData.sandforgeOriginalPBR){
      applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,
       entry.modelFootprint,entry.modelHeight);
@@ -451,6 +531,7 @@ export class SandforgeBattlefield {
      if(['factory','barracks','headquarters'].includes(entry.kind))this.productionGates.prepare(entry);
     }
     if(type==='unit'&&['tank','artillery'].includes(entry.kind))this.installTankRig(entry,model);
+    entry.modelLoadError=null;entry.modelLoadRetries=0;
     if(type==='unit'&&data.animations.length){
      const mixer=new THREE.AnimationMixer(model);
      const idle=data.animations.find(a=>/idle|stand|hover|engine/i.test(a.name))||data.animations[0];
@@ -464,6 +545,14 @@ export class SandforgeBattlefield {
     }
    }).catch(err=>{
     entry.modelLoadError=String(err.message);
+    // Transient 12 MB tank model failures used to leave entry.requested=true
+    // forever. Retry once via the normal bounded queue, then keep the proper
+    // tracked emergency tank rather than a blue cuboid.
+    if(type==='unit'&&entry.kind==='tank'&&entry.node.parent&&
+       (entry.modelLoadRetries??0)<1){
+     entry.modelLoadRetries=(entry.modelLoadRetries??0)+1;
+     entry.requested=false;
+    }
     console.warn('3D asset fallback:',task.url,err.message);
    }).finally(()=>{
     this.loadingCount--;this.pumpModelQueue();
@@ -483,7 +572,7 @@ export class SandforgeBattlefield {
      if(unit.hp<=0||unit.carrier)continue;
      const pending=this.units.get(unit.id);
      if(!pending||pending.requested||pending.detail)continue;
-     if(this.lite&&unit.kind!=='medic'&&unit.kind!=='rocket')continue;
+     if(this.lite&&!['medic','rocket','tank'].includes(unit.kind))continue;
      this.scheduleDetail(pending,unit,'unit');
      if(this.loadingCount+this.modelQueue.length>=4)break;
     }
@@ -526,6 +615,12 @@ export class SandforgeBattlefield {
   const height=unit?(['infantry','medic','engineer','heavy','rocket'].includes(entity.kind)?43:55)*visualUnitScale(entity.kind):
    Math.max(65,footprint*.55);
   applyFactionAccents(entry,entity,type,footprint,height);
+  // The lab's anchored mechanical pivot rotates without moving the roof.
+  // Its placeholder is also the final strategic 3D model.
+  if(type==='building'&&entity.kind==='research'){
+   const rotor=placeholder.getObjectByName('Research_RadarMount');
+   if(rotor)entry.motion={kind:'research',rotor,mode:'anchored-dish'};
+  }
   if(type==='building')finishBuildingFacadeShading(placeholder);
   if(unit)attachTeamMarkings(entry,entity.owner,entity.kind,footprint,height);
   if(type==='unit'&&['tank','artillery'].includes(entity.kind))this.installTankRig(entry,placeholder);
@@ -537,6 +632,16 @@ export class SandforgeBattlefield {
   const spec=BUILDINGS[kind],group=new THREE.Group();
   group.name='ghost-building-'+kind;group.userData={buildGhost:true,nonPlayable:true};
   const placeholder=this.createFallback(kind,0,'building');
+  // Transparent ghosts draw through the foundation regardless of depth.
+  // Trim ONLY the buried part of the silo's 125-unit cylinder; the finished
+  // structure keeps the complete missile and the matching deep shaft shader.
+  if(kind==='silo'){
+   trimSiloRocketForGhost(placeholder);
+   // The fine black mouth seal is only for the opaque, completed silo.
+   // It would float below the cropped 50%-transparent placement ghost.
+   const joint=placeholder.getObjectByName('Silo_RocketHatchJoint');
+   if(joint)joint.visible=false;
+  }
   // Render the REAL finished 3D shape as a 50%-opaque ghost, so doors,
   // hangar openings and production exits are identifiable before clicking.
   // Construction remains a separate, progressive state after placement.
@@ -558,9 +663,11 @@ export class SandforgeBattlefield {
      // "sandforgeServiceTexture" object without dispose(), crashing the
      // next preview teardown and freezing all building-card clicks.
      if(ownSource){
-      const texture=mat.userData?.sandforgeServiceTexture;
-      if(texture?.isTexture&&typeof texture.dispose==='function')
-       group.userData.previewOwnedTextures.add(texture);
+      for(const texture of [mat.userData?.sandforgeServiceTexture,
+       mat.userData?.sandforgeServiceNormalMap]){
+       if(texture?.isTexture&&typeof texture.dispose==='function')
+        group.userData.previewOwnedTextures.add(texture);
+      }
      }
      if(group.userData.previewSiteValid===false&&m.userData.sandforgePreviewInvalidColor)
       m.color.copy(m.userData.sandforgePreviewInvalidColor);
@@ -576,6 +683,13 @@ export class SandforgeBattlefield {
   placeholder.visible=true; // realistic fallback until the authored GLB is ready
   group.userData.previewPlaceholder=placeholder;
   group.add(placeholder);
+  // Same thin foundation as the finished building, translucent in preview.
+  const foundation=createBuildingFoundation(kind,spec.width);
+  if(foundation){
+   tint(foundation,true,.48);
+   group.add(foundation);
+   group.userData.previewFoundation=foundation;
+  }
   // Schematic FOUNDATION + SCAFFOLD, never a finished building. The
   // old faint 1px box was almost invisible against orange desert dunes.
   // Real, translucent 3D beams remain legible at tactical camera zoom.
@@ -667,7 +781,7 @@ export class SandforgeBattlefield {
    tint(yard,false,.34);
    group.add(yard);group.userData.previewYard=yard;
   }
-  const service=kind==='airfield'?createAirfieldServiceYard():
+  const service=kind==='airfield'?createAirfieldServiceYard(0,{ghost:true}):
    kind==='factory'?createFactoryServiceYard():null;
   if(service){
    tint(service,true,.38);
@@ -686,42 +800,67 @@ export class SandforgeBattlefield {
   this.getModel(this.asset(kind,0,'building')).then(data=>{
    if(this.buildPreview!==group||this.buildKind!==kind)return;
    const model=cloneSkeleton(data.scene);
-   if(kind==='headquarters'&&
-     model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))
+   if((kind==='headquarters'&&
+     model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
+     (kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
+      model.getObjectByName('FactoryRollupDoor'))||
+     (kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root'))||
+     (kind==='generator'&&model.getObjectByName('SF_EnergyCore_PBR_Housing')) )
     model.userData.sandforgeOriginalPBR=true;
    if(kind==='barracks')polishBarracksProps(model);
+   if(kind==='barracks'||kind==='headquarters'){
+    paintFactionRoofStripes(model,kind,0);
+    paintFactionEntranceBanners(model,kind,0);
+   }
    const bounds=new THREE.Box3().setFromObject(model);
    const size=bounds.getSize(new THREE.Vector3());
    if(size.y>0&&Math.max(size.x,size.z)>0){
-    const scale=calibratedScale(kind,'building',size,spec.width);
+    const scale=calibratedScale(kind,'building',size,spec.width)*
+     (kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')?1.06:1);
     model.scale.multiplyScalar(scale);
     model.position.set(-bounds.getCenter(new THREE.Vector3()).x*scale,
       -bounds.min.y*scale,-bounds.getCenter(new THREE.Vector3()).z*scale);
    }
    if(kind==='airfield')hideOldAirfieldHangar({detail:model});
    if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksSides(model);
-   tint(model,false,.50);
+   // The main airfield mesh is a portrait/identity asset only. Its real
+   // model (and semi-transparent ghost) lives in the service flightline.
+   if(kind!=='airfield'||!model.getObjectByName('SF_Airfield_PBR_Root'))
+    tint(model,false,.50);
    if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksDesertPalette(model);
-   if(!model.userData.sandforgeOriginalPBR)finishDesertBuildingMaterials(model,kind);
-   model.visible=true; // final authored shape and its actual entrances
+   if(!model.userData.sandforgeOriginalPBR||kind==='factory')
+    finishDesertBuildingMaterials(model,kind);
+   model.visible=!(kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root')); // no duplicate hangar
    group.remove(placeholder);disposeOwnedMeshes(placeholder);
    group.userData.previewPlaceholder=null;group.userData.previewDetail=model;
    group.add(model);
   }).catch(error=>console.warn('Baupreview: vereinfachtes 3D-Modell',error));
  }
  clearPlacement(){
+  this.resetWallPreview();
+  if(this.wallPreviewMeshes){
+   for(const m of this.wallPreviewMeshes.meshes){
+    m.geometry.dispose();m.material.dispose();m.removeFromParent();
+   }
+   this.wallPreviewMeshes=null;
+  }
   this.buildKind=null;this.previewKind=null;
   if(this.buildPreview){
    const preview=this.buildPreview;
    this.buildPreviewScene.remove(preview);
    if(preview.userData.previewPlaceholder)disposeOwnedMeshes(preview.userData.previewPlaceholder);
    if(preview.userData.previewCircle)disposeOwnedMeshes(preview.userData.previewCircle);
+   if(preview.userData.previewFoundation)disposeBuildingFoundation(preview.userData.previewFoundation);
    if(preview.userData.previewYard)disposeOwnedMeshes(preview.userData.previewYard);
    if(preview.userData.previewService){
+    if(preview.userData.previewService.userData.hangarService)
+     detachAirfieldPbr(preview.userData.previewService);
     disposeServicePaint(preview.userData.previewService);
     disposeOwnedMeshes(preview.userData.previewService);
    }
    if(preview.userData.previewDetail){
+    disposeFactionRoofStripes(preview.userData.previewDetail);
+    disposeFactionEntranceBanners(preview.userData.previewDetail);
     disposeBarracksSides(preview.userData.previewDetail);
     disposeTaggedMaterials(preview.userData.previewDetail,'sandforgeBarracksPalette');
     disposeTaggedMaterials(preview.userData.previewDetail,'sandforgeBuildingPBROwned');
@@ -750,6 +889,132 @@ export class SandforgeBattlefield {
    this.buildPreview=null;
   }
   if(this.buildHint)this.buildHint.style.display='none';
+ }
+ /** Terrain ray, clipped to the actual canvas. This allows dragging up to
+  * the black map edge even when the pointer is just outside a sand triangle.
+  */
+ wallDragPoint(event){
+  const rect=this.renderer.domElement.getBoundingClientRect();
+  const p={clientX:Math.min(rect.right-1,Math.max(rect.left+1,event.clientX)),
+   clientY:Math.min(rect.bottom-1,Math.max(rect.top+1,event.clientY))};
+  return this.terrainPoint(p,{snapEdge:true});
+ }
+ resetWallPreview(){
+  if(this.buildPreview&&this.wallPreviewMeshes){
+   for(const child of this.buildPreview.children){
+    if(this.wallPreviewMeshes.meshes.includes(child)){
+     child.count=0;child.visible=false;
+    }else if(child.userData.wallDragPreviousVisible!==undefined){
+     child.visible=child.userData.wallDragPreviousVisible;
+     delete child.userData.wallDragPreviousVisible;
+    }
+   }
+  }
+  this.wallDrag=null;
+ }
+ ensureWallPreview(){
+  if(this.wallPreviewMeshes||!this.buildPreview)return;
+  const root=this.buildPreview,geom=new THREE.BoxGeometry(109,42,25);
+  const create=(color,opacity)=>{
+   const material=new THREE.MeshBasicMaterial({
+    color,transparent:true,opacity,depthWrite:false,side:THREE.DoubleSide});
+   const m=new THREE.InstancedMesh(geom.clone(),material,WALL_CHAIN_MAX);
+   m.name=color==='#6de7bf'?'WallDragAllowed':'WallDragBlocked';
+   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+   m.frustumCulled=false;m.raycast=()=>{};m.count=0;
+   root.add(m);return m;
+  };
+  const meshes=[create('#6de7bf',.49),create('#f36d5b',.49)];
+  geom.dispose();
+  this.wallPreviewMeshes={meshes};
+ }
+ updateWallDrag(event,force=false){
+  const drag=this.wallDrag;
+  if(!drag?.active||!this.buildPreview)return;
+  const end=this.wallDragPoint(event)??drag.end;
+  if(!end)return;
+  const now=performance.now();
+  if(!force&&now-drag.lastRender<45)return;
+  if(!force&&drag.lastPreviewPoint&&Math.hypot(
+    end.x-drag.lastPreviewPoint.x,end.y-drag.lastPreviewPoint.y)<14)return;
+  drag.end=end;drag.lastPreviewPoint={...end};drag.lastRender=now;
+  const plan=validatedWallDrag(this.game,drag.origin,end,0,{axis:drag.axis,wallCost:BUILDINGS.wall.cost});
+  const canBuild=this.game.units.some(u=>u.owner===0&&u.kind==='engineer'&&u.hp>0&&!u.carrier);
+  if(!canBuild){
+   plan.stopReason='Pionier erforderlich';plan.buildable=0;
+   plan.segments.forEach(segment=>{segment.valid=false;segment.reason=plan.stopReason;});
+  }
+  drag.plan=plan;
+  this.ensureWallPreview();
+  const root=this.buildPreview;
+  // Existing building ghost has its own authored materials. Hide it only
+  // for the drag and render cheap TRUE-length wall segments in one pass.
+  for(const child of root.children)if(!this.wallPreviewMeshes.meshes.includes(child)){
+   // Do not resurrect objects the authored ghost initially hid (e.g. gate
+   // internals) when a wall drag ends or is cancelled.
+   if(child.userData.wallDragPreviousVisible===undefined)
+    child.userData.wallDragPreviousVisible=child.visible;
+   child.visible=false;
+  }
+  root.position.set(0,0,0);root.rotation.set(0,0,0);root.visible=true;
+  const byValidity=[[],[]];
+  for(const segment of plan.segments)byValidity[segment.valid?0:1].push(segment);
+  const pos=new THREE.Vector3(),rotation=new THREE.Quaternion(),
+   matrix=new THREE.Matrix4(),scale=new THREE.Vector3(1,1,1);
+  for(let k=0;k<2;k++){
+   const mesh=this.wallPreviewMeshes.meshes[k];
+   mesh.count=byValidity[k].length;
+   for(let i=0;i<mesh.count;i++){
+    const segment=byValidity[k][i];
+    pos.copy(this.pos(segment.point.x,segment.point.y,
+     this.heightAt(segment.point.x,segment.point.y)+23));
+    rotation.setFromAxisAngle(UP,
+     segment.facing===2?Math.PI/2:0);
+    matrix.compose(pos,rotation,scale);mesh.setMatrixAt(i,matrix);
+   }
+   mesh.instanceMatrix.needsUpdate=true;
+   mesh.visible=mesh.count>0;
+  }
+  this.buildHint.style.display='block';
+  this.buildHint.style.left=Math.min(window.innerWidth-290,Math.max(4,event.clientX+14))+'px';
+  this.buildHint.style.top=Math.min(window.innerHeight-95,Math.max(4,event.clientY+14))+'px';
+  this.buildHint.style.borderColor=plan.stopReason?'#f19784':'#9edfbe';
+  this.buildHint.textContent='Mauer ziehen: '+plan.buildable+'/'+plan.segments.length+
+   ' Segmente · '+(plan.buildable*BUILDINGS.wall.cost)+' Credits'+
+   (plan.stopReason?' · Stopp: '+plan.stopReason:' · Loslassen: bauen');
+ }
+ finishWallDrag(event){
+  const drag=this.wallDrag;
+  if(!drag?.active)return;
+  this.updateWallDrag(event,true);
+  const plan=drag.plan;
+  this.wallDrag=null;
+  let built=0,reason=plan?.stopReason??null,lastWorkers=[];
+  // Each segment is a REAL paid, destructible construction, never a
+  // decoration or instant-completed barricade. Stop on the first failure.
+  for(const segment of plan?.segments??[]){
+   if(!segment.valid)break;
+   const error=this.game.buildError(0,'wall',segment.point,segment.facing);
+   if(error){reason=error;break;}
+   const order=submitConstruction(this.game,'wall',segment.point,this.selected,
+    segment.facing,event.shiftKey);
+   if(!order.base){reason=order.reason;break;}
+   built++;lastWorkers=order.workers;
+  }
+  if(built){
+   this.selected=new Set(lastWorkers.map(u=>u.id));
+   this.selectedBase=null;this.panel.dataset.tab='buildings';
+   this.sound?.command?.();
+   this.sync(true);
+  }
+  // Always restore the ordinary single ghost at the pointer when the drag
+  // finishes; walls stay armed for another drag, RMB/Escape cancels.
+  this.resetWallPreview();
+  this.updatePlacementPreview(event);
+  this.drawInterface();
+  this.message(built?built+' Mauersegmente zum Bau beauftragt'+
+   (reason?' · Abbruch: '+reason:' · Für weitere Mauern erneut ziehen'):
+   reason??'Keine Mauer gebaut · geeignete Strecke wählen');
  }
  updatePlacementPreview(event){
   const ghost=this.buildPreview;if(!this.buildKind||!ghost)return;
@@ -790,7 +1055,9 @@ export class SandforgeBattlefield {
   this.buildHint.style.left=Math.max(4,Math.min(event.clientX+17,window.innerWidth-265))+'px';
   this.buildHint.style.top=Math.max(4,Math.min(event.clientY+15,window.innerHeight-85))+'px';
   this.buildHint.textContent=BUILDINGS[this.buildKind].name+' · '+
-   (valid?'Bauplatz frei · Klick baut':error??'Pionier benötigt')+
+   (valid?this.buildKind==='wall'?
+    'Bauplatz frei · Linksklick halten und Mauer ziehen':'Bauplatz frei · Klick baut':
+    error??'Pionier benötigt')+
    ' · R drehen ('+buildingFacingDegrees(this.placementFacing)+'°)';
   this.buildHint.style.borderColor=valid?'#9edfbe':'#ee8875';
  }
@@ -871,6 +1138,7 @@ export class SandforgeBattlefield {
     // actor-owned. Release only our owned PBR clones on death/despawn.
     if(e.detail){
      disposeTaggedMaterials(e.detail,'sandforgeHelicopterOwnedPaint');
+     disposeTaggedMaterials(e.detail,'sandforgeArmourOwnedPaint');
      disposeTaggedMaterials(e.detail,'sandforgeFactionTint');
      if(e.kind==='rocket')disposeRocketLauncher(e.detail);
     }
@@ -881,7 +1149,16 @@ export class SandforgeBattlefield {
    aliveBases.add(b.id);
    let entry=this.bases.get(b.id);
    if(!entry){entry=this.spawnNode(b,'building');this.bases.set(b.id,entry);this.grounding.attachBuilding(entry,b);}
-   if(entry.factionOwner!==b.owner)applyFactionAccents(entry,b,'building');
+   if(entry.factionOwner!==b.owner){
+    // Authored HQ/Factory team paint is already baked into its PBR texture.
+    // Never recolor its original camouflage in the sync tick.
+    if(entry.detail?.userData.sandforgeOriginalPBR)entry.factionOwner=b.owner;
+    else applyFactionAccents(entry,b,'building');
+    if(entry.detail&&['barracks','headquarters'].includes(b.kind)){
+     paintFactionRoofStripes(entry.detail,b.kind,b.owner);
+     paintFactionEntranceBanners(entry.detail,b.kind,b.owner);
+    }
+   }
    entry.node.position.copy(this.entityPosition(b));
    entry.node.visible=b.owner===0||this.game.canSee(0,b);
    entry.node.scale.y=1;
@@ -900,11 +1177,20 @@ export class SandforgeBattlefield {
    }
    if(b.kind==='airfield'){
     if(!entry.airfieldServiceYard){
-     entry.airfieldServiceYard=createAirfieldServiceYard();entry.node.add(entry.airfieldServiceYard);
+     entry.airfieldServiceYard=createAirfieldServiceYard(b.owner);entry.node.add(entry.airfieldServiceYard);
      conformAirfieldSurface(entry.airfieldServiceYard,b,(x,z)=>this.heightAt(x,z));
     }
     hideOldAirfieldHangar(entry);
-    if(b.buildRemaining<=0)updateAirfieldServiceYard(entry,b,this.game.units,this.game.time,dt);
+    // Run this only after a new async building/GLB identity arrives. It strips
+    // legacy unlabelled black runway skid objects without masking the white
+    // runway lines, aircraft, or the paved access strip.
+    if(entry.airfieldRunwaySweptDetail!==entry.detail||
+      entry.airfieldRunwaySweptPBR!==entry.airfieldServiceYard.userData.airfieldPbrModel){
+     removeRunwaySkidArtifacts(entry);
+     entry.airfieldRunwaySweptDetail=entry.detail;
+     entry.airfieldRunwaySweptPBR=entry.airfieldServiceYard.userData.airfieldPbrModel;
+    }
+    if(b.buildRemaining<=0)updateAirfieldServiceYard(entry,b,this.game.units,this.game.time,dt,active);
    }
    if(b.kind==='factory'){
     if(!entry.factoryServiceYard){
@@ -925,7 +1211,9 @@ export class SandforgeBattlefield {
     if(e.yard){disposeBuildingYard(e.yard);e.yard=null;}
     disposeAirfieldServiceYard(e);disposeFactoryServiceYard(e);
     if(e.placeholder){disposeOwnedMeshes(e.placeholder);e.placeholder=null;}
-    if(e.detail){disposeBarracksSides(e.detail);
+    if(e.detail){disposeFactionRoofStripes(e.detail);
+     disposeFactionEntranceBanners(e.detail);
+     disposeBarracksSides(e.detail);
      disposeTaggedMaterials(e.detail,'sandforgeBarracksPalette');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingPBROwned');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingFacadeOwned');
@@ -940,6 +1228,10 @@ export class SandforgeBattlefield {
     if(this.selectedBase===id)this.selectedBase=null;
    }
   this.productionGates.update(active,blend);
+  this.buildingCollapse.update(dt,active);
+  // Run AFTER authoritative unit/base sync, BEFORE actor presentation.
+  // Airfield departures override only the current aircraft's visual node.
+  this.airfieldLaunch.update(active,blend);
   this.presentation.consumeShots(this.units,this.bases);
   for(const u of this.game.units){
    const entry=this.units.get(u.id);
@@ -1120,7 +1412,8 @@ export class SandforgeBattlefield {
    }
    const a=this.turretTracerOrigins.get(shot)??
     this.pos(shot.from.x,shot.from.y,this.heightAt(shot.from.x,shot.from.y)+27);
-   const b=this.pos(shot.to.x,shot.to.y,this.heightAt(shot.to.x,shot.to.y)+27);
+   const b=this.pos(shot.to.x,shot.to.y,
+    this.heightAt(shot.to.x,shot.to.y)+(shot.miss?2:27));
    const offset=n*6;
    // Moving golden tracer, not a permanent full-screen team-colored laser.
    // Endpoint calculations reuse the two authoritative shot locations.
@@ -1216,21 +1509,60 @@ export class SandforgeBattlefield {
  }
  buildInterface(){
   this.panel=installClassicHud();
+  // Dedicated research menu opens automatically upon clicking a completed
+  // owned Research Center, while the global production tabs remain intact.
+  this.researchDeck=createSandforgeResearchDeck({
+   parent:this.panel,upgrades:UPGRADES,upgradeKinds:UPGRADE_KINDS,
+   iconMarkup:researchIconMarkup,
+   onResearch:kind=>{
+    if(this.game.startResearch(0,kind))
+     this.message('Forschung begonnen: '+UPGRADES[kind].name);
+    else this.message('Forschung nicht möglich: Credits, Voraussetzung oder laufendes Projekt prüfen');
+    this.drawInterface();
+   }
+  });
+  this.confirmDialog=createSandforgeConfirmDialog(this.panel,{
+   onChange:open=>window.dispatchEvent(new CustomEvent('sandforge-confirm-state',{detail:{open}}))
+  });
   this.mini=this.panel.querySelector('#sf-map');
   this.panel.addEventListener('click',e=>{
    const button=e.target.closest('button');if(!button)return;
    if(this.sound?.enabled)this.sound.select();
    const kind=button.dataset.build,unit=button.dataset.unit,action=button.dataset.action;
+   if(action==='demolish'){
+    const base=this.game.bases.find(b=>b.id===this.selectedBase&&b.owner===0&&b.hp>0);
+    if(!base)return;
+    const underConstruction=base.buildRemaining>0;
+    const message=underConstruction?
+     BUILDINGS[base.kind].name+' – Baustelle abbrechen? 75 % der Baukosten werden erstattet.':
+     BUILDINGS[base.kind].name+' wirklich abreißen? Das Gebäude stürzt ein. Keine Rückerstattung.';
+    const baseId=base.id;
+    // Browser-native confirm() blocks the renderer and does not match the HUD.
+    // Await a real in-game dialog. Validate ownership again after the click.
+    this.confirmDialog.ask({
+     title:underConstruction?'BAUSTELLE ABBRECHEN':'GEBÄUDE ABREISSEN',
+     description:message,
+     confirmLabel:underConstruction?'BAU ABBRECHEN':'ABREISSEN',
+     danger:!underConstruction
+    }).then(accepted=>{
+     if(!accepted)return;
+     const current=this.game.bases.find(b=>b.id===baseId&&b.owner===0&&b.hp>0);
+     if(!current){this.message('Gebäude nicht mehr verfügbar');return;}
+     const entry=this.bases.get(baseId);
+     if(!this.game.demolishBuilding(baseId,0)){
+      this.message('Abreißen nicht möglich');return;
+     }
+     if(entry)this.buildingCollapse.spawn(entry,current);
+     this.selectedBase=null;this.rallyMode=false;this.attackMode=false;
+     this.strategicTargetMode=false;
+     this.drawInterface();
+     this.message(underConstruction?'Baustelle abgebrochen':'Gebäude abgerissen');
+    });
+    return;
+   }
    if(button.dataset.passengerId!==undefined){
     this.unloadPassenger(Number(button.dataset.carrierId),Number(button.dataset.passengerId));
     return;
-   }
-   if(button.dataset.upgrade){
-    const upgrade=button.dataset.upgrade;
-    if(this.game.startResearch(0,upgrade))
-      this.message('Forschung begonnen: '+UPGRADES[upgrade].name);
-    else this.message('Forschung nicht möglich: Credits, Voraussetzung oder laufendes Projekt prüfen');
-    this.drawInterface();return;
    }
    if(action==='missile-target'){
     const silo=this.game.bases.find(b=>b.id===this.selectedBase&&b.owner===0&&
@@ -1373,12 +1705,26 @@ export class SandforgeBattlefield {
    if(action==='attack'){this.attackMode=!this.attackMode;this.clearPlacement();this.drawInterface();this.message(this.attackMode?'Angriffsbewegung: Rechtsklick auf Ziel':'Angriffsbewegung beendet');}
    if(action==='unload')this.unloadSelectedTransport();
    if(action==='stop'){
-    const count=this.selected.size;
-    this.game.stop([...this.selected],false);
-    this.message(count?count+' Einheiten angehalten':'Keine Einheiten gewählt');
+    const units=this.game.units.filter(u=>this.selected.has(u.id)&&u.hp>0&&u.owner===0&&!u.carrier);
+    // Manually holding a position overrides return-to-workshop autopilot.
+    for(const unit of units){
+     if(['rover','tank','artillery'].includes(unit.kind))unit.autoFactoryRepair=false;
+     if(['scout','bomber'].includes(unit.kind))unit.autoAirfieldRepair=false;
+    }
+    this.game.stop(units.map(u=>u.id),true,true);
+    this.attackMode=false;
+    this.message(units.length?units.length+' Einheit(en): Position halten und Umkreis bewachen':'Keine Einheiten gewählt');
+    this.drawInterface();
+   }
+   if(action==='return-base'){
+    const result=orderReturnToBase(this.game,[...this.selected]);
+    this.attackMode=false;
+    this.message(result.accepted?result.accepted+' Einheit(en) kehren zur Basis zurück und sichern sie':
+     'Keine erreichbare eigene Basis oder keine Einheiten gewählt');
+    this.drawInterface();
    }
    if(action==='cancel'){this.clearPlacement();this.attackMode=false;this.strategicTargetMode=false;this.selected.clear();this.selectedBase=null;this.drawInterface();}
-   if(action==='select-all'){this.selected=new Set(this.game.units.filter(u=>u.hp>0&&u.owner===0&&!u.carrier).map(u=>u.id));this.selectedBase=null;this.drawInterface();}
+   if(action==='select-all')this.selectVisibleFriendlyOnScreen();
   });
   this.panel.addEventListener('sandforge-tabchange',event=>{
    const available=globalCatalogAvailability(this.game);
@@ -1389,7 +1735,6 @@ export class SandforgeBattlefield {
     infantry:'Soldaten und Pioniere direkt aus dem globalen Menü ausbilden.',
     vehicles:'Bodenfahrzeuge direkt in der Fahrzeugfabrik produzieren.',
     aircraft:'Flugzeuge und Transporthelikopter direkt am Flugfeld produzieren.',
-    research:'Globale Technologien im Forschungszentrum erforschen.',
     territories:'Kontrollpunkt wählen, um die Kamera zum Sektor zu bewegen.'};
    this.panel.querySelector('#sf-catalog-detail').textContent=descriptions[event.detail.tab]??'';
    // Tab clicks update the rendered actions NOW, even when a factory is
@@ -1494,26 +1839,11 @@ export class SandforgeBattlefield {
    '" aria-label="Sektor '+(t.id+1)+' zentrieren">'+
    '<i></i><strong>SEKTOR '+(t.id+1)+'</strong><small></small></button>'
   ).join('');
-  const upgrades=UPGRADE_KINDS.map(kind=>{
-   const tech=UPGRADES[kind];
-   return '<button type="button" class="sf-research-card" data-upgrade="'+kind+
-    '" title="'+plain(tech.description)+'" aria-label="'+plain(tech.name)+
-    ' – '+tech.cost+' Credits – '+tech.seconds+' Sekunden">'+
-    '<span class="sf-tech-art" aria-hidden="true">'+
-    '<span class="sf-tech-art-fallback">'+researchIconMarkup(kind)+'</span>'+
-    '<img data-sf-research-artwork="'+kind+'" alt="" loading="lazy" decoding="async">'+
-    '</span>'+
-    '<span class="sf-tech-info sf-tech-body"><strong>'+plain(tech.name)+'</strong>'+
-    '<span class="sf-tech-effect">'+plain(researchEffectLabel[kind]??tech.description)+'</span>'+
-    '<small class="sf-tech-meta">'+tech.cost+' ◆ · '+tech.seconds+' s</small>'+
-    '<span class="sf-tech-progress" aria-hidden="true"></span></span></button>';
-  }).join('');
   const markup='<div class="sf-group" data-sf-group="buildings"><div class="catalog-grid">'+
    cards(buildingKinds.filter(kind=>kind!=='interceptor'||INTERCEPTOR_ENABLED),'building')+'</div></div>'+
    '<div class="sf-group" data-sf-group="infantry">'+infantryRoster+'</div>'+
    '<div class="sf-group" data-sf-group="vehicles">'+vehicleRoster+'</div>'+
    '<div class="sf-group" data-sf-group="aircraft">'+aircraftRoster+'</div>'+
-   '<div class="sf-group" data-sf-group="research"><div class="sf-research-grid">'+upgrades+'</div></div>'+
    '<div class="sf-group" data-sf-group="territories"><h2>KONTROLLPUNKTE</h2>'+tiles+'</div></div>';
   if(this.previousActionsMarkup!==markup){
    const scroll=actions.scrollTop;
@@ -1541,24 +1871,6 @@ export class SandforgeBattlefield {
   const techState=g.research[0];
   const researchOnline=g.bases.some(b=>b.owner===0&&b.kind==='research'&&
    b.hp>0&&b.buildRemaining<=0);
-  for(const button of actions.querySelectorAll('[data-upgrade]')){
-   const kind=button.dataset.upgrade,tech=UPGRADES[kind];
-   const researched=techState.completed.includes(kind);
-   const inProgress=techState.active===kind;
-   const mayStart=researchOnline&&canResearchUpgrade(techState,kind)&&
-    g.credits[0]>=tech.cost;
-   button.disabled=researched||inProgress||!mayStart;
-   button.classList.toggle('sf-tech-done',researched);
-   button.classList.toggle('sf-tech-active',inProgress);
-   button.querySelector('.sf-tech-progress').textContent=researched?'✓':inProgress?
-    Math.ceil(techState.remaining)+'s':tech.requires&&!techState.completed.includes(tech.requires)?
-    'VORAUSSETZUNG':!mayStart?'GESPERRT':'START';
-   button.title=tech.description+(researched?' · Erforschung abgeschlossen':
-    inProgress?' · Noch '+Math.ceil(techState.remaining)+' Sekunden':
-    tech.requires&&!techState.completed.includes(tech.requires)?
-    ' · Benötigt '+UPGRADES[tech.requires].name:
-    !researchOnline?' · Forschungszentrum erforderlich':'');
-  }
   const generatorLimitReached=g.bases.filter(b=>b.owner===0&&b.kind==='generator'&&b.hp>0).length>=MAX_GENERATORS_PER_FACTION;
   const constructed=new Map(g.bases.filter(b=>b.owner===0&&b.hp>0).map(b=>[b.kind,b]));
   // The simulation already rejects duplicate HQ, barracks, factory and
@@ -1607,9 +1919,7 @@ export class SandforgeBattlefield {
   }
   hydrateUnitIcons(actions,this.renderer);
   hydrateBuildingIcons(actions,this.renderer);
-  // Nine real 3D upgrade models: rasterize only after the research deck is
-  // opened. Offscreen 3D readback never runs during ordinary frame rendering.
-  if(view.dataset.tab==='research')hydrateResearchArtworks(actions,this.renderer);
+  // Research artwork is rendered only for ongoing jobs in the production queue.
   // The bottom production panel is GLOBAL: every producer and every build
   // site stays visible regardless of which unit or structure is selected.
   const queuedBases=g.bases.filter(b=>b.owner===0&&b.hp>0&&b.queue?.length);
@@ -1742,15 +2052,20 @@ export class SandforgeBattlefield {
    ?'Sammelpunkt aktiv · Neue Einheiten marschieren automatisch zum markierten Ziel.'
    :spec?.description??'Wähle eine Einheit oder ein Gebäude. Rechtsklick: Marsch oder Zielbefehl.';
   const manifest=selectedTransportManifest(g.units,this.selected);
-  const roleNames={infantry:'INF',medic:'SAN',engineer:'PIO',heavy:'MG'};
+  const roleNames={infantry:'INF',medic:'SAN',engineer:'PIO',heavy:'MG',rocket:'RAK'};
   const passengerMarkup=manifest
-   ?'<div class="sf-passenger-manifest"><div class="sf-passenger-heading"><span>PASSAGIERE '+manifest.occupied+' / '+manifest.capacity+'</span><span>Klick: einzeln ausladen</span></div>'+
+   ?'<div class="sf-passenger-manifest"><div class="sf-passenger-heading"><span>PASSAGIERE '+manifest.occupied+' / '+manifest.capacity+
+     (manifest.pending?' · '+manifest.pending+' STEIGEN EIN':'')+'</span><span>'+manifest.available+' FREI · Klick: ausladen</span>'+
+     (manifest.occupied?'<button type="button" class="sf-passenger-unload-all" data-action="unload" title="Alle Passagiere ausladen (U)">AUSLADEN</button>':'')+
+     '</div>'+
     '<div class="sf-passenger-slots">'+manifest.slots.map((passenger,i)=>
      passenger?'<button type="button" class="sf-passenger-slot" data-carrier-id="'+manifest.carrier.id+
       '" data-passenger-id="'+passenger.id+'" title="'+plain(UNITS[passenger.kind]?.name??passenger.kind)+
       ' einzeln ausladen" aria-label="Platz '+(i+1)+': '+plain(UNITS[passenger.kind]?.name??passenger.kind)+
       ' ausladen"><span>'+plain(roleNames[passenger.kind]??'INF')+'</span></button>'
-      :'<span class="sf-passenger-slot sf-passenger-empty" title="Platz '+(i+1)+' frei" aria-label="Platz '+(i+1)+' frei">–</span>'
+      :i<manifest.occupied+manifest.pending?
+       '<span class="sf-passenger-slot sf-passenger-pending" title="Platz '+(i+1)+' reserviert · Soldat steigt ein" aria-label="Platz '+(i+1)+' reserviert">…</span>':
+       '<span class="sf-passenger-slot sf-passenger-empty" title="Platz '+(i+1)+' frei" aria-label="Platz '+(i+1)+' frei">–</span>'
      ).join('')+'</div></div>'
    :'';
   view.querySelector('#sf-selection-panel')?.classList.toggle('sf-transport-selected',Boolean(manifest));
@@ -1789,15 +2104,14 @@ export class SandforgeBattlefield {
   const damagedAtBase=servicingFacility?g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
     (base.kind==='airfield'?['bomber','scout']:['rover','tank','artillery']).includes(u.kind)&&
     u.hp<g.maxUnitHp(u)&&!(base.kind==='airfield'?u.airfieldService:u.factoryService)).length:0;
+  // Troop HUD has only the three main commands. Garage/flight maintenance
+  // controls remain on selected FACTORY/AIRFIELD, not every selected vehicle.
+  // Current service status is informational; right-clicking the facility
+  // remains available for repair without an extra troop command.
   const serviceMarkup=serviceGroup?
    '<div class="sf-strategic-meter">⚙ '+(serviceState?
-     'PLATZ '+(serviceState.bay+1)+' · '+statusNames[serviceState.phase]: 'WARTUNG / '+serviceGroup.toUpperCase())+
-   '</div><div class="sf-service-controls">'+
-   '<button type="button" data-action="'+serviceGroup+'-repair" '+(!free.length?'disabled':'')+'>⬇ REPARIEREN</button>'+
-   '<button type="button" data-action="'+(serviceGroup==='hangar'?'hangar-launch':'factory-release')+
-     '" '+(!ready.length?'disabled':'')+'>↑ '+(serviceGroup==='hangar'?'STARTEN':'FREIGEBEN')+'</button>'+
-   '<button type="button" data-action="'+serviceGroup+'-auto" aria-pressed="'+Boolean(auto)+'">'+
-   'AUTO &lt;30 % '+(auto?'AN':'AUS')+'</button></div>':
+     'PLATZ '+(serviceState.bay+1)+' · '+statusNames[serviceState.phase]:
+     'WARTUNG / '+serviceGroup.toUpperCase())+'</div>':
    servicingFacility?'<div class="sf-strategic-meter">⚙ WARTUNGSPLÄTZE '+occupancy+' / 2</div>'+
     '<div class="sf-service-controls">'+
     '<button type="button" data-action="'+(base.kind==='airfield'?'hangar-repair-all':'factory-repair-all')+
@@ -1869,11 +2183,38 @@ export class SandforgeBattlefield {
     (base.interceptorAmmo??INTERCEPTOR_MAX_AMMO)>=INTERCEPTOR_MAX_AMMO||
     g.credits[0]<INTERCEPTOR_REARM_COST;
   }
-  const unloadButton=view.querySelector('[data-action="unload"]');
-  if(unloadButton)unloadButton.hidden=!selectedLoadedTransports(g.units,this.selected).length;
-  view.querySelector('[data-action="attack"]').setAttribute('aria-pressed',String(this.attackMode));
+  // Passenger unloading lives with the manifest, never as a fourth
+  // generic troop command. Buildings keep only dedicated building actions.
+  // Infantry, engineers, tanks and aircraft all share the same 3 controls.
+  const buildingSelected=Boolean(base&&chosen.length===0);
+  const ownBuilding=Boolean(buildingSelected&&base.owner===0);
+  const commands=view.querySelector('#sf-command-buttons');
+  if(commands)for(const button of commands.querySelectorAll('button[data-action]')){
+   const a=button.dataset.action;
+   if(buildingSelected){
+    button.hidden=!ownBuilding||
+     (a!=='demolish'&&!(a==='missile-target'&&base.kind==='silo')&&
+      !(a==='interceptor-rearm'&&base.kind==='interceptor'));
+   }else if(chosen.length)button.hidden=!FIELD_UNIT_COMMANDS.includes(a);
+   else button.hidden=a!=='select-all';
+  }
+  const demolishButton=commands?.querySelector('[data-action="demolish"]');
+  if(demolishButton&&ownBuilding){
+   demolishButton.textContent=base.buildRemaining>0?'BAU ABBRECHEN':'ABREISSEN';
+   demolishButton.title=base.buildRemaining>0?
+    'Baustelle entfernen · 75 % Baukosten zurück':'Eigenes Gebäude endgültig abreißen';
+  }
+  view.querySelector('[data-action="attack"]')?.setAttribute('aria-pressed',String(this.attackMode));
   view.querySelector('#sf-catalog-detail').textContent=
    spec?.description??'Einheiten auswählen · Rechtsklick bewegen · Pionier für Gebäude erforderlich.';
+  // Opening technology research requires an explicit click on the actual
+  // completed owned lab. Automatic selection never opens a modal.
+  const clickedLab=base?.kind==='research'&&base.id===this.researchDeckRequestedFor;
+  if(!clickedLab)this.researchDeckRequestedFor=null;
+  this.researchDeck?.update({
+   base:clickedLab?base:null,state:techState,credits:g.credits[0],online:researchOnline,
+   playing:g.status==='playing'
+  });
   if(g.status!=='playing')this.message(g.status==='victory'?'SIEG – alle Gegner besiegt':'NIEDERLAGE');
  }
  drawMinimap(){
@@ -1976,6 +2317,31 @@ export class SandforgeBattlefield {
    for(const p of corners.slice(1))ctx.lineTo(p.x,p.y);
    ctx.closePath();ctx.stroke();
   }
+ }
+ /** The ALLE action selects only units physically present in the current
+  * camera view and visible through fog, never distant units across the map.
+  * This reuses the double-click projection policy for consistent behaviour.
+  */
+ selectVisibleFriendlyOnScreen(){
+  const canvas=this.renderer.domElement,rect=canvas.getBoundingClientRect();
+  if(!rect.width||!rect.height)return 0;
+  this.camera.updateMatrixWorld(true);
+  const projected=new THREE.Vector3();
+  const ids=visibleFriendlyUnits(this.game.units,this.units,{
+   project:node=>projected.copy(node.position).project(this.camera),
+   isVisible:ndc=>{
+    const x=rect.left+(ndc.x+1)*rect.width*.5;
+    const y=rect.top+(1-ndc.y)*rect.height*.5;
+    const top=document.elementFromPoint?.(x,y);
+    return !top||top===canvas||canvas.contains(top);
+   }
+  });
+  this.selected=new Set(ids);
+  this.selectedBase=null;this.rallyMode=false;
+  if(ids.length)this.sound?.select?.();
+  this.message(ids.length?ids.length+' sichtbare eigene Einheit(en) ausgewählt':
+   'Keine sichtbaren Einheiten auf dem Bildschirm');
+  this.drawInterface();return ids.length;
  }
  /** Double-click on one friendly actor chooses all same-class actors on the
   * current camera screen, not every matching unit in the world or fog.
@@ -2271,6 +2637,14 @@ export class SandforgeBattlefield {
  }
  pointerUp(event){
   if(!this.clickStart||event.button!==this.clickStart.button)return;
+  if(event.button===0&&this.buildKind==='wall'&&this.wallDrag?.active){
+   this.finishWallDrag(event);
+   this.clickStart=null;this.selectionBox.style.display='none';
+   return;
+  }
+  if(event.button===0&&this.wallDrag){
+   this.wallDrag=null;
+  }
   const start=this.clickStart;
   const moved=Math.hypot(event.clientX-start.x,event.clientY-start.y);
   this.clickStart=null;this.selectionBox.style.display='none';
@@ -2357,6 +2731,8 @@ export class SandforgeBattlefield {
      this.selectedBase=null;
     }else{
      this.selected.clear();this.selectedBase=hit.entity.id;
+     this.researchDeckRequestedFor=hit.entity.kind==='research'?hit.entity.id:null;
+     if(this.researchDeckRequestedFor!==null)this.researchDeck?.reopen();
     }
     this.sound?.select?.();this.drawInterface();return;
    }
@@ -2413,11 +2789,14 @@ export class SandforgeBattlefield {
      this.selectedBase=null;
      this.panel.dataset.tab='buildings';
      this.sound?.command?.();
-     if(!event.shiftKey)this.clearPlacement();
+     // Walls are laid in a series: keep their ghost AND the building tab
+     // armed after each successful placement. RMB / Escape still cancel.
+     if(!keepPlacementAfterBuild(kind,event.shiftKey))this.clearPlacement();
      this.sync(true);
      this.message(BUILDINGS[kind].name+
       (order.append?' in Baufolge eingereiht':' beauftragt')+
-      ' · Nächstes Gebäude direkt im Baumenü auswählen');
+      (kind==='wall'?' · Nächstes Mauersegment platzieren · Rechtsklick beendet':
+       ' · Nächstes Gebäude direkt im Baumenü auswählen'));
     }else{
      this.message(order.reason+
       ' · '+(order.tried??0)+' Pionier-Zuweisung(en) geprüft');
@@ -2473,11 +2852,30 @@ export class SandforgeBattlefield {
   const canvas=this.renderer.domElement;
   canvas.addEventListener('pointerdown',e=>{
    this.clickStart={x:e.clientX,y:e.clientY,button:e.button};
+   if(e.button===0&&this.buildKind==='wall'){
+    const origin=this.wallDragPoint(e);
+    this.wallDrag=origin?{origin,end:origin,active:false,axis:null,
+     lastRender:-Infinity,lastPreviewPoint:null,plan:null}:null;
+    // Continue receiving pointer events right to the map/canvas boundary.
+    if(this.wallDrag&&canvas.setPointerCapture)canvas.setPointerCapture(e.pointerId);
+   }
    // The Canvas RTS issues right-click commands on press, not release.
    // With RMB rotation disabled this also supports Mac trackpad clicks.
    if(e.button===2){e.preventDefault();this.pointerUp(e);}
   });
   canvas.addEventListener('pointermove',e=>{
+   if(this.buildKind==='wall'&&this.wallDrag&&this.clickStart?.button===0&&(e.buttons&1)){
+    const moved=Math.hypot(e.clientX-this.clickStart.x,e.clientY-this.clickStart.y);
+    if(moved>=WALL_CHAIN_DRAG_THRESHOLD){
+     if(!this.wallDrag.axis){
+      const at=this.wallDragPoint(e)??this.wallDrag.origin;
+      this.wallDrag.axis=Math.abs(at.x-this.wallDrag.origin.x)>=
+       Math.abs(at.y-this.wallDrag.origin.y)?'x':'y';
+     }
+     this.wallDrag.active=true;this.updateWallDrag(e);
+    }
+    return;
+   }
    if(this.buildKind)this.updatePlacementPreview(e);
    const start=this.clickStart;
    if(!start||start.button!==0||!(e.buttons&1))return;
@@ -2493,8 +2891,9 @@ export class SandforgeBattlefield {
   canvas.addEventListener('pointerup',e=>this.pointerUp(e));
   canvas.addEventListener('dblclick',e=>{if(e.button===0&&this.selectSameKindOnScreen(e))e.preventDefault();});
   window.addEventListener('pointerup',e=>{if(this.clickStart)this.pointerUp(e);});
-  canvas.addEventListener('pointerleave',()=>{if(this.buildPreview)this.buildPreview.visible=false;this.buildHint.style.display='none';});
+  canvas.addEventListener('pointerleave',()=>{if(this.wallDrag?.active)return;if(this.buildPreview)this.buildPreview.visible=false;this.buildHint.style.display='none';});
   const resetPointerGesture=()=>{
+   this.resetWallPreview();
    this.clickStart=null;
    this.selectionBox.style.display='none';
    if(this.buildPreview)this.buildPreview.visible=false;
@@ -2548,7 +2947,13 @@ export class SandforgeBattlefield {
    }
    if(event.code==='KeyF'){this.attackMode=true;this.message('Angriffsbewegung: Rechtsklick auf Ziel');}
    if(event.code==='KeyU'){event.preventDefault();this.unloadSelectedTransport();}
-   if(event.code==='KeyH'){this.selected=new Set(this.game.units.filter(u=>u.hp>0&&u.owner===0&&!u.carrier).map(u=>u.id));this.drawInterface();}
+   if(event.code==='KeyH'&&!event.repeat){event.preventDefault();this.selectVisibleFriendlyOnScreen();}
+   if(event.code==='KeyX'&&!event.repeat&&!this.buildKind){
+    event.preventDefault();this.panel.querySelector('#sf-command-buttons [data-action="stop"]')?.click();
+   }
+   if(event.code==='KeyG'&&!event.repeat&&!this.buildKind){
+    event.preventDefault();this.panel.querySelector('#sf-command-buttons [data-action="return-base"]')?.click();
+   }
    if(event.code==='KeyP'&&!event.repeat){event.preventDefault();this.selectEngineer();}
    const number=Number(event.code.replace('Digit',''));
    if(event.code.startsWith('Digit')&&number>=1&&number<=5){

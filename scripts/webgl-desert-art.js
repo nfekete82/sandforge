@@ -36,8 +36,9 @@ export function cinematicSandSample({x,z,size,seed,profile='mixed',slope=0,heigh
  const ridge=Math.sin(height*.14+x*.012+z*.006);
  const rock=smooth((slope-.12)/.24)*(profile==='rocky'?1:.66);
  const strata=rock*(.65+.35*ridge);
- // Slight natural height variation while leaving silhouette/pathing intact.
- const shade=.92+.078*dune+.025*wind;
+ // Broad dune shade, with calm hollows and less noisy texture-wide contrast.
+ // This is visual-only; actual terrain slope/height stays authoritative.
+ const shade=.955+.068*dune+.013*wind;
  const sediment=wadi.strength*(.59+.09*Math.sin(x*.045-z*.071));
  return {dune,shade,rock,strata,wadi:clamp(sediment),wind};
 }

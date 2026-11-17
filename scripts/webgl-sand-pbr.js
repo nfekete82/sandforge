@@ -10,13 +10,13 @@ import {installDesertSurfaceDetail,DESERT_SURFACE_DETAIL} from './webgl-sand-sur
  * gets PBR. Runtime terrain fallback remains playable if the asset fails.
  */
 export const SANDFORGE_SAND_PBR={
- revision:'authored-wind-sand-silt-grit-v2-20261115',
+ revision:'anti-banding-natural-pbr-v5-20261116',
  surfaceDetailRevision:DESERT_SURFACE_DETAIL.revision,
  albedo:'/src/assets/reborn/terrain/sand-wind-albedo-v1.webp',
  sourceSize:512,
  generatedMapsSize:1024,
- normalStrength:.66,
- roughnessRange:[.86,.97],
+ normalStrength:.83,
+ roughnessRange:[.89,.985],
 };
 export const SAND_PBR_TERRAIN_REPEAT=1;
 
@@ -36,17 +36,18 @@ export function createSandNormalAndRoughness(image,renderer,{size=1024}={}){
  }
  const normal=ctx.createImageData(size,size);
  const rough=ctx.createImageData(size,size);
- const t=2*Math.PI;
  const pick=(x,y)=>lum[((y+size)%size)*size+((x+size)%size)];
  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
   const o=(y*size+x)*4;
-  // Follow small photographic surface features and superimpose a restrained
-  // wind ripple at the EXACT same period as the seamless painted albedo.
-  // 42-period waves keep the phase continuous at either edge of the tile.
-  const phase=t*(42*x/size+7*y/size)+.22*Math.sin(t*3*y/size);
-  const ridge=Math.cos(phase);
-  const dX=(pick(x+2,y)-pick(x-2,y))*.46+ridge*.031;
-  const dY=(pick(x,y+2)-pick(x,y-2))*.46+ridge*.0052;
+  // Irregular albedo-derived slopes ONLY. Layering a 42-cycle cosine on
+  // top of the original wind photograph produced visible regular parallel
+  // bands / Moiré at shallow RTS camera angles, especially at sunset.
+  // Wider derivatives remove high-frequency stripe aliasing while retaining
+  // diffuse sand grain and physically lit natural dunes.
+  const dX=(pick(x+2,y)-pick(x-2,y))*.26+
+   (pick(x+6,y)-pick(x-6,y))*.14;
+  const dY=(pick(x,y+2)-pick(x,y-2))*.26+
+   (pick(x,y+6)-pick(x,y-6))*.14;
   let nx=-dX*SANDFORGE_SAND_PBR.normalStrength;
   let ny=-dY*SANDFORGE_SAND_PBR.normalStrength;
   const inv=1/Math.hypot(nx,ny,1);
@@ -58,7 +59,8 @@ export function createSandNormalAndRoughness(image,renderer,{size=1024}={}){
 
   // Dry grain is almost fully matte, its local roughness changes slightly
   // with compacted areas. Never introduce glossy water/white spot decals.
-  const v=Math.max(.86,Math.min(.97,.925+(lum[y*size+x]-.70)*.085));
+  const v=Math.max(SANDFORGE_SAND_PBR.roughnessRange[0],
+   Math.min(SANDFORGE_SAND_PBR.roughnessRange[1],.944+(lum[y*size+x]-.70)*.066));
   const r=Math.round(v*255);
   rough.data[o]=r;rough.data[o+1]=r;rough.data[o+2]=r;rough.data[o+3]=255;
  }
@@ -99,7 +101,7 @@ export async function installDesertSandPBR(material,renderer,{url=SANDFORGE_SAND
  material.map=albedo;
  material.color.set('#ffffff'); // Real albedo owns the pigment, no double tint.
  material.normalMap=maps.normal;
- material.normalScale.set(.72,.72);
+ material.normalScale.set(.52,.52);
  material.roughnessMap=maps.roughness;
  material.roughness=1;
  material.metalness=0;

@@ -5,8 +5,8 @@ import * as THREE from 'three';
 import {DESERT_BUILDING_PBR_REVISION,DESERT_BUILDING_IMAGES,DESERT_BUILDING_KINDS,buildingSurfaceRole,finishDesertBuildingMaterials}
  from '../scripts/webgl-building-pbr.js';
 
-test('five actual building graphics shipped, original models still present',()=>{
- assert.deepEqual(DESERT_BUILDING_KINDS,['barracks','headquarters','factory']);
+test('shared PBR wall, organic facility camouflage and four auxiliary graphics shipped',()=>{
+ assert.deepEqual(DESERT_BUILDING_KINDS,['barracks','headquarters','factory','airfield']);
  assert.match(readFileSync('scripts/build.mjs','utf8'),/webgl-building-pbr\.js/);
  assert.ok(existsSync('dist/webgl-building-pbr.js'));
  for(const [role,path] of Object.entries(DESERT_BUILDING_IMAGES)){
@@ -29,6 +29,8 @@ test('wall/camouflage/roof/metal/trim classify only safe exterior parts',()=>{
   ['barracks','Atlas_BarracksRoofCamo_8','camo'],
   ['factory','FactoryRoofArmor','roof'],
   ['factory','ServiceWallCassette','camo'],
+  ['factory','SF_Factory_PBR_camo','facilityWall'],
+  ['airfield','SF_Airfield_PBR_camo','facilityWall'],
   ['factory','Atlas_ArmouredHull_3','metal'],
   ['headquarters','HeadquartersRoofArmourA','roof'],
   ['headquarters','Atlas_CeramicHull_7','wall']
@@ -39,6 +41,9 @@ test('wall/camouflage/roof/metal/trim classify only safe exterior parts',()=>{
    'SideWindow','GateHazardStripe','LadderRail','SealedEquipmentCase'])
    assert.equal(buildingSurfaceRole(kind,name,'Ceramic Paint'),null,kind+':'+name);
  assert.equal(buildingSurfaceRole('airfield','RoofCamo',''),null);
+ assert.equal(buildingSurfaceRole('airfield','SF_Airfield_PBR_roof_corrugated',''),null);
+ assert.equal(buildingSurfaceRole('factory','SF_Factory_PBR_roof',''),null);
+ assert.equal(buildingSurfaceRole('airfield','HangarRollupSlat_0_00',''),null);
 });
 function fixture(){
  const root=new THREE.Group(),originals=new Map();
@@ -81,6 +86,72 @@ test('PBR textures are triplanar in local coordinates, preserve original GLB map
   assert.equal(shader.uniforms.sfBuildingAlbedo.value.isTexture,true);
  }
 });
+test('factory and hangar share organic HQ/barracks-style camouflage without baked checkerboard',()=>{
+ for(const [kind,wall,roof,gate] of [
+  ['factory','SF_Factory_PBR_camo','SF_Factory_PBR_roof','FactoryRollupDoor'],
+  ['airfield','SF_Airfield_PBR_camo','SF_Airfield_PBR_roof_corrugated','HangarRollupSlat_0_00']
+ ]){
+  const model=new THREE.Group();
+  for(const name of [wall,roof,gate]){
+   const mesh=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),
+    new THREE.MeshStandardMaterial({color:'#8c8272'}));
+   mesh.name=name;model.add(mesh);
+  }
+  const originalRoof=model.getObjectByName(roof).material;
+  const originalGate=model.getObjectByName(gate).material;
+  const count=finishDesertBuildingMaterials(model,kind);
+  assert.equal(count,1,'only exterior shell is repainted for '+kind);
+  const painted=model.getObjectByName(wall);
+  assert.equal(painted.material.userData.sandforgeBuildingPBRRole,'facilityWall');
+  assert.equal(painted.material.customProgramCacheKey().includes('|'+kind+'|facilityWall'),true);
+  const shader={
+   vertexShader:'#include <common>\n#include <begin_vertex>\n#include <beginnormal_vertex>',
+   fragmentShader:'#include <common>\n#include <color_fragment>',uniforms:{}
+  };
+  painted.material.onBeforeCompile(shader,{});
+  assert.ok(shader.fragmentShader.includes('sfBuildingAlbedo'),'shared organic camouflage exterior');
+  assert.ok(shader.fragmentShader.includes('float sfWear=1.0;'),
+   'legacy camo checker may not multiply the authored exterior');
+  assert.ok(shader.fragmentShader.includes('sfPaint*sfWear,1.000'),
+   'factory/hangar wall overrides legacy checker completely');
+  const other=kind==='airfield'?'factory':'airfield';
+  const shared=new THREE.Group();
+  const shell=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),
+   new THREE.MeshStandardMaterial({color:'#b8ac91'}));
+  shell.name=other==='factory'?'SF_Factory_PBR_camo':'SF_Airfield_PBR_camo';
+  shared.add(shell);
+  assert.equal(finishDesertBuildingMaterials(shared,other),1);
+  const otherShader={
+   vertexShader:'#include <common>\n#include <begin_vertex>\n#include <beginnormal_vertex>',
+   fragmentShader:'#include <common>\n#include <color_fragment>',uniforms:{}
+  };
+  shell.material.onBeforeCompile(otherShader,{});
+  assert.strictEqual(shader.uniforms.sfBuildingAlbedo.value,
+   otherShader.uniforms.sfBuildingAlbedo.value,
+   'factory and hangar share exactly one organic camouflage atlas');
+  shell.geometry.dispose();shell.material.dispose();
+  if(kind==='airfield')assert.ok(shader.fragmentShader.includes('sfBuildingLocal*0.015'),
+   'authored hangar uses correct physical-scale camouflage');
+  assert.strictEqual(model.getObjectByName(roof).material,originalRoof);
+  assert.strictEqual(model.getObjectByName(gate).material,originalGate);
+  assert.equal(finishDesertBuildingMaterials(model,kind),0,'idempotent');
+ }
+ const loader=readFileSync('scripts/webgl-airfield-pbr.js','utf8');
+ assert.match(loader,/if\(ghost\)styleGhost\(model\);[\s\S]*finishDesertBuildingMaterials\(model,'airfield'\)/);
+ const battle=readFileSync('scripts/webgl-battlefield.js','utf8');
+ assert.match(battle,/finishDesertBuildingMaterials\(model,'factory'\)/);
+ const hud=readFileSync('scripts/webgl-portraits.js','utf8');
+ assert.match(hud,/if\(authoredFactory\|\|authoredAirfield\)finishDesertBuildingMaterials\(model,kind\)/);
+});
+
+test('generated factory and airfield walls no longer bake low-resolution checker camouflage',()=>{
+ const factory=readFileSync('scripts/generate-factory-pbr.mjs','utf8');
+ const airfield=readFileSync('scripts/generate-airfield-pbr.mjs','utf8');
+ assert.doesNotMatch(factory,/if\(key==='camo'\)\{const blob=Math\.sin/);
+ assert.doesNotMatch(airfield,/if\(key==='camo'\)\{const blob=Math\.sin/);
+ assert.match(factory,/\['roof','camo'\]\.includes\(key\)\?5:17/);
+});
+
 test('construction ghost keeps its material pointer and invalid site tint',()=>{
  const {root}=fixture(),mesh=root.getObjectByName('BarracksCamoSidePanel_1_0');
  const mat=mesh.material.clone();

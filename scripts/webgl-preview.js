@@ -15,6 +15,7 @@ import {SandforgeCombatEffects} from '/webgl-combat-vfx.js';
 import {SandforgeStrategicEffects} from '/webgl-strategic-effects.js';
 import {SandforgePerformanceWatch} from '/webgl-perf-watch.js';
 import {SandforgeAtmosphere3D} from '/webgl-atmosphere-3d.js';
+import {DESERT_GOLDEN_HOUR,desertGoldenHourEnabled} from '/webgl-golden-hour.js';
 import {addVisualPerimeter} from '/webgl-perimeter.js';
 import {addBoundaryCliffs} from '/webgl-edge-cliffs.js';
 import {cameraEdgeReach,cameraBlackOverscan} from '/webgl-map-edges.js';
@@ -29,6 +30,8 @@ import {installDesertSandPBR,SANDFORGE_SAND_PBR} from '/webgl-sand-pbr.js';
 import {createDesertVillages} from '/webgl-desert-village.js';
 import {installMatchResultOverlay} from '/webgl-match-result.js';
 import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry} from '/webgl-rock-materials.js';
+import {makeSmallRuinFragments,isSmallRuin} from '/webgl-ruin-fragments.js';
+import {chooseRareScenicHouseIndex,createScenicDesertHouse} from '/webgl-scenic-desert-houses.js';
 
 /** Opt-in WebGL scene using the real authoritative Sandforge map and simulation.
  * This page is isolated from the production Canvas renderer, save format and AI
@@ -107,20 +110,35 @@ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.65));
 stage.append(renderer.domElement);
 const scene=new THREE.Scene();
-// The 3D playable desert ends directly against a completely black map void.
-// A beige background would still reveal a bright square beyond the terrain.
+// The playable desert still ends at a BLACK void beyond the map. Golden
+// hour adjusts sunlight, warm ambient bounce and light haze, not sky geometry.
+const goldenHour=desertGoldenHourEnabled(biome,query.get('lighting'));
+const sunset=goldenHour?DESERT_GOLDEN_HOUR:null;
 scene.background=new THREE.Color('#000000');
-scene.fog=new THREE.FogExp2(biomeStyle.fog,.00008);
-scene.add(new THREE.HemisphereLight(biomeStyle.sky,biomeStyle.bounce,1.20));
-const sun=new THREE.DirectionalLight(biomeStyle.sunlight,spacious?2.85:3.05);
-sun.position.set(-700,1100,420);
+scene.fog=new THREE.FogExp2(sunset?.fogColor??biomeStyle.fog,
+ sunset?.fogDensity??.00008);
+scene.add(new THREE.HemisphereLight(
+ sunset?.skyColor??biomeStyle.sky,sunset?.bounceColor??biomeStyle.bounce,
+ sunset?.hemisphereIntensity??1.20));
+// One sun and one low-energy cool fill: longer shadows with good contrast
+// between 3D terrain, military camouflage and faction-colored glass.
+const sunlightOffset=new THREE.Vector3(...(sunset?.sunOffset??[-700,1100,420]));
+const sun=new THREE.DirectionalLight(
+ sunset?.sunColor??biomeStyle.sunlight,
+ sunset?.sunIntensity??(spacious?2.85:3.05));
+sun.position.copy(sunlightOffset);
 sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
 sun.shadow.camera.left=-1250;sun.shadow.camera.right=1250;
 sun.shadow.camera.top=1250;sun.shadow.camera.bottom=-1250;
 sun.shadow.camera.near=1;sun.shadow.camera.far=3000;
-sun.shadow.bias=-.00006;sun.shadow.normalBias=.038;
+// Grazing sunset light is susceptible to terrain self-shadow "acne":
+// slightly larger normal bias stops dark pixel rows without losing the
+// building/unit silhouettes. Daytime retains its existing precise bias.
+sun.shadow.bias=goldenHour?-.00018:-.00006;
+sun.shadow.normalBias=goldenHour?.13:.038;
 sun.target.position.set(0,0,0);scene.add(sun,sun.target);
-const fill=new THREE.DirectionalLight(biomeStyle.fill,.40);
+const fill=new THREE.DirectionalLight(
+ sunset?.fillColor??biomeStyle.fill,sunset?.fillIntensity??.40);
 fill.position.set(650,500,-450);scene.add(fill);
 const camera=new THREE.OrthographicCamera(-680,680,410,-410,10,12000);
 // Initial framing presents a real ruin and the adjacent ridge in one view,
@@ -134,7 +152,7 @@ const camera=new THREE.OrthographicCamera(-680,680,410,-410,10,12000);
 camera.position.copy(cameraTarget).add(new THREE.Vector3(1200,1110,1640));
 // Anchor the initial sunlight to the player spawn for visible unit shadows.
 sun.target.position.copy(cameraTarget);
-sun.position.copy(cameraTarget).add(new THREE.Vector3(-700,1100,420));
+sun.position.copy(cameraTarget).add(sunlightOffset);
 camera.lookAt(cameraTarget);
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true;controls.dampingFactor=.10;
@@ -156,7 +174,6 @@ const models=new Map(),ruinMeshes=[];
 game.paused=false;
 let groundMeshes=[],running=query.get('pause')!=='1',accumulator=0,elapsed=0;
 let pauseSource=query.get('pause')==='1'?'URL-Parameter pause=1':'';
-let pauseFromKeyboard=false;
 // Distinguish a deliberate pause or an ended battle from an animation stall.
 // Previously all three looked identical: stationary soldiers on screen.
 const simulationBanner=document.createElement('div');
@@ -171,7 +188,9 @@ function updateSimulationBanner(){
  const reason=game.status!=='playing'?'':!running?
   'SIMULATION PAUSIERT'+(pauseSource?' ('+pauseSource+')':'')+' · ▶ zum Fortsetzen':
   game.paused?'SIMULATION INTERN PAUSIERT':'';
- simulationBanner.hidden=!reason;
+ // The tactical menu already explains the pause. Do not show a second,
+ // stale "Leertaste" banner behind its modal overlay.
+ simulationBanner.hidden=!reason||document.getElementById('sf3d-pause-dialog')?.open===true;
  if(reason&&simulationBanner.textContent!==reason)simulationBanner.textContent=reason;
 }
 updateSimulationBanner();
@@ -194,9 +213,9 @@ function sandTexture(){
   ctx.fillStyle='rgba(108,83,52,.065)';
   ctx.beginPath();ctx.ellipse(x,y,rad,rad*.65,0,0,Math.PI*2);ctx.fill();
  }
- for(let i=0;i<24;i++){
+ for(let i=0;i<8;i++){
   const x=r()*256,y=r()*256;
-  ctx.strokeStyle='rgba(125,96,62,.045)';ctx.lineWidth=.4+r()*.6;
+  ctx.strokeStyle='rgba(125,96,62,.024)';ctx.lineWidth=.4+r()*.6;
   ctx.beginPath();ctx.moveTo(x,y);ctx.bezierCurveTo(x+20,y-3,x+44,y+2,x+75,y-2);ctx.stroke();
  }
  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
@@ -208,12 +227,28 @@ function sandTexture(){
 function sandMicroNormalTexture(){
  const canvas=document.createElement('canvas');canvas.width=canvas.height=256;
  const ctx=canvas.getContext('2d'),pixels=ctx.createImageData(256,256);
+ // Seamlessly repeating low-amplitude NON-periodic grains. The old
+ // explicit cosine waves in the fallback normal map looked like parallel
+ // LCD scanlines, particularly under the low sunset sun and zoomed-out RTS
+ // camera. Smooth stochastic slopes do not introduce coherent bands.
+ const tile=(x,y)=>{
+  const xi=(x+256)%256,yi=(y+256)%256;
+  let h=(Math.imul(xi,374761393)+Math.imul(yi,668265263)+seed)|0;
+  h=Math.imul(h^(h>>>13),1274126177);
+  return ((h^(h>>>16))>>>0)/4294967296;
+ };
+ const sample=(x,y)=>{
+  const cell=256/24,u=x/cell,v=y/cell;
+  const a=Math.floor(u),b=Math.floor(v);
+  const fx=(u-a)**2*(3-2*(u-a)),fy=(v-b)**2*(3-2*(v-b));
+  const rnd=(i,j)=>tile((i+24)%24,(j+24)%24);
+  const n0=rnd(a,b)*(1-fx)+rnd(a+1,b)*fx;
+  const n1=rnd(a,b+1)*(1-fx)+rnd(a+1,b+1)*fx;
+  return n0*(1-fy)+n1*fy;
+ };
  for(let y=0;y<256;y++)for(let x=0;x<256;x++){
-  const ripple=Math.cos(x*.19+y*.048)*.16+
-   Math.cos(x*.57-y*.12)*.06+
-   Math.cos(y*.41+x*.06)*.04;
-  const cross=Math.sin(x*.19+y*.048)*.035+
-   Math.sin(y*.41+x*.06)*.018;
+  const ripple=(sample(x+2,y)-sample(x-2,y))*.12;
+  const cross=(sample(x,y+2)-sample(x,y-2))*.12;
   const inv=1/Math.hypot(ripple,1,cross);
   const k=(y*256+x)*4;
   pixels.data[k]=Math.round(127.5*(1-ripple*inv));
@@ -530,54 +565,10 @@ function instancedStone(){
  contacts.frustumCulled=false;scene.add(contacts);
  return counts.reduce((a,b)=>a+b,0);
 }
-function sandRoads(){
- // Discontinuous sandy tire marks share one GPU draw call, not thousands of
- // individual meshes. Gaps and imperfect widths imply old worn tracks.
- // Per-pixel alpha softens the old rectangular sticker appearance.
- const canvas=document.createElement('canvas');
- canvas.width=32;canvas.height=128;
- const ctx=canvas.getContext('2d'),pixels=ctx.createImageData(32,128);
- for(let y=0;y<128;y++)for(let x=0;x<32;x++){
-  const edge=Math.sin(Math.PI*x/31)**1.7*Math.sin(Math.PI*y/127)**1.25;
-  const noise=.8+.2*Math.sin(y*.73+x*1.91);
-  const k=(y*32+x)*4;
-  pixels.data[k]=126;pixels.data[k+1]=103;pixels.data[k+2]=75;
-  pixels.data[k+3]=Math.round(172*edge*noise);
- }
- ctx.putImageData(pixels,0,0);
- const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
- const material=new THREE.MeshBasicMaterial({
-  map:texture,transparent:true,opacity:.50,depthWrite:false,
-  polygonOffset:true,polygonOffsetFactor:-1,side:THREE.DoubleSide
- });
- const geometry=new THREE.PlaneGeometry(1,1);
- geometry.rotateX(-Math.PI/2);
- const r=rnd(seed^0x2023cb47),dummy=new THREE.Object3D();
- const tracks=new THREE.InstancedMesh(geometry,material,5000);
- let count=0;
- for(const [a,b] of terrain.corridors){
-  if(r()>.7)continue;
-  const dx=b.x-a.x,dz=b.y-a.y,d=Math.hypot(dx,dz),steps=Math.floor(d/36);
-  const heading=Math.atan2(dx,dz);
-  for(let i=0;i<steps;i++){
-   if(i%9===0||r()>.72||count>=4998)continue;
-   const t=(i+.5)/steps,x=a.x+dx*t,z=a.y+dz*t;
-   const index=world.index({x,y:z});
-   if(index<0||world.blocked[index])continue;
-   for(const offset of [-14,14]){
-    const px=x+offset*Math.cos(heading),pz=z-offset*Math.sin(heading);
-    dummy.position.set(px-half,heightAt(px,pz)+.46,pz-half);
-    dummy.scale.set(4+r()*3,1,16+r()*7);
-    dummy.rotation.set(0,heading,0);dummy.updateMatrix();
-    tracks.setMatrixAt(count++,dummy.matrix);
-   }
-  }
- }
- tracks.count=count;
- tracks.instanceMatrix.needsUpdate=true;
- tracks.frustumCulled=false;
- scene.add(tracks);
-}
+// No decorative corridor tracks between Bastions: the corridors remain
+// authoritative for map generation and pathfinding, but their old painted
+// parallel tyre marks are intentionally absent from the desert.
+
 function marker(position,color,radius=37){
  const ring=new THREE.Mesh(new THREE.TorusGeometry(radius,2.3,6,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.86}));
  ring.rotation.x=-Math.PI/2;ring.position.copy(position);ring.position.y+=2.1;
@@ -693,7 +684,8 @@ function addBuriedRuinRoad(anchor,ruin,index){
  const c=Math.cos(ruin.rotation),sn=Math.sin(ruin.rotation);
  const baseHeight=heightAt(ruin.x,ruin.y);
  const offset=(x,z)=>heightAt(ruin.x+c*x+sn*z,ruin.y-sn*x+c*z)-baseHeight;
- for(let i=0;i<4;i++){
+ const segments=ruin.height<30?0:2;
+ for(let i=0;i<segments;i++){
   const x=ruin.width*(.54+i*.18);
   const z=ruin.depth*(.29+(random()-.5)*.18);
   const w=ruin.width*(.13+random()*.04);
@@ -768,37 +760,81 @@ function dressRuinDamage(anchor,ruin,index){
  return group;
 }
 async function addRuins(){
- // Every ruin instance is a real glTF triangle mesh with PBR materials.
+ // Large landmarks retain their imported PBR glTF architecture; small
+ // modern ruins are intentionally roofless fragments rather than scaled
+ // complete houses. Old map versions keep their original glTF structures.
  // Wait for the authored rock texture so instances are textured on first paint.
  await ruinStrataLoad;
  const data=await Promise.all([
   tryModel('/src/assets/reborn/canyon-3d/ruin-house.gltf'),
   tryModel('/src/assets/reborn/canyon-3d/ruin-depot.gltf')]);
+ const rareHouse=chooseRareScenicHouseIndex(terrain.ruins,seed,{
+  modern:biome==='desert'&&spacious&&terrain.battlefield?.generatorVersion===2
+ });
  for(const [i,ruin] of terrain.ruins.entries()){
-  const source=data[ruin.variant===1?1:0].scene.clone(true);
-  weatherRuinMeshes(source);
-  normalized(source,ruin.width*.98);
   const anchor=new THREE.Group();
   anchor.position.copy(pos(ruin.x,ruin.y));
   anchor.rotation.y=ruin.rotation;
-  anchor.add(source);
-  if(spacious){dressRuinDamage(anchor,ruin,i);addBuriedRuinRoad(anchor,ruin,i);}
+  const micro=spacious&&isSmallRuin(ruin);
+  if(i===rareHouse){
+   // Replace one existing large-ruin site with a rare abandoned whitewashed
+   // house. Same collision/seed/save, never an extra map obstacle.
+   anchor.add(createScenicDesertHouse(ruin,seed,i));
+  }else if(micro){
+   // Only 2–3 broken walls, 2–4 bits of debris, NO roof/whole building.
+   // The smaller World obstruction footprint comes from canyon-front.ts.
+   anchor.add(makeSmallRuinFragments(ruin,seed,i,{
+    texture:ruinStrata??ruinGrit,lowQuality:query.get('lite')==='1'
+   }));
+  }else{
+   const source=data[ruin.variant===1?1:0].scene.clone(true);
+   weatherRuinMeshes(source);
+   normalized(source,ruin.width*.98);
+   anchor.add(source);
+   if(spacious){dressRuinDamage(anchor,ruin,i);addBuriedRuinRoad(anchor,ruin,i);}
+  }
   scene.add(anchor);ruinMeshes.push(anchor);
  }
  return ruinMeshes.length;
 }
-$('simulation').onclick=event=>{
- running=!running;
- // Native keyboard activation of a focused button emits detail=0. A
- // pointer click carries detail>=1. This also handles Playwright/keyboard
- // focus without relying on the order of button and window key handlers.
- if(!running)pauseSource=pauseFromKeyboard||event?.detail===0?'Leertaste':'Pause-Schaltfläche';
- pauseFromKeyboard=false;
+// One explicit, idempotent state setter for the toolbar and tactical menu.
+ // Calling .click() to drive pause used to race the browser's native Space
+ // activation and could leave the menu closed while the sim stayed paused.
+function setSimulationRunning(shouldRun,source='Pause-Schaltfläche'){
+ const next=Boolean(shouldRun);
+ if(next===running){
+  updateSimulationBanner();
+  return running;
+ }
+ running=next;
+ accumulator=0; // never replay old frame debt when the game resumes
+ if(running){
+  game.paused=false;
+  pauseSource='';
+ }else{
+  pauseSource=source;
+  sound.pause();
+ }
  $('simulation').textContent=running?'Simulation pausieren':'Simulation starten';
- if(!running)sound.pause();
  $('simulation').setAttribute('aria-pressed',String(running));
  updateSimulationBanner();
+ return running;
+}
+$('simulation').onclick=event=>{
+ setSimulationRunning(!running,event?.detail===0?'Tastatur':'Pause-Schaltfläche');
 };
+// Preserve the prior run/pause state when an in-game confirmation opens.
+// Closing the confirmation resumes only when the match was running before.
+let confirmationWasRunning=false;
+window.addEventListener('sandforge-confirm-state',event=>{
+ if(event.detail?.open){
+  confirmationWasRunning=running;
+  setSimulationRunning(false,'Bestätigung');
+ }else{
+  if(confirmationWasRunning)setSimulationRunning(true,'Bestätigung');
+  confirmationWasRunning=false;
+ }
+});
 $('rotate-left').onclick=()=>spin(-Math.PI/4);
 $('rotate-right').onclick=()=>spin(Math.PI/4);
 function spin(angle){
@@ -884,7 +920,12 @@ addEventListener('keydown',event=>{
  }
  if(event.code==='KeyQ'){event.preventDefault();spin(-Math.PI/8);}
  if(event.code==='KeyE'){event.preventDefault();spin(Math.PI/8);}
- if(event.code==='Space'){event.preventDefault();pauseFromKeyboard=true;$('simulation').click();}
+ // The title-menu owns Space while installed. Never run a second toggle
+ // in the gameplay listener (including when a toolbar button has focus).
+ if(event.code==='Space'&&!window.Sandforge3DMenu){
+  event.preventDefault();
+  setSimulationRunning(!running,'Leertaste');
+ }
 });
 addEventListener('keyup',event=>panKeys.delete(event.code));
 addEventListener('blur',()=>panKeys.clear());
@@ -969,7 +1010,7 @@ new ResizeObserver(resize).observe(stage);resize();
 const chunks=buildTerrain();
 boundaryCliffs=addBoundaryCliffs({scene,size,heightAt,seed,lowQuality:query.get('lite')==='1',softRim:spacious,hardVoid:spacious});
 const stones=instancedStone();
-if(biome==='desert')sandRoads();
+// Desert corridors are navigation-only; no permanent tracks leading to Bastions.
 const biomeVegetation=addBiomeVegetation({THREE,scene,world,terrain,game,heightAt,seed,biome,
  lowQuality:query.get('lite')==='1'});
 // Small ground-level stones accent the winding dry wash from the reference.
@@ -1091,7 +1132,7 @@ if(oasisFocus){
  camera.position.add(target.clone().sub(controls.target));controls.target.copy(target);
  camera.zoom=1.55;camera.updateProjectionMatrix();controls.update();
 }
-window.addEventListener('pagehide',event=>{if(!event.persisted){oases.dispose();battlefield.productionGates.dispose();}});
+window.addEventListener('pagehide',event=>{if(!event.persisted){oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();}});
 let desertArtReady=false;
 const effects=new SandforgeCombatEffects({scene,camera,game,world,heightAt,pos,battlefield,biome,lowQuality:query.get('lite')==='1',vehicleDust:query.get('dust')!=='off'});
 // Renderer-only weather preview: weather rules in Simulation are unchanged.
@@ -1289,6 +1330,7 @@ window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,ba
  get desertArtReady(){return desertArtReady;},
  get loaded(){return status.dataset.ready==='true';},
  get simulationRunning(){return running;},
+ setSimulationRunning,
  sampleGround:(x,z)=>heightAt(x,z)};
 async function main(){
  try{
@@ -1301,7 +1343,7 @@ async function main(){
   // The 3D battlefield is live immediately; heavyweight PBR assets stream in.
   battlefield.sync(true);
   status.dataset.ready='true';
-  setStatus((terrain.battlefield?TERRAIN_LABELS[terrain.battlefield.profile]+' · Seed '+seed+' · ':'')+'WebGL2 aktiv · '+chunks+' Terrain-Chunks · '+stones+' Felsen · '+ruins+' glTF-Ruinen · 3D-Spielmechanik aktiv.');
+  setStatus((terrain.battlefield?TERRAIN_LABELS[terrain.battlefield.profile]+' · Seed '+seed+' · ':'')+'WebGL2 aktiv · '+chunks+' Terrain-Chunks · '+stones+' Felsen · '+ruins+' 3D-Ruinen · 3D-Spielmechanik aktiv.');
  }catch(error){
   console.error(error);errorNode.textContent='3D-Assets konnten nicht geladen werden: '+String(error);
   status.dataset.ready='false';setStatus('WebGL-Szene verfügbar; Asset-Ladevorgang fehlgeschlagen');

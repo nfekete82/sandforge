@@ -52,15 +52,20 @@
   a.setEngineSoundsEnabled($('sf3d-engine-sounds').checked);
  }
  const running=()=>Boolean(window.__sandforgeWebGL?.simulationRunning);
- const changePause=(shouldRun)=>{
-  if(running()!==shouldRun)$('simulation')?.click();
+ const changePause=(shouldRun,source='Taktische Pause')=>{
+  // The actual simulation state is authoritative. Clicking a focused button
+  // programmatically is not safe: the browser may fire its own Space click.
+  const runtime=window.__sandforgeWebGL;
+  if(typeof runtime?.setSimulationRunning==='function')
+   runtime.setSimulationRunning(shouldRun,source);
+  else if(running()!==shouldRun)$('simulation')?.click(); // pre-update compatibility
  };
  // Typed only in the tactical-pause modal. The gameplay listener in
  // webgl-preview.js uses the exact same Simulation.enableTestMode() entrypoint.
  // Handle the modal separately because it captures keyboard focus.
  const pauseCheat='iddqd';
  let pauseCheatProgress=0;
- let returnToGame=false;
+ let suppressSpaceRelease=false;
  const saved=readSave();
  const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert'}={})=>{
   const params=new URLSearchParams({bastions:String(count),seed:String(seed>>>0),play:'1'});
@@ -134,16 +139,20 @@
  function openPause(){
   if(!window.__sandforgeWebGL?.loaded)return;
   if(pauseDialog.open)return;
-  returnToGame=running();
   pauseCheatProgress=0;
   $('sf3d-pause-status').textContent='';
-  if(returnToGame)changePause(false);
+  // Even when a toolbar/old shortcut already paused the simulation,
+  // opening this dialog must never preserve a stale paused state on resume.
+  changePause(false,'Taktische Pause');
   pauseDialog.showModal();
  }
  function resumeGame(){
+  if(!pauseDialog.open)return;
   pauseCheatProgress=0;
   pauseDialog.close();
-  if(returnToGame)changePause(true);
+  // "Spiel fortsetzen" is an explicit command, not a conditional toggle.
+  // Always leave the game RUNNING regardless of its pre-dialog state.
+  changePause(true,'Taktische Pause');
  }
  function goMain(){
   location.assign(gameRoute());
@@ -226,6 +235,8 @@
  pauseDialog.addEventListener('cancel',e=>{e.preventDefault();resumeGame();});
  pauseDialog.addEventListener('close',()=>{pauseCheatProgress=0;});
  document.addEventListener('keydown',e=>{
+  // HTML confirmation is the active modal: never trigger tactical pause/ESC.
+  if(document.getElementById('sf-confirm-dialog')?.open)return;
   if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||
    (e.target instanceof Element&&e.target.matches('input,select,textarea,[contenteditable]')))return;
   if(pauseDialog.open&&!menu.open&&!newDialog.open&&!optionsDialog.open){
@@ -254,8 +265,9 @@
   if(e.code==='Space'){
    if(menu.open||newDialog.open||optionsDialog.open)return;
    if(!window.__sandforgeWebGL?.loaded)return;
-   // A modal dialog is the actual classic-style pause screen. The key must
-   // not also toggle the bare simulation button in webgl-preview.js.
+   // Own this keystroke end to end, including its native button keyup.
+   // One keypress means ONE modal transition and ONE simulation transition.
+   suppressSpaceRelease=true;
    e.preventDefault();e.stopImmediatePropagation();
    if(pauseDialog.open)resumeGame();
    else openPause();
@@ -266,6 +278,16 @@
   if(field&&(field.attackMode||field.buildKind))return;
   if(window.__sandforgeWebGL?.loaded){e.preventDefault();e.stopImmediatePropagation();openPause();}
  },true);
+ // Space activates the currently focused <button> on keyup in browsers.
+ // If the modal closes on keydown, that late native click could hit the
+ // toolbar and pause again. Consume ONLY the release of our handled key.
+ document.addEventListener('keyup',e=>{
+  if(e.code!=='Space'||!suppressSpaceRelease)return;
+  suppressSpaceRelease=false;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+ },true);
+ window.addEventListener('blur',()=>{suppressSpaceRelease=false;});
  window.Sandforge3DMenu={openPause,goMain,continueSave,play,readSave,readOptions,gameRoute};
  const options=readOptions();
  $('sf3d-continue').hidden=!Boolean(saved&&modes[saved.mapVersion]);

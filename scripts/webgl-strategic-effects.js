@@ -40,10 +40,12 @@ export class SandforgeStrategicEffects{
    upperHull:new THREE.CylinderGeometry(12,13,69,16),
    rocketNose:new THREE.ConeGeometry(12,30,16),
    sharedFlame:new THREE.ConeGeometry(10,34,12),
-   olive:new THREE.MeshStandardMaterial({color:'#7b816a',metalness:.34,roughness:.65}),
-   sand:new THREE.MeshStandardMaterial({color:'#beb49a',metalness:.29,roughness:.68}),
-   graphite:new THREE.MeshStandardMaterial({color:'#343c3b',metalness:.49,roughness:.48}),
-   accent:new THREE.MeshStandardMaterial({color:'#c5a15e',metalness:.22,roughness:.62})
+   // The launched missile uses the same brushed silver/gunmetal PBR palette
+   // as the model visible inside the silo before firing.
+   olive:new THREE.MeshStandardMaterial({color:'#a8b3b2',metalness:.82,roughness:.38}),
+   sand:new THREE.MeshStandardMaterial({color:'#d1d6cf',metalness:.77,roughness:.42}),
+   graphite:new THREE.MeshStandardMaterial({color:'#829198',metalness:.81,roughness:.32}),
+   accent:new THREE.MeshStandardMaterial({color:'#a7a997',metalness:.73,roughness:.44})
   };
   this.banner=document.createElement('div');
   this.banner.id='sf3d-strategic-warning';

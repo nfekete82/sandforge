@@ -67,11 +67,11 @@ test('HUD applies the authored-HQ-only path, real original texture atlas, and in
  const portrait=readFileSync('scripts/webgl-portraits.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
  assert.match(portrait,/kind==='headquarters'&&hasAuthoredHeadquartersPBR\(model\)/);
- assert.match(portrait,/if\(authoredHQ\)\{\s*\/\/ Match the actual in-game HQ/);
+ assert.match(portrait,/if\(authoredHQ\)\{\s*(?:\/\/[^\n]*\n\s*)*prepareAuthoredHeadquartersPortrait\(model\)/);
  assert.match(portrait,/prepareAuthoredHeadquartersPortrait\(model\)/);
- assert.match(portrait,/return renderModelPortrait\(model,renderer,\{headquartersCard:authoredHQ\}\)/);
+ assert.match(portrait,/return renderModelPortrait\(model,renderer,\{buildingCard:true,headquartersCard:authoredHQ\}\)/);
  assert.match(portrait,/headquartersCard\?3\.1/);
- assert.match(portrait,/new THREE\.AmbientLight\('#fff2dc',\.85\)/);
+ assert.match(portrait,/new THREE\.AmbientLight\('#fff2dc',headquartersCard\?\.85:\.56\)/);
  assert.match(build,/cpSync\('scripts\/webgl-hq-portrait\.js','dist\/webgl-hq-portrait\.js'\)/);
  assert.ok(portrait.includes("if(kind==='barracks')finishBarracksDesertPalette(model)"),
   'Kaserne keeps previous portrait pipeline');

@@ -64,20 +64,25 @@ export class SandforgeProductionGates {
   const door=entry.detail.getObjectByName('FactoryRollupDoor');
   if(!door)return null;
   const root=door.parent,hall=new THREE.Group();hall.name='FactoryInterior';root.add(hall);
+  const finalFactory=Boolean(entry.detail.getObjectByName('SF_Factory_PBR_roof'));
+  const doorLiftHeight=finalFactory?1.70:1.48;
+  const garageWidth=finalFactory?2.20:1.52;
+  const centerX=finalFactory?.198:.18;
   const piece=(name,size,at,material=hallMaterial)=>{
    const mesh=new THREE.Mesh(box,material);mesh.name=name;mesh.scale.set(...size);mesh.position.set(...at);
    mesh.castShadow=true;mesh.receiveShadow=true;hall.add(mesh);return mesh;
   };
-  piece('HallFloor',[1.52,.03,2.50],[.18,.245,.30],floorMaterial);
-  piece('HallBack',[1.52,1.21,.025],[.18,.855,-.94]);
-  for(const x of [-.58,.94])piece('HallSide',[.025,1.21,2.52],[x,.855,.32]);
-  piece('HallCeiling',[1.52,.025,2.52],[.18,1.46,.32]);
-  const ramp=piece('ThresholdRamp',[1.52,.035,1.35],[.18,.14,2.16],floorMaterial);ramp.rotation.x=.18;root.add(ramp);
-  const dust=piece('RolloutDust',[1.2,.025,.55],[.18,.035,2.3],dustMaterial);dust.castShadow=false;dust.receiveShadow=false;
+  piece('HallFloor',[garageWidth,.03,2.50],[centerX,.245,.30],floorMaterial);
+  piece('HallBack',[garageWidth,finalFactory?1.45:1.21,.025],[centerX,finalFactory?.975:.855,-.94]);
+  for(const x of [centerX-garageWidth/2,centerX+garageWidth/2])
+   piece('HallSide',[.025,finalFactory?1.45:1.21,2.52],[x,finalFactory?.975:.855,.32]);
+  piece('HallCeiling',[garageWidth,.025,2.52],[centerX,finalFactory?1.71:1.46,.32]);
+  const ramp=piece('ThresholdRamp',[garageWidth,.035,1.35],[centerX,.14,2.16],floorMaterial);ramp.rotation.x=.18;root.add(ramp);
+  const dust=piece('RolloutDust',[garageWidth*.80,.025,.55],[centerX,.035,2.3],dustMaterial);dust.castShadow=false;dust.receiveShadow=false;
   const lampMaterial=new THREE.MeshStandardMaterial({color:'#6a2d0c',emissive:'#ff6a13',emissiveIntensity:0});
-  const lamp=new THREE.Mesh(bulbGeometry,lampMaterial);lamp.position.set(.18,1.53,1.67);root.add(lamp);lamp.visible=false;
+  const lamp=new THREE.Mesh(bulbGeometry,lampMaterial);lamp.position.set(centerX,finalFactory?1.78:1.53,1.67);root.add(lamp);lamp.visible=false;
   hall.visible=false;
-  entry.gate={kind:'factory',root,door,hall,lamp,dust,ramp};return entry.gate;
+  entry.gate={kind:'factory',root,door,hall,lamp,dust,ramp,doorLiftHeight};return entry.gate;
  }
  reset(entry){
   const gate=entry?.gate;if(!gate)return;
@@ -99,6 +104,12 @@ export class SandforgeProductionGates {
    if(this.seen.has(event))continue;
    const base=bases.get(event.baseId),entry=bf.bases.get(event.baseId),unit=entities.get(event.unitId);
    const actor=bf.units.get(event.unitId);
+   // Airborne departures have their OWN staged flightline presenter.
+   // Never cancel its production hold or reveal the parked aircraft here.
+   if(base?.kind==='airfield'&&['bomber','scout'].includes(event.kind)){
+    this.seen.add(event);
+    continue;
+   }
    const age=time-event.at;
    // A factory GLB can finish streaming after the real unit was produced.
    // Briefly hold that single authoritative unit while its actual shutter
@@ -156,27 +167,34 @@ export class SandforgeProductionGates {
    const directFoot=infantry&&turn<.72&&targetRadius>=frontRadius-8;
    const doorLength=start.distanceTo(exit);
    const exteriorLength=exit.distanceTo(target);
-   const length=directFoot?doorLength+exteriorLength:
+   // Ordinary garage exits should be a continuous forward drive, not an
+   // easing turn around the whole factory courtyard with two stops.
+   const directRollout=!infantry&&turn<.78&&targetRadius>=frontRadius-8;
+   const length=directFoot||directRollout?doorLength+exteriorLength:
     doorLength+turn*radius+Math.abs(radius-targetRadius);
    // Rear-facing exits need more travel time around the footprint, rather
    // than accelerating a tank to Humvee speed to meet a fixed deadline.
    const footSpeed=unit.kind==='heavy'?78:unit.kind==='rocket'?92:105;
+   const vehicleSpeed=unit.kind==='tank'?74:unit.kind==='artillery'?80:98;
    const duration=directFoot?Math.max(.30,length/footSpeed):
-    Math.max(infantry?2.8:GATE_TIMING.drive,length/(infantry?footSpeed:95));
+    directRollout?Math.max(2.0,length/vehicleSpeed):
+    Math.max(infantry?2.8:GATE_TIMING.drive,length/(infantry?footSpeed:vehicleSpeed));
    // Freeze only the real simulation actor's departure, NOT production or
    // its paid rally order. At the exact portal hand-off it resumes ordinary
    // 20 Hz movement from the same lawful spawn with no visual teleport.
    const visualAt=age>.15&&game.stageWebGLProduction===true?game.time:event.at;
    game.extendProductionDeparture?.(unit.id,visualAt+GATE_TIMING.warning+GATE_TIMING.opening+duration+.05);
-   this.active.set(base.id,{event,visualAt,duration,directFoot,doorLength,
-    exteriorLength,walkStart:start.clone(),walkExit:exit.clone(),
+   this.active.set(base.id,{event,visualAt,duration,directFoot,directRollout,doorLength,
+    exteriorLength,target:target.clone(),walkStart:start.clone(),walkExit:exit.clone(),
     hasRally:unit.orders?.some(o=>o.kind==='move'||o.kind==='attackMove')===true,
     orders:orderKey(unit),hp:unit.hp,baseHp:base.hp});
   }
   for(const [id,state] of this.active){
    const {event}=state,base=bases.get(id),entry=bf.bases.get(id),u=entities.get(event.unitId),actor=bf.units.get(event.unitId);
    const age=Math.max(0,time-(state.visualAt??event.at)),pose=productionGatePose(age,state.duration);
-   if(!base||base.hp<=0||!u||u.hp<=0||!actor||!entry?.node.visible||!actor.node.visible||
+   // The actor is intentionally invisible before the shutter opens; hiding
+   // it must NOT abort its own departure on the following render frame.
+   if(!base||base.hp<=0||!u||u.hp<=0||!actor||!entry?.node.visible||
       u.hp<state.hp||base.hp<state.baseHp||u.fire>0||u.combatTarget||orderKey(u)!==state.orders||pose.done){
     this.reset(entry);if(actor)actor.productionMotion=null;
     game.cancelProductionDeparture?.(event.unitId);
@@ -189,7 +207,7 @@ export class SandforgeProductionGates {
    }else if(gate.kind==='headquarters')setHeadquartersDoorOpen(gate.portal,pose.open);
    else{
     gate.door.scale.y=1-pose.open*.96;
-    gate.door.position.y=1.48*pose.open*.96;
+    gate.door.position.y=(gate.doorLiftHeight??1.48)*pose.open*.96;
    }
    gate.hall.visible=age>=GATE_TIMING.warning&&pose.open>.01;
    gate.lamp.visible=true;
@@ -204,7 +222,12 @@ export class SandforgeProductionGates {
     // Finish at the exact Simulation spawn and release the paid rally
     // immediately, while the doors close independently in the background.
     // Previously one extra stationary second caused an obvious stop/start.
-    if((gate.kind==='barracks'||gate.kind==='headquarters')&&!state.released){
+    if(!state.released){
+     // The last cosmetic frame lands exactly at the already paid exterior
+     // spawn; the next Simulation tick can continue to the rally without
+     // any pop-back or an extra stationary second.
+     actor.node.position.copy(state.target);
+     actor.node.visible=true;
      game.cancelProductionDeparture?.(event.unitId);
      state.released=true;
      state.releaseTime=game.time;
@@ -229,11 +252,14 @@ export class SandforgeProductionGates {
     new THREE.Vector3(.18,0,2.9);
    const root=gate.root;
    root.localToWorld(outside);
-   const target=actor.node.position.clone();
+   // Stable AUTHORITATIVE release point. Reading actor.node.position here
+   // used our *previous animated frame* as the next target and produced the
+   // observed jerking/fast-then-slow feedback loop.
+   const target=state.target.clone();
    // Infantry should leave at a believable running pace, not spend 1.65s
    // taking two short steps and abruptly accelerate after the threshold.
    // Vehicle rollouts keep their original smooth clearance.
-   const clearFraction=state.directFoot?
+   const clearFraction=state.directFoot||state.directRollout?
     clamp(state.doorLength/Math.max(.001,state.doorLength+state.exteriorLength)):
     Math.min(.95,(infantry ? 0.50 : GATE_TIMING.drive*.62)/state.duration);
    let p,yaw;
@@ -244,18 +270,22 @@ export class SandforgeProductionGates {
      // the previous acceleration/deceleration at the portal.
      p=state.walkStart.clone().lerp(state.walkExit,clamp(fraction/clearFraction));
     }else{
-     const t=infantry?clamp(fraction/clearFraction):smooth(fraction/clearFraction);
+     const t=clamp(fraction/clearFraction);
      const z=headquarters?4.12+2.23*t:infantry?(pbrBarracks?3.23+1.97*t:.9+1.20*t):-.03+2.93*t;
      const y=headquarters?(.61-.47*t):infantry?(pbrBarracks?(0.58-0.03*t):(0.275*(1-t))):
       (z<=1.5?0.265:Math.max(0,0.265*(2.9-z)/1.4));
      p=root.localToWorld(new THREE.Vector3(headquarters?0:infantry?(pbrBarracks?0:-.18):.18,y,z));
     }
     yaw=facing;
-   }else if(state.directFoot){
+   }else if(state.directFoot||state.directRollout){
     const t=clamp((fraction-clearFraction)/Math.max(.00001,1-clearFraction));
     p=state.walkExit.clone().lerp(target,t);
     const tangent=target.clone().sub(state.walkExit);tangent.y=0;
-    yaw=tangent.lengthSq()>.0001?Math.atan2(tangent.x,tangent.z):facing;
+    const goalYaw=tangent.lengthSq()>.0001?Math.atan2(tangent.x,tangent.z):facing;
+    // Let vehicle steering turn smoothly OUTSIDE the entrance, without
+    // reversing or snapping as soon as its hull clears the shutter.
+    yaw=facing+Math.atan2(Math.sin(goalYaw-facing),
+     Math.cos(goalYaw-facing))*(state.directRollout?smooth(t/.25):1);
     if(state.hasRally){
      const heading=Math.PI/2-(u.hullAngle??u.angle);
      const blend=smooth((fraction-.72)/.28);
@@ -274,7 +304,7 @@ export class SandforgeProductionGates {
     const endRadius=Math.hypot(target.x-center.x,target.z-center.z);
     const radius=Math.max(startRadius,headquarters?145:infantry?90:160);
     const path=q=>{
-     const angle=startAngle+turn*smooth(q/.76);
+     const angle=startAngle+turn*clamp(q/.76);
      const r=q<.76?startRadius+(radius-startRadius)*smooth(q/.22):radius+(endRadius-radius)*smooth((q-.76)/.24);
      return new THREE.Vector3(center.x+Math.sin(angle)*r,target.y,center.z+Math.cos(angle)*r);
     };
@@ -317,8 +347,10 @@ export class SandforgeProductionGates {
    // Gate state does not imply physical wheel rotation.
    const actuallyRolling=infantry?moving&&speed>.25:rolloutWheelsShouldRoll(moving,speed);
    actor.productionMotion={moving:actuallyRolling,hideHealth:fraction<clearFraction*.64,driveSpeed:speed,walkDistance:distance,angle:Math.PI/2-yaw,hullAngle:Math.PI/2-yaw};
-   if(infantry&&state.directFoot)state.lastMotion=actor.productionMotion;
-   if(age<GATE_TIMING.warning)actor.node.visible=false; // hidden by the closed shutter
+   // Keep the rolling wheels/track clip for the first 0.12 s of the
+   // authoritative rally transition, preventing an idle-frame flicker.
+   if(state.hasRally)state.lastMotion=actor.productionMotion;
+   actor.node.visible=age>=GATE_TIMING.warning; // hidden only during warning
   }
  }
  detach(entry){

@@ -62,13 +62,13 @@ test('real desert scene: sparse rocks and one rich 3-texture PBR sand material',
  expect(result.image).toBe(512);
  expect(result.normal).toBe(true);
  expect(result.roughness).toBe(true);
- expect(result.mask).toBe(256);
- expect(result.silt).toBe(256);
- expect(result.grit).toBe(256);
- expect(result.materialRevision).toContain('v2');
+ expect(result.mask).toBe(512);
+ expect(result.silt).toBe(512);
+ expect(result.grit).toBe(512);
+ expect(result.materialRevision).toContain('v5');
  expect(result.injection).toBe(true);
  expect(result.sharedUniforms).toBe(true);
- expect(result.ripplesTileMetres).toBe(900);
+ expect(result.ripplesTileMetres).toBe(540);
  expect(result.looseCount).toBeLessThanOrEqual(250);
  expect(result.washCount).toBeLessThanOrEqual(60);
  expect(result.looseCount).toBeGreaterThan(0);

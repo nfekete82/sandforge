@@ -5,6 +5,32 @@ export type AirfieldBay=0|1;
 export type AirfieldPhase='approach'|'landing'|'taxi'|'repair'|'ready'|'takeoff';
 export interface AirfieldPoint {x:number;y:number}
 export interface AirfieldSite extends AirfieldPoint {facing?:0|1|2|3}
+
+/** Flightline rendering uses a 0.90×0.82 compact yard displaced by X=95.
+ * The hangar's baked facade is centred at local (-151,-77), not at the
+ * original building anchor; a single centre circle lets soldiers cut across
+ * the roof and tower. These few bounded circles match only SOLID hangar and
+ * fuel/tower geometry; the open runway/apron remains walkable for infantry.
+ * The same cardinals as airfieldPoint rotate every real collision point.
+ */
+export function airfieldGroundStructureColliders(site:AirfieldSite,vehicle=false):
+ {x:number;y:number;radius:number}[]{
+ const yaw=[0,Math.PI,Math.PI/2,Math.PI*1.5][site.facing??0];
+ const cs=Math.cos(yaw),sn=Math.sin(yaw);
+ const rotate=(x:number,z:number,radius:number)=>{
+  const localX=AIRFIELD_COMPACT_OFFSET_X+x*AIRFIELD_COMPACT_X;
+  const localZ=z*AIRFIELD_COMPACT_Z;
+  return {x:site.x+localX*cs+localZ*sn,
+   y:site.y-localX*sn+localZ*cs,
+   radius:radius+(vehicle?7:0)};
+ };
+ return [
+  rotate(-151,-127,71), // rear half of long arched hangar
+  rotate(-151,-38,72),  // front facade and roll-up door columns
+  rotate(-250,-89,53), // tower, utility huts and fenced fuel service
+  rotate(-276,75,43)   // barrels, manifolds and field maintenance store
+ ];
+}
 export interface AirfieldService {
   baseId:number;bay:AirfieldBay;phase:AirfieldPhase;elapsed:number;
   /** World-space start of the current landing leg. */

@@ -163,7 +163,9 @@ test('3D HUD, real missile renderer and AI integration are present',()=>{
  const vfx=readFileSync('scripts/webgl-strategic-effects.js','utf8');
  const game=readFileSync('src/reborn/simulation.ts','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
- assert.match(ui,/data-upgrade=/);
+ assert.match(ui,/createSandforgeResearchDeck\(\{/);
+ assert.match(readFileSync('scripts/webgl-research-deck.js','utf8'),/data-sf-tech-start/);
+ assert.doesNotMatch(ui,/data-upgrade=/);
  assert.match(ui,/action==='missile-target'/);
  assert.match(ui,/this\.game\.launchStrategicMissile\(0,p\)/);
  assert.match(ui,/action==='interceptor-rearm'/);

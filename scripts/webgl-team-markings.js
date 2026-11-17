@@ -1,23 +1,24 @@
 import * as THREE from 'three';
+import {FACTION_PAINT,factionRgb8} from './sandforge-faction-palette.js';
 
 /** Strong blue/red unit identification without replacing desert camouflage.
  * One shared procedural emblem texture per team. Render-only; no save changes.
  */
-export const TEAM_MARKING_COLORS=Object.freeze({0:'#198fe0',1:'#e34e43'});
+export const TEAM_MARKING_COLORS=FACTION_PAINT;
 const infantryKinds=new Set(['infantry','medic','engineer','heavy','rocket']);
 const kinds=new Set([...infantryKinds,'tank','rover','artillery','scout','bomber']);
 const materials=new Map();
 const quad=new THREE.PlaneGeometry(1,1);
-const poleGeo=new THREE.CylinderGeometry(1,1,1,7);
-const poleMat=new THREE.MeshBasicMaterial({color:'#7e725f'});
 function mat(owner){
  if(materials.has(owner))return materials.get(owner);
- const n=64,rgba=new Uint8Array(n*n*4),color=new THREE.Color(TEAM_MARKING_COLORS[owner]);
+ const n=64,rgba=new Uint8Array(n*n*4),rgb8=factionRgb8(owner);
  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
   const at=(y*n+x)*4,border=x<3||y<3||x>60||y>60;
   const emblem=Math.abs(x-32)<4&&y>13&&y<49||y>27&&y<34&&Math.abs(x-32)<17;
-  const rgb=border?[.8,.72,.52]:emblem?[.96,.95,.87]:[color.r,color.g,color.b];
-  for(let k=0;k<3;k++)rgba[at+k]=Math.round(rgb[k]*255);
+  // The DataTexture is sRGB. Write sRGB bytes directly, NOT THREE.Color's
+  // linear-light components (which make patches look much darker).
+  const rgb=border?[204,184,133]:emblem?[245,242,222]:rgb8;
+  for(let k=0;k<3;k++)rgba[at+k]=rgb[k];
   rgba[at+3]=255;
  }
  const texture=new THREE.DataTexture(rgba,n,n,THREE.RGBAFormat);
@@ -35,24 +36,107 @@ function patch(group,name,owner,x,y,z,w,h,rx=0,ry=0){
  mesh.raycast=()=>{};mesh.userData={visualOnly:true,teamMarking:true,nonPlayable:true};
  group.add(mesh);
 }
-// All calculations below happen once when the imported model is attached,
-// not inside the frame loop. Geometry bounds are measured in turret-local
-// coordinates, including nested mesh transforms, for both original GLBs
-// and procedural fallbacks.
-function turretLocalBounds(turret){
- if(!turret)return null;
- turret.updateWorldMatrix(true,true);
- const inverse=turret.matrixWorld.clone().invert();
- const bounds=new THREE.Box3(),part=new THREE.Box3(),transform=new THREE.Matrix4();
- turret.traverse(node=>{
-  if(!node.isMesh||!node.geometry||node.userData?.teamMarking)return;
-  if(!node.geometry.boundingBox)node.geometry.computeBoundingBox();
-  if(!node.geometry.boundingBox)return;
-  transform.multiplyMatrices(inverse,node.matrixWorld);
-  part.copy(node.geometry.boundingBox).applyMatrix4(transform);
-  bounds.union(part);
+// Paint identification *inside the PBR armour material*, rather than
+// attaching mast/cloth planes that hover over scaled or rotating tank GLBs.
+// The shader samples each chosen armour mesh's original local geometry and
+// normal. No new geometry, physics target, shadow, or transform offset.
+export const ARMOUR_IDENTIFICATION_REVISION='flush-armour-paint-v2-20261116';
+const nonArmour=/track|roadwheel|sprocket|wheel|gun|barrel|cannon|muzzle|antenna|flag|pole|glass|window|smoke|exhaust/i;
+function armourPaintTarget(root){
+ if(!root)return null;
+ let winner=null,area=-1;
+ root.traverse(mesh=>{
+  if(!mesh.isMesh||!mesh.geometry||mesh.userData?.teamMarking||
+      nonArmour.test(mesh.name)||mesh.isSkinnedMesh)return;
+  if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
+  const b=mesh.geometry.boundingBox;
+  if(!b)return;
+  const size=b.getSize(new THREE.Vector3());
+  const candidate=size.x*size.z;
+  if(candidate>area&&size.x>0&&size.z>0&&size.y>=0){
+   winner=mesh;area=candidate;
+  }
  });
- return bounds.isEmpty()?null:bounds;
+ return winner;
+}
+function paintArmourIdentification(entry,owner,kind){
+ const model=entry.detail??entry.placeholder;
+ if(!model)return 0;
+ const turret=model.getObjectByName('Tank_Turret');
+ const candidate=armourPaintTarget(turret)||armourPaintTarget(model);
+ if(!candidate)return 0;
+ const geom=candidate.geometry;
+ if(!geom.boundingBox)geom.computeBoundingBox();
+ const b=geom.boundingBox;
+ if(!b)return 0;
+ const span=b.getSize(new THREE.Vector3());
+ const x0=b.min.x+span.x*.34,x1=b.min.x+span.x*.47;
+ const z0=b.min.z+span.z*.20,z1=b.min.z+span.z*.72;
+ const minY=b.max.y-Math.max(span.y*.20,.003);
+ // Shader-local constants describe exactly the physical triangles.
+ // With normals pointing outward, the marking only appears on upper
+ // armour; it cannot drift when the turret yaws or the whole actor scales.
+ const region=[x0,x1,z0,z1,minY].map(x=>x.toFixed(6)).join(',');
+ let count=0;
+ const apply=source=>{
+  if(!source?.isMeshStandardMaterial)return source;
+  if(source.userData?.sandforgeArmourPaint===ARMOUR_IDENTIFICATION_REVISION){
+   if(source.userData.sandforgeArmourPaintOwner!==owner){
+    source.userData.sandforgeArmourPaintOwner=owner;
+    source.needsUpdate=true;
+   }
+   return source;
+  }
+  const material=source.clone();
+  material.userData={...source.userData,sandforgeArmourOwnedPaint:true,
+   sandforgeArmourPaint:ARMOUR_IDENTIFICATION_REVISION,
+   sandforgeArmourPaintOwner:owner};
+  const priorCompile=source.onBeforeCompile;
+  const priorKey=source.customProgramCacheKey.bind(source);
+  material.onBeforeCompile=function(shader,renderer){
+   priorCompile?.call(this,shader,renderer);
+   const decl='varying vec3 sfArmourPosition; varying vec3 sfArmourNormal;';
+   shader.vertexShader=shader.vertexShader.replace('#include <common>',
+    '#include <common>\n'+decl);
+   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',
+    '#include <begin_vertex>\nsfArmourPosition=position;sfArmourNormal=normal;');
+   shader.fragmentShader=shader.fragmentShader.replace('#include <common>',
+    '#include <common>\n'+decl);
+   const rgb=new THREE.Color(TEAM_MARKING_COLORS[this.userData.sandforgeArmourPaintOwner]);
+   const paint=[
+    '#include <color_fragment>',
+    'float sfArmourTop=smoothstep(.64,.86,sfArmourNormal.y);',
+    'float sfArmourHeight=smoothstep('+(minY-span.y*.06).toFixed(6)+','+
+      minY.toFixed(6)+',sfArmourPosition.y);',
+    // 2 neat narrow painted stripes with a gap; no emblem panel or
+    // freestanding flags above a tank turret.
+    'float sfLeft=smoothstep('+x0.toFixed(6)+','+
+       (x0+span.x*.015).toFixed(6)+',sfArmourPosition.x);',
+    'float sfRight=1.0-smoothstep('+(x1-span.x*.015).toFixed(6)+','+
+       x1.toFixed(6)+',sfArmourPosition.x);',
+    'float sfNear=smoothstep('+z0.toFixed(6)+','+
+      (z0+span.z*.023).toFixed(6)+',sfArmourPosition.z);',
+    'float sfFar=1.0-smoothstep('+(z1-span.z*.023).toFixed(6)+','+
+      z1.toFixed(6)+',sfArmourPosition.z);',
+    'float sfMiddle=1.0-smoothstep('+(x0+span.x*.050).toFixed(6)+','+
+      (x0+span.x*.064).toFixed(6)+',sfArmourPosition.x);',
+    'float sfGap=smoothstep('+(x0+span.x*.072).toFixed(6)+','+
+      (x0+span.x*.089).toFixed(6)+',sfArmourPosition.x);',
+    'float sfInk=sfArmourTop*sfArmourHeight*sfLeft*sfRight*sfNear*sfFar*max(sfMiddle,sfGap);',
+    'diffuseColor.rgb=mix(diffuseColor.rgb,vec3('+
+      rgb.r.toFixed(6)+','+rgb.g.toFixed(6)+','+rgb.b.toFixed(6)+'),sfInk*.94);'
+   ].join('\n');
+   shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',paint);
+  };
+  material.customProgramCacheKey=()=>priorKey()+'|'+ARMOUR_IDENTIFICATION_REVISION+
+   '|'+region+'|'+material.userData.sandforgeArmourPaintOwner;
+  material.needsUpdate=true;
+  count++;
+  return material;
+ };
+ candidate.material=Array.isArray(candidate.material)?
+  candidate.material.map(apply):apply(candidate.material);
+ return count;
 }
 
 /** The authored Mi-8/17-style transport has real cargo-shell geometry
@@ -149,12 +233,16 @@ export function attachTeamMarkings(entry,owner,kind,footprint=90,height=44){
   paintHelicopterSideStripes(entry.detail,owner);
   return null;
  }
+ if(kind==='tank'||kind==='artillery'){
+  // No freestanding flags, poles, decals, hoverplanes or geometry.
+  // Existing old markers are cleared when a rig/model is swapped.
+  detachTeamMarkings(entry);
+  paintArmourIdentification(entry,owner,kind);
+  return null;
+ }
  const h=Math.max(16,Number.isFinite(height)?height:44);
  const w=Math.max(20,Number.isFinite(footprint)?footprint:90);
- const turret=['tank','artillery'].includes(kind)?
-  (entry.detail??entry.placeholder)?.getObjectByName('Tank_Turret'):null;
- const bounds=turretLocalBounds(turret);
- const parent=turret??entry.node;
+ const parent=entry.node;
  const signature=[owner,kind,Math.round(h),Math.round(w)].join(':');
  if(entry.teamMarkings?.userData.signature===signature&&
     entry.teamMarkings.parent===parent)return entry.teamMarkings;
@@ -162,42 +250,7 @@ export function attachTeamMarkings(entry,owner,kind,footprint=90,height=44){
  const group=new THREE.Group();
  group.name='SandforgeTeamUniformAndFlags';
  group.userData={signature,owner,kind,visualOnly:true,nonPlayable:true,teamMarkings:true};
- if(kind==='tank'||kind==='artillery'){
-  if(turret&&bounds){
-   // Native GLB coordinates, as children of the actual rotating turret.
-   // Both the short mast and cloth follow hull translation, Y-up scaling
-   // and the independently aimed turret. No guessed actor-height offset.
-   const spanX=bounds.max.x-bounds.min.x;
-   const spanZ=bounds.max.z-bounds.min.z;
-   const mastHeight=Math.max(.22,Math.min(8,spanX*.25));
-   const x=bounds.min.x+spanX*.20;
-   const z=bounds.min.z+spanZ*.24;
-   const baseY=bounds.max.y-Math.max(.025,spanX*.035);
-   const pole=new THREE.Mesh(poleGeo,poleMat);
-   pole.name='TeamFlagpole';
-   pole.position.set(x,baseY+mastHeight*.5,z);
-   pole.scale.set(Math.max(.012,spanX*.013),mastHeight,Math.max(.012,spanX*.013));
-   pole.castShadow=false;pole.receiveShadow=false;
-   pole.raycast=()=>{};
-   pole.userData={visualOnly:true,teamMarking:true,nonPlayable:true};
-   group.add(pole);
-   const flagW=Math.max(.25,Math.min(10,spanX*.31));
-   const flagH=mastHeight*.49;
-   patch(group,'TeamArmourFlag',owner,x+flagW*.5,baseY+mastHeight*.75,
-    z,flagW,flagH);
-   // Compact insignia on the moving turret roof; no floating second flag.
-   patch(group,'TeamTurretRoofMark',owner,
-    bounds.min.x+spanX*.64,bounds.max.y+Math.max(.012,spanX*.012),
-    bounds.min.z+spanZ*.60,spanX*.25,Math.max(.16,spanZ*.23),-Math.PI/2);
-  }else{
-   // Defensive fallback when an unrecognised third-party model has no rig:
-   // a small hull badge, never a large flag hanging in mid-air.
-   patch(group,'TeamArmourFlag',owner,-w*.24,h*.54,-w*.20,
-    Math.min(13,w*.16),Math.min(7,h*.15));
-   patch(group,'TeamTurretRoofMark',owner,w*.10,h*.60,0,w*.20,
-    Math.max(7,w*.13),-Math.PI/2);
-  }
- }else if(kind==='rover'){
+ if(kind==='rover'){
   patch(group,'TeamHumveeRoof',owner,0,h*.77,-w*.09,w*.34,w*.24,-Math.PI/2);
   for(const side of [-1,1])
    patch(group,'TeamDoor_'+side,owner,side*w*.30,h*.46,0,w*.21,Math.max(8,h*.24),0,side*Math.PI/2);

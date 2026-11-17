@@ -14,6 +14,13 @@ export function availableEngineers(units,selection,owner=0){
  return units.filter(u=>u.owner===owner&&u.kind==='engineer'&&u.hp>0&&
   !u.carrier&&selection.has(u.id));
 }
+/** After a wall segment the catalogue remains in construction mode so
+ * players can lay a perimeter without reselecting the wall each time.
+ * Shift retains its original multi-build behaviour for every other kind.
+ */
+export function keepPlacementAfterBuild(kind,shift=false){
+ return kind==='wall'||Boolean(shift);
+}
 export function shouldAppendBuild(workers,shift=false){
  return Boolean(shift||workers.some(u=>u.orders?.some(o=>o.kind==='build')));
 }
