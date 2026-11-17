@@ -778,7 +778,7 @@ export function createStrategicBuilding(kind,owner=0){
 export function trimSiloRocketForGhost(root,{cutY=2.2}={}){
  const hull=root?.getObjectByName?.('Silo_RocketBody');
  const geo=hull?.geometry;
- if(!geo?.isCylinderGeometry||!geo.index)return false;
+ if(geo?.type!=='CylinderGeometry'||!geo.index)return false;
  const {height,heightSegments,radialSegments}=geo.parameters;
  const top=hull.position.y+height/2;
  const visibleSegments=Math.max(1,Math.min(heightSegments,
