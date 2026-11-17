@@ -182,7 +182,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   tank:complete('factory')?44+known*4+armor*6
    +(director&&income>=65?24:0)-count('tank')*(director?12:16):0,
   artillery:complete('factory')&&(known||fighters.length>=5)?32+known*14
-   -count('artillery')*(director?20:32):0,
+   -count('artillery')*(director?18:32):0,
   scout:complete('airfield')&&fighters.length>=4?25-count('scout')*35:0,
   bomber:antiArmorBomberQuota>count('bomber')
    ?58+armor*10-count('bomber')*12
