@@ -1,11 +1,6 @@
 name: Sandforge old vs new AI - matched 15 minute battles
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/sandforge-ai-ab-20261117.yml'
-      - 'scripts/ai-theoretical-comparison-20261117.mjs'
-      - 'scripts/benchmark-reborn-ai.mjs'
   workflow_dispatch:
 
 jobs:
