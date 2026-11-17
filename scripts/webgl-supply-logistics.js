@@ -77,14 +77,52 @@ export function createSupplyCacheVisual(){
  root.userData.piles=piles;
  return root;
 }
-/** Show visible stock depletion without modifying authoritative World geometry. */
-export function updateSupplyCacheVisual(root,cache){
+/** The authored warehouse stays on screen after the final crate is taken.
+ * Its eighteen large pallet groups disappear with decreasing stock and
+ * return as the neutral depot automatically refills.
+ */
+export function updateSupplyCacheVisual(root,cache,{time=0,loading=false}={}){
  const fraction=Math.max(0,Math.min(1,cache.remaining/Math.max(1,cache.capacity)));
- root.visible=cache.remaining>0;
- const piles=root.userData.piles??[];
- piles.forEach((m,i)=>{m.visible=i<Math.ceil(fraction*piles.length)});
+ const model=root?.userData?.pbrModel??root;
+ const stocks=Array.from({length:18},(_,i)=>
+  model.getObjectByName?.('SF_DepotStock_'+String(i).padStart(2,'0'))).filter(Boolean);
+ if(stocks.length===18){
+  const count=Math.ceil(stocks.length*fraction);
+  stocks.forEach((stock,i)=>{stock.visible=i<count;});
+  const ramp=model.getObjectByName('SF_DepotLoadingRamp');
+  if(ramp)ramp.rotation.x+=((loading?-.45:0)-ramp.rotation.x)*.12;
+  const beacon=model.getObjectByName('SF_Depot_LoadBeacon');
+  if(beacon)beacon.scale.y=1+.12*Math.sin(time*2.2);
+ }else{
+  const fallback=root?.userData?.fallback??root;
+  const piles=fallback?.userData?.piles??[];
+  piles.forEach((m,i)=>{m.visible=i<Math.ceil(fraction*piles.length)});
+ }
+ root.visible=true;
 }
 export function setSupplyTruckCargo(root,loaded){
- const cargo=root?.userData?.cargoGroup;
- if(cargo)cargo.visible=loaded;
+ const cargo=root?.userData?.cargoGroup??root?.getObjectByName?.('SF_Supply_Cargo');
+ if(cargo)cargo.visible=Boolean(loaded);
+}
+/** Actual 20 Hz physical movement, not free-running mixer clips, drives all
+ * 6 truck wheels. Opening the large rear doors follows loading/unloading
+ * state. Preview GLB clips remain available for Blender/asset inspection.
+ */
+export function animateSupplyTruckRig(root,unit,entry,travel,time,dt,active){
+ if(!root?.getObjectByName)return;
+ if(entry.supplyVisualTime!==time){
+  entry.supplyVisualTime=time;
+  if(active&&Number.isFinite(travel)&&travel>.03&&travel<80){
+   for(const side of ['L','R'])for(let i=0;i<3;i++){
+    const wheel=root.getObjectByName('SF_Supply_Wheel_'+side+'_'+i);
+    if(wheel)wheel.rotation.x-=travel/14.5;
+   }
+  }
+ }
+ const opening=['loading','unloading'].includes(unit.supply?.phase);
+ const step=Math.min(1,Math.max(0,dt)*4.5);
+ for(const [name,sign] of [['SF_Supply_CargoDoor_L',1],['SF_Supply_CargoDoor_R',-1]]){
+  const door=root.getObjectByName(name);
+  if(door)door.rotation.y+=((opening?1.10:0)*sign-door.rotation.y)*step;
+ }
 }
