@@ -19,9 +19,11 @@ test('radio assets: all 47 authored German lines are real, short, non-silent mon
 test('radio catalog: requested movement and attack variants are present; every roster role has an appropriate response',()=>{
  const clips=manifest.clips;
  assert.equal(radioChoices(clips,'move','infantry').length,7);assert.equal(radioChoices(clips,'attack','infantry').length,6);
- for(const kind of ['infantry','heavy','medic','engineer','rover','tank','artillery','scout','bomber'])for(const action of ['move','attack','stop','hold'])assert.ok(radioChoices(clips,action,kind).length>=2,`${kind}/${action}`);
+ for(const kind of ['infantry','heavy','medic','engineer','rover','supply','tank','artillery','scout','bomber'])for(const action of ['move','attack','stop','hold'])assert.ok(radioChoices(clips,action,kind).length>=2,`${kind}/${action}`);
  assert.ok(radioChoices(clips,'heal','medic').every(c=>c.group==='medic'));assert.ok(radioChoices(clips,'repair','engineer').some(c=>c.text==='Reparatur wird durchgeführt!'));assert.deepEqual(radioChoices(clips,'build','engineer').map(c=>c.text).sort(),['Auftrag erhalten!','Wird erledigt!']);
- assert.ok(radioChoices(clips,'move','engineer').every(c=>!['repair','build'].includes(c.group)));assert.ok(radioChoices(clips,'move','tank').every(c=>c.profile==='crew'));assert.ok(radioChoices(clips,'move','heavy').every(c=>!c.text.includes('Besatzung')));
+ assert.ok(radioChoices(clips,'move','engineer').every(c=>!['repair','build'].includes(c.group)));assert.ok(radioChoices(clips,'move','tank').every(c=>c.profile==='crew'));
+ assert.equal(radioProfile('supply'),'crew');
+ assert.ok(radioChoices(clips,'move','supply').every(c=>c.profile==='crew'));assert.ok(radioChoices(clips,'move','heavy').every(c=>!c.text.includes('Besatzung')));
  assert.ok(radioChoices(clips,'move','bomber').every(c=>c.group==='air'));assert.equal(radioChoices(clips,'load','scout').length,2);assert.ok(radioChoices(clips,'unload','scout').some(c=>c.text==='Truppen werden abgesetzt!'));
  assert.notEqual(radioProfile('heavy'),radioProfile('infantry'));assert.notEqual(radioProfile('medic'),radioProfile('infantry'));
 });
@@ -38,7 +40,7 @@ test('radio policy: random variation never immediately repeats a clip or text, i
 
 test('military radio: all roles use intelligible bandpass, restrained speed change and bounded presence',()=>{
  const plans=new Set();
- for(const kind of ['infantry','heavy','medic','engineer','rover','tank','artillery','scout','bomber']){
+ for(const kind of ['infantry','heavy','medic','engineer','rover','supply','tank','artillery','scout','bomber']){
   const p=militaryVoicePreset(kind);
   assert.ok(p.rate>=.95&&p.rate<=1,'no slow or cartoonish voices');
   assert.ok(p.highpass>=180&&p.highpass<=320&&p.lowpass>=3000&&p.lowpass<=3600);

@@ -14,6 +14,9 @@ test('dust follows real movement and never appears for parked, airborne or dista
  assert.equal(vehicleDustEligible({...moving,lite:true,distanceToCamera:1180}),false);
  assert.equal(vehicleDustEligible({...moving,kind:'rover'}),true);
  assert.equal(vehicleDustEligible({...moving,kind:'artillery'}),true);
+ assert.equal(vehicleDustEligible({...moving,kind:'supply'}),true,
+  'supply truck produces tyre dust rather than infantry effects');
+ assert.equal(vehicleDustEligible({...moving,kind:'supply',moving:false}),false);
 });
 test('dust originates behind a moving vehicle, not on its turret',()=>{
  assert.ok(vehicleDustTail({x:800,y:800},10,0,100).x<800);

@@ -1,0 +1,45 @@
+name: Sandforge supply truck vehicle regression QA
+on:
+  push:
+    branches: [fix/sandforge-supply-vehicle-classification-20261117]
+  pull_request:
+    branches: [integration/sandforge-current-20261117]
+    paths:
+      - 'scripts/webgl-ground-tracks.js'
+      - 'scripts/webgl-vehicle-dust.js'
+      - 'scripts/webgl-combat-vfx.js'
+      - 'src/reborn/vehicle-soundscape.ts'
+      - 'src/reborn/unit-radio.ts'
+      - 'scripts/webgl-global-catalog.js'
+      - 'scripts/webgl-battlefield.js'
+      - 'tests/sandforge-supply-truck-vehicle-20261117.test.mjs'
+      - '.github/workflows/sandforge-supply-truck-vehicle-qa-20261117.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  vehicle-classification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile soundscape, radio and simulation
+        run: npx tsc -p tsconfig.json
+      - name: Verify visual JavaScript syntax and vehicle regressions
+        run: |
+          node --check scripts/webgl-battlefield.js
+          node --check scripts/webgl-ground-tracks.js
+          node --check scripts/webgl-combat-vfx.js
+          node --test \
+            tests/sandforge-supply-truck-vehicle-20261117.test.mjs \
+            tests/webgl-vehicle-dust-20261111.test.mjs \
+            tests/reborn-vehicle-aircraft-soundscape.test.mjs \
+            tests/reborn-radio.test.mjs \
+            tests/webgl-global-production-20261111.test.mjs
