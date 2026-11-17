@@ -103,9 +103,11 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    'upper hull stays metallic while deep underground shell fades into darkness');
   assert.equal(nose.position.y,cylinderTop,
    'rounded ogive must connect directly to the cylinder without a floating gap');
-  assert.match(readFileSync('scripts/webgl-strategic-buildings.js','utf8'),
-   /const hullHeight=125,hullTopY=35\.5,hullCenterY=hullTopY-hullHeight\/2;/,
+  const source=readFileSync('scripts/webgl-strategic-buildings.js','utf8');
+  assert.match(source,/const hullHeight=125,hullTopY=35\.5,hullCenterY=hullTopY-hullHeight\/2;/,
    'nose and full-length missile body must share one upper endpoint');
+  assert.equal((source.match(/\bhullTopY\s*=/g)||[]).length,1,
+   'hullTopY must be declared only once (duplicate const breaks all ES module imports)');
   const code=readFileSync('scripts/webgl-strategic-buildings.js','utf8');
   assert.match(code,/for\(let i=0;i<12;i\+\+\)\{\s*const a=i\*Math\.PI\/6;\s*const bar=box\(3\.5,30,2\.8,'steel'/,
    'twelve physical steel strips remain at the upper shaft wall');
