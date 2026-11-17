@@ -29,8 +29,8 @@ test('the global dock has exactly four production tabs; research is building-onl
  assert.ok(hud.includes("panel.dataset.tab='buildings'"));
  assert.ok(hud.includes('data-action="sectors"'));
  assert.match(battlefield,/const available=globalCatalogAvailability\(g\)/);
- assert.match(battlefield,/const aircraftRoster=roster\(\[\['airfield','FLUGFELD'\]\]\)/);
- assert.match(battlefield,/const vehicleRoster=roster\(\[\['factory','FAHRZEUGFABRIK'\]\]\)/);
+ assert.match(battlefield,/const aircraftRoster=roster\(\[\['airfield','FLUGFELD'\]\],'Luftunterstützung'\)/);
+ assert.match(battlefield,/const vehicleRoster=roster\(\[\['factory','FAHRZEUGFABRIK'\]\],'Fahrzeuge'\)/);
  assert.ok(battlefield.includes('if(!ready)return'));
  assert.ok(css.includes('button[hidden]'));
 });
