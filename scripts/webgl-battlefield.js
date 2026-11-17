@@ -637,11 +637,8 @@ export class SandforgeBattlefield {
   // structure keeps the complete missile and the matching deep shaft shader.
   if(kind==='silo'){
    trimSiloRocketForGhost(placeholder);
-   // Completed silos use a view-ray-clipped underground PBR mesh.
-   // The transparent construction ghost needs only its visible missile;
-   // otherwise transparent preview rendering shows buried triangles.
-   const buried=placeholder.getObjectByName('Silo_RocketBodyUnderground');
-   if(buried)buried.visible=false;
+   // Only the above-deck missile is part of the transparent placement
+   // ghost. The completed model no longer creates a second buried PBR mesh.
   }
   // Render the REAL finished 3D shape as a 50%-opaque ghost, so doors,
   // hangar openings and production exits are identifiable before clicking.
