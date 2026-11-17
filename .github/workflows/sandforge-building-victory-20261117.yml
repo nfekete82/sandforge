@@ -1,0 +1,38 @@
+name: Sandforge building-elimination victory QA
+on:
+  push:
+    branches: [fix/sandforge-building-elimination-victory-20261117]
+  pull_request:
+    branches: [integration/sandforge-current-20261117]
+    paths:
+      - 'src/reborn/match-outcome.ts'
+      - 'src/reborn/simulation.ts'
+      - 'scripts/webgl-match-result.js'
+      - 'tests/sandforge-building-victory-20261117.test.mjs'
+      - '.github/workflows/sandforge-building-victory-20261117.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  match-outcome:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile simulation without untracked local PBR GLB dependencies
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-match-result.js
+          cp scripts/webgl-match-result.js dist/webgl-match-result.js
+      - name: HQ-less start, construction, last building victory, load migration and UI
+        run: |
+          node --test \
+            tests/sandforge-building-victory-20261117.test.mjs \
+            tests/webgl-elimination-victory-banner-20261108.test.mjs
