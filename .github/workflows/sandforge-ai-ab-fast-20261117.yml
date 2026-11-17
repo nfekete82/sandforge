@@ -23,12 +23,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for file in src/reborn/army-economy.ts src/reborn/director-production.ts src/reborn/home-defense-doctrine.ts src/reborn/tactical-ai.ts; do
+          for file in src/reborn/army-economy.ts src/reborn/director-production.ts src/reborn/home-defense-doctrine.ts src/reborn/tactical-ai.ts src/reborn/campaign-commander.ts; do
             git show b84d0d7:"$file" > "$file"
           done
           npx tsc -p tsconfig.json
           cp -a dist dist-ai-before
-          git restore --source=HEAD -- src/reborn/army-economy.ts src/reborn/director-production.ts src/reborn/home-defense-doctrine.ts src/reborn/tactical-ai.ts
+          git restore --source=HEAD -- src/reborn/army-economy.ts src/reborn/director-production.ts src/reborn/home-defense-doctrine.ts src/reborn/tactical-ai.ts src/reborn/campaign-commander.ts
           npx tsc -p tsconfig.json
           cmp dist-ai-before/src/reborn/catalog.js dist/src/reborn/catalog.js
           cmp dist-ai-before/src/reborn/simulation.js dist/src/reborn/simulation.js
