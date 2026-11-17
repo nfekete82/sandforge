@@ -48,7 +48,7 @@ import {createBastionCaptureBar,updateBastionCaptureBar} from '/webgl-bastion-ca
 import {snapToPlayableEdge,worldToMinimap} from '/webgl-map-edges.js';
 import {attackBlinkAlpha} from '/src/reborn/attack-alerts.js';
 import {UPGRADES,UPGRADE_KINDS,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
-import {createStrategicBuilding,isStrategicBuilding} from '/webgl-strategic-buildings.js';
+import {createStrategicBuilding,isStrategicBuilding,trimSiloRocketForGhost} from '/webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry,disposeRocketLauncher} from '/webgl-rocket-infantry.js';
 import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building-roof-stripes.js';
 import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette.js';
@@ -632,6 +632,10 @@ export class SandforgeBattlefield {
   const spec=BUILDINGS[kind],group=new THREE.Group();
   group.name='ghost-building-'+kind;group.userData={buildGhost:true,nonPlayable:true};
   const placeholder=this.createFallback(kind,0,'building');
+  // Transparent ghosts draw through the foundation regardless of depth.
+  // Trim ONLY the buried part of the silo's 125-unit cylinder; the finished
+  // structure keeps the complete missile and the matching deep shaft shader.
+  if(kind==='silo')trimSiloRocketForGhost(placeholder);
   // Render the REAL finished 3D shape as a 50%-opaque ghost, so doors,
   // hangar openings and production exits are identifiable before clicking.
   // Construction remains a separate, progressive state after placement.
