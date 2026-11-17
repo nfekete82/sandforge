@@ -9,6 +9,11 @@ const concrete=servicePaint(['#a99c82','#bcb19b','#ccc1a9'],{
 const concreteEdge=new THREE.MeshStandardMaterial({
  color:'#807969',roughness:.94,metalness:.04
 });
+// Keep the foundation opening aligned with the procedural missile silo.
+// Both the live grounding pass and the construction ghost use this cutout.
+export const SILO_FOUNDATION_APERTURE=Object.freeze({
+ x:-17,z:0,radius:61.6
+});
 export const FOUNDATION_PAD_KINDS=Object.freeze([
  'headquarters','barracks','factory','generator',
  'turret','research','silo','interceptor'
@@ -33,6 +38,29 @@ export function foundationPadSpec(kind,width=160){
  };
 }
 
+/** A real ring-shaped foundation for the silo: a plain rectangular slab used
+ * to span its launch aperture, leaving a light tiled 'floor' beneath the
+ * missile despite the shaft geometry being correctly cut out above it.
+ * Subtract the same aperture from BOTH ground-level concrete surfaces.
+ * The surrounding foundation stays one cheap static mesh per material.
+ */
+function siloFoundationGeometry(w,h,d){
+ const boundary=new THREE.Shape();
+ boundary.moveTo(-w/2,-d/2);
+ boundary.lineTo(w/2,-d/2);
+ boundary.lineTo(w/2,d/2);
+ boundary.lineTo(-w/2,d/2);
+ boundary.closePath();
+ const aperture=new THREE.Path();
+ aperture.absarc(SILO_FOUNDATION_APERTURE.x,
+  SILO_FOUNDATION_APERTURE.z,SILO_FOUNDATION_APERTURE.radius,
+  0,Math.PI*2,true);
+ boundary.holes.push(aperture);
+ return new THREE.ExtrudeGeometry(boundary,{
+  depth:h,steps:1,bevelEnabled:false,curveSegments:64
+ });
+}
+
 /** Two thin slabs instead of a chunky foundation block. The shadow-colored
  * bottom lip enters the sand; detailed tile grout remains on the top.
  * Both ghost and finished model use this exact geometry and placement.
@@ -53,8 +81,18 @@ export function createBuildingFoundation(kind,width){
    normalScale:mat.normalScale?.clone(),metalness:mat.metalness,
    roughness:mat.roughness,side:mat.side
   });
-  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),owned);
-  mesh.name=name;mesh.position.set(shape.x,y,shape.z);
+  const isSilo=kind==='silo';
+  const geometry=isSilo?siloFoundationGeometry(w,h,d):
+   new THREE.BoxGeometry(w,h,d);
+  const mesh=new THREE.Mesh(geometry,owned);
+  mesh.name=name;
+  if(isSilo){
+   // Extrude XY footprint rotated to XZ; offset to preserve the old
+   // slab's y +/- h/2 limits exactly (no new collision or foundation height).
+   mesh.rotation.x=-Math.PI/2;
+   mesh.position.set(shape.x,y-h/2,shape.z);
+   mesh.userData.foundationAperture=SILO_FOUNDATION_APERTURE;
+  }else mesh.position.set(shape.x,y,shape.z);
   mesh.material.userData={sandforgeFoundationMaterial:true};
   mesh.userData={visualOnly:true,nonPlayable:true,foundation:true};
   mesh.castShadow=false;mesh.receiveShadow=true;mesh.raycast=()=>{};
