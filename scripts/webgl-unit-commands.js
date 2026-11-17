@@ -25,6 +25,11 @@ export function orderReturnToBase(game,unitIds,owner=0){
  const ids=new Set(unitIds);
  for(const unit of game.units){
   if(!ids.has(unit.id)||unit.owner!==owner||unit.hp<=0||unit.carrier)continue;
+  // Selected logistics truck returns to its real pickup/delivery cycle.
+  if(unit.kind==='supply'){
+   accepted+=game.setSupplyAuto([unit.id],true);
+   continue;
+  }
   // Damaged bombers RETURN INTO the airfield hangar for real landing,
   // taxiing and credit-paid repair, not the generic HQ guard ring.
   // Healthy bombers keep the existing return-to-base behavior unchanged.
