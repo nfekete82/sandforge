@@ -16,7 +16,7 @@ const fresh=(bootstrap=true)=>{
  return g;
 };
 
-test('victory requires every enemy unit AND every enemy building to be destroyed',()=>{
+test('army elimination fallback without building history requires every last unit and building',()=>{
  assert.equal(eliminationOutcome([soldier(0),soldier(1)],[building(1)]),'playing');
  assert.equal(eliminationOutcome([soldier(0),soldier(1)],[]),'playing');
  assert.equal(eliminationOutcome([soldier(0)],[building(1)]),'playing');
@@ -54,21 +54,22 @@ test('the missing enemy engineer/HQ cannot trigger the old instant victory',()=>
  assert.equal(g.status,'victory','last enemy killed is the only winning condition');
 });
 
-test('capturing every enemy HQ sector is not a shortcut to victory',()=>{
+test('capturing every enemy HQ sector alone does not win while its headquarters survives',()=>{
  const g=fresh(false);
  const enemy=g.units.find(u=>u.owner===1);
- assert.ok(enemy);
+ const redHQ=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
+ assert.ok(enemy&&redHQ);
  g.territories.forEach(t=>{t.owner=0;t.progress=0;t.capturing=-1;});
- for(const b of g.bases.filter(b=>b.kind==='headquarters')){
-  b.owner=0;b.hp=Math.max(1,b.hp);
- }
- // Keep one last opposing actor and no opposing structures.
+ // Territory control NEVER deletes or transfers the enemy's surviving HQ.
  g.units=g.units.filter(u=>u.owner===0||u.id===enemy.id);
  g.step(.05);
  assert.equal(g.status,'playing');
  g.units=g.units.filter(u=>u.owner===0);
  g.step(.05);
- assert.equal(g.status,'victory');
+ assert.equal(g.status,'playing','a living enemy HQ still blocks victory without troops');
+ redHQ.hp=0;
+ g.step(.05);
+ assert.equal(g.status,'victory','last building destroyed triggers the win');
 });
 
 test('last enemy building persists victory check after troops are eliminated',()=>{
