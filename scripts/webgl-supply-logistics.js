@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {setCustomSupplyCargo,animateCustomSupplyTruck} from './webgl-supply-custom.js';
 
 /** Lightweight, wholly authored and self-contained Sandforge logistics art.
  * No external GLB, atlas, texture fetch or runtime geometry creation per frame.
@@ -106,7 +107,9 @@ export function updateSupplyCacheVisual(root,cache,{time=0,loading=false}={}){
  }
  root.visible=true;
 }
-export function setSupplyTruckCargo(root,loaded){
+export function setSupplyTruckCargo(root,job){
+ if(setCustomSupplyCargo(root,job))return;
+ const loaded=typeof job==='object'?Boolean(job?.cargo):Boolean(job);
  let cargo=root?.userData?.cargoGroup;
  if(!cargo&&root?.getObjectByName){
   cargo=root.getObjectByName('SF_Supply_Cargo');
@@ -120,6 +123,7 @@ export function setSupplyTruckCargo(root,loaded){
  */
 export function animateSupplyTruckRig(root,unit,entry,travel,time,dt,active){
  if(!root?.getObjectByName)return;
+ if(animateCustomSupplyTruck(root,entry,travel,dt,active,unit.supply?.phase))return;
  const rig=entry.supplyRigModel===root?entry.supplyRig:(()=>{
   entry.supplyRigModel=root;
   return entry.supplyRig={
@@ -140,4 +144,80 @@ export function animateSupplyTruckRig(root,unit,entry,travel,time,dt,active){
  rig.doors.forEach((door,i)=>{
   if(door)door.rotation.y+=((opening?1.10:0)*(i===0?1:-1)-door.rotation.y)*step;
  });
+}
+
+function supplyOperationProgress(job){
+ if(job?.phase!=='loading'&&job?.phase!=='unloading')return null;
+ const duration=job.phase==='loading'?2.4:1.4;
+ return {mode:job.phase,fraction:Math.min(1,Math.max(0,(Number(job.clock)||0)/duration))};
+}
+// Shared billboarding assets: a single crate icon/text texture for every
+// delivery truck. No DOM element, label texture or 3D geometry allocated
+// on a hot frame; HUD only exists for active loading/unloading actors.
+let supplyOperationSprites=null;
+function supplyHudSkin(){
+ if(supplyOperationSprites)return supplyOperationSprites;
+ const labelMat=text=>{
+  const canvas=document.createElement('canvas');canvas.width=384;canvas.height=96;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='rgba(17,31,28,.89)';
+  ctx.beginPath();ctx.roundRect(6,7,372,82,16);ctx.fill();
+  ctx.strokeStyle='rgba(115,225,174,.90)';ctx.lineWidth=4;ctx.stroke();
+  // Compact 3D-looking crate glyph, readable at normal tactical zoom.
+  ctx.fillStyle='#cda778';ctx.fillRect(29,27,43,39);
+  ctx.fillStyle='#f0ce99';ctx.fillRect(29,24,43,10);
+  ctx.fillStyle='#826744';ctx.fillRect(48,26,5,38);
+  ctx.fillStyle='#e0f2dd';ctx.font='bold 37px sans-serif';ctx.textBaseline='middle';
+  ctx.fillText(text,88,49);
+  const texture=new THREE.CanvasTexture(canvas);
+  texture.colorSpace=THREE.SRGBColorSpace;
+  texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;
+  return new THREE.SpriteMaterial({map:texture,transparent:true,depthWrite:false,
+   depthTest:false,toneMapped:false});
+ };
+ supplyOperationSprites={
+  loading:labelMat('LÄDT KISTEN'),unloading:labelMat('ENTLÄDT'),
+  bar:new THREE.SpriteMaterial({color:'#182922',transparent:true,opacity:.94,
+   depthWrite:false,depthTest:false,toneMapped:false}),
+  fill:new THREE.SpriteMaterial({color:'#79edb6',transparent:true,opacity:.97,
+   depthWrite:false,depthTest:false,toneMapped:false})
+ };
+ return supplyOperationSprites;
+}
+/** Compact floating load-progress display above a truck, visible only while
+ * it actually loads at a depot or unloads at a surviving friendly HQ.
+ * Real job.clock, not frame time, drives its progress; paused matches freeze.
+ */
+export function updateSupplyLoadingIndicator(entry,job){
+ const progress=supplyOperationProgress(job);
+ if(!progress){
+  if(entry?.supplyLoadingIndicator)entry.supplyLoadingIndicator.visible=false;
+  return;
+ }
+ if(!entry?.node)return;
+ let hud=entry.supplyLoadingIndicator;
+ if(!hud){
+  const materials=supplyHudSkin();
+  hud=new THREE.Group();hud.name='SF_SupplyLoadingIndicator';
+  hud.userData={visualOnly:true,nonPlayable:true};
+  const label=new THREE.Sprite(materials.loading);
+  label.name='SupplyLoadingLabel';label.position.y=13;
+  label.scale.set(101,25,1);label.renderOrder=44;hud.add(label);
+  const unload=new THREE.Sprite(materials.unloading);
+  unload.name='SupplyUnloadingLabel';unload.position.y=13;
+  unload.scale.set(101,25,1);unload.renderOrder=44;hud.add(unload);
+  const bar=new THREE.Sprite(materials.bar);
+  bar.position.y=-7;bar.scale.set(87,7,1);bar.renderOrder=44;hud.add(bar);
+  const fill=new THREE.Sprite(materials.fill);
+  fill.position.y=-7;fill.renderOrder=45;hud.add(fill);
+  hud.userData={loading:label,unloading:unload,fill};
+  entry.node.add(hud);entry.supplyLoadingIndicator=hud;
+ }
+ hud.visible=true;
+ hud.position.set(0,Math.max(65,entry.modelHeight??65)+34,0);
+ hud.userData.loading.visible=progress.mode==='loading';
+ hud.userData.unloading.visible=progress.mode==='unloading';
+ const width=Math.max(.001,83*progress.fraction);
+ hud.userData.fill.scale.set(width,4.7,1);
+ hud.userData.fill.position.x=-41.5+width*.5;
 }
