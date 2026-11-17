@@ -10,6 +10,14 @@ import type {TacticalState} from './tactical-ai.js';
 export type ProductionReason='produced'|'saving-unit'|'saving-building'|'insufficient-credits'|'queue-blocked'|'army-cap'|'composition-complete'|'no-producer';
 export interface ProductionDecision {reason:ProductionReason;goal:UnitKind|BuildingKind|null;missing:number}
 export interface EconomyState {goal:BuildingKind|null;since:number;attemptAt:number;produced:Partial<Record<UnitKind,number>>;built:Partial<Record<BuildingKind,number>>;towerAttemptAt?:number;production? :ProductionDecision&{at:number;facilities:Record<number,ProductionDecision>}}
+/** Combat capacity is a paid strategic objective, NOT free spawned troops.
+ * Old income/3+10 capped ordinary red economies near 18-22 total units;
+ * including engineers, medics and transports, offensive squads were tiny.
+ * Leave the engine's absolute 48-unit cap and legacy AI rules untouched. */
+export function directorArmyTarget(income:number):number {
+ return Math.min(42,Math.max(24,Math.floor(Math.max(0,income)/2.5)+13));
+}
+
 const fighter=(u:Unit)=>!u.carrier&&!['medic','engineer','scout'].includes(u.kind);
 /** Only already observed enemy infrastructure, an operational factory and a
  * missing paid siege weapon may defer optional airfield construction. */
@@ -144,7 +152,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  const buildReserve=e.goal&&(e.goal==='barracks'||!underAttack&&fighters.length>=3)
   &&g.time-e.since<85?BUILDINGS[e.goal].cost:0;
  const reserve=Math.max(buildReserve,siegeReserve);
- const maxArmy=director?Math.min(36,Math.max(18,Math.floor(income/3)+10)):Math.min(30,Math.max(14,Math.floor(income/4)+8));if(g.count(1)+g.queued(1)>=maxArmy&&(!director||count('engineer')>0)){
+ const maxArmy=director?directorArmyTarget(income):Math.min(30,Math.max(14,Math.floor(income/4)+8));if(g.count(1)+g.queued(1)>=maxArmy&&(!director||count('engineer')>0)){
   if(director)e.production={at:g.time,reason:'army-cap',goal:null,missing:0,facilities:Object.fromEntries(own.filter(b=>b.buildRemaining<=0).map(b=>[b.id,{reason:b.queue.length>=2?'queue-blocked':'army-cap',goal:null,missing:0}]))};
   return;
  }
