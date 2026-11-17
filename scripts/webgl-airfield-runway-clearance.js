@@ -17,9 +17,10 @@ function darkSurface(material){
  const c=material.color;
  const light=.2126*c.r+.7152*c.g+.0722*c.b;
  if(light>.105)return false;
- // Never touch albedo-mapped parts, even if their baseColor is dark.
- if((material.map||material.userData?.sandforgeBuildingPBRRole)&&
-   !/skid|rubber|scuff|debris|tire.?mark|tyre.?mark|rubber.?bar/i.test(material.name||''))return false;
+ // Imported 3D assets sometimes give black rubber strips their own small
+ // texture map. Do not exempt those maps: the following narrow 3D footprint,
+ // shallow y and runway-only spatial test are the safety boundaries.
+ // Aircraft are never children of the airfield BUILDING node.
  return true;
 }
 export function removeRunwaySkidArtifacts(entry){
