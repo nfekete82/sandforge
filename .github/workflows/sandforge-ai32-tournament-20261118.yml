@@ -1,0 +1,164 @@
+name: Sandforge AI 3.1 vs 3.2 - 60 paired battles
+on:
+  push:
+    branches: [feat/sandforge-ai32-tournament-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ai32-tournament-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  smoke:
+    name: Preflight reproducible initial worlds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: game
+      - uses: actions/checkout@v4
+        with:
+          ref: ac57c24d6ec245257e0378e30d91752537e2499c
+          path: reference
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: game/package-lock.json
+      - name: Build immutable KI 3.1 reference (no Mac-only assets)
+        working-directory: reference
+        run: npm ci --no-audit --no-fund && npx tsc -p tsconfig.json
+      - name: Build candidate KI 3.2
+        working-directory: game
+        run: npm ci --no-audit --no-fund && npx tsc -p tsconfig.json
+      - name: Test report validation
+        working-directory: game
+        run: node --test tests/sandforge-ai32-tournament-report-20261118.test.mjs
+      - name: Run two identical short battles against the unchanged BLUE opponent
+        working-directory: game
+        env:
+          REFERENCE_SIM: ${{ github.workspace }}/reference/dist/src/reborn/simulation.js
+        run: |
+          mkdir -p ai32-artifacts
+          ATLAS_SIM_MODULE="$REFERENCE_SIM" node scripts/ai-test-arena.mjs \
+            --maps 24 --seeds 2601 --seconds 120 --modes director \
+            --opponent contesting --label ai31-smoke \
+            --output ai32-artifacts/preflight-before.json
+          node scripts/ai-test-arena.mjs \
+            --maps 24 --seeds 2601 --seconds 120 --modes director \
+            --opponent contesting --label ai32-smoke \
+            --output ai32-artifacts/preflight-after.json
+          node scripts/ai-test-arena-compare.mjs \
+            ai32-artifacts/preflight-before.json ai32-artifacts/preflight-after.json \
+            ai32-artifacts/preflight-comparison.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai32-preflight
+          path: game/ai32-artifacts/
+          if-no-files-found: warn
+          retention-days: 30
+
+  arena:
+    name: ${{ matrix.bastions }} Bastions / 20 matched seeds
+    needs: smoke
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - map: 24
+            bastions: 8
+          - map: 25
+            bastions: 12
+          - map: 26
+            bastions: 16
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: game
+      - uses: actions/checkout@v4
+        with:
+          ref: ac57c24d6ec245257e0378e30d91752537e2499c
+          path: reference
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: game/package-lock.json
+      - name: Compile reference without locally generated building PBRs
+        working-directory: reference
+        run: npm ci --no-audit --no-fund && npx tsc -p tsconfig.json
+      - name: Compile candidate without locally generated building PBRs
+        working-directory: game
+        run: npm ci --no-audit --no-fund && npx tsc -p tsconfig.json
+      - name: Run 20 KI 3.1 battles against paid, territory-contesting BLUE
+        working-directory: game
+        env:
+          REFERENCE_SIM: ${{ github.workspace }}/reference/dist/src/reborn/simulation.js
+          MAP_VERSION: ${{ matrix.map }}
+        run: |
+          mkdir -p ai32-artifacts
+          ATLAS_SIM_MODULE="$REFERENCE_SIM" node scripts/ai-test-arena.mjs \
+            --maps "$MAP_VERSION" \
+            --seeds "2601,2602,2603,2604,2605,2606,2607,2608,2609,2610,2611,2612,2613,2614,2615,2616,2617,2618,2619,2620" \
+            --seconds 900 --modes director --opponent contesting \
+            --label "KI-3.1-map-$MAP_VERSION" \
+            --output "ai32-artifacts/arena-$MAP_VERSION-before.json"
+      - name: Run 20 KI 3.2 battles with exactly the same starting conditions
+        working-directory: game
+        env:
+          MAP_VERSION: ${{ matrix.map }}
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps "$MAP_VERSION" \
+            --seeds "2601,2602,2603,2604,2605,2606,2607,2608,2609,2610,2611,2612,2613,2614,2615,2616,2617,2618,2619,2620" \
+            --seconds 900 --modes director --opponent contesting \
+            --label "KI-3.2-map-$MAP_VERSION" \
+            --output "ai32-artifacts/arena-$MAP_VERSION-after.json"
+      - name: Reject different starting worlds and summarize matched pairs
+        working-directory: game
+        env:
+          MAP_VERSION: ${{ matrix.map }}
+        run: |
+          node scripts/ai-test-arena-compare.mjs \
+            "ai32-artifacts/arena-$MAP_VERSION-before.json" \
+            "ai32-artifacts/arena-$MAP_VERSION-after.json" \
+            "ai32-artifacts/arena-$MAP_VERSION-comparison.md"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai32-map-${{ matrix.map }}
+          path: game/ai32-artifacts/
+          if-no-files-found: warn
+          retention-days: 30
+
+  summary:
+    name: Publish verified cross-map AI 3.2 report
+    needs: arena
+    if: ${{ always() && needs.arena.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: game
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ai32-map-*
+          merge-multiple: true
+          path: game/reports
+      - name: Verify all sixty pairs and publish winner, territory and retreat metrics
+        working-directory: game
+        run: |
+          node scripts/ai32-tournament-report.mjs reports reports/ai32-tournament.md
+          cat reports/ai32-tournament.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai32-final-tournament-60-pairs
+          path: game/reports/
+          retention-days: 90
