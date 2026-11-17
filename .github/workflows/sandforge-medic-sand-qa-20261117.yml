@@ -32,8 +32,14 @@ jobs:
           node --check scripts/webgl-medic-polish.js
           node --check scripts/webgl-sand-surface-detail.js
           node --check scripts/webgl-battlefield.js
-      - name: Build actual WebGL assets and compiled simulation
-        run: npm run build:3d
+      # The full build intentionally requires Nobby's local FINAL PBR GLB
+      # worktrees. They are not tracked in Git and cannot exist on Actions.
+      # Compile the authoritative simulation and validate the changed shaders
+      # and model modules without silently substituting old 3D buildings.
+      - name: Compile authoritative simulation (CI-safe)
+        run: |
+          npx tsc -p tsconfig.json
+          test -f dist/src/reborn/world-generation.js
       - name: Medic, dune geometry and terrain shader regressions
         run: |
           node --test \
