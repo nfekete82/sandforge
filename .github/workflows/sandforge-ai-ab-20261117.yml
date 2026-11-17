@@ -1,0 +1,87 @@
+name: Sandforge old vs new AI - matched 15 minute battles
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/sandforge-ai-ab-20261117.yml'
+      - 'scripts/ai-theoretical-comparison-20261117.mjs'
+      - 'scripts/benchmark-reborn-ai.mjs'
+  workflow_dispatch:
+
+jobs:
+  matched-battles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      REPORT_DIR: ai-arena-results/ab-20261117
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Compile OLD director against SAME current game and combat balance
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source in \
+            src/reborn/army-economy.ts \
+            src/reborn/director-production.ts \
+            src/reborn/home-defense-doctrine.ts \
+            src/reborn/tactical-ai.ts; do
+            git show b84d0d7:"$source" > "$source"
+          done
+          npx tsc -p tsconfig.json
+          cp -a dist dist-ai-before
+          git restore --source=HEAD -- \
+            src/reborn/army-economy.ts \
+            src/reborn/director-production.ts \
+            src/reborn/home-defense-doctrine.ts \
+            src/reborn/tactical-ai.ts
+      - name: Compile NEW director against SAME current game and combat balance
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx tsc -p tsconfig.json
+          cmp dist-ai-before/src/reborn/catalog.js dist/src/reborn/catalog.js
+          cmp dist-ai-before/src/reborn/simulation.js dist/src/reborn/simulation.js
+      - name: OLD Director – 4 matched matches on medium and modern desert maps
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$REPORT_DIR"
+          ATLAS_SIM_MODULE="$PWD/dist-ai-before/src/reborn/simulation.js" \
+            node scripts/ai-test-arena.mjs \
+            --maps 4,23 --seeds 2026,2027 --seconds 900 \
+            --modes director --opponent guarded \
+            --label old-director-only --output "$REPORT_DIR/before.json"
+      - name: NEW Director – same 4 worlds, same opponent, same combat balance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ai-test-arena.mjs \
+            --maps 4,23 --seeds 2026,2027 --seconds 900 \
+            --modes director --opponent guarded \
+            --label new-director-only --output "$REPORT_DIR/after.json"
+      - name: Validate identical start states and print comparable results
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ai-test-arena-compare.mjs \
+            "$REPORT_DIR/before.json" "$REPORT_DIR/after.json" \
+            "$REPORT_DIR/comparison.md"
+          node scripts/ai-theoretical-comparison-20261117.mjs \
+            "$REPORT_DIR/before.json" "$REPORT_DIR/after.json" \
+            "$REPORT_DIR/summary.md"
+      - name: Upload reproducible complete match artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai-ab-20261117
+          path: ai-arena-results/ab-20261117/
+          if-no-files-found: warn
