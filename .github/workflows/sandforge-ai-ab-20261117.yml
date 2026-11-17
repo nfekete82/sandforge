@@ -33,7 +33,8 @@ jobs:
             src/reborn/army-economy.ts \
             src/reborn/director-production.ts \
             src/reborn/home-defense-doctrine.ts \
-            src/reborn/tactical-ai.ts; do
+            src/reborn/tactical-ai.ts \
+            src/reborn/campaign-commander.ts; do
             git show b84d0d7:"$source" > "$source"
           done
           npx tsc -p tsconfig.json
@@ -42,7 +43,8 @@ jobs:
             src/reborn/army-economy.ts \
             src/reborn/director-production.ts \
             src/reborn/home-defense-doctrine.ts \
-            src/reborn/tactical-ai.ts
+            src/reborn/tactical-ai.ts \
+            src/reborn/campaign-commander.ts
       - name: Compile NEW director against SAME current game and combat balance
         shell: bash
         run: |
