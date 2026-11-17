@@ -55,10 +55,22 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    'rocket body and nose both sit at least eight units deeper in the shaft');
   const code=readFileSync('scripts/webgl-strategic-buildings.js','utf8');
   assert.match(code,/for\(let i=0;i<12;i\+\+\)\{\s*const a=i\*Math\.PI\/6;\s*const bar=box\(3\.5,30,2\.8,'steel'/,
-   'twelve 3D vertical steel ribs must be visible in the upper inner wall');
-  assert.match(code,/for\(const y of \[7\.2,4\.3,2\.1,-9\.4,-20\.8\]\)/,
-   'steel retaining rings must extend down the shaft');
-  assert.equal(model.getObjectByName('Silo_RocketStageSeam')?.isMesh,true);
+   'twelve 3D vertical steel ribs remain in the shaft');
+  assert.match(code,/\(shaftRadius-2\.5\),-12\.5/,
+   'vertical ribs start well below the hatch instead of hugging its top');
+  assert.match(code,/Math\.abs\(r-\.39\)/);
+  assert.match(code,/Math\.abs\(r-\.56\)/,
+   'two steel reinforcing bands are drawn at genuinely recessed radii');
+  assert.doesNotMatch(code,/for\(const y of \[7\.2,4\.3,2\.1/,
+   'no shallow bright metal hoop stack under the upper hatch rim');
+  assert.equal(model.getObjectByName('Silo_RocketStageSeam'),undefined,
+   'missile must have no raised circumference groove');
+  assert.equal(body.material.color.getHex(),nose.material.color.getHex(),
+   'smooth cylinder and nose share one uniform brushed-steel appearance');
+  assert.ok(body.geometry.parameters.height>=30);
+  const smallRings=model.children.filter(o=>o.isMesh&&
+   o.geometry.type==='TorusGeometry'&&o.geometry.parameters.radius<25);
+  assert.equal(smallRings.length,0,'rocket body may not carry any decorative rings');
   assert.ok(lip.position.y<11,'hatch ring sits barely above the desert ground');
   assert.ok(well.position.y<lip.position.y-6,'dark shaft floor is visibly lower');
   assert.ok(body.position.y<lip.position.y+5,'only upper stage rises from the hole');
