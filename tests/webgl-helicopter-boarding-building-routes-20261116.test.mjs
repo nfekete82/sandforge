@@ -156,10 +156,19 @@ test('carrier travels to clicked rocket soldier, lands/stops and takes him aboar
  }
 });
 
-test('helicopter cruises 10 percent faster without changing bomber or Humvee speeds',()=>{
- assert.equal(UNITS.scout.speed,220);
+test('helicopter cruises at 300 (+36% vs 220) without changing bomber or Humvee',()=>{
+ assert.equal(UNITS.scout.speed,300);
  assert.equal(UNITS.bomber.speed,350);
  assert.equal(UNITS.rover.speed,235);
+ const g=arena(),heli=g.spawn(0,{x:1800,y:2000},'scout');
+ assert.equal(g.speed(heli),300,'actual simulation movement uses new cruise speed');
+ const departure={x:heli.x,y:heli.y};
+ assert.equal(g.command([heli.id],{kind:'move',x:departure.x+1200,y:departure.y}),1);
+ for(let i=0;i<60;i++)g.step(.05);
+ const traveled=Math.hypot(heli.x-departure.x,heli.y-departure.y);
+ assert.ok(traveled>600,'faster helicopter actually travels >600 game units in 3 seconds: '+traveled);
+ assert.ok(traveled<950,'helicopter cannot teleport beyond its top speed');
+ assert.equal(g.status,'playing');
 });
 
 test('all four rotated hangars block walking through roof, while runway remains traversable',()=>{
