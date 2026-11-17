@@ -37,6 +37,7 @@ node --test \
  tests/reborn-map-ai.test.mjs \
  tests/reborn-control-retreat.test.mjs \
  tests/reborn-combat-balance-20261117.test.mjs \
+ tests/webgl-ai-debug-20261117.test.mjs \
  tests/webgl-building-portrait-readability.test.mjs \
  tests/webgl-authored-barracks-portrait.test.mjs \
  tests/webgl-final-pbr-asset-sync.test.mjs \
