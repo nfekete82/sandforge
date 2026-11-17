@@ -1,0 +1,34 @@
+name: Sandforge bastion economy / no-supply regression
+on:
+  push:
+    branches: [feat/sandforge-bastion-economy-no-supply-20261117]
+  pull_request:
+    branches: [feat/sandforge-supply-pbr-animated-20261117]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bastion-economy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build complete WebGL game and audit import graph
+        run: npm run build
+      - name: Validate territory economics, legacy save migration, 3D HUD and AI
+        run: |
+          node --test \
+            tests/sandforge-bastion-economy-rollback-20261117.test.mjs \
+            tests/reborn-ai3-bastion-rush-20261117.test.mjs \
+            tests/reborn-hq-bastion-income.test.mjs \
+            tests/reborn-expanded-economy-maps.test.mjs \
+            tests/webgl-global-production-20261111.test.mjs \
+            tests/reborn-bastion-priority-20261117.test.mjs \
+            tests/sandforge-webgl-entry.test.mjs
