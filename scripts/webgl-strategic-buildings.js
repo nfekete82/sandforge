@@ -633,52 +633,19 @@ export function createStrategicBuilding(kind,owner=0){
   occlusion.castShadow=false;occlusion.receiveShadow=false;
   occlusion.userData={visualOnly:true,nonPlayable:true,
    hidesUnderlyingTerrain:true,visualShaftDepth:shaftDepth};
-  // The steel wall stays a single mask. A separate COLORLESS stencil
-  // pass marks ONLY those pixels where the underground rocket is really
-  // in front of the shaft wall. The submerged PBR cylinder can then be
-  // drawn with the SAME material as the exposed upper rocket instead of
-  // pretending to be metallic in the flat depth shader. Never stencil
-  // the entire circular opening: that would paint over the near wall.
-  const rocketStencilMaterial=depthMaskMaterial.clone();
-  rocketStencilMaterial.name='SF_SiloRocketVisibilityStencil';
-  rocketStencilMaterial.colorWrite=false;
-  rocketStencilMaterial.depthWrite=false;
-  rocketStencilMaterial.stencilWrite=true;
-  rocketStencilMaterial.stencilFunc=THREE.AlwaysStencilFunc;
-  rocketStencilMaterial.stencilRef=1;
-  rocketStencilMaterial.stencilFail=THREE.KeepStencilOp;
-  rocketStencilMaterial.stencilZFail=THREE.KeepStencilOp;
-  rocketStencilMaterial.stencilZPass=THREE.ReplaceStencilOp;
-  rocketStencilMaterial.fragmentShader=depthMaskMaterial.fragmentShader.replace(
-   'vec3 metal;\n     if(tRocket<min(tWall,tFloor)){',
-   'if(!(tRocket<min(tWall,tFloor)))discard;\n     vec3 metal;\n     if(tRocket<min(tWall,tFloor)){'
-  );
-  if(!rocketStencilMaterial.fragmentShader.includes(
-   'if(!(tRocket<min(tWall,tFloor)))discard;'))
-   throw new Error('Silo rocket stencil must discard wall/background pixels');
-  const rocketStencil=new THREE.Mesh(
-   occlusion.geometry.clone(),rocketStencilMaterial);
-  rocketStencil.name='Silo_RocketStencilMask';
-  rocketStencil.position.copy(occlusion.position);
-  rocketStencil.rotation.copy(occlusion.rotation);
-  rocketStencil.renderOrder=2;
-  rocketStencil.castShadow=false;rocketStencil.receiveShadow=false;
-  rocketStencil.userData={visualOnly:true,nonPlayable:true,
-   siloOnlyRocketVisibility:true};
-  root.add(rocketStencil);
-  // Camera must be transformed into the actual local plane; this also
-  // works for rotated buildings and changing camera angles.
+  // The depth shader already renders the recessed steel wall and hides the
+  // real terrain. Do NOT add a stencil pass to draw the submerged cylinder:
+  // with depthTest disabled it painted a 125-unit rocket through the ground
+  // and fence whenever other stencil values were present in the frame.
+  // Instead, the PBR cylinder below uses a per-fragment view-ray aperture
+  // test, independent of render order and any global stencil buffer.
   const maskInverse=new THREE.Matrix4(),cameraWorld=new THREE.Vector3();
-  const updateSiloCamera=(mesh,camera)=>{
-   maskInverse.copy(mesh.matrixWorld).invert();
+  occlusion.onBeforeRender=(_renderer,_scene,camera)=>{
+   maskInverse.copy(occlusion.matrixWorld).invert();
    camera.getWorldPosition(cameraWorld);
-   mesh.material.uniforms?.uCameraLocal?.value
+   occlusion.material.uniforms?.uCameraLocal?.value
     .copy(cameraWorld).applyMatrix4(maskInverse);
   };
-  occlusion.onBeforeRender=(_renderer,_scene,camera)=>
-   updateSiloCamera(occlusion,camera);
-  rocketStencil.onBeforeRender=(_renderer,_scene,camera)=>
-   updateSiloCamera(rocketStencil,camera);
 
   // Restore the older strong vertical steel strips inside the shaft.
   // The physical top section meets the rim; the rest continues down
@@ -748,16 +715,15 @@ export function createStrategicBuilding(kind,owner=0){
   mats.rocketBody.needsUpdate=true;
   const hull=add(hullGeometry,'rocketBody',rocketX,hullCenterY,0);
   hull.name='Silo_RocketBody';
-  // Draw the buried cylinder once more, this time as genuine 3D metal.
-  // Stencil restricts it to the rocket silhouette INSIDE the visible well.
-  // Geometry and UVs are cloned from the physical hull, retaining exactly
-  // the same highlights, PBR grain, radius and vertex-darkening gradient.
-  // Its upper row overlaps the mouth to remove any seam at the transition.
+  // Re-render only the buried part as REAL PBR metal. A fragment shader
+  // clips by the ray's crossing through the horizontal launch aperture,
+  // and rejects parts hidden behind the projected shaft wall. This keeps
+  // the same metal material across the mouth without ever painting rocket
+  // geometry on the surrounding ground, roads, fences or buildings.
   const belowGeometry=hullGeometry.clone();
-  const srcIndex=belowGeometry.index.array,belowY=
-   belowGeometry.getAttribute('position');
-  const keepBelow=[];
-  const localCut=depthMaskY+6.3-hullCenterY;
+  const srcIndex=belowGeometry.index.array;
+  const belowY=belowGeometry.getAttribute('position');
+  const keepBelow=[],localCut=depthMaskY+6.3-hullCenterY;
   for(let i=0;i<srcIndex.length;i+=3){
    const a=srcIndex[i],b=srcIndex[i+1],c=srcIndex[i+2];
    if(Math.min(belowY.getY(a),belowY.getY(b),belowY.getY(c))>localCut)
@@ -769,19 +735,67 @@ export function createStrategicBuilding(kind,owner=0){
   submergedMaterial.name='SF_rocketBodyUnderground';
   submergedMaterial.depthTest=false;
   submergedMaterial.depthWrite=false;
-  submergedMaterial.stencilWrite=true;
-  submergedMaterial.stencilFunc=THREE.EqualStencilFunc;
-  submergedMaterial.stencilRef=1;
-  submergedMaterial.stencilFail=THREE.KeepStencilOp;
-  submergedMaterial.stencilZFail=THREE.KeepStencilOp;
-  submergedMaterial.stencilZPass=THREE.KeepStencilOp;
+  const siloWorldToLocal=new THREE.Matrix4();
+  submergedMaterial.onBeforeCompile=shader=>{
+   shader.uniforms.uSiloWorldToLocal={value:siloWorldToLocal};
+   shader.uniforms.uSiloOpeningRadius={value:shaftRadius-.8};
+   shader.uniforms.uSiloDepthLimit={value:shaftDepth};
+   shader.vertexShader=shader.vertexShader.replace(
+    '#include <common>',
+    '#include <common>\nvarying vec3 vRocketWorldPosition;'
+   ).replace(
+    '#include <worldpos_vertex>',
+    '#include <worldpos_vertex>\n' +
+    'vRocketWorldPosition=(modelMatrix*vec4(transformed,1.0)).xyz;'
+   );
+   shader.fragmentShader=shader.fragmentShader.replace(
+    '#include <common>',
+    '#include <common>\nvarying vec3 vRocketWorldPosition;\n' +
+    'uniform mat4 uSiloWorldToLocal;\n' +
+    'uniform float uSiloOpeningRadius;\n' +
+    'uniform float uSiloDepthLimit;'
+   ).replace(
+    '#include <clipping_planes_fragment>',
+    `#include <clipping_planes_fragment>
+     vec3 eye=(uSiloWorldToLocal*vec4(cameraPosition,1.0)).xyz;
+     vec3 fragment=(uSiloWorldToLocal*
+      vec4(vRocketWorldPosition,1.0)).xyz;
+     // Local Z is depth below the horizontal ground-level mask.
+     if(fragment.z>=-0.0001 || fragment.z< -uSiloDepthLimit)discard;
+     vec3 ray=fragment-eye;
+     float denom=ray.z;
+     if(abs(denom)<0.00001)discard;
+     float t=-eye.z/denom;
+     if(t<=0.0||t>=1.0)discard;
+     vec2 crossing=eye.xy+t*ray.xy;
+     // The 3D rocket can ONLY show below the opening, never through sand.
+     if(dot(crossing,crossing)>
+      uSiloOpeningRadius*uSiloOpeningRadius)discard;
+     // Also respect the far cylindrical wall and the actual shaft floor.
+     vec3 dir=normalize(ray);
+     float a=max(dot(dir.xy,dir.xy),0.000001);
+     float b=dot(eye.xy,dir.xy);
+     float c=dot(eye.xy,eye.xy)-
+      uSiloOpeningRadius*uSiloOpeningRadius;
+     float delta=b*b-a*c;
+     if(delta<0.0)discard;
+     float wall=(-b+sqrt(delta))/a;
+     if(length(ray)>=wall)discard;
+    `
+   );
+  };
+  submergedMaterial.customProgramCacheKey=()=>
+   'sandforge-silo-ray-aperture-clip-v1';
   const submerged=new THREE.Mesh(belowGeometry,submergedMaterial);
   submerged.name='Silo_RocketBodyUnderground';
   submerged.position.copy(hull.position);
   submerged.castShadow=false;submerged.receiveShadow=false;
   submerged.renderOrder=3;
+  submerged.onBeforeRender=()=>{
+   siloWorldToLocal.copy(occlusion.matrixWorld).invert();
+  };
   submerged.userData={visualOnly:true,nonPlayable:true,
-   samePbrAsRocket:true};
+   samePbrAsRocket:true,viewRayClipped:true};
   root.add(submerged);
   const ogiveProfile=[
    [15.7,0],[15.55,2.4],[14.8,5.2],[13.4,8.3],
