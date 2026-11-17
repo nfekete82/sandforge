@@ -122,10 +122,12 @@ const siloShaftDepthPaint=(()=>{
   const segment=Math.cos(16*angle);
   const rib=Math.pow(Math.max(0,segment),30)*19*depth;
   const seam=Math.pow(Math.max(0,-segment),32)*-13*depth;
-  const hoop=Math.max(0,1-Math.abs(r-.67)/.012)*12+
-   Math.max(0,1-Math.abs(r-.84)/.012)*18;
-  const edge=Math.max(0,1-Math.abs(r-.96)/.024)*9;
-  const hash=(Math.imul(x+43,374761393)^Math.imul(y+67,668265263))>>>0;
+  // Smaller projected radii push the reinforcement hoops visibly deeper.
+  // Old radii .67 and .84 crowded the entrance immediately below the lip.
+  const hoop=Math.max(0,1-Math.abs(r-.39)/.013)*12+
+   Math.max(0,1-Math.abs(r-.56)/.014)*15;
+  const edge=Math.max(0,1-Math.abs(r-.96)/.024)*4;
+    const hash=(Math.imul(x+43,374761393)^Math.imul(y+67,668265263))>>>0;
   const grain=((hash^(hash>>>11))&15)-7;
   const shade=14+49*depth+rib+seam+hoop+edge+grain*.52;
   const at=(y*n+x)*4;
@@ -253,15 +255,13 @@ export function createStrategicBuilding(kind,owner=0){
   // khaki world-space camouflage shader or moving construction-ghost paint.
   mats.metal.userData={...mats.metal.userData,sandforgeAuthoredMetal:true};
   mats.warning=new THREE.MeshStandardMaterial({color:'#cda956',roughness:.62,metalness:.18});
-  mats.rocketBody=new THREE.MeshStandardMaterial({color:'#a8b3b2',map:materialGrain,
-   bumpMap:materialGrain,bumpScale:.075,roughness:.38,metalness:.82});
-  mats.rocketPanel=new THREE.MeshStandardMaterial({color:'#d1d6cf',map:materialGrain,
-   bumpMap:materialGrain,bumpScale:.06,roughness:.42,metalness:.77});
-  mats.rocketNose=new THREE.MeshStandardMaterial({color:'#829198',map:materialGrain,
-   bumpMap:materialGrain,bumpScale:.05,roughness:.32,metalness:.81});
-  mats.rocketAccent=new THREE.MeshStandardMaterial({color:'#a7a997',
-   roughness:.44,metalness:.73});
-  // Give the large bunker and hatch faces a real tiled camouflage albedo.
+  // One uninterrupted metallic finish across the shafted body and nose.
+  // The ringed second stage and decorative accents are removed entirely.
+  mats.rocketBody=new THREE.MeshStandardMaterial({color:'#aeb8b7',map:materialGrain,
+   bumpMap:materialGrain,bumpScale:.045,roughness:.36,metalness:.84});
+  mats.rocketNose=new THREE.MeshStandardMaterial({color:'#aeb8b7',map:materialGrain,
+   bumpMap:materialGrain,bumpScale:.045,roughness:.36,metalness:.84});
+    // Give the large bunker and hatch faces a real tiled camouflage albedo.
   // Keep fine concrete grain as bump; rocket, hatches' dark iron, metallic
   // machinery and team-colored glass keep their own original materials.
   for(const role of ['base','armor']){
@@ -518,22 +518,17 @@ export function createStrategicBuilding(kind,owner=0){
   occlusion.userData={visualOnly:true,nonPlayable:true,
    hidesUnderlyingTerrain:true};
 
-  // Twelve thick dark-metal vertical ribs extend from beneath the lip into
-  // the well. Their upper sections remain ABOVE the terrain mask and thus
-  // show actual 3D depth at tactical zoom. The lower parts are suggested by
-  // the liner atlas rather than fighting with the intact terrain heightfield.
+  // Lower the physical rib tops to just above the terrain occlusion mask.
+  // Two lower rings are represented at smaller radii in the depth texture;
+  // no more bright concentric hoop stack directly beneath the upper lip.
   for(let i=0;i<12;i++){
    const a=i*Math.PI/6;
    const bar=box(3.5,30,2.8,'steel',
-    rocketX+Math.cos(a)*(shaftRadius-2.5),-6.6,
+    rocketX+Math.cos(a)*(shaftRadius-2.5),-12.5,
     Math.sin(a)*(shaftRadius-2.5));
    bar.rotation.y=-a;
   }
-  for(const y of [7.2,4.3,2.1,-9.4,-20.8])
-   add(new THREE.TorusGeometry(shaftRadius-2.2,1.2,8,64),
-    'steel',rocketX,y,0,-Math.PI/2);
-
-  // Layered heavy hatch collar, without any polygon crossing the open pit.
+    // Layered heavy hatch collar, without any polygon crossing the open pit.
   const lip=add(new THREE.RingGeometry(shaftRadius+.35,shaftRadius+15,64),
    'metal',rocketX,8.49,0,-Math.PI/2);
   lip.name='Silo_LaunchRim';
@@ -564,23 +559,16 @@ export function createStrategicBuilding(kind,owner=0){
     9.4,Math.sin(a)*77.6,8);
   }
 
-  // Distinct cylindrical brushed-steel stage topped by a shorter pointed
-  // nosecone. Lower engine is hidden in the REAL shaft, never a floating cone.
-  const hull=cyl(16.3,17.2,27,'rocketBody',rocketX,4.5,0,32);
+  // Smooth steel missile: one full cylinder and a pointed cone, with
+  // no cylindrical overwrap, stage collars, longitudinal grooves or rings.
+  const hull=cyl(15.7,16.6,31,'rocketBody',rocketX,5.1,0,48);
   hull.name='Silo_RocketBody';
-  cyl(16.0,16.2,7.5,'rocketPanel',rocketX,17.1,0,32);
-  const seam=add(new THREE.TorusGeometry(16.4,1.15,8,32),
-   'rocketAccent',rocketX,20.7,0,-Math.PI/2);
-  seam.name='Silo_RocketStageSeam';
-  const ogive=add(new THREE.ConeGeometry(15.7,30,32),'rocketNose',
+  const ogive=add(new THREE.ConeGeometry(15.7,30,48),'rocketNose',
    rocketX,35.6,0);
   ogive.name='Silo_RocketNose';
-  for(const y of [2.1,10.9,20.8])
-   add(new THREE.TorusGeometry(16.4,.72,6,32),
-    'rocketAccent',rocketX,y,0,-Math.PI/2);
-  // Lower engine stays concealed within the well.
+  // Lower engine remains concealed beneath the gunmetal hatch opening.
   cyl(11.5,13.6,7,'vent',rocketX,-11.5,0,24);
-  // Low camouflaged command/maintenance block to the RIGHT of the pit.
+    // Low camouflaged command/maintenance block to the RIGHT of the pit.
   box(43,22,66,'base',91,16,-10);
   box(47,3,70,'armor',91,28.5,-10);
   for(const z of [-32,-13,7])
