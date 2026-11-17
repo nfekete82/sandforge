@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from './sandforge-faction-palette.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {SILO_FOUNDATION_APERTURE} from './webgl-foundation-slabs.js';
+import {DESERT_GOLDEN_HOUR} from './webgl-golden-hour.js';
 
 /** Zero-Hour-style recognizable strategic structures. Procedural originals,
  * avoiding missing GLB placeholders. Created ONCE per building, NOT per frame.
@@ -524,6 +525,9 @@ export function createStrategicBuilding(kind,owner=0){
     uRocketColor:{value:mats.rocketBody.color.clone()},
     // Reuse the actual rocket PBR map for the virtual body below grade.
     uRocketGrain:{value:mats.rocketBody.map},
+    uRocketMapScale:{value:mats.rocketBody.map.repeat.clone()},
+    uRocketSunDir:{value:new THREE.Vector3(...DESERT_GOLDEN_HOUR.sunOffset).normalize()},
+    uRocketSunColor:{value:new THREE.Color(DESERT_GOLDEN_HOUR.sunColor)},
     uRocketTop:{value:hullTopY-depthMaskY},
     uRocketHeight:{value:hullHeight}
    },
@@ -544,6 +548,9 @@ export function createStrategicBuilding(kind,owner=0){
     uniform float uRocketBottom;
     uniform vec3 uRocketColor;
     uniform sampler2D uRocketGrain;
+    uniform vec2 uRocketMapScale;
+    uniform vec3 uRocketSunDir;
+    uniform vec3 uRocketSunColor;
     uniform float uRocketTop;
     uniform float uRocketHeight;
     varying vec2 vSiloXY;
@@ -579,19 +586,25 @@ export function createStrategicBuilding(kind,owner=0){
       vec3 rocketHit=eye+dir*tRocket;
       float below=clamp(-rocketHit.z,0.0,uDepth);
       vec2 radial=normalize(rocketHit.xy);
-      // Use the very same grain and alloy albedo as the physical body
-      // and rounded tip. The previous angle-based sine brush created
-      // vertical stripes in the submerged section that were not on the
-      // real rocket; they made it look like a different object.
+      // The submerged stage is not a second material: it uses the exact
+      // alloy albedo, grain tiling and actual Golden-Hour directional light.
+      // Our old .037+.052 grey shader ignored the strong WARM sun, creating
+      // a black/blue stump against the physically lit upper cylinder.
       float rocketAngle=atan(rocketHit.y,rocketHit.x)/(2.0*PI)+0.5;
       vec2 rocketUV=vec2(rocketAngle,
-       (uRocketTop-rocketHit.z)/uRocketHeight);
+       (uRocketTop-rocketHit.z)/uRocketHeight)*uRocketMapScale;
       vec3 rocketGrain=texture2D(uRocketGrain,rocketUV).rgb;
-      float facing=max(0.0,dot(radial,normalize(vec2(-.66,.75))));
-      float shade=.037+.052*facing;
-      float deepFade=1.0-.88*smoothstep(0.0,uDepth-6.0,below);
-      metal=uRocketColor*rocketGrain*shade*deepFade+
-       vec3(.002,.002,.002);
+      vec3 rocketNormal=vec3(radial,0.0);
+      float sun=max(dot(rocketNormal,normalize(uRocketSunDir)),0.0);
+      // Specular/diffuse metal response is warmer on the exposed sunny side.
+      // The right side remains dark as on the real cylinder. Underground
+      // dimming starts a few units BELOW the opening, never at the join.
+      float sunResponse=pow(sun,1.75);
+      vec3 ambientMetal=vec3(.010,.009,.008);
+      vec3 warmMetal=uRocketSunColor*(.43*sunResponse);
+      float deepFade=1.0-.89*smoothstep(4.0,uDepth-7.0,below);
+      metal=uRocketColor*rocketGrain*(ambientMetal+warmMetal)*deepFade+
+       vec3(.001,.001,.001);
      }else if(tWall>tPlane+0.001 && tWall<tFloor){
       vec3 hit=eye+dir*tWall;
       float down=clamp(-hit.z,0.0,uDepth);
@@ -640,11 +653,18 @@ export function createStrategicBuilding(kind,owner=0){
   // Instead, the PBR cylinder below uses a per-fragment view-ray aperture
   // test, independent of render order and any global stencil buffer.
   const maskInverse=new THREE.Matrix4(),cameraWorld=new THREE.Vector3();
+  const sunLocal=new THREE.Vector3();
+  const sunWorld=new THREE.Vector3(...DESERT_GOLDEN_HOUR.sunOffset).normalize();
   occlusion.onBeforeRender=(_renderer,_scene,camera)=>{
    maskInverse.copy(occlusion.matrixWorld).invert();
    camera.getWorldPosition(cameraWorld);
-   occlusion.material.uniforms?.uCameraLocal?.value
+   const uniforms=occlusion.material.uniforms;
+   uniforms?.uCameraLocal?.value
     .copy(cameraWorld).applyMatrix4(maskInverse);
+   // Match the real PBR missile's world-space sun even for a rotated silo.
+   // transformDirection ignores translation of the horizontal mask mesh.
+   sunLocal.copy(sunWorld).transformDirection(maskInverse);
+   uniforms?.uRocketSunDir?.value.copy(sunLocal);
   };
 
   // Restore the older strong vertical steel strips inside the shaft.
