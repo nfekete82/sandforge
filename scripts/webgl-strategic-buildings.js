@@ -769,24 +769,39 @@ export function createStrategicBuilding(kind,owner=0){
 }
 
 /** Trim ONLY the translucent placement-ghost missile below the hatch.
- * The completed silo keeps its full 125-unit deep rocket. The preview uses
- * forced transparent renderOrder, which otherwise paints the entire long
- * cylinder through the ghost's ground and floating below the foundation.
- * CylinderGeometry builds its side indices top-down; a drawRange hides lower
- * segments without allocating a second mesh or affecting the game model.
+ * The completed silo retains its full deep rocket. A drawRange(0,n) alone
+ * depended on the incidental CylinderGeometry triangle index ordering and
+ * allowed bottom-side triangles through the transparent placement platform.
+ * Keep only triangles whose actual world-local vertices are ABOVE the hatch.
+ * This is index-order independent and touches only the private ghost mesh.
  */
 export function trimSiloRocketForGhost(root,{cutY=2.2}={}){
  const hull=root?.getObjectByName?.('Silo_RocketBody');
  const geo=hull?.geometry;
  if(geo?.type!=='CylinderGeometry'||!geo.index)return false;
- const {height,heightSegments,radialSegments}=geo.parameters;
- const top=hull.position.y+height/2;
- const visibleSegments=Math.max(1,Math.min(heightSegments,
-  Math.floor((top-cutY)/height*heightSegments)));
- const segmentIndices=radialSegments*6;
- geo.setDrawRange(0,visibleSegments*segmentIndices);
+ if(hull.userData.sandforgeGhostRocketCut)return true;
+ const positions=geo.getAttribute('position');
+ const source=geo.index.array;
+ const minLocalY=cutY-hull.position.y-1e-5;
+ const retained=[];
+ // Keep complete triangles only; the boundary band is sacrificed rather
+ // than leaving a vertical sliver below the half-transparent ghost floor.
+ for(let i=0;i<source.length;i+=3){
+  const a=source[i],b=source[i+1],c=source[i+2];
+  if(positions.getY(a)<minLocalY||
+   positions.getY(b)<minLocalY||
+   positions.getY(c)<minLocalY)continue;
+  retained.push(a,b,c);
+ }
+ if(!retained.length)return false;
+ const ghostGeometry=geo.clone();
+ ghostGeometry.setIndex(retained);
+ ghostGeometry.setDrawRange(0,retained.length);
+ hull.geometry=ghostGeometry;
+ geo.dispose();
  hull.userData.sandforgeGhostRocketCut=true;
- hull.userData.sandforgeGhostVisibleSegments=visibleSegments;
+ hull.userData.sandforgeGhostVisibleSegments=
+  retained.length/(geo.parameters.radialSegments*6);
  return true;
 }
 
