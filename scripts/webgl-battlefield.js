@@ -56,7 +56,7 @@ import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
-import {createSupplyTruckVisual,createSupplyCacheVisual,updateSupplyCacheVisual,setSupplyTruckCargo,animateSupplyTruckRig} from '/webgl-supply-logistics.js';
+import {createSupplyTruckVisual,createSupplyCacheVisual,updateSupplyCacheVisual,setSupplyTruckCargo,animateSupplyTruckRig,updateSupplyLoadingIndicator} from '/webgl-supply-logistics.js';
 import {customSupplyTruckUrl,prepareCustomSupplyTruck} from '/webgl-supply-custom.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
@@ -1149,6 +1149,7 @@ export class SandforgeBattlefield {
    let entry=this.units.get(u.id);
    if(!entry){entry=this.spawnNode(u,'unit');this.units.set(u.id,entry);}
    if(u.kind==='supply')setSupplyTruckCargo(entry.detail??entry.placeholder,u.supply??{cargo:0});
+   if(u.kind==='supply')updateSupplyLoadingIndicator(entry,u.supply);
    if(entry.factionOwner!==u.owner){
     applyFactionAccents(entry,u,'unit');
     attachTeamMarkings(entry,u.owner,u.kind,entry.modelFootprint??(UNITS[u.kind]?.width??60),entry.modelHeight??42);
