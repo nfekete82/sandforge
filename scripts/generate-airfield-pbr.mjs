@@ -7,6 +7,8 @@ import {mkdirSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {deflateSync} from 'node:zlib';
 import {factionRgb8} from './sandforge-faction-palette.js';
+import {AIRFIELD_ROLLUP_SLATS,AIRFIELD_ROLLUP_FIRST_Y,AIRFIELD_ROLLUP_STEP}
+ from './webgl-airfield-rollup.js';
 const OUT=process.argv[2]||'src/assets/reborn/buildings-3d';
 const PI=Math.PI,TAU=2*PI;
 // The door obeys the existing WebGL factory gate's upward opening.
@@ -214,11 +216,11 @@ function buildParts(){
   box('team',[x,61,front+11],[8.5,25,1]);
   star(x,63,front+11.7,3.7);
  }
- // Real single FULL-WIDTH roller shutter: 16 independent horizontal
- // metallic slats, never two doors sliding apart. All are animated upward.
- for(let i=0;i<16;i++){
+ // Real full-width industrial steel shutter: eight broad horizontal sheets,
+ // not sixteen thin ribs. The door still travels 64 units in one roll-up.
+ for(let i=0;i<AIRFIELD_ROLLUP_SLATS;i++){
   const part='HangarRollupSlat_0_'+String(i).padStart(2,'0');
-  box('door_corrugated',[0,0,0],[109,3.92,3.8],0,part);
+  box('door_corrugated',[0,0,0],[109,AIRFIELD_ROLLUP_STEP-.08,3.8],0,part);
  }
  rollerDrum();
  // Weathered, textured jamb rails and protective coil housing.
@@ -301,9 +303,13 @@ function png(color,key){
   if(shutter){
    // Dedicated pressed-steel shutter skin, with horizontal seams, edge
    // oxidation and fine stamped lines; no featureless tan/grey cuboids.
-   const rib=Math.cos(y*TAU*6/height),highlight=24*((1+rib)*.5)**3;
-   const seam=-21*((1-rib)*.5)**9,weather=5*Math.sin(x*.044+y*.075);
-   rgb=color.map((v,k)=>v+highlight+seam+weather+(k===1?3:0));
+   // One wide pressed-metal fold per full-height panel, not six fine
+   // ripples repeated within every slat. Oxidized edges add visible depth.
+   const contour=Math.sin(PI*(y+.5)/height);
+   const crown=18*Math.pow(contour,.8);
+   const seam=-25*Math.pow(1-contour,7);
+   const brushed=2.8*Math.sin(x*.04+y*.018)+1.5*Math.cos(x*.085);
+   rgb=color.map((v,k)=>v+crown+seam+brushed+(k===1?3:0));
   }
   if(frame){
    const brushed=7*Math.sin(x*.044)+4*Math.cos(y*.084);
@@ -374,7 +380,7 @@ function exportTeam(owner){
   const drum=partName==='HangarRollupDrum_0';
   const rotor=g.part===AIRFIELD_DISH_PIVOT;
   gltf.nodes.push({name:rotor?'AirfieldTowerDishPart_'+g.name:partName,mesh,
-   ...(slat?{translation:[AIRFIELD_HANGAR_CENTER_X,6+Number(slat[1])*4,
+   ...(slat?{translation:[AIRFIELD_HANGAR_CENTER_X,AIRFIELD_ROLLUP_FIRST_Y+Number(slat[1])*AIRFIELD_ROLLUP_STEP,
       AIRFIELD_HANGAR_FRONT_Z+8]}:
      drum?{translation:[AIRFIELD_HANGAR_CENTER_X,75,AIRFIELD_HANGAR_FRONT_Z+14]}:{})});
   gltf.nodes[rotor?gltf._dishPivot:0].children.push(node);
@@ -391,6 +397,6 @@ function exportTeam(owner){
  const name='airfield-'+owner+'.glb';
  writeFileSync(join(OUT,name),out);
  console.log('Generated '+name+': '+out.length+' bytes, '+gltf.meshes.length+' meshes, '+
-  gltf.images.length+' textures, 16 roll-up slats and glass tower satellite');
+  gltf.images.length+' textures, '+AIRFIELD_ROLLUP_SLATS+' roll-up slats and glass tower satellite');
 }
 mkdirSync(OUT,{recursive:true});for(const owner of [0,1])exportTeam(owner);
