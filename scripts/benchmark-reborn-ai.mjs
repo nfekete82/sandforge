@@ -9,7 +9,7 @@ import {createHash} from 'node:crypto';
 import {readFileSync,mkdirSync,writeFileSync,renameSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {blueDefense} from './benchmark-ai-opponent.mjs';
+import {blueDefense,blueContest} from './benchmark-ai-opponent.mjs';
 import {createArtilleryObserver} from './ai-artillery-observer.mjs';
 import {createEndgameObserver} from './ai-51-endgame-observer.mjs';
 
@@ -34,7 +34,7 @@ export function parseOptions(argv){
   seeds:String(values.seeds??'2026,2027,2028').split(',').map(Number),opponent:values.opponent??'guarded',
   modes:String(values.modes??'baseline,director').split(','),output:values.output?resolve(values.output):null,label:values.label??'current'};
  if(result.maps.some(v=>![3,4,5,23,24,25,26].includes(v))||new Set(result.maps).size!==result.maps.length
-  ||!['guarded','idle'].includes(result.opponent)||!Number.isInteger(result.seconds)||result.seconds<30||result.seconds>3600
+  ||!['guarded','contesting','idle'].includes(result.opponent)||!Number.isInteger(result.seconds)||result.seconds<30||result.seconds>3600
   ||result.seeds.length<1||result.seeds.length>24||result.seeds.some(v=>!Number.isSafeInteger(v)||v<0||v>4294967295)
   ||new Set(result.seeds).size!==result.seeds.length||result.modes.some(v=>!['baseline','director'].includes(v))
   ||new Set(result.modes).size!==result.modes.length)throw Error('Invalid benchmark options.');
@@ -199,7 +199,8 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
  const begin=performance.now(),dt=.05,steps=Math.round(options.seconds/dt);
  try{
   for(let step=0;step<steps&&g.status==='playing';step++){
-   if(options.opponent==='guarded'&&step%60===0)(options.defender??blueDefense)(g);
+   if(options.opponent!=='idle'&&step%60===0)
+    (options.defender??(options.opponent==='contesting'?blueContest:blueDefense))(g);
    const at=performance.now();g.step(dt);stepTimes.push(performance.now()-at);options.observe?.(g);artilleryObserver.sample(g);endgameObserver.sample(g);
    const s=g.tactical.state,now=time();metrics.elapsedSeconds=now;
    for(const u of g.units){
