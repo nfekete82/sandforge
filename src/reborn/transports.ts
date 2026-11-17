@@ -24,13 +24,26 @@ export class Transports {
   const site=this.g.world.nearest(point,this.landingObstacles(),[],undefined,72);
   return site&&distance(site,p)<=maxDistance?site:null;
  }
- board(id:number,ids:number[]):number{
+ /** Carrier-initiated pickup: the jeep or helicopter travels to the clicked
+  * friendly infantry, then uses the existing legal loading/landing routine.
+  * The original infantry->carrier boarding command remains unchanged. */
+ collect(id:number,ids:number[]):number{
+  return this.board(id,ids,true);
+ }
+ board(id:number,ids:number[],pickupAtPassenger=false):number{
   const g=this.g,h=g.units.find(u=>u.id===id&&isCarrier(u)&&u.hp>0&&!u.carrier);if(!h)return 0;
   const existing=h.transport,cargo=existing?.cargo??[],room=transportCapacity(h.kind)-cargo.length-(existing?.pickup.length??0);if(room<=0)return 0;
   const maxApproach=h.kind==='scout'?450:300;
+  const passenger=pickupAtPassenger?g.units.find(u=>ids.includes(u.id)&&
+   u.owner===h.owner&&u.hp>0&&!u.carrier&&unitSpec(u).group==='Infanterie'):null;
+  if(pickupAtPassenger&&!passenger)return 0;
   const site=existing&&existing.task==='load'&&['approach','landing','loading'].includes(existing.phase)?
-   existing.site:h.kind==='rover'?{x:h.x,y:h.y}:this.site(h,maxApproach);
-  if(!site||distance(site,h)>maxApproach)return 0;
+   existing.site:pickupAtPassenger?
+    this.site({x:passenger!.x+38,y:passenger!.y+30},160):
+    h.kind==='rover'?{x:h.x,y:h.y}:this.site(h,maxApproach);
+  // Remote collection may start across the map: unlike boarding soldiers
+  // into a parked transport, the CARRIER must travel to this pickup site.
+  if(!site||(!pickupAtPassenger&&distance(site,h)>maxApproach))return 0;
   const obstacles=this.landingObstacles();
   const accepted=g.units.filter(u=>ids.includes(u.id)&&u.owner===h.owner&&u.hp>0&&!u.carrier&&
    unitSpec(u).group==='Infanterie'&&!existing?.pickup.includes(u.id)&&
@@ -43,7 +56,12 @@ export class Transports {
      undefined,false,true).length>0)).slice(0,room);
   if(!accepted.length)return 0;
   if(!existing||existing.phase==='cruise'||existing.phase==='takeoff'||existing.task!=='load'){
-   h.transport={phase:h.kind==='rover'?'loading':distance(h,site)>12?'approach':'landing',task:'load',site:{...site},cargo:[...cargo],pickup:[],clock:0,transfer:0,resume:structuredClone(h.orders)};h.orders=[];h.path=[];h.repath=0;if(h.kind==='scout')h.flightHeight??=1;
+   h.transport={phase:h.kind==='rover'?
+     (pickupAtPassenger&&distance(h,site)>18?'approach':'loading'):
+     distance(h,site)>12?'approach':'landing',
+    task:'load',site:{...site},cargo:[...cargo],pickup:[],clock:0,transfer:0,
+    resume:structuredClone(h.orders)};
+   h.orders=[];h.path=[];h.repath=0;if(h.kind==='scout')h.flightHeight??=1;
   }
   const t=h.transport!;t.pickup.push(...accepted.map(u=>u.id));t.task='load';
   for(const u of accepted){u.orders=[{...site,kind:'board',target:h.id}];u.path=[];u.repath=0;u.hold=false;u.workingTarget=null;delete u.burst;}
