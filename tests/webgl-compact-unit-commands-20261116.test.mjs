@@ -127,3 +127,70 @@ test('ZUR BASIS uses ordinary real movement and converts to area guard after rea
  assert.equal(saved.hold,true);
  assert.equal(saved.guardArea,true);
 });
+
+test('damaged bomber ZUR BASIS lands for actual airfield repair; full HP uses HQ',()=>{
+ const g=arena(),hq=g.bases.find(b=>b.owner===0&&b.kind==='headquarters');
+ const airfield={...hq,id:8932,kind:'airfield',owner:0,hp:1200,
+  x:1900,y:2000,buildRemaining:0};
+ g.bases.push(airfield);
+ const damaged=g.spawn(0,{x:1900,y:1700},'bomber');
+ damaged.hp=g.maxUnitHp(damaged)-100;
+ const result=orderReturnToBase(g,[damaged.id]);
+ assert.deepEqual(result,{accepted:1,missing:0});
+ assert.equal(damaged.airfieldService?.baseId,airfield.id);
+ assert.equal(damaged.airfieldService?.phase,'approach');
+ assert.equal(damaged.orders.length,0,
+  'real airfield service takes precedence over HQ guard orders');
+ const healthy=g.spawn(0,{x:1950,y:1750},'bomber');
+ const home=orderReturnToBase(g,[healthy.id]);
+ assert.equal(home.accepted,1);
+ assert.equal(healthy.airfieldService,undefined);
+ assert.equal(healthy.orders[0].guardOnArrival,true,
+  'fully healthy bomber retains ordinary return-to-HQ behavior');
+ assert.equal(healthy.returnToHangar,undefined);
+});
+
+test('damaged bomber waits for occupied hangar, then automatically enters real service',()=>{
+ const g=arena(),hq=g.bases.find(b=>b.owner===0&&b.kind==='headquarters');
+ const airfield={...hq,id:8933,kind:'airfield',owner:0,hp:1200,
+  x:1940,y:2000,buildRemaining:0};
+ g.bases.push(airfield);
+ const occupant=g.spawn(0,{x:airfield.x,y:airfield.y},'scout');
+ occupant.airfieldService={baseId:airfield.id,bay:0,phase:'ready',elapsed:0,paidHp:0};
+ const bomber=g.spawn(0,{x:1600,y:1600},'bomber');
+ bomber.hp=g.maxUnitHp(bomber)-55;
+ assert.equal(orderReturnToBase(g,[bomber.id]).accepted,1);
+ assert.equal(bomber.airfieldService,undefined,'do not invent a second maintenance bay');
+ assert.equal(bomber.returnToHangar,true);
+ assert.equal(bomber.orders[0].kind,'move','wait near the airfield rather than HQ');
+ const saved=Simulation.load(g.save());
+ const queued=saved.units.find(u=>u.id===bomber.id);
+ assert.equal(queued.returnToHangar,true,'pending hangar queue survives save/load');
+ // Release the real slot and advance the fixed tick; never teleport a bomber
+ // or create a second aircraft to satisfy the return command.
+ delete occupant.airfieldService;
+ g.step(.05);
+ assert.equal(bomber.airfieldService?.baseId,airfield.id);
+ assert.equal(bomber.airfieldService?.phase,'approach');
+ assert.equal(bomber.returnToHangar,false);
+ assert.equal(bomber.orders.length,0);
+});
+
+test('manual bomber movement cancels a queued damaged return to occupied hangar',()=>{
+ const g=arena(),hq=g.bases.find(b=>b.owner===0&&b.kind==='headquarters');
+ const airfield={...hq,id:8934,kind:'airfield',owner:0,hp:1200,
+  x:1850,y:2050,buildRemaining:0};
+ g.bases.push(airfield);
+ const occupying=g.spawn(0,{x:airfield.x,y:airfield.y},'scout');
+ occupying.airfieldService={baseId:airfield.id,bay:0,phase:'ready',elapsed:0,paidHp:0};
+ const bomber=g.spawn(0,{x:1550,y:1700},'bomber');
+ bomber.hp=g.maxUnitHp(bomber)-40;
+ assert.equal(orderReturnToBase(g,[bomber.id]).accepted,1);
+ assert.equal(bomber.returnToHangar,true);
+ assert.equal(g.command([bomber.id],{kind:'move',x:2400,y:2400}),1);
+ assert.equal(bomber.returnToHangar,false);
+ delete occupying.airfieldService;
+ g.step(.05);
+ assert.equal(bomber.airfieldService,undefined,
+  'a new player order must not be overwritten by old hangar booking');
+});
