@@ -6,6 +6,7 @@ on:
     paths:
       - scripts/assets/sandforge-supply-6x6-source.zlib.b64
       - scripts/generate-supply-custom.py
+      - tests/sandforge-supply-custom-6x6.test.mjs
       - .github/workflows/install-supply-custom-6x6.yml
   workflow_dispatch:
 permissions:
