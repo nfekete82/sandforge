@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import {MEDIC_ART_REVISION,polishMedicModel} from '../scripts/webgl-medic-polish.js';
 import {DESERT_SURFACE_DETAIL,createDesertSurfaceDetail} from '../scripts/webgl-sand-surface-detail.js';
 import {generateMap} from '../dist/src/reborn/world-generation.js';
+import {World} from '../dist/src/reborn/world.js';
 
 const txt=p=>readFileSync(p,'utf8');
 test('authored medic kit follows existing animated Atlas bones without glow',()=>{
@@ -78,5 +79,14 @@ test('extra small dunes use the authoritative navigation heightfield, stay repro
   const k=j*n+i;
   assert.ok(Math.abs(a.heights[k+1]-a.heights[k])/step<.221);
   assert.ok(Math.abs(a.heights[k+n]-a.heights[k])/step<.221);
+ }
+ // The real campaign validator must find connected walkable terrain and all
+ // capture-site sectors without relying on the old invalid center-to-center
+ // assumption: post-2026 Bastion geometry makes its center a solid tower.
+ for(const [version,profile] of [[23,'dunes'],[26,'mixed']]){
+  const world=new World(1,version,profile);
+  assert.equal(world.validation.valid,true,version+'/'+profile);
+  assert.equal(world.validation.reachableSites,world.generated.sites.length);
+  assert.equal(world.validation.tankReachableSites,world.generated.sites.length);
  }
 });
