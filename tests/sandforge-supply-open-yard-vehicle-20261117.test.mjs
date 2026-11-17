@@ -19,6 +19,8 @@ test('the open concrete yard exposes 18 individually depleting pallets, with no 
  const data=readGlb(join(dir,'supply-depot-neutral.glb'));
  const names=data.nodes.map(n=>n.name);
  assert.ok(names.includes('SF_DepotConcretePad'));
+ assert.ok(!names.includes('SF_DepotLoadingRamp'),'yard no longer has a ramp');
+ assert.ok(!data.animations?.some(a=>a.name==='DepotRampLower'));
  const stacks=names.filter(n=>/^SF_DepotStock_\d{2}$/.test(n));
  assert.equal(stacks.length,18);
  for(const name of stacks){
