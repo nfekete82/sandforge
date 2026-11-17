@@ -812,11 +812,16 @@ export function prepareSiloForPortrait(root){
  hull.position.y=(top+bottom)/2;
  hull.userData.sandforgePortraitRocketTrim=true;
  original.dispose();
- // A deep shaft's physical wall and floor also expand bounds below the
- // surface; keep the upper steel liner and the shader illusion instead.
+ // A deep shaft's physical wall and floor also expand camera bounds.
+ // Removing them (rather than just setting visible=false) is required:
+ // Three.js Box3.setFromObject includes invisible descendants.
+ // The shader still draws the textured inner shaft in the HUD.
  for(const name of ['Silo_RecessedLaunchWell','Silo_InnerShaftWall']){
   const mesh=root.getObjectByName(name);
-  if(mesh)mesh.visible=false;
+  if(mesh){
+   mesh.removeFromParent();
+   mesh.geometry?.dispose();
+  }
  }
  return true;
 }
