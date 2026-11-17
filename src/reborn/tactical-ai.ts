@@ -840,17 +840,19 @@ export class TacticalAI {
    .slice(0,3);
   const frontAngle=Math.atan2(g.world.size/2-home.y,g.world.size/2-home.x);
   const angles=[-.85,.85,Math.PI,-.15,1.8];
-  // One of at least two PAID reserve soldiers is posted at a captured
-  // frontier Bastion (not only behind the HQ). Never remove the first home
-  // defender and never send more than one away from production defenses.
-  // Public sector neighbors/income are permitted; no fogged enemy knowledge.
-  const border=g.territories.filter(t=>t.owner===1&&
+  // AI 3.2 positions up to TWO already-paid guards at separate valuable
+  // frontier Bastions, with at least two sentries retained at home when
+  // four or more are available. Never inspect hidden enemy units.
+  const frontiers=g.territories.filter(t=>t.owner===1&&
     t.neighbors.some(id=>g.territories[id]?.owner!==1))
    .sort((a,b)=>Number(b.neighbors.some(id=>g.territories[id]?.owner===0))-
       Number(a.neighbors.some(id=>g.territories[id]?.owner===0))||
-      b.income-a.income||distance(home,a.point)-distance(home,b.point)||a.id-b.id)[0];
+      b.income-a.income||distance(home,a.point)-distance(home,b.point)||a.id-b.id);
+  const posted=g.world.mapVersion>=24
+   ?frontierGuardPosts(guards.length,frontiers.length)
+   :Math.min(1,guards.length-1,frontiers.length);
   for(const [i,u] of guards.entries()){
-   const fort=i===1&&guards.length>=2&&border?border:null;
+   const fort=i>0&&i<=posted?frontiers[i-1]:null;
    // Keep all remaining reserves around HQ and production structures.
    const base=fort?.point??protectedBases[i%Math.max(1,protectedBases.length)]??home;
    const angle=fort?Math.atan2(home.y-base.y,home.x-base.x):
@@ -859,6 +861,9 @@ export class TacticalAI {
    const proposed={x:base.x+Math.cos(angle)*radius,y:base.y+Math.sin(angle)*radius};
    const post=g.world.nearest(proposed,this.obstacles(),[],u,Math.max(0,unitSpec(u).radius-10));
    if(!post||distance(post,base)>(fort?200:310))continue;
+   // An unreachable perimeter post is not useful defense. The same
+   // navigation rules apply to guards as to the attack formation.
+   if(distance(u,post)>58&&!this.route(u,post).length)continue;
    if(distance(u,post)<58){
     if(u.orders.length&&u.orders[0]?.tactical?.mode==='safe')g.stop([u.id],true);
     else if(!u.orders.length&&!u.hold)g.stop([u.id],true);
