@@ -100,6 +100,9 @@ test('director: previously saturated factory still buys a third real tank',()=>{
  seedCompletedGenerators(g);
  const barracks=addProducer(g,'barracks',1);
  const factory=addProducer(g,'factory',1);
+ // Already completed airfield ensures the test isolates paid UNITS rather
+ // than mixing a new 450-credit construction expense into queue accounting.
+ addProducer(g,'airfield',1);
  for(let i=0;i<5;i++)g.spawn(1,{x:hq.x+125+i*11,y:hq.y-170},'infantry');
  const rover=g.spawn(1,{x:hq.x+180,y:hq.y-110},'rover');
  g.spawn(1,{x:hq.x+220,y:hq.y-110},'tank');
