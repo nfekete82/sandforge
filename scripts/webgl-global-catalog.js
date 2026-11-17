@@ -10,7 +10,7 @@ export function globalCatalogAvailability(game,owner=0){
  return {
   buildings:true,
   infantry:finished('headquarters')||finished('barracks'),
-  vehicles:finished('headquarters')||finished('factory'),
+  vehicles:finished('factory'),
   aircraft:finished('airfield'),
   territories:true // accessible through the minimap sector shortcut
  };
