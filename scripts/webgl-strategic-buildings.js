@@ -715,88 +715,11 @@ export function createStrategicBuilding(kind,owner=0){
   mats.rocketBody.needsUpdate=true;
   const hull=add(hullGeometry,'rocketBody',rocketX,hullCenterY,0);
   hull.name='Silo_RocketBody';
-  // Re-render only the buried part as REAL PBR metal. A fragment shader
-  // clips by the ray's crossing through the horizontal launch aperture,
-  // and rejects parts hidden behind the projected shaft wall. This keeps
-  // the same metal material across the mouth without ever painting rocket
-  // geometry on the surrounding ground, roads, fences or buildings.
-  const belowGeometry=hullGeometry.clone();
-  const srcIndex=belowGeometry.index.array;
-  const belowY=belowGeometry.getAttribute('position');
-  const keepBelow=[],localCut=depthMaskY+6.3-hullCenterY;
-  for(let i=0;i<srcIndex.length;i+=3){
-   const a=srcIndex[i],b=srcIndex[i+1],c=srcIndex[i+2];
-   if(Math.min(belowY.getY(a),belowY.getY(b),belowY.getY(c))>localCut)
-    continue;
-   keepBelow.push(a,b,c);
-  }
-  belowGeometry.setIndex(keepBelow);
-  const submergedMaterial=mats.rocketBody.clone();
-  submergedMaterial.name='SF_rocketBodyUnderground';
-  submergedMaterial.depthTest=false;
-  submergedMaterial.depthWrite=false;
-  const siloWorldToLocal=new THREE.Matrix4();
-  submergedMaterial.onBeforeCompile=shader=>{
-   shader.uniforms.uSiloWorldToLocal={value:siloWorldToLocal};
-   shader.uniforms.uSiloOpeningRadius={value:shaftRadius-.8};
-   shader.uniforms.uSiloDepthLimit={value:shaftDepth};
-   shader.vertexShader=shader.vertexShader.replace(
-    '#include <common>',
-    '#include <common>\nvarying vec3 vRocketWorldPosition;'
-   ).replace(
-    '#include <worldpos_vertex>',
-    '#include <worldpos_vertex>\n' +
-    'vRocketWorldPosition=(modelMatrix*vec4(transformed,1.0)).xyz;'
-   );
-   shader.fragmentShader=shader.fragmentShader.replace(
-    '#include <common>',
-    '#include <common>\nvarying vec3 vRocketWorldPosition;\n' +
-    'uniform mat4 uSiloWorldToLocal;\n' +
-    'uniform float uSiloOpeningRadius;\n' +
-    'uniform float uSiloDepthLimit;'
-   ).replace(
-    '#include <clipping_planes_fragment>',
-    `#include <clipping_planes_fragment>
-     vec3 eye=(uSiloWorldToLocal*vec4(cameraPosition,1.0)).xyz;
-     vec3 fragment=(uSiloWorldToLocal*
-      vec4(vRocketWorldPosition,1.0)).xyz;
-     // Local Z is depth below the horizontal ground-level mask.
-     if(fragment.z>=-0.0001 || fragment.z< -uSiloDepthLimit)discard;
-     vec3 ray=fragment-eye;
-     float denom=ray.z;
-     if(abs(denom)<0.00001)discard;
-     float t=-eye.z/denom;
-     if(t<=0.0||t>=1.0)discard;
-     vec2 crossing=eye.xy+t*ray.xy;
-     // The 3D rocket can ONLY show below the opening, never through sand.
-     if(dot(crossing,crossing)>
-      uSiloOpeningRadius*uSiloOpeningRadius)discard;
-     // Also respect the far cylindrical wall and the actual shaft floor.
-     vec3 dir=normalize(ray);
-     float a=max(dot(dir.xy,dir.xy),0.000001);
-     float b=dot(eye.xy,dir.xy);
-     float c=dot(eye.xy,eye.xy)-
-      uSiloOpeningRadius*uSiloOpeningRadius;
-     float delta=b*b-a*c;
-     if(delta<0.0)discard;
-     float wall=(-b+sqrt(delta))/a;
-     if(length(ray)>=wall)discard;
-    `
-   );
-  };
-  submergedMaterial.customProgramCacheKey=()=>
-   'sandforge-silo-ray-aperture-clip-v1';
-  const submerged=new THREE.Mesh(belowGeometry,submergedMaterial);
-  submerged.name='Silo_RocketBodyUnderground';
-  submerged.position.copy(hull.position);
-  submerged.castShadow=false;submerged.receiveShadow=false;
-  submerged.renderOrder=3;
-  submerged.onBeforeRender=()=>{
-   siloWorldToLocal.copy(occlusion.matrixWorld).invert();
-  };
-  submerged.userData={visualOnly:true,nonPlayable:true,
-   samePbrAsRocket:true,viewRayClipped:true};
-  root.add(submerged);
+  // Never paint submerged missile geometry over the physical terrain:
+  // the shallow depth mask itself renders the dark continuation of the
+  // rocket inside the opening. A second 3D mesh with depthTest disabled
+  // leaks through the front lip, sand and fence from an isometric camera.
+  // Only the original PBR rocket (above the opening) is real geometry.
   const ogiveProfile=[
    [15.7,0],[15.55,2.4],[14.8,5.2],[13.4,8.3],
    [11.5,11.2],[8.6,14.0],[5.5,16.1],[2.5,17.3],[0,17.7]
@@ -861,6 +784,41 @@ export function createStrategicBuilding(kind,owner=0){
   batched.userData.referenceInspiredCamo=true;
  }
  return batched;
+}
+
+/** Use the visible silhouette for HUD / construction previews.
+ * The full missile extends 125 units underground, but that part must never
+ * participate in a portrait's camera bounds. HUD and ghost use their OWN
+ * generated silo model, so clipping this geometry never changes gameplay.
+ */
+export function prepareSiloForPortrait(root){
+ const hull=root?.getObjectByName?.('Silo_RocketBody');
+ const rim=root?.getObjectByName?.('Silo_TerrainOcclusion');
+ if(!hull?.isMesh||hull.geometry?.type!=='CylinderGeometry'||!rim)return false;
+ const original=hull.geometry;
+ const height=original.parameters.height;
+ const top=hull.position.y+height/2;
+ const bottom=rim.position.y+.7;
+ const diameter=original.parameters.radiusTop;
+ if(top<=bottom)return false;
+ // Render a real above-hatch cylinder rather than retaining a long mesh
+ // with a short drawRange. Three's Box3 bounds include unused vertices,
+ // which used to make the entire building tiny in HUD cards.
+ const visible=new THREE.CylinderGeometry(diameter,diameter,top-bottom,48,5,true);
+ const count=visible.getAttribute('position').count;
+ const colors=new Float32Array(count*3).fill(1);
+ visible.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+ hull.geometry=visible;
+ hull.position.y=(top+bottom)/2;
+ hull.userData.sandforgePortraitRocketTrim=true;
+ original.dispose();
+ // A deep shaft's physical wall and floor also expand bounds below the
+ // surface; keep the upper steel liner and the shader illusion instead.
+ for(const name of ['Silo_RecessedLaunchWell','Silo_InnerShaftWall']){
+  const mesh=root.getObjectByName(name);
+  if(mesh)mesh.visible=false;
+ }
+ return true;
 }
 
 /** Trim ONLY the translucent placement-ghost missile below the hatch.
