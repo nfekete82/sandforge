@@ -515,6 +515,7 @@ export function createStrategicBuilding(kind,owner=0){
     uCameraLocal:{value:new THREE.Vector3(0,0,250)},
     uRadius:{value:shaftRadius-.8},
     uDepth:{value:shaftDepth},
+    uOpacity:{value:1.0},
     uSurfaceMap:{value:siloShaftDepthPaint}
    },
    vertexShader:`
@@ -530,6 +531,7 @@ export function createStrategicBuilding(kind,owner=0){
     uniform vec3 uCameraLocal;
     uniform float uRadius;
     uniform float uDepth;
+    uniform float uOpacity;
     uniform sampler2D uSurfaceMap;
     varying vec2 vSiloXY;
     varying vec2 vSiloUV;
@@ -573,7 +575,7 @@ export function createStrategicBuilding(kind,owner=0){
       float ambient=.018+.018*radial+scratches;
       metal=vec3(ambient*.73,ambient*.89,ambient);
      }
-     gl_FragColor=vec4(clamp(metal,vec3(0.0),vec3(1.0)),1.0);
+     gl_FragColor=vec4(clamp(metal,vec3(0.0),vec3(1.0)),uOpacity);
      #include <tonemapping_fragment>
      #include <colorspace_fragment>
     }
