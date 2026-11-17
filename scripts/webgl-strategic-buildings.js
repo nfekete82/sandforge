@@ -104,6 +104,47 @@ const siloSteelPlate=(()=>{
  return texture;
 })();
 
+/** Dark steel liner seen through the missile-silo opening. Since the desert
+ * terrain remains an uninterrupted world mesh, a ground-level depth occluder
+ * is required to prevent the sand from filling the shaft. Its texture paints
+ * descending metal panels, ribs and retaining rings with a radial depth fade;
+ * unlike a flat black circle the interior stays readable at RTS camera zoom.
+ * The single small texture is shared by all silos, including preview/HUD.
+ */
+const siloShaftDepthPaint=(()=>{
+ const n=256,pixels=new Uint8Array(n*n*4),TAU=Math.PI*2;
+ for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+  const dx=(x+.5-n/2)/(n/2),dy=(y+.5-n/2)/(n/2);
+  const r=Math.hypot(dx,dy),angle=Math.atan2(dy,dx);
+  // Near the outer edge, brighter vertical plating descends into a dark
+  // center. These rings represent steel bracing, not a floating top decal.
+  const depth=Math.max(0,Math.min(1,(r-.20)/.80));
+  const segment=Math.cos(16*angle);
+  const rib=Math.pow(Math.max(0,segment),30)*19*depth;
+  const seam=Math.pow(Math.max(0,-segment),32)*-13*depth;
+  const hoop=Math.max(0,1-Math.abs(r-.67)/.012)*12+
+   Math.max(0,1-Math.abs(r-.84)/.012)*18;
+  const edge=Math.max(0,1-Math.abs(r-.96)/.024)*9;
+  const hash=(Math.imul(x+43,374761393)^Math.imul(y+67,668265263))>>>0;
+  const grain=((hash^(hash>>>11))&15)-7;
+  const shade=14+49*depth+rib+seam+hoop+edge+grain*.52;
+  const at=(y*n+x)*4;
+  pixels[at]=Math.max(0,Math.min(255,Math.round(shade*.86)));
+  pixels[at+1]=Math.max(0,Math.min(255,Math.round(shade*.99)));
+  pixels[at+2]=Math.max(0,Math.min(255,Math.round(shade*1.03)));
+  pixels[at+3]=255;
+ }
+ const map=new THREE.DataTexture(pixels,n,n,THREE.RGBAFormat);
+ map.name='Sandforge silo inner gunmetal shaft depth';
+ map.colorSpace=THREE.SRGBColorSpace;
+ map.magFilter=THREE.LinearFilter;
+ map.minFilter=THREE.LinearMipmapLinearFilter;
+ map.generateMipmaps=true;
+ map.anisotropy=8;
+ map.needsUpdate=true;
+ return map;
+})();
+
 /** Static destructible base wall, rendered once and shared by preview and game. */
 function createDefensiveWall(owner){
  const root=new THREE.Group();root.name='Strategic_wall';
@@ -198,8 +239,9 @@ export function createStrategicBuilding(kind,owner=0){
  if(kind==='silo'){
   mats.armor=new THREE.MeshStandardMaterial({color:'#b3a581',map:materialGrain,
    bumpMap:materialGrain,bumpScale:.23,roughness:.72,metalness:.22});
-  mats.steel=new THREE.MeshStandardMaterial({color:'#8d8770',map:materialGrain,
-   bumpMap:materialGrain,bumpScale:.1,roughness:.6,metalness:.4});
+  mats.steel=new THREE.MeshStandardMaterial({color:'#78888c',map:materialGrain,
+   bumpMap:materialGrain,bumpScale:.13,roughness:.46,metalness:.73});
+  mats.steel.userData={sandforgeAuthoredMetal:true};
   // The hatch platform is actual brushed, riveted steel, not sandy plaster.
   // Reuse the existing metal batch instead of adding a draw call per plate.
   mats.metal.color.set('#c3cbc5');
@@ -441,9 +483,9 @@ export function createStrategicBuilding(kind,owner=0){
   // grade, so the perspective reveals a recessed cylinder rather than a
   // shallow black disk painted on top of the platform.
   const wallMaterial=new THREE.MeshStandardMaterial({
-   name:'SF_SiloShaftInterior',color:'#333b3b',map:materialGrain,
-   bumpMap:materialGrain,bumpScale:.10,
-   metalness:.55,roughness:.71,side:THREE.BackSide
+   name:'SF_SiloShaftInterior',color:'#647278',map:materialGrain,
+   bumpMap:materialGrain,bumpScale:.14,
+   metalness:.73,roughness:.48,side:THREE.BackSide
   });
   const inside=add(new THREE.CylinderGeometry(
    shaftRadius-.3,shaftRadius-.3,35.5,64,1,true),
@@ -458,15 +500,15 @@ export function createStrategicBuilding(kind,owner=0){
   well.name='Silo_RecessedLaunchWell';
   well.castShadow=false;well.receiveShadow=true;
 
-  // The real terrain renderer continues underneath all buildings: cutting
-  // the concrete foundation alone would expose pale desert/sand at y=0,
-  // hiding the underground floor and making the rocket appear to stand on
-  // a paved surface again. This nearly-black, unlit depth occluder sits
-  // just ABOVE the terrain but BELOW the steel hatch lip. The 3D shaft
-  // walls still extend down to the true -26.6 model-unit floor. No terrain
-  // displacement, pathfinding, world shadow or save-state changes.
+  // The terrain is NOT cut by the game simulation. Preserve an OPAQUE
+  // ground-level mask above the terrain to prevent sand from showing through.
+  // Its authored PBR-like inner-steel atlas creates visible radial bracing and
+  // a deep center instead of the old featureless black disk.
+  // Moving this mesh below ground would recreate the bright concrete/sand
+  // surface seen in the earlier screenshot.
   const depthMaskMaterial=new THREE.MeshBasicMaterial({
-   name:'SF_SiloDepthOcclusion',color:'#080e11',side:THREE.DoubleSide,
+   name:'SF_SiloDepthOcclusion',color:'#ffffff',
+   map:siloShaftDepthPaint,side:THREE.DoubleSide,
    depthWrite:true
   });
   const occlusion=add(new THREE.CircleGeometry(shaftRadius+.6,64),
@@ -476,16 +518,19 @@ export function createStrategicBuilding(kind,owner=0){
   occlusion.userData={visualOnly:true,nonPlayable:true,
    hidesUnderlyingTerrain:true};
 
-  // Visible vertical steel stiffeners and two retaining hoops make the
-  // empty depth legible even when the missile is still in the silo.
-  for(let i=0;i<16;i++){
-   const a=i*Math.PI/8;
-   const bar=box(1.7,25,1.5,'steel',
-    rocketX+Math.cos(a)*(shaftRadius-1),-8,Math.sin(a)*(shaftRadius-1));
+  // Twelve thick dark-metal vertical ribs extend from beneath the lip into
+  // the well. Their upper sections remain ABOVE the terrain mask and thus
+  // show actual 3D depth at tactical zoom. The lower parts are suggested by
+  // the liner atlas rather than fighting with the intact terrain heightfield.
+  for(let i=0;i<12;i++){
+   const a=i*Math.PI/6;
+   const bar=box(3.5,30,2.8,'steel',
+    rocketX+Math.cos(a)*(shaftRadius-2.5),-6.6,
+    Math.sin(a)*(shaftRadius-2.5));
    bar.rotation.y=-a;
   }
-  for(const y of [6.4,2.75,-9.4,-20.8])
-   add(new THREE.TorusGeometry(shaftRadius-.9,.95,6,64),
+  for(const y of [7.2,4.3,2.1,-9.4,-20.8])
+   add(new THREE.TorusGeometry(shaftRadius-2.2,1.2,8,64),
     'steel',rocketX,y,0,-Math.PI/2);
 
   // Layered heavy hatch collar, without any polygon crossing the open pit.
@@ -521,20 +566,20 @@ export function createStrategicBuilding(kind,owner=0){
 
   // Distinct cylindrical brushed-steel stage topped by a shorter pointed
   // nosecone. Lower engine is hidden in the REAL shaft, never a floating cone.
-  const hull=cyl(16.3,17.2,27,'rocketBody',rocketX,12.8,0,32);
+  const hull=cyl(16.3,17.2,27,'rocketBody',rocketX,4.5,0,32);
   hull.name='Silo_RocketBody';
-  cyl(16.0,16.2,7.5,'rocketPanel',rocketX,25.4,0,32);
+  cyl(16.0,16.2,7.5,'rocketPanel',rocketX,17.1,0,32);
   const seam=add(new THREE.TorusGeometry(16.4,1.15,8,32),
-   'rocketAccent',rocketX,29.0,0,-Math.PI/2);
+   'rocketAccent',rocketX,20.7,0,-Math.PI/2);
   seam.name='Silo_RocketStageSeam';
   const ogive=add(new THREE.ConeGeometry(15.7,30,32),'rocketNose',
-   rocketX,43.9,0);
+   rocketX,35.6,0);
   ogive.name='Silo_RocketNose';
-  for(const y of [10.4,19.2,29.1])
+  for(const y of [2.1,10.9,20.8])
    add(new THREE.TorusGeometry(16.4,.72,6,32),
     'rocketAccent',rocketX,y,0,-Math.PI/2);
-  // Dark nozzle sits below deck level at the bottom of the rocket stage.
-  cyl(11.5,13.6,7,'vent',rocketX,-3.2,0,24);
+  // Lower engine stays concealed within the well.
+  cyl(11.5,13.6,7,'vent',rocketX,-11.5,0,24);
   // Low camouflaged command/maintenance block to the RIGHT of the pit.
   box(43,22,66,'base',91,16,-10);
   box(47,3,70,'armor',91,28.5,-10);
