@@ -8,7 +8,7 @@ import {servicePaint} from '../scripts/webgl-service-materials.js';
 import * as THREE from 'three';
 import {createAirfieldServiceYard,disposeAirfieldServiceYard,hideOldAirfieldHangar} from '../scripts/webgl-airfield-service.js';
 import {airfieldLaunchDuration,airfieldLaunchPose,airfieldLaunchLeg} from '../scripts/webgl-airfield-launch-path.js';
-import {applyAirfieldRollup,AIRFIELD_ROLLUP_SLATS} from '../scripts/webgl-airfield-rollup.js';
+import {applyAirfieldRollup,AIRFIELD_ROLLUP_SLATS,AIRFIELD_ROLLUP_FIRST_Y,AIRFIELD_ROLLUP_STEP} from '../scripts/webgl-airfield-rollup.js';
 
 const root='src/assets/reborn/buildings-3d/';
 const src=name=>readFileSync('scripts/'+name,'utf8');
@@ -37,13 +37,13 @@ function rgbTexture({file,doc,binStart},name){
  return Array.from(raw.subarray(p,p+3));
 }
 
-test('both faction GLBs contain one hangar, 16 vertical shutter slats and a radar tower',()=>{
+test('both faction GLBs contain one hangar, 8 broad shutter panels and a radar tower',()=>{
  for(const owner of [0,1]){
   const model=glb(owner),{doc,file}=model;
   assert.equal(doc.asset.generator,'sandforge-airfield-pbr-v2-rollup-satellite-20261116');
   assert.ok(file.byteLength>80_000&&file.byteLength<750_000,
-   'the complete 16-panel roll-up/glazed-tower GLB remains under 750 KB');
-  assert.equal(doc.nodes.filter(n=>/^HangarRollupSlat_0_\d{2}$/.test(n.name)).length,16);
+   'the complete coarse-panel roll-up/glazed-tower GLB remains under 750 KB');
+  assert.equal(doc.nodes.filter(n=>/^HangarRollupSlat_0_\d{2}$/.test(n.name)).length,AIRFIELD_ROLLUP_SLATS);
   assert.equal(doc.nodes.filter(n=>n.name==='HangarRollupDrum_0').length,1);
   assert.equal(doc.nodes.filter(n=>n.name==='AirfieldTowerDishRotor').length,1);
   assert.ok(doc.nodes.some(n=>n.name==='SF_Airfield_PBR_roof'));
@@ -55,11 +55,11 @@ test('both faction GLBs contain one hangar, 16 vertical shutter slats and a rada
   const slats=doc.nodes.filter(n=>/^HangarRollupSlat_0_\d{2}$/.test(n.name));
   assert.equal(slats.length,AIRFIELD_ROLLUP_SLATS);
   for(const [i,node] of slats.entries()){
-   assert.deepEqual(node.translation,[-151,6+i*4,26]);
+   assert.deepEqual(node.translation,[-151,AIRFIELD_ROLLUP_FIRST_Y+i*AIRFIELD_ROLLUP_STEP,26]);
    const p=doc.meshes[node.mesh].primitives[0].attributes.POSITION;
    const acc=doc.accessors[p];
    assert.ok(acc.min[0]<=-54.5&&acc.max[0]>=54.5);
-   assert.ok(acc.max[1]-acc.min[1]<4.01);
+   assert.ok(acc.max[1]-acc.min[1]>7.8&&acc.max[1]-acc.min[1]<8.01);
    assert.ok(acc.max[2]-acc.min[2]>=3.79);
   }
   const rotor=doc.nodes.find(n=>n.name==='AirfieldTowerDishRotor');
@@ -436,18 +436,18 @@ test('real launch presenter freezes during Space pause and resumes at exact Simu
 });
 
 test('roll-up stays centered, opens UP to full bomber clearance and closes symmetrically',()=>{
- const gate={cx:-151,open:0,slats:Array.from({length:16},()=>({
+ const gate={cx:-151,open:0,slats:Array.from({length:AIRFIELD_ROLLUP_SLATS},()=>({
    position:{x:0,y:0},scale:{y:1},visible:true
   })),drum:{rotation:{x:0}}};
  applyAirfieldRollup(gate,0);
- assert.ok(gate.slats.every((s,i)=>s.position.x===-151&&s.position.y===6+i*4));
- assert.equal(gate.slats.filter(s=>s.visible).length,16);
+ assert.ok(gate.slats.every((s,i)=>s.position.x===-151&&s.position.y===AIRFIELD_ROLLUP_FIRST_Y+i*AIRFIELD_ROLLUP_STEP));
+ assert.equal(gate.slats.filter(s=>s.visible).length,AIRFIELD_ROLLUP_SLATS);
  applyAirfieldRollup(gate,.5);
- assert.ok(gate.slats[0].position.y>6&&gate.slats[0].position.y<70);
- assert.ok(gate.slats.filter(s=>s.visible).length<16);
+ assert.ok(gate.slats[0].position.y>AIRFIELD_ROLLUP_FIRST_Y&&gate.slats[0].position.y<70);
+ assert.ok(gate.slats.filter(s=>s.visible).length<AIRFIELD_ROLLUP_SLATS);
  assert.ok(gate.slats.every(s=>s.position.x===-151&&s.scale.y===1));
  applyAirfieldRollup(gate,1);
- assert.ok(gate.slats.every(s=>!s.visible),'all 16 metal slats are rolled up');
+ assert.ok(gate.slats.every(s=>!s.visible),'all broad metal panels are rolled up');
  assert.ok(gate.drum.rotation.x<0,'top drum rotates with rising door');
  applyAirfieldRollup(gate,0);
  assert.ok(gate.slats.every(s=>s.visible));
