@@ -13,7 +13,6 @@ import {hasFinalBarracksPBR,prepareFinalBarracksPortrait} from './webgl-pbr-barr
 import {polishBarracksProps} from './webgl-barracks-props.js';
 import {paintFactionRoofStripes} from './webgl-building-roof-stripes.js';
 import {paintFactionEntranceBanners} from './webgl-entrance-banners.js';
-import {customSupplyTruckUrl,prepareCustomSupplyTruck,isCustomSupplyTruck} from './webgl-supply-custom.js';
 
 /** Sprite-sheet portrait extraction shared by the WebGL HUD.
  * The classic game crops one idle frame rather than scaling down the entire
@@ -328,49 +327,6 @@ function rocketUnitIconFallback(){
  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
 }
 export function unitIcon(kind,renderer){
- if(kind==='supply'){
-  // Use the same user-provided 6×6 GLB in the catalogue, production row
-  // and selected-unit HUD. Render once and cache the pixels; no SVG toy truck.
-  const fallback=()=>{
-  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 132">'+
-   '<rect width="192" height="132" fill="#1d2828"/>'+
-   '<rect x="16" y="61" width="108" height="45" rx="7" fill="#aba080"/>'+
-   '<rect x="112" y="71" width="52" height="35" rx="4" fill="#b7a789"/>'+
-   '<rect x="119" y="75" width="27" height="16" fill="#354849"/>'+
-   '<rect x="26" y="47" width="85" height="20" rx="5" fill="#89876b"/>'+
-   '<rect x="26" y="94" width="136" height="9" fill="#425451"/>'+
-   '<circle cx="45" cy="108" r="13" fill="#343c3a"/>'+
-   '<circle cx="104" cy="108" r="13" fill="#343c3a"/>'+
-   '<circle cx="147" cy="108" r="13" fill="#343c3a"/>'+
-   '<path d="M36 80h56" stroke="#4c909d" stroke-width="8"/>'+
-   '<path d="M38 55h58" stroke="#dbd0a5" stroke-width="4"/>'+
-   '</svg>';
-  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
-  };
-  if(!renderer)return Promise.resolve(fallback());
-  if(!iconCache.has(kind))iconCache.set(kind,(async()=>{
-   const loader=new GLTFLoader();
-   let data;
-   try{data=await loader.loadAsync(customSupplyTruckUrl(0));}
-   catch{data=await loader.loadAsync('/src/assets/reborn/supply-pbr/supply-0.glb');}
-   const model=cloneSkeleton(data.scene);
-   prepareCustomSupplyTruck(model,0);
-   // Portrait render disposes its temporary meshes, so never share their
-   // geometry or material objects with an in-game GLB instance.
-   model.traverse(node=>{
-    if(!node.isMesh)return;
-    node.geometry=node.geometry.clone();
-    node.material=Array.isArray(node.material)
-     ?node.material.map(material=>material.clone()):node.material.clone();
-   });
-   return renderModelPortrait(model,renderer,{width:192,height:132});
-  })().catch(error=>{
-   iconCache.delete(kind);
-   console.warn('Supply truck GLB portrait fallback:',error);
-   return fallback();
-  }));
-  return iconCache.get(kind);
- }
  if(kind==='rocket'&&!renderer)return Promise.resolve(rocketUnitIconFallback());
  if(kind==='rocket'&&!iconCache.has(kind)){
   iconCache.set(kind,new Promise((resolve,reject)=>{

@@ -63,9 +63,8 @@ export function vehicleSoundMix(
   // Only actual measured physical motion is audible; moving=true alone,
   // a standing tank turning its hull, or a blocked driver is silent.
   if(u.hp<=0||u.carrier||!u.moving||
-     (!ENGINE_KINDS.includes(u.kind as EngineKind)&&u.kind!=='supply')||!visible(u))continue;
-  // Logistics haulers share the light-truck engine mix; avoid an extra persistent oscillator.
-  const kind=(u.kind==='supply'?'rover':u.kind) as EngineKind;
+     !ENGINE_KINDS.includes(u.kind as EngineKind)||!visible(u))continue;
+  const kind=u.kind as EngineKind;
   const dist=distance(u,camera);
   if(dist>=maxRange)continue;
   const fraction=Math.max(0,1-dist/maxRange);
