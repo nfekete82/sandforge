@@ -1135,6 +1135,14 @@ export class TacticalAI {
    const inRange=members.filter(u=>engageable.some(v=>canAttack(u,v)&&
     distance(u,v)<=Math.max(g.range(u),unitSpec(v).range)+40));
    const healthy=inRange.filter(u=>u.hp>=unitSpec(u).hp*.26).length;
+   // AI 3.2: when actually observed, healthy forces outmatch a real
+   // local enemy by >=1.5:1, keep the line for another nine seconds.
+   // Uncovered towers, unseen troops and single survivors grant no bonus.
+   const decisive=g.world.mapVersion>=24&&decisiveContact({
+    own:assessment.own,enemy:assessment.enemy,visible:visible.length,
+    inRange:inRange.length,healthy,knownTowers:towers.length,
+    artillery:readyForce.filter(u=>u.kind==='artillery').length});
+   if(decisive)battle.commitUntil=Math.max(battle.commitUntil??0,g.time+9);
    const holdLine=shouldCommitFirefight({
     own:assessment.own,enemy:assessment.enemy,visible:visible.length,
     inRange:inRange.length,healthy,knownTowers:towers.length,
@@ -1143,10 +1151,10 @@ export class TacticalAI {
    // Keep the tactical director's screening/flanking decisions when an
    // assault is already favoured; intercept only unwanted macro withdrawals.
    if(holdLine&&(assessment.stance==='withdraw'||assessment.stance==='reinforce')){
-    // Commit for at least 6 seconds after an actual contact. A collapse
-    // below 32% of observed opposing power still permits disengagement.
+    // AI 3.2 gives a proven local overmatch nine seconds instead of six.
+    // A collapse below 32% of the actually observed enemy still disengages.
     if(assessment.own>=assessment.enemy*.48)
-     battle.commitUntil=Math.max(battle.commitUntil??0,g.time+6);
+     battle.commitUntil=Math.max(battle.commitUntil??0,g.time+(decisive?9:6));
     for(const u of members){
      const candidates=visible.filter(v=>canAttack(u,v));
      const target=candidates.sort((a,b)=>distance(u,a)-distance(u,b)||a.id-b.id)[0];
