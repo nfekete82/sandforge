@@ -635,7 +635,16 @@ export class SandforgeBattlefield {
   // Transparent ghosts draw through the foundation regardless of depth.
   // Trim ONLY the buried part of the silo's 125-unit cylinder; the finished
   // structure keeps the complete missile and the matching deep shaft shader.
-  if(kind==='silo')trimSiloRocketForGhost(placeholder);
+  if(kind==='silo'){
+   trimSiloRocketForGhost(placeholder);
+   // The completed silo renders the buried missile using two extra PBR
+   // stencil passes. Those passes do NOT belong in a transparent build ghost,
+   // where they would otherwise reveal the underground tube through the pad.
+   for(const name of ['Silo_RocketBodyUnderground','Silo_RocketStencilMask']){
+    const hidden=placeholder.getObjectByName(name);
+    if(hidden)hidden.visible=false;
+   }
+  }
   // Render the REAL finished 3D shape as a 50%-opaque ghost, so doors,
   // hangar openings and production exits are identifiable before clicking.
   // Construction remains a separate, progressive state after placement.
