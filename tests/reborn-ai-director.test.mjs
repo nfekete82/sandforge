@@ -120,6 +120,22 @@ test('director: previously saturated factory still buys a third real tank',()=>{
  assert.equal(initial-g.credits[1],cost,'every reinforcement is charged at full price');
 });
 
+test('director: barracks still recruits a fifth paid heavy after previous scoring cutoff',()=>{
+ const g=new Simulation(2026,4),hq=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
+ seedCompletedGenerators(g);
+ const barracks=addProducer(g,'barracks',1);
+ for(let i=0;i<5;i++)g.spawn(1,{x:hq.x+90+i*12,y:hq.y-135},'infantry');
+ for(let i=0;i<4;i++)g.spawn(1,{x:hq.x+90+i*12,y:hq.y-195},'heavy');
+ for(let i=0;i<2;i++)g.spawn(1,{x:hq.x+80+i*20,y:hq.y-240},'medic');
+ g.credits[1]=1200;
+ const before=g.credits[1],existing=g.count(1);
+ developArmy(g,g.tactical.state,g.units.filter(u=>u.owner===1&&u.hp>0),()=>0);
+ assert.equal(barracks.queueTypes[0],'heavy',
+  'a heavy infantry score must remain positive at four living heavy squads');
+ assert.equal(g.count(1),existing,'training does not mint an instantly completed unit');
+ assert.equal(before-g.credits[1],UNITS.heavy.cost);
+});
+
 test('director: baseline can still be benchmarked without mutating campaign state',()=>{
  const g=new Simulation(2026,5),h=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
  for(let i=0;i<5;i++)g.spawn(1,{x:h.x+140+i*6,y:h.y-125},'infantry');
