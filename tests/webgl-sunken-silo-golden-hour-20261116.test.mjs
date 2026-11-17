@@ -77,21 +77,35 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
    'curved shoulder softens the missile tip');
   assert.ok(body.material.metalness>.75&&nose.material.metalness>.75,
    'both rocket stages are metallic, not a flat black cone');
-  assert.ok(body.position.y>=8&&body.position.y<=12,
-   'smooth metal cylinder must extend up through the hatch, not vanish under the mask');
-  assert.equal(body.geometry.parameters.height,52,
-   'exposed missile hull must be long enough to read as a real cylinder');
+  assert.ok(body.position.y<-20&&body.position.y>-35,
+   'the complete missile body must descend into the shaft rather than float above it');
+  assert.equal(body.geometry.parameters.height,125,
+   'the smooth metal shell must extend almost to the 95-unit shaft floor');
+  assert.equal(body.geometry.parameters.openEnded,true,
+   'no exposed flat bottom cap may hover inside the launch well');
   const cylinderTop=body.position.y+body.geometry.parameters.height/2;
   const cylinderBottom=body.position.y-body.geometry.parameters.height/2;
   assert.ok(cylinderTop>=occlusion.position.y+30,
-   'at least 30 model units of the cylindrical rocket must be exposed above the mask');
-  assert.ok(cylinderBottom<occlusion.position.y-12,
-   'the lower rocket body must still extend into the deep shaft');
+   'at least 30 model units of cylindrical rocket remain exposed above the hatch');
+  assert.ok(cylinderBottom<-80&&cylinderBottom>-(occlusion.userData.visualShaftDepth+5),
+   'open-ended missile shell terminates near the unseen deep shaft floor');
+  assert.equal(body.material.vertexColors,true,
+   'metal hull should naturally darken as it descends into the unlit silo');
+  const colors=body.geometry.getAttribute('color');
+  const positions=body.geometry.getAttribute('position');
+  assert.ok(colors&&colors.count===positions.count);
+  let lowest=Infinity,highest=-Infinity;
+  for(let i=0;i<positions.count;i++){
+   lowest=Math.min(lowest,colors.getX(i));
+   highest=Math.max(highest,colors.getX(i));
+  }
+  assert.ok(lowest<=.20&&highest>=.95,
+   'upper hull stays metallic while deep underground shell fades into darkness');
   assert.equal(nose.position.y,cylinderTop,
    'rounded ogive must connect directly to the cylinder without a floating gap');
   assert.match(readFileSync('scripts/webgl-strategic-buildings.js','utf8'),
-   /const hullTopY=hullCenterY\+hullHeight\/2;/,
-   'nose position must always derive from the actual rocket body height');
+   /const hullHeight=125,hullTopY=35\.5,hullCenterY=hullTopY-hullHeight\/2;/,
+   'nose and full-length missile body must share one upper endpoint');
   const code=readFileSync('scripts/webgl-strategic-buildings.js','utf8');
   assert.match(code,/for\(let i=0;i<12;i\+\+\)\{\s*const a=i\*Math\.PI\/6;\s*const bar=box\(3\.5,30,2\.8,'steel'/,
    'twelve physical steel strips remain at the upper shaft wall');
