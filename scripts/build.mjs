@@ -121,7 +121,7 @@ cpSync('src/reborn/webgl-classic-hud.css','dist/webgl-classic-hud.css');
 cpSync('scripts/animation/model-viewer.js','dist/model-viewer.js');
 // WebGL preview and 3D inspector share the same local Three.js modules.
 // Three.js assets are required by the 3D game and optional in classic mode.
-for(const file of ['build/three.module.js','build/three.core.js','examples/jsm/loaders/GLTFLoader.js','examples/jsm/controls/OrbitControls.js','examples/jsm/utils/BufferGeometryUtils.js','examples/jsm/utils/SkeletonUtils.js','examples/jsm/environments/RoomEnvironment.js']){
+for(const file of ['build/three.module.js','build/three.core.js','examples/jsm/loaders/GLTFLoader.js','examples/jsm/controls/OrbitControls.js','examples/jsm/utils/BufferGeometryUtils.js','examples/jsm/utils/SkeletonUtils.js','examples/jsm/geometries/RoundedBoxGeometry.js','examples/jsm/environments/RoomEnvironment.js']){
   const target='dist/vendor/three/'+file.replace('build/','').replace('examples/jsm/','addons/');mkdirSync(target.slice(0,target.lastIndexOf('/')),{recursive:true});cpSync('node_modules/three/'+file,target);
 }
 cpSync('node_modules/three/LICENSE','dist/vendor/three/LICENSE');
@@ -129,6 +129,13 @@ cpSync('src/reborn/style.css', 'dist/style.css');
 cpSync('src/reborn/retro-desert.css', 'dist/retro-desert.css');
 cpSync('src/reborn/qwen-general.worker.js', 'dist/src/reborn/qwen-general.worker.js');
 cpSync('legacy', 'dist/legacy', {recursive:true});
+// Headless module audit validates browser imports without requiring the
+// large, untracked Mac-local FINAL PBR building models. Runtime and default
+// production builds still execute the complete authored-asset pipeline.
+if(process.env.SANDFORGE_MODULE_AUDIT==='1'){
+ console.log('WebGL module audit: browser JS and Three vendor modules packaged.');
+ process.exit(0);
+}
 // The final barracks and dome HQ live in existing local PBR worktrees.
 // Verify/import both GLB factions BEFORE building assets; never silently
 // fall back to the old, gold-tinted stock building models in this branch.
@@ -154,4 +161,9 @@ for(const kind of ['headquarters','factory','barracks','airfield','generator','t
  const bytes=readFileSync(path);art.files[kind]=createHash('sha256').update(bytes).digest('hex');
 }
 writeFileSync('dist/building-art-version.json',JSON.stringify(art,null,2)+'\n');
+// TypeScript and simulation tests cannot detect missing Three/browser JS assets.
+// Refuse to report a successful build until the complete startup import graph
+// has been verified. This runs after copying all compiled + vendor modules.
+execFileSync(process.execPath,['--no-warnings','--experimental-vm-modules',
+ 'scripts/check-webgl-module-graph.mjs'],{stdio:'inherit'});
 console.log('Built SANDFORGE: BASTION WARS in dist/');
