@@ -116,14 +116,33 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
    :blocking?2100:b.kind==='headquarters'?1900:b.kind==='turret'?1200:production?1450:700;
   choices.push({kind:'structure',p:b,sector:b.territory,objective:b.id,hp:b.hp,score:distance(origin,b)-value});
  }
- // Only reachable frontier Bastions are first-class objectives. If
- // surrounded/dispossessed, use the other public sectors as a fallback.
- // Recapture enemy-held Bastions before risking a raid on intact industry.
+ // Capture public Bastions first, but avoid suicidally marching into
+ // an enemy HQ or a turret just because its sector is technically adjacent.
+ // Visible blockers are legitimate siege objectives OF THAT BASTION only.
+ // Previously the strict capture-only filter removed those siege missions,
+ // costing 1-2 Bastions per 5-minute benchmark despite extra troops.
  const frontier=unheld.filter(t=>t.neighbors.some(id=>g.territories[id].owner===1));
- for(const t of frontier.length?frontier:unheld)
-  choices.push({kind:'capture',p:t.point,sector:t.id,objective:null,hp:0,
-   score:distance(origin,t.point)-t.income*10-
-    (t.owner===0?850:0)-(t.owner===0&&fieldArmy&&owned>=2?450:0)});
+ for(const t of frontier.length?frontier:unheld){
+  const blockers=buildings.filter(b=>
+   b.kind==='headquarters'&&b.territory===t.id||
+   b.kind==='turret'&&distance(b,t.point)<660);
+  const clear=blockers.length===0;
+  // Neutral unfortified income is the fastest way to support paid armies.
+  // Public enemy-held sectors still matter (especially recent losses), but
+  // don't outrank a safe nearby Bastion just for being colored blue.
+  const retake=context?.experience?.lastLostSector===t.id;
+  const score=distance(origin,t.point)-t.income*10-
+   (clear&&t.owner===-1?1100:0)-
+   (retake?1450:0)+(blockers.length?1000:0)+(t.owner===0?200:0);
+  choices.push({kind:'capture',p:t.point,sector:t.id,objective:null,hp:0,score});
+  // A physical shield must be destroyed before the Bastion can be secured.
+  // Do not queue unrelated enemy factories or HQs during expansion.
+  for(const b of blockers){
+   const score=distance(origin,b)-
+    (b.kind==='headquarters'?1650:1100)+(retake?-500:0);
+   choices.push({kind:'structure',p:b,sector:t.id,objective:b.id,hp:b.hp,score});
+  }
+ }
  // In cleanup, visible survivors remain targets even with neutral fronts.
  if(!securingBastions)for(const u of g.units)if(u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u))
   choices.push({kind:'hunt',p:u,sector:g.territories.reduce((a,b)=>distance(u,a.point)<distance(u,b.point)?a:b).id,objective:u.id,hp:u.hp,score:distance(origin,u)-(finishing?1650:0)});
