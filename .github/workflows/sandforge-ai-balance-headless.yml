@@ -8,6 +8,10 @@ on:
       - 'tests/reborn-bastion-priority-20261117.test.mjs'
       - 'tests/reborn-bastion-expansion-20261117.test.mjs'
       - 'tests/reborn-combat-balance-20261117.test.mjs'
+      - 'tests/webgl-ai-debug-20261117.test.mjs'
+      - 'scripts/webgl-ai-debug.js'
+      - 'scripts/webgl-battlefield.js'
+      - 'scripts/build.mjs'
       - 'tests/reborn-map-ai.test.mjs'
       - 'tests/reborn-control-retreat.test.mjs'
       - 'tests/fixtures/**'
@@ -35,4 +39,5 @@ jobs:
             tests/reborn-bastion-expansion-20261117.test.mjs \
             tests/reborn-map-ai.test.mjs \
             tests/reborn-control-retreat.test.mjs \
-            tests/reborn-combat-balance-20261117.test.mjs
+            tests/reborn-combat-balance-20261117.test.mjs \
+            tests/webgl-ai-debug-20261117.test.mjs
