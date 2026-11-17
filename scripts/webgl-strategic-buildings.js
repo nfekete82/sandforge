@@ -502,6 +502,11 @@ export function createStrategicBuilding(kind,owner=0){
   // shaded by their virtual 3D depth, not concentric circles on the deck.
   // It only affects silo art (same ghost, HUD and gameplay geometry).
   const shaftDepth=95;
+  // One authoritative missile stage range drives BOTH the true cylinder and
+  // its continuation inside the projected underground shaft. The flat mask
+  // otherwise hides the lower 3D mesh regardless of how long we make it.
+  const hullHeight=125,hullTopY=35.5,hullCenterY=hullTopY-hullHeight/2;
+  const depthMaskY=1.42;
   const depthMaskMaterial=new THREE.ShaderMaterial({
    name:'SF_SiloDepthOcclusion',
    side:THREE.DoubleSide,depthTest:true,depthWrite:true,
@@ -510,7 +515,9 @@ export function createStrategicBuilding(kind,owner=0){
     uRadius:{value:shaftRadius-.8},
     uDepth:{value:shaftDepth},
     uOpacity:{value:1.0},
-    uWallTexture:{value:siloInnerSteelPaint}
+    uWallTexture:{value:siloInnerSteelPaint},
+    uRocketRadius:{value:15.7},
+    uRocketBottom:{value:hullTopY-hullHeight-depthMaskY}
    },
    vertexShader:`
     varying vec2 vSiloXY;
@@ -525,6 +532,8 @@ export function createStrategicBuilding(kind,owner=0){
     uniform float uDepth;
     uniform float uOpacity;
     uniform sampler2D uWallTexture;
+    uniform float uRocketRadius;
+    uniform float uRocketBottom;
     varying vec2 vSiloXY;
     const float PI=3.141592653589793;
     float band(float depth,float at,float halfWidth){
@@ -540,8 +549,32 @@ export function createStrategicBuilding(kind,owner=0){
      float tWall=(-b+sqrt(delta))/a;
      float tPlane=-eye.z/min(dir.z,-0.00001);
      float tFloor=(-uDepth-eye.z)/min(dir.z,-0.00001);
+     // Geometry below the ground-cover disk is hidden by its real depth
+     // buffer. Raycast the same cylindrical rocket AGAIN inside the visual
+     // shaft so it continues beneath the disk, without a floating flat edge.
+     float rocketC=dot(eye.xy,eye.xy)-uRocketRadius*uRocketRadius;
+     float rocketDelta=b*b-a*rocketC;
+     float tRocket=1.0e9;
+     if(rocketDelta>0.0){
+      float tEntry=(-b-sqrt(rocketDelta))/a;
+      float rocketZ=eye.z+dir.z*tEntry;
+      if(tEntry>tPlane+0.001 && tEntry<tFloor &&
+       rocketZ<0.0 && rocketZ>uRocketBottom)
+       tRocket=tEntry;
+     }
      vec3 metal;
-     if(tWall>tPlane+0.001 && tWall<tFloor){
+     if(tRocket<min(tWall,tFloor)){
+      vec3 rocketHit=eye+dir*tRocket;
+      float below=clamp(-rocketHit.z,0.0,uDepth);
+      vec2 radial=normalize(rocketHit.xy);
+      // Match the smooth physical brushed-alloy upper stage: darker with
+      // depth, without ribs, painted rings or a fake lower end cap.
+      float diffuse=.31+.34*max(0.0,dot(radial,normalize(vec2(-.66,.75))));
+      float brush=.016*sin(atan(rocketHit.y,rocketHit.x)*47.0+below*.035);
+      float deepFade=1.0-.91*smoothstep(1.0,uDepth-6.0,below);
+      metal=vec3(.59,.62,.62)*max(.12,diffuse+brush)*deepFade+
+       vec3(.007,.009,.010);
+     }else if(tWall>tPlane+0.001 && tWall<tFloor){
       vec3 hit=eye+dir*tWall;
       float down=clamp(-hit.z,0.0,uDepth);
       float angle=atan(hit.y,hit.x);
@@ -577,7 +610,7 @@ export function createStrategicBuilding(kind,owner=0){
    `
   });
   const occlusion=add(new THREE.CircleGeometry(shaftRadius+.6,64),
-   depthMaskMaterial,rocketX,1.42,0,-Math.PI/2);
+   depthMaskMaterial,rocketX,depthMaskY,0,-Math.PI/2);
   occlusion.name='Silo_TerrainOcclusion';
   occlusion.castShadow=false;occlusion.receiveShadow=false;
   occlusion.userData={visualOnly:true,nonPlayable:true,
@@ -643,7 +676,6 @@ export function createStrategicBuilding(kind,owner=0){
   // open (no exposed flat circular cap or floating lower edge).
   // Subtle vertex shading darkens the lower shell so it blends naturally into
   // the unlit underground well rather than looking like a metal pillar.
-  const hullHeight=125,hullTopY=35.5,hullCenterY=hullTopY-hullHeight/2;
   const hullGeometry=new THREE.CylinderGeometry(15.7,16.6,hullHeight,48,20,true);
   const positions=hullGeometry.getAttribute('position');
   const shading=new Float32Array(positions.count*3);
