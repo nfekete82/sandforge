@@ -664,7 +664,7 @@ export function createStrategicBuilding(kind,owner=0){
    [15.7,0],[15.55,2.4],[14.8,5.2],[13.4,8.3],
    [11.5,11.2],[8.6,14.0],[5.5,16.1],[2.5,17.3],[0,17.7]
   ].map(([radius,height])=>new THREE.Vector2(radius,height));
-  const hullTopY=hullCenterY+hullHeight/2;
+  // Reuse hullTopY already declared with hullHeight above.
   const ogive=add(new THREE.LatheGeometry(ogiveProfile,48),
    'rocketNose',rocketX,hullTopY,0);
   ogive.name='Silo_RocketNose';
