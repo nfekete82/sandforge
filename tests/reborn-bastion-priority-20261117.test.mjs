@@ -115,7 +115,12 @@ test('phase 1: stale HQ attack is dropped if the Bastion it targeted was secured
 test('paid frontier guard: HQ reserve is protected, one soldier may protect an exposed Bastion',()=>{
  const source=readFileSync('src/reborn/tactical-ai.ts','utf8');
  assert.match(source,/const border=g\.territories\.filter\(t=>t\.owner===1&&/);
- assert.match(source,/const fort=i===1&&guards\.length>=2&&border\?border:null/);
+ assert.match(source,/const frontSlots=Math\.min\(2,border\.length,Math\.floor\(guards\.length\/2\)\)/,
+  'no more than two reserve soldiers guard separate frontier Bastions');
+ assert.match(source,/const assigned=new Set<number>\(\)/,
+  'sector posts are unique: two guards cannot both defend the same Bastion');
+ assert.match(source,/const fort=eligible\.find\(t=>distance\(u,t\.point\)<200\)\?\?eligible\[0\]\?\?null/,
+  'the guard should remain on a valid frontier instead of being constantly reassigned');
  assert.match(source,/const radius=fort\?68:/);
  assert.match(source,/const base=fort\?\.point\?\?protectedBases/);
  assert.match(source,/if\(u\.defendUntil>g\.time\)continue/,
