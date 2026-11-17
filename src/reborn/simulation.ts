@@ -61,6 +61,9 @@ export interface Unit extends Point {
   airfieldService?:AirfieldService;
   /** Opt-in automatic return below 30% HP. */
   autoAirfieldRepair?:boolean;
+  /** Explicit RETURN TO BASE while damaged and the single hangar is occupied.
+   * Retry until a real airfield service slot opens; saved with the unit. */
+  returnToHangar?:boolean;
   /** Physical front-apron maintenance; independently serialized. */
   factoryService?:FactoryService;
   autoFactoryRepair?:boolean;
@@ -401,6 +404,7 @@ export class Simulation {
       const bay=([0] as const).find(n=>!occupied.has(n));
       if(bay===undefined||occupied.size>=AIRFIELD_BAYS)continue;
       u.airfieldService={baseId:airfield.id,bay,phase:'approach',elapsed:0,paidHp:0};
+      u.returnToHangar=false;
       u.orders=[];u.path=[];u.repath=0;u.hold=false;u.pursuitOrigin=null;u.combatTarget=null;
       delete u.bomberRun;delete u.idleOrbit;delete u.burst;
       this.transports.cancel(u);this.cancelProductionDeparture(u.id);
@@ -910,6 +914,9 @@ export class Simulation {
     if(order.kind==='board')return this.transports.board(order.target??-1,ids);
     if(!Number.isFinite(order.x)||!Number.isFinite(order.y))return 0;
     const candidates=this.units.filter(u=>ids.includes(u.id)&&u.hp>0&&!u.carrier);
+    // Any new command cancels a queued return to a busy bomber hangar.
+    // The return-base toolbar sets the flag only AFTER this move is issued.
+    for(const u of candidates)u.returnToHangar=false;
     // A manual reposition always wins over workshop autopilot. Ground vehicles
     // can leave even before full repair; planes must physically take off first.
     // Never teleport a landed bomber back to cruise altitude on order.
@@ -1025,7 +1032,7 @@ export class Simulation {
     if(this.bases.some(b=>b.kind==='headquarters'&&b.territory===t.id&&b.owner!==owner&&b.hp>0))return 'enemy-hq';
     return 'capturing';
   }
-  stop(ids:number[],hold=false,guardArea=false):void {for(const u of this.units)if(ids.includes(u.id)){if(u.kind==='bomber')delete u.bomberRun;this.cancelProductionDeparture(u.id);this.transports.cancel(u);u.orders=[];u.path=[];u.repath=0;u.moving=false;if(u.kind==='tank')u.driveSpeed=0;u.pursuitOrigin=null;u.combatTarget=null;u.hold=hold||u.kind==='engineer';u.guardArea=hold&&guardArea;u.supportPaused=false;u.workingTarget=null;delete u.burst;}}
+  stop(ids:number[],hold=false,guardArea=false):void {for(const u of this.units)if(ids.includes(u.id)){u.returnToHangar=false;if(u.kind==='bomber')delete u.bomberRun;this.cancelProductionDeparture(u.id);this.transports.cancel(u);u.orders=[];u.path=[];u.repath=0;u.moving=false;if(u.kind==='tank')u.driveSpeed=0;u.pursuitOrigin=null;u.combatTarget=null;u.hold=hold||u.kind==='engineer';u.guardArea=hold&&guardArea;u.supportPaused=false;u.workingTarget=null;delete u.burst;}}
   private supportEligible(u:Unit,target:Unit|Base,kind:string):boolean {
     if(target.hp<=0||('orders' in target&&target.carrier)||target.owner!==u.owner)return false;
     if(kind==='heal')return u.kind==='medic'&&'orders' in target&&unitSpec(target).group==='Infanterie'&&target.hp<this.maxUnitHp(target);
@@ -1738,6 +1745,16 @@ export class Simulation {
     for(const u of this.units)if(u.hp>0&&!u.airfieldService&&u.autoAirfieldRepair&&
       ['bomber','scout'].includes(u.kind)&&u.hp/this.maxUnitHp(u)<=.30)
       this.requestAirfieldRepair([u.id]);
+    // Explicit damaged-bomber return stays queued while the one maintenance
+    // slot is busy. As soon as it frees, the ORIGINAL landing/taxi/repair
+    // system takes control. No artificial healing, teleport or second bay.
+    for(const u of this.units)if(u.returnToHangar){
+      if(u.hp<=0||u.kind!=='bomber'||u.airfieldService||
+         this.maxUnitHp(u)-u.hp<=1e-6){u.returnToHangar=false;continue;}
+      if(!this.bases.some(b=>b.kind==='airfield'&&b.owner===u.owner&&
+         b.hp>0&&b.buildRemaining<=0)){u.returnToHangar=false;continue;}
+      this.requestAirfieldRepair([u.id]);
+    }
     const squadMoveAt=this.profileSquadWork?performance.now():0;
     for(const u of this.units){
       if(u.hp<=0||u.carrier)continue;u.previousX=u.x;u.previousY=u.y;u.cooldown-=dt;u.repath-=dt;u.hit=Math.max(0,u.hit-dt);u.fire=Math.max(0,u.fire-dt);u.moving=false;
@@ -2197,6 +2214,7 @@ export class Simulation {
        !validMatchStatisticsOrLegacy(s.stats)||!Array.isArray(s.units)||s.units.length>96||!Array.isArray(s.bases)||s.bases.length<(s.bootstrapVersion===1?0:2)||s.bases.length>260||
       s.units.some(u=>u.exactPath!==undefined&&typeof u.exactPath!=='boolean')||
       s.units.some(u=>u.guardArea!==undefined&&typeof u.guardArea!=='boolean')||
+      s.units.some(u=>u.returnToHangar!==undefined&&typeof u.returnToHangar!=='boolean')||
       !Array.isArray(s.territories)||s.territories.length!==mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows||!Array.isArray(s.explored)||s.explored.length!==2||
       s.explored.some(a=>!Array.isArray(a)||![120**2,RULES.grid**2].includes(a.length)||a.some(v=>v!==0&&v!==1))||
       !Array.isArray(s.credits)||s.credits.length!==2||s.credits.some(v=>!finite(v)||v<0)||
