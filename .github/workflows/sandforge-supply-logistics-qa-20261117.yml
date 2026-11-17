@@ -1,0 +1,37 @@
+name: Sandforge finite supply economy QA
+on:
+  push:
+    branches: [feat/sandforge-supply-economy-20261117]
+  pull_request:
+    branches: [integration/sandforge-current-20261117]
+    paths:
+      - 'src/reborn/supply-logistics.ts'
+      - 'src/reborn/simulation.ts'
+      - 'src/reborn/catalog.ts'
+      - 'src/reborn/army-economy.ts'
+      - 'tests/reborn-supply-logistics-20261117.test.mjs'
+      - '.github/workflows/sandforge-supply-logistics-qa-20261117.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  supply-logistics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile authoritative supply, AI and economy
+        run: npx tsc -p tsconfig.json
+      - name: Supply stocks, return trips, save compatibility and legacy AI
+        run: |
+          node --test \
+            tests/reborn-supply-logistics-20261117.test.mjs \
+            tests/reborn-ai3-bastion-rush-20261117.test.mjs \
+            tests/sandforge-building-victory-20261117.test.mjs

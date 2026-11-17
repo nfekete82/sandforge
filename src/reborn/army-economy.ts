@@ -18,7 +18,7 @@ export function directorArmyTarget(income:number):number {
  return Math.min(42,Math.max(24,Math.floor(Math.max(0,income)/2.5)+13));
 }
 
-const fighter=(u:Unit)=>!u.carrier&&!['medic','engineer','scout'].includes(u.kind);
+const fighter=(u:Unit)=>!u.carrier&&!['medic','engineer','scout','supply'].includes(u.kind);
 /** Only already observed enemy infrastructure, an operational factory and a
  * missing paid siege weapon may defer optional airfield construction. */
 export function deferOptionalAirfieldForSiege(goal:BuildingKind|null,observedSiege:boolean,
@@ -64,6 +64,15 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  const finishing=director&&s.commander?.enemyHQEliminatedAt!==undefined;
  if(director&&!s.economy)s.economy=e; // Keep paid turret cooldowns across macro ticks and save/reload.
  const count=(kind:UnitKind)=>army.filter(u=>u.kind===kind).length+own.reduce((n,b)=>n+b.queueTypes.filter(k=>k===kind).length,0);
+ // A real 275-credit truck must travel to a public finite stockpile and
+ // return alive before any income is earned. Only fund the first truck
+ // when the opening combat barracks is ready and 150 credits remain.
+ if(director&&g.world.mapVersion>=23&&g.supplyCaches.some(c=>c.remaining>0)&&
+   g.time>=28&&g.hasHeadquarters(1)&&own.some(b=>b.kind==='barracks'&&b.buildRemaining<=0)&&
+   count('supply')<1&&!underAttack&&g.credits[1]>=UNITS.supply.cost+150){
+   const hq=own.find(b=>b.kind==='headquarters'&&b.buildRemaining<=0);
+   if(hq)g.recruit(hq.id,'supply');
+ }
  const has=(kind:BuildingKind)=>own.some(b=>b.kind===kind),complete=(kind:BuildingKind)=>own.some(b=>b.kind===kind&&b.buildRemaining<=0);
  const unfinished=own.find(b=>b.buildRemaining>0);
  const learnedDefense=director&&s.experience?defenseLessonsLost(s.experience)>0:false;
@@ -181,6 +190,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   rocket:(desiredRockets>count('rocket')?52+(air>0?air*12:armor>0?armor*9:0):0)-count('rocket')*9,
   medic:(wounded>=2?30:Math.max(0,fighters.length-2)*4)-count('medic')*20,
   engineer:count('engineer')===0?(!complete('barracks')?80:fighters.length>=2?38:0):own.length>=4&&count('engineer')<2?15:0,
+  supply:0, // Purchased by dedicated paid logistics policy above.
   rover:complete('factory')?35+(g.explored[1].reduce((n,v)=>n+v,0)/g.explored[1].length<.4?6:0)-count('rover')*17:0,
   tank:complete('factory')?44+known*4+armor*6
    +(director&&income>=65?24:0)-count('tank')*(director?12:16):0,

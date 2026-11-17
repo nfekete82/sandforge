@@ -7,7 +7,7 @@
  */
 export const MODEL_HEIGHTS=Object.freeze({
  infantry:61,medic:61,engineer:61,heavy:65,rocket:61,
- rover:42,tank:46,artillery:51,scout:48,bomber:51,
+ rover:42,supply:49,tank:46,artillery:51,scout:48,bomber:51,
  headquarters:158,barracks:119,factory:125,airfield:137,generator:79,turret:95
 });
 export const DIMENSIONS_VERSION=3;
@@ -70,7 +70,7 @@ export function visualUnitScale(kind){
  if(kind==='heavy')return .40;
  // Humvee needs a substantial visual presence beside full-scale buildings.
  // Only the rendered mesh changes; navigation/collision/save width stays 76.
- if(kind==='rover')return 1.34;
+ if(kind==='rover'||kind==='supply')return 1.34;
  if(kind==='artillery')return 1.42; // +7.6% for the 6x6 rocket launcher, render-only
  if(kind==='tank')return 1.44;
  if(kind==='scout')return 1.34;

@@ -56,6 +56,7 @@ import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
+import {createSupplyTruckVisual,createSupplyCacheVisual,updateSupplyCacheVisual,setSupplyTruckCargo} from '/webgl-supply-logistics.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
 // exclusively by the original Simulation. 3D nodes are presentation only.
@@ -70,6 +71,7 @@ export class SandforgeBattlefield {
  constructor({game,world,terrain,scene,renderer,camera,controls,loader,groundMeshes,heightAt,pos,lite=false,biome='desert'}){
   Object.assign(this,{game,world,terrain,scene,renderer,camera,controls,loader,groundMeshes,heightAt,pos,lite,biome});
   this.units=new Map();this.bases=new Map();this.bastions=new Map();
+  this.supplyCacheNodes=new Map();this.supplyCacheGame=null;
   // Toggle just the NEW site dressing, not the original production props.
   this.siteDecorEnabled=new URLSearchParams(location.search).get('siteDecor')!=='0';
   this.announcedBuildings=new Set(game.bases.filter(b=>b.buildRemaining<=0).map(b=>b.id));
@@ -147,6 +149,7 @@ export class SandforgeBattlefield {
  }
  entityPosition(p){return this.pos(p.x,p.y,this.heightAt(p.x,p.y)+unitRenderAltitude(p.kind,p.flightHeight??1));}
  createFallback(kind,owner,type){
+  if(type==='unit'&&kind==='supply')return createSupplyTruckVisual(owner);
   if(type==='building'&&isStrategicBuilding(kind))return createStrategicBuilding(kind,owner);
   if(type==='unit'&&kind==='rocket')return createRocketInfantry(owner);
   const group=new THREE.Group(),team=FACTION_PAINT[owner],metal=new THREE.MeshStandardMaterial({color:team,metalness:.55,roughness:.53}),
@@ -292,6 +295,7 @@ export class SandforgeBattlefield {
   // ?lite=1 mode. Queue pressure must not permanently demote a paid tank to
   // the emergency cuboid geometry.
   const priorityTank=type==='unit'&&entity.kind==='tank';
+  if(type==='unit'&&entity.kind==='supply')return; // wholly authored six-wheel model, no GLB download
   if((this.lite&&type!=='building'&&
       !['medic','rocket','tank'].includes(entity.kind))||
      (type==='building'&&isStrategicBuilding(entity.kind))||entry.requested||
@@ -1072,7 +1076,27 @@ export class SandforgeBattlefield {
    ' · R drehen ('+buildingFacingDegrees(this.placementFacing)+'°)';
   this.buildHint.style.borderColor=valid?'#9edfbe':'#ee8875';
  }
+ /** Neutral depots are scenery, never a unit, building or fog source. */
+ syncSupplyCaches(){
+  if(this.supplyCacheGame!==this.game){
+   for(const node of this.supplyCacheNodes.values()){
+    this.scene.remove(node);disposeOwnedMeshes(node);
+   }
+   this.supplyCacheNodes.clear();this.supplyCacheGame=this.game;
+  }
+  for(const cache of this.game.supplyCaches??[]){
+   let node=this.supplyCacheNodes.get(cache.id);
+   if(!node){
+    node=createSupplyCacheVisual();
+    node.position.copy(this.pos(cache.x,cache.y,this.heightAt(cache.x,cache.y)+.3));
+    this.scene.add(node);this.supplyCacheNodes.set(cache.id,node);
+   }
+   updateSupplyCacheVisual(node,cache);
+   node.visible=node.visible&&this.game.hasExplored(0,cache);
+  }
+ }
  sync(force=false,dt=0,active=true,alpha=1){
+  this.syncSupplyCaches();
   const aliveUnits=new Set(),aliveBases=new Set();
   // Service slots are uncommon, so build this lookup only when needed. On
   // busy matches, avoid scanning every base for each repairing unit.
@@ -1086,6 +1110,7 @@ export class SandforgeBattlefield {
    const oldEntry=this.units.get(u.id);if(oldEntry)oldEntry.productionMotion=null;
    let entry=this.units.get(u.id);
    if(!entry){entry=this.spawnNode(u,'unit');this.units.set(u.id,entry);}
+   if(u.kind==='supply')setSupplyTruckCargo(entry.placeholder,Boolean(u.supply?.cargo));
    if(entry.factionOwner!==u.owner){
     applyFactionAccents(entry,u,'unit');
     attachTeamMarkings(entry,u.owner,u.kind,entry.modelFootprint??(UNITS[u.kind]?.width??60),entry.modelHeight??42);
@@ -1692,6 +1717,14 @@ export class SandforgeBattlefield {
     else this.message('Nicht möglich: Kapazität, Warteschlange oder Credits prüfen');
     this.drawInterface();return;
    }
+   if(button.dataset.supplyCache!==undefined){
+    const cache=this.game.supplyCaches?.find(c=>c.id===Number(button.dataset.supplyCache));
+    if(cache){
+     const dest=this.pos(cache.x,cache.y),delta=dest.clone().sub(this.controls.target);
+     this.controls.target.add(delta);this.camera.position.add(delta);this.controls.update();
+    }
+    return;
+   }
    if(button.dataset.territory!==undefined){
     const t=this.game.territories.find(t=>t.id===Number(button.dataset.territory));
     if(t){
@@ -1717,6 +1750,14 @@ export class SandforgeBattlefield {
    if(action==='load'){this.loadSave();}
    if(action==='attack'){this.attackMode=!this.attackMode;this.clearPlacement();this.drawInterface();this.message(this.attackMode?'Angriffsbewegung: Rechtsklick auf Ziel':'Angriffsbewegung beendet');}
    if(action==='unload')this.unloadSelectedTransport();
+   if(action==='supply-auto'){
+    const ids=[...this.selected].filter(id=>this.game.units.some(u=>
+     u.id===id&&u.owner===0&&u.kind==='supply'&&u.hp>0));
+    const n=this.game.setSupplyAuto(ids,true);
+    this.message(n?n+' Transporter sammeln wieder Nachschub':
+     'Kein Nachschubtransporter ausgewählt');
+    this.drawInterface();return;
+   }
    if(action==='stop'){
     const units=this.game.units.filter(u=>this.selected.has(u.id)&&u.hp>0&&u.owner===0&&!u.carrier);
     // Manually holding a position overrides return-to-workshop autopilot.
@@ -1811,7 +1852,9 @@ export class SandforgeBattlefield {
    tab.setAttribute('aria-pressed',String(view.dataset.tab===tab.dataset.tab));
   }
   view.querySelector('#sf-credits').textContent=g.testMode?'∞':format(g.credits[0]);
-  view.querySelector('#sf-income').textContent='+ '+format(g.income(0));
+  const supplyTrucks=g.units.filter(u=>u.owner===0&&u.kind==='supply'&&u.hp>0);
+  view.querySelector('#sf-income').textContent='+ '+format(g.income(0))+
+   ' / 10s · '+supplyTrucks.length+' NACH SCHUB';
   view.querySelector('#sf-capacity').innerHTML=g.count(0)+' <em>/ '+RULES.capacity+'</em>';
   view.querySelector('#sf-stats').textContent='Credits '+(g.testMode?'∞':format(g.credits[0]))+' · '+g.count(0)+'/'+RULES.capacity;
   view.querySelector('#sf-sectors').textContent=g.territories.filter(t=>t.owner===0).length+' / '+g.territories.length+' SEKTOREN';
@@ -1852,12 +1895,18 @@ export class SandforgeBattlefield {
    '" aria-label="Sektor '+(t.id+1)+' zentrieren">'+
    '<i></i><strong>SEKTOR '+(t.id+1)+'</strong><small></small></button>'
   ).join('');
+  const depots=(g.supplyCaches??[]).map(cache=>
+   '<button class="territory-row" data-supply-cache="'+cache.id+
+   '" aria-label="Nachschublager '+(cache.id+1)+' zentrieren">'+
+   '<i></i><strong>VORRATSLAGER '+(cache.id+1)+'</strong><small></small></button>'
+  ).join('');
   const markup='<div class="sf-group" data-sf-group="buildings"><div class="catalog-grid">'+
    cards(buildingKinds.filter(kind=>kind!=='interceptor'||INTERCEPTOR_ENABLED),'building')+'</div></div>'+
    '<div class="sf-group" data-sf-group="infantry">'+infantryRoster+'</div>'+
    '<div class="sf-group" data-sf-group="vehicles">'+vehicleRoster+'</div>'+
    '<div class="sf-group" data-sf-group="aircraft">'+aircraftRoster+'</div>'+
-   '<div class="sf-group" data-sf-group="territories"><h2>KONTROLLPUNKTE</h2>'+tiles+'</div></div>';
+   '<div class="sf-group" data-sf-group="territories"><h2>KONTROLLPUNKTE</h2>'+tiles+
+   (depots?'<h2>VERSORGUNGSLAGER</h2>'+depots:'')+'</div></div>';
   if(this.previousActionsMarkup!==markup){
    const scroll=actions.scrollTop;
    actions.innerHTML=markup;this.previousActionsMarkup=markup;
@@ -1878,6 +1927,14 @@ export class SandforgeBattlefield {
    const caption=label+capture;
    if(tile.querySelector('small')?.textContent!==caption)
     tile.querySelector('small').textContent=caption;
+  }
+  for(const tile of actions.querySelectorAll('[data-supply-cache]')){
+   const cache=g.supplyCaches.find(s=>String(s.id)===tile.dataset.supplyCache);
+   if(!cache)continue;
+   const stock=cache.remaining+' / '+cache.capacity+' CREDITS';
+   if(tile.querySelector('small')?.textContent!==stock)
+    tile.querySelector('small').textContent=stock;
+   tile.classList.toggle('unknown',cache.remaining<=0);
   }
   // Only finished sources are rendered. Selection never hides a finished
   // production source; the roster updates on every construction completion.
@@ -2133,13 +2190,19 @@ export class SandforgeBattlefield {
      '" '+(!readyAtBase?'disabled':'')+'>↑ '+(base.kind==='airfield'?'STARTEN':'FREIGEBEN')+
      ' ('+readyAtBase+')</button></div>':'';
   const healthPct=item?Math.max(0,Math.min(100,100*hp/Math.max(1,maxHp))):0;
+  const supplyStatus=kind==='supply'&&chosen.length===1
+   ?'<div class="sf-strategic-meter">NACH SCHUB · LADUNG '+(chosen[0].supply?.cargo??0)+
+     ' / 45 · '+(chosen[0].supply?.auto?'AUTOMATIK':'MANUELL')+'</div>'+
+     '<div class="sf-service-controls"><button type="button" data-action="supply-auto">'+
+     'NACH SCHUB SAMMELN</button></div>'
+   :'';
   const selectedMarkup='<small>'+meta+'</small><strong>'+plain(heading)+'</strong>'+
    (item?'<div class="sf-health-row" aria-label="Lebenspunkte '+hp+' von '+maxHp+'">'+
    '<span class="sf-health-label">LP</span><div class="health-track"><i style="width:'+healthPct.toFixed(1)+'%"></i></div>'+
    '<span class="sf-health">'+hp+' / '+maxHp+'</span></div>':'')+
    '<p title="'+plain(description)+'">'+plain(kind==='engineer'&&chosen.length===1
      ?'Baut und repariert Gebäude sowie Fahrzeuge. Gebäude im Baumenü wählen, dann Bauplatz auf der Karte anklicken.'
-     :description)+'</p>'+strategicStatus+serviceMarkup+passengerMarkup;
+     :description)+'</p>'+strategicStatus+supplyStatus+serviceMarkup+passengerMarkup;
   if(this.previousSelectionMarkup!==selectedMarkup){
    el.innerHTML=selectedMarkup;this.previousSelectionMarkup=selectedMarkup;
   }
@@ -2792,6 +2855,21 @@ export class SandforgeBattlefield {
     this.message('RAKETE GESTARTET · Einschlag in 25 Sekunden');
    }else this.message('Ziel ungültig: Silo bereit und Ziel erkundet?');
    this.drawInterface();return;
+  }
+  // Assign selected trucks to a known depot by right-click on its crates.
+  // A different right-click remains a manual move, pausing their autopilot.
+  if(event.button===2&&!clickedEnemy&&!this.attackMode){
+   const ids=[...this.selected].filter(id=>this.game.units.some(u=>
+    u.id===id&&u.kind==='supply'&&u.owner===0&&u.hp>0));
+   const cache=this.game.supplyCaches?.find(c=>c.remaining>0&&dist(c,p)<115);
+   if(ids.length&&cache){
+    const assigned=this.game.setSupplyAuto(ids,true,cache.id);
+    if(assigned){
+     this.showCommandPulse(p,false);
+     this.message(assigned+' Transporter zu Vorratslager '+(cache.id+1)+' beordert');
+     this.drawInterface();return;
+    }
+   }
   }
   // Immediate acknowledgment, including an unselected RMB click; no pulse
   // for clicks outside the terrain or for a right-button drag.

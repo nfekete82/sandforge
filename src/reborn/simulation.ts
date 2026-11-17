@@ -30,6 +30,8 @@ import {airfieldPoint,airfieldLerp,airfieldTaxiPoint,validAirfieldService,AIRFIE
 import {factoryRepairPoint,validFactoryService,FACTORY_REPAIR_BAYS,FACTORY_REPAIR_HP_PER_CREDIT,FACTORY_REPAIR_FRACTION_PER_SECOND,type FactoryService} from './factory-maintenance.js';
 import {factoryDoorExitCandidates,infantryDoorExitCandidates} from './production-exit.js';
 import {eliminationOutcome} from './match-outcome.js';
+import {generateSupplyCaches,newSupplyJob,stepSupplyLogistics,validSupplyJob,
+ type SupplyCache,type SupplyJob} from './supply-logistics.js';
 import {formationSlotPitch,vehicleSpacingGap,preservesVehicleProgress,vehicleYieldWaypoint} from './vehicle-spacing.js';
 import {UPGRADES,UPGRADE_KINDS,newResearchState,canResearchUpgrade,researchModifiers,
  validResearchState,strategicBlastDamage,validStrategicMissile,
@@ -79,6 +81,8 @@ export interface Unit extends Point {
   workingTarget?:number|null;
   supportPaused?:boolean;
   burst?:Burst;
+  /** Optional logistics state: no inventory or virtual income for combat units. */
+  supply?:SupplyJob;
   carrier?:number;flightHeight?:number;transport?:TransportState;
 }
 export interface Base extends Point {
@@ -111,6 +115,8 @@ export interface Save {
   strategicMissiles?:StrategicMissile[];
   /** Ever established a living structure (even if later destroyed). */
   hadBuildings?:[boolean,boolean];
+  /** Finite neutral supply stocks; missing in old saves -> new seeded sites. */
+  supplyCaches?:SupplyCache[];
 }
 
 /** Uniform buckets keep combat/vision queries independent of total army size. */
@@ -347,6 +353,7 @@ export class Simulation {
   stats:MatchStatistics=newMatchStatistics();
   /** HQ-less startup cannot be mistaken for building elimination. */
   hadBuildings:[boolean,boolean]=[false,false];
+  supplyCaches:SupplyCache[]=[];
   units:Unit[]=[]; bases:Base[]=[]; territories:Territory[];
   visible=[new Uint8Array(RULES.grid**2),new Uint8Array(RULES.grid**2)];
   explored=[new Uint8Array(RULES.grid**2),new Uint8Array(RULES.grid**2)];
@@ -651,6 +658,10 @@ export class Simulation {
       this.spawn(owner,p,'engineer');
     }
     for(const b of this.bases)if(b.hp>0)this.hadBuildings[b.owner]=true;
+    this.supplyCaches=generateSupplyCaches(this.world,this.territories,
+      this.startRegions.map(r=>r.center),this.seed);
+    if(this.world.mapVersion>=23&&this.territories.length===4)
+      for(const t of this.territories)t.income=5;
     this.spatial.rebuild(this.units);this.updateVision();
   }
   static campaign(seed=randomMapSeed(),version:MapVersion=MAP_VERSION,profile?:TerrainProfile):Simulation {return new Simulation(seed,version,false,true,profile);}
@@ -694,12 +705,32 @@ export class Simulation {
     while(this.bases.some(b=>b.id===this.nextId))this.nextId++;
     const u:Unit={id:this.nextId++,owner,kind,xp:0,x:p.x,y:p.y,hp:this.maxUnitHp({kind,owner}),orders:[],path:[],cooldown:0,facing:1,moving:false,hit:0,repath:0,
       angle:Math.PI/4,walkDistance:0,fire:0,previousX:p.x,previousY:p.y,lastAttacker:null,defendUntil:0};
+    if(kind==='supply')u.supply=newSupplyJob();
     this.units.push(u);this.unitById.set(u.id,u);
     countDeployed(this.stats,owner,kind,this.count(owner));return u;
   }
   income(owner:Faction):number {
-    return this.bases.filter(b=>b.owner===owner&&b.hp>0&&b.buildRemaining<=0).reduce((n,b)=>n+buildingSpec(b).income,0)+
+    const strategicLogistics=this.world.mapVersion>=23&&this.territories.length===4;
+    return this.bases.filter(b=>b.owner===owner&&b.hp>0&&b.buildRemaining<=0).reduce((n,b)=>
+      n+(strategicLogistics&&b.kind==='headquarters'?20:buildingSpec(b).income),0)+
       this.territories.filter(t=>t.owner===owner).reduce((n,t)=>n+t.income,0);
+  }
+  /** Re-enable logistics after a manual move/STOPP, optionally pick a marked
+   * stockpile. Uses the same orders/collisions as AI supply lines.
+   */
+  setSupplyAuto(ids:readonly number[],enabled=true,cacheId?:number):number{
+    if(this.status!=='playing')return 0;
+    let n=0;
+    for(const u of this.units)if(ids.includes(u.id)&&u.owner===0&&u.kind==='supply'&&u.hp>0){
+      const job=u.supply??(u.supply=newSupplyJob());
+      if(cacheId!==undefined&&(!this.supplyCaches.some(c=>c.id===cacheId&&c.remaining>0)))continue;
+      job.auto=enabled;job.cacheId=cacheId??null;job.preferred=cacheId??null;
+      job.phase=enabled?'seek':'idle';
+      job.clock=0;job.destination=undefined;u.orders=[];u.path=[];u.repath=0;
+      if(enabled&&job.cargo>0)job.phase='to-hq';
+      n++;
+    }
+    return n;
   }
   count(owner:Faction):number{return this.units.filter(u=>u.owner===owner&&u.hp>0).length;}
   queued(owner:Faction):number{return this.bases.filter(b=>b.owner===owner).reduce((n,b)=>n+b.queue.length,0);}
@@ -924,7 +955,14 @@ export class Simulation {
     const candidates=this.units.filter(u=>ids.includes(u.id)&&u.hp>0&&!u.carrier);
     // Any new command cancels a queued return to a busy bomber hangar.
     // The return-base toolbar sets the flag only AFTER this move is issued.
-    for(const u of candidates)u.returnToHangar=false;
+    for(const u of candidates){
+      u.returnToHangar=false;
+      // A human move takes precedence over autonomous supply runs. The
+      // logistics button can resume collection without any lost cargo.
+      if(!append&&u.kind==='supply'&&u.supply){
+        u.supply.auto=false;u.supply.phase='idle';u.supply.destination=undefined;
+      }
+    }
     // A manual reposition always wins over workshop autopilot. Ground vehicles
     // can leave even before full repair; planes must physically take off first.
     // Never teleport a landed bomber back to cruise altitude on order.
@@ -1040,7 +1078,7 @@ export class Simulation {
     if(this.bases.some(b=>b.kind==='headquarters'&&b.territory===t.id&&b.owner!==owner&&b.hp>0))return 'enemy-hq';
     return 'capturing';
   }
-  stop(ids:number[],hold=false,guardArea=false):void {for(const u of this.units)if(ids.includes(u.id)){u.returnToHangar=false;if(u.kind==='bomber')delete u.bomberRun;this.cancelProductionDeparture(u.id);this.transports.cancel(u);u.orders=[];u.path=[];u.repath=0;u.moving=false;if(u.kind==='tank')u.driveSpeed=0;u.pursuitOrigin=null;u.combatTarget=null;u.hold=hold||u.kind==='engineer';u.guardArea=hold&&guardArea;u.supportPaused=false;u.workingTarget=null;delete u.burst;}}
+  stop(ids:number[],hold=false,guardArea=false):void {for(const u of this.units)if(ids.includes(u.id)){if(u.supply){u.supply.auto=false;u.supply.phase='idle';}u.returnToHangar=false;if(u.kind==='bomber')delete u.bomberRun;this.cancelProductionDeparture(u.id);this.transports.cancel(u);u.orders=[];u.path=[];u.repath=0;u.moving=false;if(u.kind==='tank')u.driveSpeed=0;u.pursuitOrigin=null;u.combatTarget=null;u.hold=hold||u.kind==='engineer';u.guardArea=hold&&guardArea;u.supportPaused=false;u.workingTarget=null;delete u.burst;}}
   private supportEligible(u:Unit,target:Unit|Base,kind:string):boolean {
     if(target.hp<=0||('orders' in target&&target.carrier)||target.owner!==u.owner)return false;
     if(kind==='heal')return u.kind==='medic'&&'orders' in target&&unitSpec(target).group==='Infanterie'&&target.hp<this.maxUnitHp(target);
@@ -1719,6 +1757,8 @@ export class Simulation {
     }
     if(wasStorm!==this.weather.storm){this.visionCache.invalidate();this.updateVision();this.fogClock=0;}
     if(this.incomeClock+1e-8>=RULES.incomeInterval){this.incomeClock=Math.max(0,this.incomeClock-RULES.incomeInterval);for(const owner of [0,1] as const){const earned=this.income(owner);this.credits[owner]+=earned;countIncome(this.stats,owner,earned);}}
+    // Neutral supply stocks only pay upon a physical return to the HQ.
+    stepSupplyLogistics(this,dt);
     this.blasts=this.blasts.filter(b=>this.time-b.at<.5);
     this.stepStrategy(dt);
     // Optically guided infantry rockets keep tracking the *observed* target
@@ -1820,6 +1860,12 @@ export class Simulation {
           if(order.guardOnArrival){u.hold=true;u.guardArea=true;}
           if(u.kind==='tank')u.driveSpeed=0;
         }else this.move(u,order,dt);
+        continue;
+      }
+      // Unarmed supply trucks are civilians. Even when idle or explicitly
+      // attack-moved, they must not chase combat targets and abandon cargo.
+      if(u.kind==='supply'){
+        u.combatTarget=null;delete u.burst;
         continue;
       }
       const acquired=this.acquire(u);
@@ -2216,7 +2262,7 @@ export class Simulation {
     return structuredClone({version:2,...(this.world.generated?.battlefield?{terrainProfile:this.world.generated.battlefield.profile,generatorVersion:this.world.generated.battlefield.generatorVersion}:{}),...(this.bootstrapVersion?{bootstrapVersion:this.bootstrapVersion}:{}),weatherVersion:1,productionVersion:1,supportVersion:1,rosterVersion:2,missiles:this.missiles,seed:this.seed,mapVersion:this.world.mapVersion,time:this.time,nextId:this.nextId,credits:this.credits,incomeClock:this.incomeClock,
       units:this.units,bases:this.bases,territories:this.territories,explored:this.explored.map(a=>Array.from(a)),memories:this.memories,aiClock:this.aiClock,ai:this.tactical.state,status:this.status,stats:this.stats,
       research:this.research,strategicMissiles:this.strategicMissiles,
-      hadBuildings:this.hadBuildings});
+      hadBuildings:this.hadBuildings,supplyCaches:this.supplyCaches});
   }
   static load(raw:unknown,weatherEnabled=false):Simulation {
     const s=migrateTransportRoster(raw) as Save;
@@ -2230,12 +2276,18 @@ export class Simulation {
       researchModifiers(research[u.owner],u.kind??'infantry');
     const burst=(b:Burst|undefined,rounds:number)=>b===undefined||(b!==null&&Number.isInteger(b.target)&&Number.isInteger(b.remaining)&&b.remaining>0&&b.remaining<=rounds&&b.remaining+b.index===rounds&&Number.isInteger(b.index)&&b.index>=0&&b.index<4&&finite(b.at)&&b.at>=s.time-.11&&b.at<=s.time+.11);
     if(!s||s.version!==2||((s.mapVersion??0)>=23&&(!isTerrainProfile(s.terrainProfile)||![1,2].includes(s.generatorVersion as number)))||((s.mapVersion??0)<23&&(s.terrainProfile!==undefined||s.generatorVersion!==undefined))||(s.bootstrapVersion!==undefined&&s.bootstrapVersion!==1)||(s.weatherVersion!==undefined&&s.weatherVersion!==1)||(s.productionVersion!==undefined&&s.productionVersion!==1)||(s.mapVersion!==undefined&&![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26].includes(s.mapVersion))||!TacticalAI.valid(s.ai,s.time,point,mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows)||!finite(s.seed)||!finite(s.time)||s.time<0||!finite(s.incomeClock)||s.incomeClock<0||s.incomeClock>=10||
+      (s.supplyCaches!==undefined&&(!Array.isArray(s.supplyCaches)||
+        s.supplyCaches.length>16||s.supplyCaches.some(c=>!c||
+         !Number.isSafeInteger(c.id)||c.id<0||!finite(c.remaining)||
+         c.remaining<0||!finite(c.capacity)||c.capacity<=0||
+         c.remaining>c.capacity||!point(c))))||
       (s.hadBuildings!==undefined&&(!Array.isArray(s.hadBuildings)||
         s.hadBuildings.length!==2||s.hadBuildings.some(value=>typeof value!=='boolean')))||
       (s.strategicMissiles!==undefined&&(!Array.isArray(s.strategicMissiles)||
         s.strategicMissiles.length>12||
         s.strategicMissiles.some(m=>!validStrategicMissile(m,mapWorldSize(s.mapVersion??0),s.time))))||
        !validMatchStatisticsOrLegacy(s.stats)||!Array.isArray(s.units)||s.units.length>96||!Array.isArray(s.bases)||s.bases.length<(s.bootstrapVersion===1?0:2)||s.bases.length>260||
+      s.units.some(u=>!validSupplyJob(u.supply,u.kind??'infantry',mapWorldSize(s.mapVersion??0)))||
       s.units.some(u=>u.exactPath!==undefined&&typeof u.exactPath!=='boolean')||
       s.units.some(u=>u.guardArea!==undefined&&typeof u.guardArea!=='boolean')||
       s.units.some(u=>u.returnToHangar!==undefined&&typeof u.returnToHangar!=='boolean')||
@@ -2266,12 +2318,24 @@ export class Simulation {
     // v1 match statistics predate the rocket specialist. Supply its zero count
     // once when loading a legitimate old save, or subsequent production would
     // increment undefined and corrupt the score counter.
-    for(const faction of game.stats.factions)faction.deployedUnits.rocket??=0;
+    for(const faction of game.stats.factions){
+      faction.deployedUnits.rocket??=0;faction.deployedUnits.supply??=0;
+    }
     if(!s.stats){game.stats.partial=true;for(const u of s.units){if(u.hp>0){const f=game.stats.factions[u.owner];f.deployedUnits[u.kind??'infantry']++;f.peakArmy+=0;}}for(const owner of [0,1] as const)game.stats.factions[owner].peakArmy=s.units.filter(u=>u.owner===owner&&u.hp>0).length;}
     game.nextId=Math.max(1,Number.isSafeInteger(s.nextId)?s.nextId:1,...s.units.map(u=>u.id+1),...(s.ai?.losses??[]).map(l=>l.id+1));game.credits=[...s.credits];game.incomeClock=s.incomeClock;
     game.bases=structuredClone(s.bases).map(b=>({...b,kind:b.kind??'headquarters',...(b.kind==='wall'?{}:game.world.clearSite(b,buildingSpec(b).radius)),radius:buildingSpec(b).radius,...(b.queueCosts?{}:b.queue.length?{queueCosts:b.queue.map((_,i)=>{const k=b.queueTypes?.[i]??'infantry';return !s.supportVersion&&k==='engineer'?150:UNITS[k].cost;})}:{}),queueTypes:b.queueTypes??b.queue.map(()=>'infantry'),buildRemaining:b.buildRemaining??0,cooldown:b.cooldown??0,
       ...(b.kind==='silo'?{siloCharge:b.siloCharge??SILO_CHARGE_SECONDS}:{}),
       ...(b.kind==='interceptor'?{interceptorAmmo:b.interceptorAmmo??INTERCEPTOR_MAX_AMMO}:{})}));
+    // Store only finite depletion counts, never user-provided positions.
+    if(s.supplyCaches!==undefined){
+      if(s.supplyCaches.length!==game.supplyCaches.length||
+        s.supplyCaches.some((c,i)=>c.id!==i||
+         c.x!==game.supplyCaches[i].x||c.y!==game.supplyCaches[i].y||
+         c.capacity!==game.supplyCaches[i].capacity))
+        throw Error('Ungültige Nachschublager im Spielstand.');
+      for(let i=0;i<s.supplyCaches.length;i++)
+        game.supplyCaches[i].remaining=s.supplyCaches[i].remaining;
+    }
     // Saved history is authoritative. For existing v2 saves without this
     // field infer from live/dead HQ records, observed buildings or units
     // produced by a structure. No inference based on elapsed time: doing so
@@ -2299,6 +2363,7 @@ export class Simulation {
       const p=u.carrier||unitSpec(u).flying||u.factoryService?{x:u.x,y:u.y}:game.world.nearest({x:u.x,y:u.y},[...game.obstacles(),...(unitSpec(u).group==='Infanterie'?infantryStructureColliders(game.obstacles()):vehicleStructureColliders(game.obstacles()))],[],undefined,Math.max(0,unitSpec(u).radius-10))??u;
       return {...u,xp:sanitizeXp(u.xp),kind:u.kind??'infantry',...(!s.rosterVersion&&u.kind==='heavy'?{hp:u.hp/190*UNITS.heavy.hp}:!s.rosterVersion&&u.kind==='scout'?{hp:u.hp/160*UNITS.scout.hp}:{}),...p,path:[],repath:0,hit:0,fire:0,previousX:p.x,previousY:p.y,
         angle:u.angle??(u.facing<0?Math.PI:0),walkDistance:u.walkDistance??0,lastAttacker:u.lastAttacker??null,defendUntil:u.defendUntil??0,
+        supply:u.kind==='supply'?(u.supply??newSupplyJob()):undefined,
         combatTarget:Number.isInteger(u.combatTarget)?u.combatTarget:null,
         pursuitOrigin:u.pursuitOrigin??null};
     });
