@@ -97,6 +97,11 @@ export function previewServiceMaterial(source,{opacity=.5,color='#a7e4cc'}={}){
  finally{source.userData=metadata;}
  clone.color?.lerp(new THREE.Color(color),.14);
  clone.transparent=true;clone.opacity=Math.min(source.opacity??1,opacity);
+ // Authored shader-only surfaces (the deep silo liner) explicitly opt in
+ // to an opacity uniform. Generic Material.opacity alone does not change
+ // ShaderMaterial fragment alpha, leaving an opaque placement ghost.
+ if(clone.isShaderMaterial&&clone.uniforms?.uOpacity)
+  clone.uniforms.uOpacity.value=clone.opacity;
  clone.depthWrite=false;clone.depthTest=true;
  // Intentionally DO NOT copy source.userData.sandforgeServiceTexture.
  clone.userData={sandforgePreviewMaterial:true,
