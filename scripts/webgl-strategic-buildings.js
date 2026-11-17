@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from './sandforge-faction-palette.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {SILO_FOUNDATION_APERTURE} from './webgl-foundation-slabs.js';
 
 /** Zero-Hour-style recognizable strategic structures. Procedural originals,
  * avoiding missing GLB placeholders. Created ONCE per building, NOT per frame.
@@ -419,7 +420,7 @@ export function createStrategicBuilding(kind,owner=0){
   // Actual cut-out concrete: the launch aperture is a HOLE in the slab,
   // not the previous black cylinder painted over a solid roof.
   // All dimensions are local to the existing game footprint (no physics edit).
-  const rocketX=-17,shaftRadius=61;
+  const rocketX=SILO_FOUNDATION_APERTURE.x,shaftRadius=61;
   const deckShape=new THREE.Shape();
   deckShape.moveTo(-115,-103.5);
   deckShape.lineTo(115,-103.5);
@@ -457,6 +458,24 @@ export function createStrategicBuilding(kind,owner=0){
   well.name='Silo_RecessedLaunchWell';
   well.castShadow=false;well.receiveShadow=true;
 
+  // The real terrain renderer continues underneath all buildings: cutting
+  // the concrete foundation alone would expose pale desert/sand at y=0,
+  // hiding the underground floor and making the rocket appear to stand on
+  // a paved surface again. This nearly-black, unlit depth occluder sits
+  // just ABOVE the terrain but BELOW the steel hatch lip. The 3D shaft
+  // walls still extend down to the true -26.6 model-unit floor. No terrain
+  // displacement, pathfinding, world shadow or save-state changes.
+  const depthMaskMaterial=new THREE.MeshBasicMaterial({
+   name:'SF_SiloDepthOcclusion',color:'#080e11',side:THREE.DoubleSide,
+   depthWrite:true
+  });
+  const occlusion=add(new THREE.CircleGeometry(shaftRadius-1.0,64),
+   depthMaskMaterial,rocketX,1.42,0,-Math.PI/2);
+  occlusion.name='Silo_TerrainOcclusion';
+  occlusion.castShadow=false;occlusion.receiveShadow=false;
+  occlusion.userData={visualOnly:true,nonPlayable:true,
+   hidesUnderlyingTerrain:true};
+
   // Visible vertical steel stiffeners and two retaining hoops make the
   // empty depth legible even when the missile is still in the silo.
   for(let i=0;i<16;i++){
@@ -465,7 +484,7 @@ export function createStrategicBuilding(kind,owner=0){
     rocketX+Math.cos(a)*(shaftRadius-1),-8,Math.sin(a)*(shaftRadius-1));
    bar.rotation.y=-a;
   }
-  for(const y of [-9.4,-20.8])
+  for(const y of [6.4,2.75,-9.4,-20.8])
    add(new THREE.TorusGeometry(shaftRadius-.9,.95,6,64),
     'steel',rocketX,y,0,-Math.PI/2);
 
