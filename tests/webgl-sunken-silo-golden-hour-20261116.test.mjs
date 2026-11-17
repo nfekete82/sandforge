@@ -60,6 +60,22 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
   assert.equal(shader.transparent,false,'terrain must never bleed through');
   assert.equal(occlusion.userData.visualShaftDepth,95);
   assert.equal(occlusion.userData.hidesUnderlyingTerrain,true);
+  // A planar depth mask cannot show real geometry BELOW its surface.
+  // Its fragment shader must reconstruct the submerged rocket cylinder and
+  // composite it in front of the virtual metal wall, without a hard edge.
+  assert.ok(shader.fragmentShader.includes('rocketDelta>0.0'),
+   'shader must compute missile ray-cylinder intersection');
+  assert.ok(shader.fragmentShader.includes('tRocket<min(tWall,tFloor)'),
+   'submerged metal rocket must occlude the projected far wall');
+  assert.ok(shader.fragmentShader.includes('rocketZ>uRocketBottom'),
+   'rocket is bounded by its real lower stage, not an infinite tube');
+  assert.ok(shader.fragmentShader.includes('deepFade'),
+   'submerged body must fade into deep shaft shadow');
+  assert.equal(shader.uniforms.uRocketRadius.value,body.geometry.parameters.radiusTop);
+  const stageBottom=body.position.y-body.geometry.parameters.height/2;
+  assert.ok(Math.abs(shader.uniforms.uRocketBottom.value-
+   (stageBottom-occlusion.position.y))<1e-6,
+   'virtual and physical missile must have the SAME underwater endpoint');
   assert.equal(typeof occlusion.onBeforeRender,'function');
   assert.equal(deck.material.name,'SF_metal','main launch deck is stamped steel');
   assert.equal(deck.material.map?.name,'Sandforge silo stamped steel maintenance panels');
@@ -145,6 +161,36 @@ test('PBR missile silo is a low recessed bunker with only the upper rocket above
  assert.equal(BUILDINGS.silo.cost,5000);
  assert.equal(BUILDINGS.silo.buildTime,100);
  assert.equal(BUILDINGS.silo.radius,91);
+});
+
+test('projected silo ray hits submerged rocket ahead of deep shaft wall',()=>{
+ // Near side of cylinder is only reached BELOW the masking disk for this
+ // camera and disk pixel. If we do not shade the virtual stage there, the
+ // physical mesh disappears at the disk plane and looks suspended in air.
+ const root=createStrategicBuilding('silo',0);
+ const mask=root.getObjectByName('Silo_TerrainOcclusion');
+ const material=mask.material;
+ const eye=new THREE.Vector3(0,-160,160);
+ const pixel=new THREE.Vector3(0,-40,0);
+ const dir=pixel.clone().sub(eye).normalize();
+ const a=dir.x*dir.x+dir.y*dir.y;
+ const b=eye.x*dir.x+eye.y*dir.y;
+ const radius=material.uniforms.uRocketRadius.value;
+ const c=eye.x*eye.x+eye.y*eye.y-radius*radius;
+ const discriminant=b*b-a*c;
+ assert.ok(discriminant>0,'camera ray must intersect missile cylinder');
+ const tEntry=(-b-Math.sqrt(discriminant))/a;
+ const tPlane=-eye.z/dir.z;
+ const tFloor=(-material.uniforms.uDepth.value-eye.z)/dir.z;
+ const hitZ=eye.z+dir.z*tEntry;
+ assert.ok(tEntry>tPlane&&tEntry<tFloor,
+  'the ray enters the missile behind the physical masking plane');
+ assert.ok(hitZ<0&&hitZ>material.uniforms.uRocketBottom.value,
+  'intersected missile segment lies inside the deep steel shaft');
+ const wallRadius=material.uniforms.uRadius.value;
+ const wallC=eye.x*eye.x+eye.y*eye.y-wallRadius*wallRadius;
+ const tWall=(-b+Math.sqrt(b*b-a*wallC))/a;
+ assert.ok(tEntry<tWall,'rocket must be in front of the far shaft wall');
 });
 
 test('silo shares the slim military barbed-wire fence and clears its supply pallets',()=>{
