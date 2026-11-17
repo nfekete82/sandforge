@@ -1,9 +1,6 @@
 name: Sandforge Bastion-first AI ablation (5m)
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/sandforge-bastion-priority-ablation.yml'
   workflow_dispatch:
 
 jobs:
