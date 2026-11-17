@@ -161,4 +161,9 @@ for(const kind of ['headquarters','factory','barracks','airfield','generator','t
  const bytes=readFileSync(path);art.files[kind]=createHash('sha256').update(bytes).digest('hex');
 }
 writeFileSync('dist/building-art-version.json',JSON.stringify(art,null,2)+'\n');
+// TypeScript and simulation tests cannot detect missing Three/browser JS assets.
+// Refuse to report a successful build until the complete startup import graph
+// has been verified. This runs after copying all compiled + vendor modules.
+execFileSync(process.execPath,['--no-warnings','--experimental-vm-modules',
+ 'scripts/check-webgl-module-graph.mjs'],{stdio:'inherit'});
 console.log('Built SANDFORGE: BASTION WARS in dist/');
