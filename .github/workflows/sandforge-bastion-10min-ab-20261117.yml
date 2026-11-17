@@ -1,0 +1,65 @@
+name: Sandforge Bastion security 10-minute A/B
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/sandforge-bastion-10min-ab-20261117.yml'
+  workflow_dispatch:
+
+jobs:
+  bastion-control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      DIR: ai-arena-results/bastion-security
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile both policies against identical game and economics
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show a587b07bc0608a44290a3c04c28647fde5b37965:src/reborn/tactical-ai.ts > src/reborn/tactical-ai.ts
+          npx tsc -p tsconfig.json
+          cp -a dist dist-before
+          git restore --source=HEAD -- src/reborn/tactical-ai.ts
+          npx tsc -p tsconfig.json
+          cmp dist-before/src/reborn/catalog.js dist/src/reborn/catalog.js
+          cmp dist-before/src/reborn/simulation.js dist/src/reborn/simulation.js
+          cmp dist-before/src/reborn/campaign-commander.js dist/src/reborn/campaign-commander.js
+      - name: Baseline – eight actual 10-minute matches
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$DIR"
+          ATLAS_SIM_MODULE="$PWD/dist-before/src/reborn/simulation.js" \
+            node scripts/ai-test-arena.mjs \
+              --maps 4,23 --seeds 2026,2027,2028,2029 --seconds 600 \
+              --modes director --opponent guarded \
+              --label prior-1-front-guard --output "$DIR/before.json"
+      - name: Candidate – same eight playable worlds and paid opponent
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ai-test-arena.mjs \
+            --maps 4,23 --seeds 2026,2027,2028,2029 --seconds 600 \
+            --modes director --opponent guarded \
+            --label 2-distinct-front-guards --output "$DIR/after.json"
+      - name: Matched control-time, retakes, garrison and losses
+        run: |
+          set -e
+          node scripts/ai-test-arena-compare.mjs "$DIR/before.json" "$DIR/after.json" "$DIR/comparison.md"
+          node scripts/ai-bastion-control-report.mjs "$DIR/before.json" "$DIR/after.json" "$DIR/territory-report.md"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sandforge-bastion-security-ab-10m
+          path: ai-arena-results/bastion-security/
+          if-no-files-found: warn
