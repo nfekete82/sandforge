@@ -19,6 +19,7 @@ import {assaultWaveDecision,reinforcementStagingPoint} from './assault-wave.js';
 import {homeDefensePlan} from './home-defense-doctrine.js';
 import {chooseSiegeShot,chooseRaidFront,allowSecondaryPressure,type SiegeShot,type RaidFront} from './ai25-doctrine.js';
 import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefenseMultiplier} from './ai32-doctrine.js';
+import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,type AI33Mode} from './ai33-map-doctrine.js';
 import type {Simulation,Unit,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
@@ -133,6 +134,8 @@ export class TacticalAI {
  missionPlannerMode:'inherit'|'legacy'='inherit';
  siegeEvaluationMode:'inherit'|'legacy'='inherit';
  raidDetachmentMode:'inherit'|'off'|'selective'='inherit';
+ /** Runtime-only benchmark ablation: off restores exact AI 3.2 tactics. */
+ ai33Mode:AI33Mode='adaptive';
  /** Runtime-only diagnostics: never influence simulation or serialize in saves. */
  diagnostics:TacticalDiagnostics=newDiagnostics();
  state=fresh();private risk:Float32Array|undefined;private riskAt=-1;private routeCache=new Map<string,Point[]>();private routeSignature='';
@@ -848,9 +851,12 @@ export class TacticalAI {
    .sort((a,b)=>Number(b.neighbors.some(id=>g.territories[id]?.owner===0))-
       Number(a.neighbors.some(id=>g.territories[id]?.owner===0))||
       b.income-a.income||distance(home,a.point)-distance(home,b.point)||a.id-b.id);
-  const posted=g.world.mapVersion>=24
+  const originalPosts=g.world.mapVersion>=24
    ?frontierGuardPosts(guards.length,frontiers.length)
    :Math.min(1,guards.length-1,frontiers.length);
+  const posted=this.ai33Mode==='adaptive'
+   ?mapFrontierPosts(g.world.mapVersion,guards.length,frontiers.length,originalPosts)
+   :originalPosts;
   for(const [i,u] of guards.entries()){
    const fort=i>0&&i<=posted?frontiers[i-1]:null;
    // Keep all remaining reserves around HQ and production structures.
@@ -924,6 +930,13 @@ export class TacticalAI {
    mapVersion:g.world.mapVersion,time:g.time,phase:s.phase,
    fighters:fighters.length,main:mainScreen,eligible:candidates.length,
    homeGuards,homePressure,recentLosses,recentFailures,emergency});
+  // AI 3.3 adjusts ONLY the two sizes which underperformed in the
+  // matched 3.1/3.2 arena. On the 12-Bastion map this gate is a no-op.
+  if(this.ai33Mode==='adaptive'&&!mapRaidReady({
+   mapVersion:g.world.mapVersion,time:g.time,phase:s.phase,
+   fighters:fighters.length,main:mainScreen,eligible:candidates.length,
+   homeGuards,homePressure,recentLosses,recentFailures,emergency
+  }))return new Set();
   if(defensePlan&&!defensePlan.allowSecondaryRaids&&!earlyParallel)return new Set();
   const normal=allowSecondaryPressure(fighters.length,fighters.length-2,
     fighters.length-s.group.filter(id=>!fighters.some(u=>u.id===id)).length-2,candidates.length);
@@ -957,7 +970,8 @@ export class TacticalAI {
    const route=this.route(anchor,t.point);
    if(!route.length)continue;
    const path=this.sampleRoute(route,anchor);
-   if(path.risk>=8||comeback&&path.length>2400)continue;
+   if(path.risk>=8||comeback&&path.length>2400||
+      this.ai33Mode==='adaptive'&&!mapRaidRouteReady(g.world.mapVersion,path.length,path.risk))continue;
    fronts.push({id:t.id,x:t.point.x,y:t.point.y,owner:t.owner,income:t.income,
      routeLength:path.length,routeRisk:path.risk,observedThreat:threatened});
   }
