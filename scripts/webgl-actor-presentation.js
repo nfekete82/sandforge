@@ -7,7 +7,7 @@ import {turretMuzzleOffset} from '/webgl-scale.js';
 
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const infantry=new Set(['infantry','medic','engineer','heavy','rocket']);
-const air=new Set(['scout','bomber']);
+const air=new Set(['scout','bomber','drone']);
 const barGeo=new THREE.PlaneGeometry(1,1);
 const bgMat=new THREE.MeshBasicMaterial({
  color:'#101c21',transparent:true,opacity:.93,depthTest:false,depthWrite:false,side:THREE.DoubleSide
@@ -68,6 +68,7 @@ function statusBar(scene,entity,type){
 }
 
 function flashSprite(entry,entity,type){
+ if(type==='unit'&&(entity.kind==='drone'||entity.kind==='supply'))return null;
  if(type==='building'&&entity.kind==='turret')return null;
  // Rocket artillery flashes belong to the individual launch tubes. The
  // former generic sprite looked like an MG and hovered above the truck.

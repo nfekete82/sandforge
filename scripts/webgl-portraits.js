@@ -327,6 +327,25 @@ function rocketUnitIconFallback(){
  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
 }
 export function unitIcon(kind,renderer){
+ if(kind==='drone'){
+  // Compact, deterministic R-01 silhouette; avoids requesting a non-existent sprite atlas.
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 132">'+
+   '<rect width="192" height="132" fill="#28312d"/>'+
+   '<g stroke="#343b36" stroke-width="7" stroke-linecap="round">'+
+   '<path d="M91 61 35 35M101 61 157 35M91 74 35 99M101 74 157 99"/></g>'+
+   '<g fill="#b5a27e" stroke="#403c33" stroke-width="3">'+
+   '<circle cx="35" cy="35" r="12"/><circle cx="157" cy="35" r="12"/>'+
+   '<circle cx="35" cy="99" r="12"/><circle cx="157" cy="99" r="12"/></g>'+
+   '<path d="M86 47 107 47 118 82 96 99 74 82Z" fill="#b7a783" stroke="#4a4539" stroke-width="3"/>'+
+   '<path d="M89 50 101 51 94 83 80 75Z" fill="#787b63" opacity=".9"/>'+
+   '<path d="M98 56 113 70 103 78 94 67Z" fill="#947c61" opacity=".9"/>'+
+   '<circle cx="96" cy="87" r="7" fill="#343c42" stroke="#dfc99c" stroke-width="2"/>'+
+   '<circle cx="96" cy="87" r="3" fill="#728dc0"/>'+
+   '<path d="M108 48 118 26" fill="none" stroke="#383d3b" stroke-width="2"/>'+
+   '<path d="M21 35h28M143 35h28M21 99h28M143 99h28" stroke="#adb0a6" stroke-width="2" opacity=".85"/>'+
+   '</svg>';
+  return Promise.resolve('data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg));
+ }
  if(kind==='supply'){
   // Dedicated 6-wheel logistics truck, not a missing animated atlas.
   const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 132">'+

@@ -12,7 +12,8 @@ export function globalCatalogAvailability(game,owner=0){
   infantry:finished('headquarters')||finished('barracks'),
   // HQ logistics unlocks vehicles early even before a vehicle factory exists.
   vehicles:finished('headquarters')||finished('factory'),
-  aircraft:finished('airfield'),
+  // HQ launches the lightweight reconnaissance drone before an airfield exists.
+  aircraft:finished('headquarters')||finished('airfield'),
   territories:true // accessible through the minimap sector shortcut
  };
 }
