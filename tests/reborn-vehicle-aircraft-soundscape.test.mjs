@@ -12,8 +12,8 @@ const at=(kind,x,y,moving=true,owner=0)=>({
   previousX:moving?x-UNITS[kind].speed*RULES.tick*.7:x,previousY:y,
   driveSpeed:moving?65:0
 });
-test('five distinct vehicle and aircraft synth families have their own safe profiles',()=>{
- assert.deepEqual(ENGINE_KINDS,['rover','tank','artillery','scout','bomber']);
+test('six distinct vehicle and aircraft synth families include the logistics diesel',()=>{
+ assert.deepEqual(ENGINE_KINDS,['rover','supply','tank','artillery','scout','bomber']);
  for(const kind of ENGINE_KINDS){
   const p=ENGINE_PROFILES[kind];
   assert.ok(p.low>20&&p.high>p.low);
@@ -26,7 +26,7 @@ test('five distinct vehicle and aircraft synth families have their own safe prof
  assert.ok(ENGINE_PROFILES.scout.pulse>0);
 });
 test('a nearby moving Jeep, tank, rocket truck, helicopter and bomber get audible independent channels',()=>{
- const units=[at('rover',120,100),at('tank',140,100),at('artillery',130,100),at('scout',100,140),at('bomber',100,120)];
+ const units=[at('rover',120,100),at('supply',135,115),at('tank',140,100),at('artillery',130,100),at('scout',100,140),at('bomber',100,120)];
  const g={units},position={x:100,y:100};
  const a=vehicleSoundMix(g,position,()=>true),b=vehicleSoundMix(g,position,()=>true);
  assert.deepEqual(a,b,'deterministic; audio never changes the simulation');
@@ -62,7 +62,7 @@ test('stationary helicopter and bomber are silent; only moving aircraft have aud
  }
 });
 test('no enemy sound leaks through unexplored terrain, and carried/destroyed units are silent',()=>{
- const units=[at('rover',120,100,true,1),at('tank',120,100,true,1),at('artillery',120,100,true,1),
+ const units=[at('rover',120,100,true,1),at('supply',120,100,true,1),at('tank',120,100,true,1),at('artillery',120,100,true,1),
   at('scout',120,100,true,1),at('bomber',120,100,true,1)];
  const hidden=vehicleSoundMix({units},{x:100,y:100},()=>false);
  assert.ok(ENGINE_KINDS.every(kind=>hidden[kind].level===0));

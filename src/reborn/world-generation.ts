@@ -6,6 +6,9 @@ import {generateCanyonFeatures,canyonRuinBlocked,type CanyonRidge,type CanyonRui
 export const MAP_VERSION = 2;
 export const BASTION_SPACING = mapLayout(MAP_VERSION).spacing;
 export const CORRIDOR_RADIUS = 85;
+// No authored ruin or building debris within the Bastion defense pad.
+// This is part of modern procedural terrain geometry, not a renderer-only hide.
+export const BASTION_RUIN_CLEARANCE = 1150;
 export interface MesaColumn { base:Point[]; top:Point[]; height:number; shade:number }
 export interface Mesa { columns:MesaColumn[]; outline:Point[]; crystals:Point|null }
 export interface GeneratedMap { sites:Point[]; mesas:Mesa[]; corridors:[Point,Point][]; ridges:CanyonRidge[]; ruins:CanyonRuin[]; battlefield?:BattlefieldTerrain }
@@ -56,10 +59,9 @@ export function generateMap(seed:number,version:Exclude<MapVersion,0>=MAP_VERSIO
   const canyon=!modern&&version>=15?generateCanyonFeatures(seed,size,cols,rows,sites,corridors):{ridges:[],ruins:[]};
   if(modern){
     // Ruins keep their own stream and inherit the established road/site exclusions.
-    canyon.ruins=generateCanyonFeatures(streamSeed(seed,'ruins',candidate),size,cols,rows,sites,corridors).ruins
+    canyon.ruins=generateCanyonFeatures(streamSeed(seed,'ruins',candidate),size,cols,rows,sites,corridors,true).ruins
       .filter(r=>layout.headquarters.every(id=>Math.hypot(r.x-battlefieldStart(sites[id],size).x,r.y-battlefieldStart(sites[id],size).y)>870)&&
-       (generatorVersion===1||sites.every(s=>Math.hypot(r.x-s.x,r.y-s.y)>
-        TERRAIN_GRADING_V2.bastionFlatRadius+TERRAIN_GRADING_V2.rockSafetyMargin)));
+       sites.every(s=>Math.hypot(r.x-s.x,r.y-s.y)>BASTION_RUIN_CLEARANCE));
     rand=seededRandom(streamSeed(seed,'rocks',candidate));
   }
   const basins:Point[]=[];

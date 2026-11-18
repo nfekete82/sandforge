@@ -7,11 +7,12 @@ import * as THREE from 'three';
  * Original GLB geometry, UVs, doors, PBR wear/normal maps and animations
  * are preserved. No meshes or draw calls are added.
  */
-export const DESERT_BUILDING_PBR_REVISION='sandforge-authored-building-pbr-v1-20261115';
-export const DESERT_BUILDING_KINDS=Object.freeze(['barracks','headquarters','factory']);
+export const DESERT_BUILDING_PBR_REVISION='sandforge-authored-building-pbr-v4-organic-facility-walls-20261117';
+export const DESERT_BUILDING_KINDS=Object.freeze(['barracks','headquarters','factory','airfield']);
 const root='/src/assets/reborn/buildings-3d/textures/';
 export const DESERT_BUILDING_IMAGES=Object.freeze({
  wall:root+'desert-wall-plaster.svg',
+ facilityWall:root+'desert-facility-wall-camo.svg',
  camo:root+'desert-camo-panel.svg',
  roof:root+'desert-roof-dust.svg',
  metal:root+'desert-worn-metal.svg',
@@ -19,6 +20,7 @@ export const DESERT_BUILDING_IMAGES=Object.freeze({
 });
 const settings=Object.freeze({
  wall:Object.freeze({coverage:.70,roughness:.91,metalness:.03,scale:1.4}),
+ facilityWall:Object.freeze({coverage:1,roughness:.91,metalness:.03,scale:.36}),
  camo:Object.freeze({coverage:.85,roughness:.92,metalness:.03,scale:1.8}),
  roof:Object.freeze({coverage:.61,roughness:.82,metalness:.15,scale:1.65}),
  metal:Object.freeze({coverage:.34,roughness:.73,metalness:.43,scale:2.3}),
@@ -39,6 +41,12 @@ export function buildingSurfaceRole(kind,meshName='',materialName=''){
  const mesh=String(meshName).toLowerCase();
  const mat=String(materialName).toLowerCase();
  const name=mesh+' '+mat;
+ // Authored factory/hangar GLBs use batched mesh names per material.
+ // Repaint the exterior wall ONLY, not the roof, shutters, glass, factory
+ // production doors, hangar roof corrugation or mechanical equipment.
+ if(kind==='airfield')return mesh==='sf_airfield_pbr_camo'?'facilityWall':null;
+ if(kind==='factory'&&mesh.startsWith('sf_factory_pbr_'))
+  return mesh==='sf_factory_pbr_camo'?'facilityWall':null;
  if(exclude.test(mesh))return null;
  if(camouflage.test(mesh))return 'camo';
  if(roofing.test(mesh))return 'roof';
@@ -56,17 +64,30 @@ export function buildingSurfaceRole(kind,meshName='',materialName=''){
 const textures=new Map();
 const textureReady=new Map();
 const fallbackColor={
- wall:'#cbbc9e',camo:'#c6b695',roof:'#b9ab91',metal:'#555954',trim:'#776f5f'
+ wall:'#cbbc9e',facilityWall:'#c9b18a',camo:'#c6b695',roof:'#b9ab91',metal:'#555954',trim:'#776f5f'
 };
 const makeMaps=role=>{
- const n=96,pixels=new Uint8Array(n*n*4),roughness=new Uint8Array(n*n*4);
- // Deterministic, periodic micro-height noise, normal maps generated once.
- const height=(x,y)=>{
+ const n=256,pixels=new Uint8Array(n*n*4),roughness=new Uint8Array(n*n*4);
+ // High-resolution tileable stochastic microrelief instead of a 96px
+ // repeated sine wave: no straight bands under low golden-hour sunlight.
+ // Generated once per material role, shared across EVERY building instance.
+ const hash=(x,y)=>{
   const a=(x+n)%n,b=(y+n)%n;
-  const wave=Math.sin(a*Math.PI*2/16)*.20+Math.cos(b*Math.PI*2/19)*.17;
-  const salt=((Math.imul(a+1,73856093)^Math.imul(b+1,19349663))>>>0)%23/23;
-  return wave+salt*.18;
+  let h=Math.imul(a+1,73856093)^Math.imul(b+1,19349663);
+  h=Math.imul(h^(h>>>13),1274126177);
+  return ((h^(h>>>16))>>>0)/4294967295;
  };
+ const smooth=(x,y,cell)=>{
+  const u=x/cell,v=y/cell,i=Math.floor(u),j=Math.floor(v);
+  const fx=(u-i)**2*(3-2*(u-i)),fy=(v-j)**2*(3-2*(v-j));
+  const grid=(i,j)=>hash(((i%(n/cell))+(n/cell))%(n/cell),
+   ((j%(n/cell))+(n/cell))%(n/cell));
+  const a=grid(i,j)*(1-fx)+grid(i+1,j)*fx;
+  const b=grid(i,j+1)*(1-fx)+grid(i+1,j+1)*fx;
+  return a*(1-fy)+b*fy;
+ };
+ const height=(x,y)=>(smooth(x,y,32)-.5)*.42+
+  (smooth(x,y,8)-.5)*.22+(hash(x,y)-.5)*.07;
  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
   const dx=(height(x+1,y)-height(x-1,y))*.28;
   const dy=(height(x,y+1)-height(x,y-1))*.28;
@@ -85,7 +106,7 @@ const makeMaps=role=>{
   tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
   tex.magFilter=THREE.LinearFilter;
   tex.minFilter=THREE.LinearMipmapLinearFilter;
-  tex.generateMipmaps=true;tex.needsUpdate=true;
+  tex.generateMipmaps=true;tex.anisotropy=8;tex.needsUpdate=true;
  }
  normal.name='SandforgeDesertBuildingNormal-'+role;
  rough.name='SandforgeDesertBuildingRoughness-'+role;
@@ -115,7 +136,7 @@ function roleMaps(role){
  albedo.wrapS=albedo.wrapT=THREE.RepeatWrapping;
  albedo.minFilter=THREE.LinearMipmapLinearFilter;
  albedo.magFilter=THREE.LinearFilter;
- albedo.anisotropy=4;
+ albedo.anisotropy=8; // clearer oblique PBR facades at tactical camera angles
  const detail=makeMaps(role);
  const result={albedo,...detail};
  textures.set(role,result);
@@ -138,7 +159,7 @@ export function finishDesertBuildingMaterials(model,kind){
  if(!model||!DESERT_BUILDING_KINDS.includes(kind))return 0;
  const instances=new Map();let painted=0;
  model.traverse(mesh=>{
-  if(!mesh.isMesh)return;
+  if(!mesh.isMesh||mesh.userData?.sandforgeBarracksPropPolish)return;
   const materials=Array.isArray(mesh.material)?mesh.material:[mesh.material];
   const result=materials.map(source=>{
    if(!source?.isMeshStandardMaterial)return source;
@@ -153,6 +174,14 @@ export function finishDesertBuildingMaterials(model,kind){
    const ghost=source.userData?.sandforgePreviewMaterial===true;
    const material=ghost?source:source.clone();
    const maps=roleMaps(role),config=settings[role];
+   // HQ and barracks keep their original ceramic walls and baked authentic
+   // desert camouflage. The modern factory/hangar wall shells are plain UV
+   // blocks with a tiny checker baked in. Paint just those shells with our
+   // SHARED organic sand/olive facade, tuned to the same large patch scale.
+   // Do not change team strips, moving gates or the real steel roofs.
+   const authoredWallShell=role==='facilityWall';
+   const uvScale=kind==='airfield'?.015:config.scale;
+   const wallCoverage=authoredWallShell?1:config.coverage;
    if(!material.normalMap)material.normalMap=maps.normal;
    if(!material.roughnessMap)material.roughnessMap=maps.roughness;
    material.roughness=Math.max(material.roughness,config.roughness);
@@ -190,17 +219,21 @@ export function finishDesertBuildingMaterials(model,kind){
      '#include <color_fragment>',
      'vec3 sfBP=abs(normalize(sfBuildingNormal))+.015;',
      'sfBP=pow(sfBP,vec3(4.));sfBP/=sfBP.x+sfBP.y+sfBP.z;',
-     'vec3 sfP=sfBuildingLocal*'+config.scale.toFixed(2)+';',
+     'vec3 sfP=sfBuildingLocal*'+uvScale.toFixed(3)+';',
      'vec3 sfPaint=texture2D(sfBuildingAlbedo,sfP.zy).rgb*sfBP.x',
      ' +texture2D(sfBuildingAlbedo,sfP.xz).rgb*sfBP.y',
      ' +texture2D(sfBuildingAlbedo,sfP.xy).rgb*sfBP.z;',
-     // Retain dark joins, seams and baked weathering from original GLB.
-     'float sfWear=clamp(.60+dot(diffuseColor.rgb,vec3(.2126,.7152,.0722))*.66,.36,1.12);',
-     'diffuseColor.rgb=mix(diffuseColor.rgb,sfPaint*sfWear,'+config.coverage.toFixed(2)+');'
+     // Old GLBs baked a very dark checkerboard into the wall's base-color
+     // texture. A 98.5% overlay still multiplied the new paint by that
+     // checkerboard via sfWear, so eliminate it ONLY for the authored wall.
+     // Other building roles retain their normal weathering and join shading.
+     (authoredWallShell?'float sfWear=1.0;':
+      'float sfWear=clamp(.60+dot(diffuseColor.rgb,vec3(.2126,.7152,.0722))*.66,.36,1.12);'),
+     'diffuseColor.rgb=mix(diffuseColor.rgb,sfPaint*sfWear,'+wallCoverage.toFixed(3)+');'
     ].join('\n');
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',coating);
    };
-   material.customProgramCacheKey=()=>DESERT_BUILDING_PBR_REVISION+'|'+role;
+   material.customProgramCacheKey=()=>DESERT_BUILDING_PBR_REVISION+'|'+kind+'|'+role;
    material.needsUpdate=true;
    instances.set(key,material);painted++;
    return material;

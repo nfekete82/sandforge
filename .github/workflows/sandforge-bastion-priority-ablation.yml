@@ -1,0 +1,88 @@
+name: Sandforge Bastion-first AI ablation (5m)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ablation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile four isolated strategies against identical game mechanics
+        shell: bash
+        run: |
+          set -euo pipefail
+          for policy in previous objective-only defenders-only combined; do
+            git restore --source=HEAD -- src/reborn/tactical-ai.ts src/reborn/campaign-commander.ts
+            if [[ "$policy" == previous || "$policy" == objective-only ]]; then
+              git show dc4c4febf43a0cc22efc0430eb0d09eb91e55547:src/reborn/tactical-ai.ts > src/reborn/tactical-ai.ts
+            fi
+            if [[ "$policy" == previous || "$policy" == defenders-only ]]; then
+              git show dc4c4febf43a0cc22efc0430eb0d09eb91e55547:src/reborn/campaign-commander.ts > src/reborn/campaign-commander.ts
+            fi
+            npx tsc -p tsconfig.json
+            cp -a dist "dist-$policy"
+          done
+          git restore --source=HEAD -- src/reborn/tactical-ai.ts src/reborn/campaign-commander.ts
+          for policy in objective-only defenders-only combined; do
+            cmp dist-previous/src/reborn/catalog.js "dist-$policy/src/reborn/catalog.js"
+            cmp dist-previous/src/reborn/simulation.js "dist-$policy/src/reborn/simulation.js"
+          done
+      - name: Simulate two identical 5-minute matches per policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ai-arena-results/bastion-ablation
+          for policy in previous objective-only defenders-only combined; do
+            ATLAS_SIM_MODULE="$PWD/dist-$policy/src/reborn/simulation.js" \
+              node scripts/ai-test-arena.mjs --maps 4,23 --seeds 2026 \
+              --seconds 300 --modes director --opponent guarded \
+              --label "$policy" \
+              --output "ai-arena-results/bastion-ablation/$policy.json"
+          done
+      - name: Compare observed Bastions, casualties and production
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          const list=['previous','objective-only','defenders-only','combined'];
+          const reports=list.map(name=>({name,
+            data:JSON.parse(readFileSync('ai-arena-results/bastion-ablation/'+name+'.json','utf8'))}));
+          const keys=reports[0].data.details.map(d=>[d.mapVersion,d.seed,d.mode].join(':'));
+          const rows=[];
+          for(const r of reports){
+            if(!r.data.complete||r.data.completedRuns!==2)throw Error('Incomplete: '+r.name);
+            const by=new Map(r.data.details.map(x=>[[x.mapVersion,x.seed,x.mode].join(':'),x]));
+            const base=reports[0].data.details;
+            if(keys.some((k,i)=>by.get(k)?.initialStateHash!==base[i].initialStateHash))
+              throw Error('Starting worlds not identical for '+r.name);
+            const avg=fn=>r.data.details.reduce((s,x)=>s+fn(x),0)/2;
+            const row={policy:r.name,army:avg(x=>x.peakArmy),produced:avg(x=>Object.values(x.redProducedByKind).reduce((a,b)=>a+b,0)),
+              captures:avg(x=>x.captures),held:avg(x=>x.redSectors),losses:avg(x=>x.redUnitsLost),
+              mission:avg(x=>x.missionCount),active:avg(x=>x.attackingSeconds),
+              damage:avg(x=>x.enemyHQDamage),credits:avg(x=>x.redCredits),
+              firstAttack:r.data.details.map(x=>x.firstOrganizedAttack)};
+            rows.push(row);
+          }
+          const lines=['# Bastion priority AI ablation, 5 minutes','','| Policy | Peak army | Produced | Bastions captured | Bastions held | Own losses | Attack missions | Active combat seconds | Enemy HQ damage |',
+            '|---|---:|---:|---:|---:|---:|---:|---:|---:|',...rows.map(r=>
+              '| '+r.policy+' | '+r.army+' | '+r.produced+' | '+r.captures+' | '+r.held+' | '+r.losses+' | '+r.mission+' | '+r.active.toFixed(1)+' | '+r.damage+' |'),
+            '','All policies use identical game simulation, combat, economy, maps, 2 seeds/map pairs (maps 4 and 23, seed 2026).'];
+          writeFileSync('ai-arena-results/bastion-ablation/summary.md',lines.join('\n')+'\n');
+          console.log(lines.join('\n'));
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bastion-priority-ablation
+          path: ai-arena-results/bastion-ablation/

@@ -8,7 +8,7 @@ import {guidedRocketAimY,aircraftAimOffsetY,adoptAircraftForCrash,disposeAircraf
 import {vehicleDustEligible,vehicleDustTail,VEHICLE_DUST_CAP,VEHICLE_DUST_CAP_LITE} from '/webgl-vehicle-dust.js';
 import {ORDNANCE_TRAIL_SEGMENTS,ORDNANCE_VISUALS,ordnanceVisualKind,ordnanceVisualProfile,appendOrdnanceTrail} from '/webgl-ordnance-profile.js';
 
-const vehicleKinds=new Set(['tank','rover','artillery']);
+const vehicleKinds=new Set(['tank','rover','supply','artillery']);
 const trackedKinds=new Set(['tank','artillery']);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -282,7 +282,7 @@ export class SandforgeCombatEffects {
   this.wreckCount=0;this.emitters=[];this.seenBlasts=new Set();this.seenShots=new WeakSet();
   this.lastUnits=new Map();
   this.seed=game.seed>>>0;this.frame=0;
-  this.stats={blasts:0,impacts:0,scorch:0,tracks:0,wrecks:0,rockets:0};
+  this.stats={blasts:0,impacts:0,misses:0,scorch:0,tracks:0,wrecks:0,rockets:0};
   this.lastUnitPollTime=NaN;
   this.lastDamageSmoke=new Map();this.lastDamageSmokeSweep=0;
   this.activeParticles=0;
@@ -337,6 +337,37 @@ export class SandforgeCombatEffects {
    this.particle(this.dust,p.x+(this.rand()-.5)*9,p.y+(this.rand()-.5)*9,
     impactGround+3,armored?8+this.rand()*7:11+this.rand()*15,
     .20+this.rand()*.20,Math.cos(a)*18,Math.sin(a)*18,4+this.rand()*9);
+  }
+ }
+ /** Sand-only kinetic miss response: small dark ground scar, soft spray of
+  * grit and 1-2 chips. Not a fireball, enemy reveal or damage event. All
+  * geometry uses existing bounded instance pools with fixed GPU budgets.
+  */
+ sandMissAt(shot){
+  const point=shot.groundTo??shot.to;
+  if(!this.game.canSee(0,point))return;
+  const height=this.heightAt(point.x,point.y);
+  this.stats.misses++;
+  this.stats.impacts++;
+  // The turret's heavier high-velocity rounds leave a slightly wider
+  // irregular ground dent and a short, low dust puff. Both use the EXISTING
+  // bounded GPU instance pools, without new meshes or terrain deformation.
+  const towerRound=shot.weapon==='turret';
+  this.placeScorch(point.x,point.y,towerRound?10+this.rand()*6:7+this.rand()*5);
+  for(let i=0;i<(towerRound?7:5);i++){
+   const a=this.rand()*Math.PI*2,r=2+this.rand()*(towerRound?9:6);
+   this.particle(this.dust,
+    point.x+Math.cos(a)*r,point.y+Math.sin(a)*r,height+1.6,
+    (towerRound?9:6)+this.rand()*8,.15+this.rand()*.21,
+    Math.cos(a)*(11+this.rand()*18),Math.sin(a)*(11+this.rand()*18),
+    3+this.rand()*7);
+  }
+  for(let i=0;i<(towerRound?3:2);i++){
+   const a=this.rand()*Math.PI*2;
+   this.particle(this.debris,point.x,point.y,height+1.7,
+    1.5+this.rand()*2,.13+this.rand()*.14,
+    Math.cos(a)*(13+this.rand()*22),
+    Math.sin(a)*(13+this.rand()*22),9+this.rand()*16);
   }
  }
  sparkAt(x,z,armored=false){
@@ -734,6 +765,10 @@ export class SandforgeCombatEffects {
   for(const shot of this.game.shots){
    if(this.seenShots.has(shot))continue;
    this.seenShots.add(shot);
+   if(shot.miss){
+    this.sandMissAt(shot);
+    continue;
+   }
    if(!shot.hit)continue;
    const p=shot.groundTo??shot.to;
    if(['cannon','rocket','turret','machinegun','rifle','heavy','pistol'].includes(shot.weapon))

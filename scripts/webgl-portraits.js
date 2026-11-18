@@ -1,13 +1,18 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
-import {createStrategicBuilding,isStrategicBuilding} from './webgl-strategic-buildings.js';
+import {createStrategicBuilding,isStrategicBuilding,prepareSiloForPortrait} from './webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry} from './webgl-rocket-infantry.js';
 import {createResearchArtwork,RESEARCH_ARTWORK_KINDS} from './webgl-research-artworks.js';
 import {tintFactionMaterials} from './webgl-faction-accents.js';
 import {finishBarracksSides,finishBarracksDesertPalette} from './webgl-barracks-shell.js';
 import {finishBuildingFacadeShading} from './webgl-building-shading.js';
 import {finishDesertBuildingMaterials,waitForDesertBuildingTextures,DESERT_BUILDING_KINDS} from './webgl-building-pbr.js';
+import {hasAuthoredHeadquartersPBR,prepareAuthoredHeadquartersPortrait} from './webgl-hq-portrait.js';
+import {hasFinalBarracksPBR,prepareFinalBarracksPortrait} from './webgl-pbr-barracks-portrait.js';
+import {polishBarracksProps} from './webgl-barracks-props.js';
+import {paintFactionRoofStripes} from './webgl-building-roof-stripes.js';
+import {paintFactionEntranceBanners} from './webgl-entrance-banners.js';
 
 /** Sprite-sheet portrait extraction shared by the WebGL HUD.
  * The classic game crops one idle frame rather than scaling down the entire
@@ -42,11 +47,21 @@ export const strategicBuildingIcon=kind=>{
   '<path d="M95 79 L95 38 M65 56 Q95 8 125 56Z" fill="#6499a7" stroke="#e8c58a" stroke-width="6"/>'+
   '<circle cx="95" cy="35" r="9" fill="#e5c98b"/>':
   kind==='silo'?
-  '<rect x="35" y="116" width="126" height="45" rx="6" fill="#796d57"/>'+
-  '<rect x="58" y="71" width="76" height="64" rx="6" fill="#485659"/>'+
-  '<path d="M96 26 Q115 56 115 79 L115 138 L77 138 L77 79 Q77 55 96 26Z" fill="#9fa79d" stroke="#efd5a1" stroke-width="5"/>'+
-  '<rect x="45" y="101" width="20" height="13" fill="#5eacbd"/>'+
-  '<rect x="130" y="101" width="20" height="13" fill="#5eacbd"/>':
+  // Match the playable SILO rather than the retired upright bunker icon:
+  // low dark deck, broad circular recessed steel hatch, smooth parked missile,
+  // and a compact desert service room to its right.
+  '<path d="M13 120 L88 82 L179 123 L102 166 Z" fill="#323834" stroke="#7c755d" stroke-width="3"/>'+
+  '<path d="M35 120 L91 94 L158 123 L100 151 Z" fill="#181f21" stroke="#6c7166" stroke-width="6"/>'+
+  '<ellipse cx="96" cy="124" rx="47" ry="24" fill="#263138" stroke="#87928c" stroke-width="4"/>'+
+  '<ellipse cx="96" cy="121" rx="38" ry="19" fill="#141d22"/>'+
+  '<path d="M88 100 L88 79 Q89 68 96 64 Q105 69 105 79 L105 101Z" fill="#8e9998"/>'+
+  '<path d="M88 100 L88 126 Q96 137 105 126 L105 100Z" fill="#8e9998"/>'+
+  '<path d="M88 92 Q96 82 105 92" stroke="#d4dbd6" stroke-width="2" fill="none"/>'+
+  '<path d="M129 120 L159 105 L175 113 L146 128 Z" fill="#a69b79"/>'+
+  '<path d="M129 120 L146 128 L146 142 L129 134Z" fill="#877e63"/>'+
+  '<path d="M146 128 L175 113 L175 127 L146 142Z" fill="#666a56"/>'+
+  '<rect x="151" y="125" width="10" height="9" fill="#212b30"/>'+
+  '<path d="M26 139 L44 150 M157 151 L173 142" stroke="#857b61" stroke-width="3"/>':
   '<rect x="30" y="110" width="132" height="52" rx="8" fill="#877b66"/>'+
   '<rect x="48" y="63" width="98" height="60" rx="8" fill="#4c6064"/>'+
   '<path d="M60 118 L71 59 L87 33 L92 103 M104 118 L115 59 L131 33 L136 103" stroke="#d1d2bd" stroke-width="17" stroke-linecap="round" fill="none"/>'+
@@ -94,18 +109,24 @@ export function researchIconMarkup(kind){
  * research objects, using the actual scene meshes. PNG generation happens
  * once per kind and never on the animation/render loop.
  */
-function renderModelPortrait(model,renderer,{width=320,height=220,research=false,infantryCard=false}={}){
+function renderModelPortrait(model,renderer,{width=320,height=220,research=false,infantryCard=false,headquartersCard=false,buildingCard=false}={}){
  // Atlas heavy infantry uses direction index 1: yaw PI/4 with camera (0,8,12).
  // Apply that exact view to the rocket portrait only, never to its game model.
  if(infantryCard)model.rotation.y+=Math.PI/4;
  const scene=new THREE.Scene();
  scene.add(model);
- const hemi=new THREE.HemisphereLight('#fff3e2','#576e73',research?2.15:2.0);
+ // Dedicated bright studio for building tiles, not the main game scene.
+ const studioBuilding=buildingCard||headquartersCard;
+ const hemi=new THREE.HemisphereLight(studioBuilding?'#fffaf2':infantryCard?'#f8fbfd':'#fff3e2',
+  infantryCard?'#788b95':'#576e73',
+  headquartersCard?3.1:studioBuilding?2.60:infantryCard?2.35:research?2.15:2.0);
  scene.add(hemi);
- const key=new THREE.DirectionalLight('#ffedcd',research?2.9:2.6);
+ const key=new THREE.DirectionalLight(studioBuilding?'#fff9f2':infantryCard?'#f6faff':'#ffedcd',headquartersCard?3.35:studioBuilding?3.05:infantryCard?2.70:research?2.9:2.6);
  key.position.set(210,390,290);scene.add(key);
- const fill=new THREE.DirectionalLight('#b6dce5',.95);
+ const fill=new THREE.DirectionalLight(studioBuilding?'#dce6ea':infantryCard?'#d5e8f4':'#b6dce5',headquartersCard?1.5:studioBuilding?1.45:infantryCard?1.18:.95);
  fill.position.set(-280,170,-170);scene.add(fill);
+ // Extra bounce is confined to the isolated HUD scene, never the battlefield.
+ if(studioBuilding)scene.add(new THREE.AmbientLight('#fff2dc',headquartersCard?.85:.56));
  const bounds=new THREE.Box3().setFromObject(model);
  const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
  const aspect=width/height;
@@ -117,10 +138,14 @@ function renderModelPortrait(model,renderer,{width=320,height=220,research=false
  const target=new THREE.WebGLRenderTarget(width,height,{format:THREE.RGBAFormat,depthBuffer:true});
  const oldTarget=renderer.getRenderTarget(),oldColor=renderer.getClearColor(new THREE.Color()).clone();
  const oldAlpha=renderer.getClearAlpha();
+ // Portrait-only exposure; always restore after render/readback.
+ const oldExposure=renderer.toneMappingExposure;
  const oldViewport=renderer.getViewport(new THREE.Vector4()).clone();
  const oldScissor=renderer.getScissor(new THREE.Vector4()).clone();
  const oldScissorTest=renderer.getScissorTest();
  try{
+  if(studioBuilding&&Number.isFinite(oldExposure))
+   renderer.toneMappingExposure=Math.max(oldExposure,1.28);
   renderer.setRenderTarget(target);
   renderer.setScissorTest(false);
   renderer.setClearColor('#000000',0);
@@ -170,6 +195,7 @@ function renderModelPortrait(model,renderer,{width=320,height=220,research=false
   ctx.drawImage(raw,left,top,w,h,drawX,infantryCard?119-dh:(height-dh)/2,dw,dh);
   return output.toDataURL('image/png');
  }finally{
+  renderer.toneMappingExposure=oldExposure;
   renderer.setRenderTarget(oldTarget);
   renderer.setViewport(oldViewport);
   renderer.setScissor(oldScissor);
@@ -189,8 +215,14 @@ function renderModelPortrait(model,renderer,{width=320,height=220,research=false
 function renderStrategicPortrait(kind,renderer){
  const model=createStrategicBuilding(kind,0);
  if(!model)return strategicBuildingIcon(kind);
+ // The live 125-unit missile extends far below the launch deck. Three.js
+ // includes those vertices (and hidden shaft floors) when framing a portrait,
+ // producing a tiny, misleading silo image. Portraits must show the ACTUAL
+ // top-side silhouette, not the underground construction mesh.
+ if(kind==='silo'&&!prepareSiloForPortrait(model))
+  throw new Error('Silo HUD portrait could not trim buried missile geometry');
  tintFactionMaterials(model,0,kind,'building');
- return renderModelPortrait(model,renderer);
+ return renderModelPortrait(model,renderer,{buildingCard:true});
 }
 const researchArtworkCache=new Map();
 export function researchArtwork(kind,renderer){
@@ -295,6 +327,25 @@ function rocketUnitIconFallback(){
  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
 }
 export function unitIcon(kind,renderer){
+ if(kind==='drone'){
+  // Compact, deterministic R-01 silhouette; avoids requesting a non-existent sprite atlas.
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 132">'+
+   '<rect width="192" height="132" fill="#28312d"/>'+
+   '<g stroke="#343b36" stroke-width="7" stroke-linecap="round">'+
+   '<path d="M91 61 35 35M101 61 157 35M91 74 35 99M101 74 157 99"/></g>'+
+   '<g fill="#b5a27e" stroke="#403c33" stroke-width="3">'+
+   '<circle cx="35" cy="35" r="12"/><circle cx="157" cy="35" r="12"/>'+
+   '<circle cx="35" cy="99" r="12"/><circle cx="157" cy="99" r="12"/></g>'+
+   '<path d="M86 47 107 47 118 82 96 99 74 82Z" fill="#b7a783" stroke="#4a4539" stroke-width="3"/>'+
+   '<path d="M89 50 101 51 94 83 80 75Z" fill="#787b63" opacity=".9"/>'+
+   '<path d="M98 56 113 70 103 78 94 67Z" fill="#947c61" opacity=".9"/>'+
+   '<circle cx="96" cy="87" r="7" fill="#343c42" stroke="#dfc99c" stroke-width="2"/>'+
+   '<circle cx="96" cy="87" r="3" fill="#728dc0"/>'+
+   '<path d="M108 48 118 26" fill="none" stroke="#383d3b" stroke-width="2"/>'+
+   '<path d="M21 35h28M143 35h28M21 99h28M143 99h28" stroke="#adb0a6" stroke-width="2" opacity=".85"/>'+
+   '</svg>';
+  return Promise.resolve('data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg));
+ }
  if(kind==='rocket'&&!renderer)return Promise.resolve(rocketUnitIconFallback());
  if(kind==='rocket'&&!iconCache.has(kind)){
   iconCache.set(kind,new Promise((resolve,reject)=>{
@@ -338,7 +389,9 @@ async function rasterizeBuildingIcon(kind,renderer){
   try{return renderStrategicPortrait(kind,renderer);}
   catch(error){console.warn('Strategic portrait fallback:',kind,error);return buildingIconUrl(kind);}
  }
- if(DESERT_BUILDING_KINDS.includes(kind)&&renderer){
+ // Airfield uses a dedicated PBR hangar GLB; it is not part of the older
+ // generic building shader allowlist, but must still render in the HUD.
+ if((DESERT_BUILDING_KINDS.includes(kind)||kind==='airfield'||kind==='generator')&&renderer){
   try{
    // The image tiles in the HUD must match the *real* 3D materials exactly.
    // Preview assets get their own buffers; renderModelPortrait frees them.
@@ -353,12 +406,43 @@ async function rasterizeBuildingIcon(kind,renderer){
     node.material=Array.isArray(node.material)?
      node.material.map(m=>m.clone()):node.material.clone();
    });
-   if(kind==='barracks')finishBarracksSides(model);
-   tintFactionMaterials(model,0,kind,'building');
-   if(kind==='barracks')finishBarracksDesertPalette(model);
-   finishDesertBuildingMaterials(model,kind);
-   finishBuildingFacadeShading(model);
-   return renderModelPortrait(model,renderer);
+   const authoredHQ=kind==='headquarters'&&hasAuthoredHeadquartersPBR(model);
+   const authoredBarracks=kind==='barracks'&&hasFinalBarracksPBR(model);
+   const authoredFactory=kind==='factory'&&Boolean(model.getObjectByName('SF_Factory_PBR_roof')&&model.getObjectByName('FactoryRollupDoor'));
+   const authoredAirfield=kind==='airfield'&&Boolean(model.getObjectByName('SF_Airfield_PBR_Root')&&model.getObjectByName('HangarDoorLeft_0')&&model.getObjectByName('HangarDoorRight_0'));
+   const authoredGenerator=kind==='generator'&&Boolean(model.getObjectByName('SF_EnergyCore_PBR_Housing'));
+   if(authoredHQ){
+    // Same original PBR textures as the real domed command centre.
+    prepareAuthoredHeadquartersPortrait(model);
+   }else if(authoredBarracks){
+    // Keep the hand-authored desert camouflage, not the legacy orange
+    // recolor applied to old procedural barracks.
+    if(polishBarracksProps(model))model.traverse(node=>{
+     if(!node.isMesh||!node.userData.sandforgeBarracksPropPolish)return;
+     // Generated prop resources are shared with the main world. Isolate
+     // them before the temporary HUD renderer disposes its scene.
+     node.geometry=node.geometry.clone();
+     node.material=Array.isArray(node.material)?
+      node.material.map(m=>m.clone()):node.material.clone();
+    });
+    prepareFinalBarracksPortrait(model);
+   }else if(authoredFactory||authoredAirfield||authoredGenerator){
+    // Keep HUD and gameplay in sync: only the external factory/hangar wall
+    // gets the barracks palette, with the original roof and gate preserved.
+    if(authoredFactory||authoredAirfield)finishDesertBuildingMaterials(model,kind);
+   }else{
+    if(kind==='barracks')finishBarracksSides(model);
+    tintFactionMaterials(model,0,kind,'building');
+    if(kind==='barracks')finishBarracksDesertPalette(model);
+    finishDesertBuildingMaterials(model,kind);
+    finishBuildingFacadeShading(model);
+   }
+   // Same flush roof insignia in the actual battle, placement ghost and HUD.
+   if(authoredHQ||authoredBarracks){
+    paintFactionRoofStripes(model,kind,0);
+    paintFactionEntranceBanners(model,kind,0);
+   }
+   return renderModelPortrait(model,renderer,{buildingCard:true,headquartersCard:authoredHQ});
   }catch(error){
    console.warn('Desert building PBR portrait fallback:',kind,error);
   }

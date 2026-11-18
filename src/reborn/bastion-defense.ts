@@ -13,7 +13,7 @@ export interface BastionDefenseCandidate {sector:number;score:number;threat:Poin
 export function rankBastionDefenses(g:Simulation):BastionDefenseCandidate[]{
  const towers=g.bases.filter(b=>b.owner===1&&b.kind==='turret'&&b.hp>0);
  const friendlyHq=new Set(g.bases.filter(b=>b.owner===1&&b.kind==='headquarters'&&b.hp>0).map(b=>b.territory));
- const visible=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u));
+ const visible=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u));
  const ranked:BastionDefenseCandidate[]=[];
  for(const t of g.territories){
   if(t.owner!==1||towers.some(b=>distance(b,t.point)<380))continue;

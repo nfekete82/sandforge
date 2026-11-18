@@ -5,18 +5,18 @@
  * No additional overlay / post-process passes or runtime draw calls.
  */
 export const DESERT_SCENIC_STYLE=Object.freeze({
- revision:'unified-golden-desert-v1-20261115',
- terrainMaterial:'#f2e1c7',
- duneBase:'#d9bb92',
- duneHighlight:'#ebd4b1',
- wornStone:'#ad9679',
- drySediment:'#bda78a',
- warmLift:'#ead2a6',
- warmLiftStrength:.12,
+ revision:'subtle-pale-wind-dunes-v3-20261116',
+ terrainMaterial:'#eee0c9',
+ duneBase:'#ddc6a5',
+ duneHighlight:'#eee0be',
+ wornStone:'#b4a48d',
+ drySediment:'#c2b49d',
+ warmLift:'#e7d9bd',
+ warmLiftStrength:.09,
  // The authored photograph supplies most of the pigment; retain only a light
  // neutral vertex shade to preserve terrain height transitions.
  authoredSandVertex:'#ffffff',
- authoredSandVertexBlend:.83,
+ authoredSandVertexBlend:.76,
  mesa:'#d4bd9b',
  mesaShade:'#ad9675',
  looseStones:Object.freeze(['#d3b99b','#bba383','#dec6a8']),

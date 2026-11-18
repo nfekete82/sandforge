@@ -1,0 +1,53 @@
+name: Sandforge AI A/B quick 5-minute pairs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build reference AI only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in src/reborn/army-economy.ts src/reborn/director-production.ts src/reborn/home-defense-doctrine.ts src/reborn/tactical-ai.ts src/reborn/campaign-commander.ts; do
+            git show b84d0d7:"$file" > "$file"
+          done
+          npx tsc -p tsconfig.json
+          cp -a dist dist-ai-before
+          git restore --source=HEAD -- src/reborn/army-economy.ts src/reborn/director-production.ts src/reborn/home-defense-doctrine.ts src/reborn/tactical-ai.ts src/reborn/campaign-commander.ts
+          npx tsc -p tsconfig.json
+          cmp dist-ai-before/src/reborn/catalog.js dist/src/reborn/catalog.js
+          cmp dist-ai-before/src/reborn/simulation.js dist/src/reborn/simulation.js
+      - name: Two matched 5-minute battles for old and new Director
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ai-arena-results/ab-fast
+          ATLAS_SIM_MODULE="$PWD/dist-ai-before/src/reborn/simulation.js" node scripts/ai-test-arena.mjs \
+            --maps 4,23 --seeds 2026 --seconds 300 --modes director --opponent guarded \
+            --label old-director --output ai-arena-results/ab-fast/before.json
+          node scripts/ai-test-arena.mjs \
+            --maps 4,23 --seeds 2026 --seconds 300 --modes director --opponent guarded \
+            --label new-director --output ai-arena-results/ab-fast/after.json
+          node scripts/ai-test-arena-compare.mjs ai-arena-results/ab-fast/before.json \
+            ai-arena-results/ab-fast/after.json ai-arena-results/ab-fast/comparison.md
+          node scripts/ai-theoretical-comparison-20261117.mjs ai-arena-results/ab-fast/before.json \
+            ai-arena-results/ab-fast/after.json ai-arena-results/ab-fast/summary.md
+      - name: Save result files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai-ab-fast
+          path: ai-arena-results/ab-fast/
+          if-no-files-found: warn

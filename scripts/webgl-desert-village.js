@@ -7,7 +7,10 @@ import {DESERT_SCENIC_STYLE as desertStyle} from './webgl-desert-style.js';
  * are shared with the established terrain.ruins pipeline and receive its real
  * weathered plaster/stone textures. Decorative, seeded, and never collidable.
  */
-export const DESERT_VILLAGE_ART_REVISION='authored-ruins-soft-tracks-v2-20261115';
+export const DESERT_VILLAGE_ART_REVISION='authored-ruins-bastion-clearance-v3-20261116';
+// Every house and its worn tracks must remain outside the Bastion capture zone.
+// Clearance is checked for each actual house, not only the hamlet's center.
+export const BASTION_VILLAGE_CLEARANCE=1150;
 export const DESERT_VILLAGE_MODELS=Object.freeze([
  '/src/assets/reborn/canyon-3d/ruin-house.gltf',
  '/src/assets/reborn/canyon-3d/ruin-depot.gltf'
@@ -42,6 +45,7 @@ export function planDesertVillages({world,terrain,seed=world?.seed??0,lowQuality
   const angle=Math.floor(random()*4)*Math.PI/2+(random()-.5)*.45;
   const center={x,y,angle};
   if(!allowed(world,center)||
+   terrain.sites.some(site=>distance(site,center)<BASTION_VILLAGE_CLEARANCE+320)||
    fixed.some(point=>distance(point,center)<330)||
    chosen.some(point=>distance(point,center)<650))continue;
   const count=lowQuality?2:3;
@@ -49,6 +53,7 @@ export function planDesertVillages({world,terrain,seed=world?.seed??0,lowQuality
   for(let i=0;i<count;i++){
    const [dx,dz]=plots[i],point=at(center,dx+(random()-.5)*42,dz+(random()-.5)*42);
    if(!allowed(world,point)||
+    terrain.sites.some(site=>distance(site,point)<BASTION_VILLAGE_CLEARANCE)||
     fixed.some(f=>distance(f,point)<200)||
     houses.some(h=>distance(h,point)<225)||
     (world.terrainSlope?.(point.x,point.y)??0)>.19)break;
@@ -63,6 +68,10 @@ export function planDesertVillages({world,terrain,seed=world?.seed??0,lowQuality
    });
   }
   if(houses.length!==count)continue;
+  // A settlement's tire tracks also stay away from Bastion grounds, not just
+  // the authored masonry. These three lane samples cover the full track.
+  const roadEnds=[at(center,0,-230),at(center,0,230)];
+  if(roadEnds.some(p=>terrain.sites.some(s=>distance(p,s)<BASTION_VILLAGE_CLEARANCE)))continue;
   chosen.push({...center,houses,roadLength:460});
  }
  return chosen;

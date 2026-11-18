@@ -226,7 +226,8 @@ export class DesertArtPass {
   // Just a few wall fragments at each ruin, not stone carpets everywhere.
   const rubblePerRuin=modernDesert?(this.lowQuality?2:3):
    spacious?(this.lowQuality?5:13):(this.lowQuality?8:27);
-  const count=this.terrain.ruins.length*rubblePerRuin;
+  const rubbleAt=ruin=>this.world.mapVersion>=19&&ruin.height<30?1:rubblePerRuin;
+  const count=this.terrain.ruins.reduce((n,ruin)=>n+rubbleAt(ruin),0);
   if(!count)return;
   const geometry=weatheredStoneGeometry(this.lowQuality);
   const materials=[
@@ -237,7 +238,7 @@ export class DesertArtPass {
   const counters=[0,0],dummy=new THREE.Object3D();
   let state=(this.world.seed^0x6ac8b547)>>>0;
   const rand=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
-  for(const ruin of this.terrain.ruins)for(let k=0;k<rubblePerRuin;k++){
+  for(const ruin of this.terrain.ruins)for(let k=0;k<rubbleAt(ruin);k++){
    const angle=rand()*Math.PI*2,wall=Math.max(ruin.width*.5,ruin.depth*.5);
    const distance=wall*(.78+rand()*.56),x=ruin.x+Math.cos(angle)*distance,z=ruin.y+Math.sin(angle)*distance;
    const radius=1.9+rand()*6,kind=rand()>.55?1:0;
@@ -358,9 +359,16 @@ export class DesertArtPass {
     return state/4294967296;};
   for(const ruin of sites){
    const radius=Math.max(ruin.width??120,ruin.depth??100)*.5;
-   const props=this.lowQuality?2:3;
+   const micro=this.world.mapVersion>=19&&ruin.height<30;
+   // Micro-ruins should be bare masonry, not miniature supply yards.
+   // Larger derelicts retain 1–2 restrained props; old map counts remain.
+   const props=this.world.mapVersion>=19?
+    micro?(random()<.25?1:0):this.lowQuality?1:2:
+    this.lowQuality?2:3;
+   const choices=micro?available.filter(a=>a.kind==='sandbags'):available;
+   if(!choices.length)continue;
    for(let i=0;i<props;i++){
-    const source=available[(i+Math.floor(random()*available.length))%available.length];
+    const source=choices[(i+Math.floor(random()*choices.length))%choices.length];
     const angle=ruin.rotation+Math.PI*(.2+random()*.6);
     const distance=radius*(1.05+random()*.34);
     const x=ruin.x+Math.cos(angle)*distance;

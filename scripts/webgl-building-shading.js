@@ -13,7 +13,7 @@ export function finishBuildingFacadeShading(root){
  if(!root)return 0;
  const adjusted=new Map();let count=0;
  root.traverse(mesh=>{
-  if(!mesh.isMesh)return;
+  if(!mesh.isMesh||mesh.userData?.sandforgeBarracksPropPolish)return;
   const update=source=>{
    if(!source?.isMeshStandardMaterial||source.transparent||source.opacity<.99)return source;
    if(skip.test((mesh.name||'')+' '+(source.name||'')))return source;

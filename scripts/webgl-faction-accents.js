@@ -1,11 +1,12 @@
 import * as THREE from 'three';
+import {FACTION_PAINT} from './sandforge-faction-palette.js';
 
 /** Painted ownership belongs INSIDE the authored PBR surfaces.
  * No floating blue cubes, box geometry or extra draw calls.
  * The original texture/albedo remains intact; only the material's
  * multiplicative base-color tint shifts slightly toward the team color.
  */
-export const FACTION_COLORS=Object.freeze({0:'#347c9c',1:'#af5449'});
+export const FACTION_COLORS=FACTION_PAINT;
 const team={0:new THREE.Color(FACTION_COLORS[0]),1:new THREE.Color(FACTION_COLORS[1])};
 
 /** Shared sand / khaki / olive military finish for every building, whether
@@ -100,6 +101,7 @@ export function tintFactionMaterials(root,owner,kind,type){
     // with the generic world-space patch shader.
     if(type==='building'&&mat.metalness<.9&&
        !mat.userData?.sandforgeColorMapCamo&&
+       !mat.userData?.sandforgeAuthoredMetal&&
        !(mat.emissiveIntensity>.29&&mat.emissive?.getHex?.()!==0))
       applyDesertBuildingCamo(mat);
     tinted++;

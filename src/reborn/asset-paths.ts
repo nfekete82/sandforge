@@ -4,7 +4,7 @@ import type {UnitKind} from './catalog.js';
  // Its distinct shoulder launcher is attached to the same rig in WebGL;
  // no independent rocket-0/1 sprite atlas is generated.
 export const unitAtlasPath=(kind:UnitKind,team:number):string=>{
- const atlasKind=kind==='rocket'?'infantry':kind;
+ const atlasKind=kind==='rocket'?'infantry':kind==='drone'?'scout':kind;
  return '/src/assets/reborn/'+(['infantry','heavy','medic','engineer'].includes(atlasKind)
   ?'prototype/'+atlasKind+'-':'animation/'+atlasKind+'-')+team;
 };

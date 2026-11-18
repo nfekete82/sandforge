@@ -10,7 +10,15 @@ import type {TacticalState} from './tactical-ai.js';
 export type ProductionReason='produced'|'saving-unit'|'saving-building'|'insufficient-credits'|'queue-blocked'|'army-cap'|'composition-complete'|'no-producer';
 export interface ProductionDecision {reason:ProductionReason;goal:UnitKind|BuildingKind|null;missing:number}
 export interface EconomyState {goal:BuildingKind|null;since:number;attemptAt:number;produced:Partial<Record<UnitKind,number>>;built:Partial<Record<BuildingKind,number>>;towerAttemptAt?:number;production? :ProductionDecision&{at:number;facilities:Record<number,ProductionDecision>}}
-const fighter=(u:Unit)=>!u.carrier&&!['medic','engineer','scout'].includes(u.kind);
+/** Combat capacity is a paid strategic objective, NOT free spawned troops.
+ * Old income/3+10 capped ordinary red economies near 18-22 total units;
+ * including engineers, medics and transports, offensive squads were tiny.
+ * Leave the engine's absolute 48-unit cap and legacy AI rules untouched. */
+export function directorArmyTarget(income:number):number {
+ return Math.min(42,Math.max(24,Math.floor(Math.max(0,income)/2.5)+13));
+}
+
+const fighter=(u:Unit)=>!u.carrier&&!['medic','engineer','scout','supply','drone'].includes(u.kind);
 /** Only already observed enemy infrastructure, an operational factory and a
  * missing paid siege weapon may defer optional airfield construction. */
 export function deferOptionalAirfieldForSiege(goal:BuildingKind|null,observedSiege:boolean,
@@ -50,7 +58,7 @@ export function firstSiegeRocketReserve(input:{
 /** A production/building policy inside the existing tactical controller, using only paid game APIs. */
 export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p:Point)=>number):void{
  const e:EconomyState=s.economy??{goal:null,since:g.time,attemptAt:-9,produced:{},built:{}},own=g.bases.filter(b=>b.owner===1&&b.hp>0),home=own.find(b=>b.kind==='headquarters')??own[0];if(!home)return;
- const fighters=army.filter(fighter),workers=army.filter(u=>u.kind==='engineer'&&!u.carrier),seen=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)),income=g.income(1);
+ const fighters=army.filter(fighter),workers=army.filter(u=>u.kind==='engineer'&&!u.carrier),seen=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)),income=g.income(1);
  const underAttack=seen.some(u=>own.some(b=>distance(b,u)<480)),known=s.knownTurrets.length;
  const director=g.world.mapVersion>=3&&g.tactical.mode==='director';
  const finishing=director&&s.commander?.enemyHQEliminatedAt!==undefined;
@@ -76,8 +84,11 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   if(target)g.command([w.id],{...target,kind:target.buildRemaining>0?'build':'repair',target:target.id});
  }
  let goal:BuildingKind|null=null;
- const openingBarracks=director&&g.world.mapVersion===11&&
-  g.tactical.earlyEconomyMode==='barracks-first'&&!has('barracks');
+ // Modern bastion-based economies prioritize a combat barracks before
+ // optional generators, ensuring the AI can contest neutral income sites.
+ const openingBarracks=director&&!has('barracks')&&(
+  (g.world.mapVersion===11&&g.tactical.earlyEconomyMode==='barracks-first')||
+  g.world.mapVersion>=23);
  const wantCore=director&&!openingBarracks&&(generators===0||siegeReserve===0)&&generatorBuildPriority({
   existing:generators,fighters:fighters.length,credits:g.credits[1],
   barracksReady:complete('barracks'),underAttack,finishing
@@ -144,7 +155,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  const buildReserve=e.goal&&(e.goal==='barracks'||!underAttack&&fighters.length>=3)
   &&g.time-e.since<85?BUILDINGS[e.goal].cost:0;
  const reserve=Math.max(buildReserve,siegeReserve);
- const maxArmy=director?Math.min(36,Math.max(18,Math.floor(income/3)+10)):Math.min(30,Math.max(14,Math.floor(income/4)+8));if(g.count(1)+g.queued(1)>=maxArmy&&(!director||count('engineer')>0)){
+ const maxArmy=director?directorArmyTarget(income):Math.min(30,Math.max(14,Math.floor(income/4)+8));if(g.count(1)+g.queued(1)>=maxArmy&&(!director||count('engineer')>0)){
   if(director)e.production={at:g.time,reason:'army-cap',goal:null,missing:0,facilities:Object.fromEntries(own.filter(b=>b.buildRemaining<=0).map(b=>[b.id,{reason:b.queue.length>=2?'queue-blocked':'army-cap',goal:null,missing:0}]))};
   return;
  }
@@ -163,13 +174,20 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  });
  const scores:Record<UnitKind,number>={
   infantry:Math.max(1,22-count('infantry')*5)+(fighters.length<4?18:0),
-  heavy:14+(known?20+known*10:0)+armor*5+(fighters.length>=3?9:0)-count('heavy')*11,
+  // A raised unit ceiling alone is not sufficient: 11-point decay made
+  // heavy infantry score <=0 at three squads, stopping the barracks anyway.
+  heavy:14+(known?20+known*10:0)+armor*5+(fighters.length>=3?9:0)
+   +(director&&income>=65?7:0)-count('heavy')*(director?5:11),
   rocket:(desiredRockets>count('rocket')?52+(air>0?air*12:armor>0?armor*9:0):0)-count('rocket')*9,
   medic:(wounded>=2?30:Math.max(0,fighters.length-2)*4)-count('medic')*20,
   engineer:count('engineer')===0?(!complete('barracks')?80:fighters.length>=2?38:0):own.length>=4&&count('engineer')<2?15:0,
+  supply:0, // Retired compatibility kind; never recruit.
+  drone:0, // Player reconnaissance option, never part of the AI combat army.
   rover:complete('factory')?35+(g.explored[1].reduce((n,v)=>n+v,0)/g.explored[1].length<.4?6:0)-count('rover')*17:0,
-  tank:complete('factory')?44+known*4+armor*6-count('tank')*16:0,
-  artillery:complete('factory')&&(known||fighters.length>=5)?32+known*14-count('artillery')*32:0,
+  tank:complete('factory')?44+known*4+armor*6
+   +(director&&income>=65?24:0)-count('tank')*(director?12:16):0,
+  artillery:complete('factory')&&(known||fighters.length>=5)?32+known*14
+   -count('artillery')*(director?18:32):0,
   scout:complete('airfield')&&fighters.length>=4?25-count('scout')*35:0,
   bomber:antiArmorBomberQuota>count('bomber')
    ?58+armor*10-count('bomber')*12

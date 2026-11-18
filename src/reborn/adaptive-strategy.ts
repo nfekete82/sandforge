@@ -14,8 +14,8 @@ export const newAdaptive=():AdaptiveState=>({version:1,strategy:'unknown',confid
 /** Observed roles are remembered briefly for strategy, never used as hidden
  * tactical targets or current enemy positions/HP. Territory control is public. */
 export function updateAdaptive(g:Simulation,s:AdaptiveState,home:Point,losses:Loss[],battle?:BattleState):void{
- s.sightings=s.sightings.filter(v=>g.time-v.seenAt<=45);
- const visible=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u));
+ s.sightings=s.sightings.filter(v=>v.kind!=='drone'&&g.time-v.seenAt<=45);
+ const visible=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u));
  for(const u of visible){const old=s.sightings.find(v=>v.id===u.id);if(old){old.seenAt=g.time;old.kind=u.kind;}else s.sightings.push({id:u.id,kind:u.kind,seenAt:g.time});}
  s.sightings=s.sightings.slice(-96);
  const count=(k:UnitKind[])=>s.sightings.filter(u=>k.includes(u.kind)).length;

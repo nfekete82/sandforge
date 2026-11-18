@@ -51,10 +51,30 @@ export function refreshIntelligence(g:Simulation,s:CampaignState):void{
  * remains a war objective until its destruction has actually been observed. */
 export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?:MissionContext):WarMission|undefined{
  const buildings=knownBuildings(g),old=s.mission;
+ // The war has two explicit strategic objectives:
+ // 1. Own and SECURE all public Bastions (including those lost again).
+ // 2. Only then destroy remaining enemy units/structures.
+ // A known turret or living HQ blocking a Bastion's capture circle is
+ // eligible to be attacked during phase one, never as an unrelated raid.
+ // Public sector ownership is fair knowledge; unseen enemy structures aren't.
+ const unheld=g.territories.filter(t=>t.owner!==1);
+ const securingBastions=unheld.length>0;
+ // Public 3:1 sector ownership means a severe economic deficit.
+ const pressured=g.world.mapVersion>=23&&g.territories.length===4&&
+  g.territories.filter(t=>t.owner===0).length>=3&&
+  g.territories.filter(t=>t.owner===1).length<=1;
+ const canKeepBlockingObjective=(mission:WarMission,remembered:Memory|undefined)=>{
+  if(!remembered||g.territories[mission.sector]?.owner===1)return false;
+  const target=g.territories[mission.sector];
+  return !!target&&(remembered.kind==='headquarters'&&remembered.territory===target.id
+   ||remembered.kind==='turret'&&distance(remembered,target.point)<660);
+ };
  if(old){
   const remembered=old.objective===null?undefined:buildings.find(b=>b.id===old.objective);
   const enemy=old.kind==='hunt'?g.units.find(u=>u.id===old.objective&&u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)):undefined;
-  const valid=old.kind==='capture'?g.territories[old.sector]?.owner!==1:old.kind==='structure'?!!remembered:!!enemy;
+  const valid=old.kind==='capture'?g.territories[old.sector]?.owner!==1:
+   old.kind==='structure'?!!remembered&&(!securingBastions||canKeepBlockingObjective(old,remembered)):
+   !securingBastions&&!!enemy;
   const failed=context?.fronts.filter(f=>f.sector===old.sector).sort((a,b)=>b.at-a.at)[0];
   const nearbyLosses=context?.losses.filter(l=>g.time-l.at<60&&distance(l,old)<700).length??0;
   const recentlySeen=s.intel.some(i=>i.id===old.objective&&g.time-i.seenAt<105);
@@ -74,7 +94,14 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
   }):!!context&&g.time-old.since>30&&nearbyLosses>=3&&
     context.fronts.some(f=>f.sector===old.sector&&f.failures>=2&&g.time-f.at<90));
   const unready=context&&old.kind==='structure'&&g.time-old.since>30&&!context.force.some(u=>u.kind==='artillery')&&buildings.filter(b=>b.kind==='turret'&&distance(b,old)<800).length>=2&&g.territories.some(t=>t.owner!==1&&t.neighbors.some(id=>g.territories[id].owner===1)&&!buildings.some(b=>b.kind==='turret'&&distance(b,t.point)<740));
-  if(valid&&!costly&&!unready&&g.time-old.progressAt<100){
+  const blockingOld=pressured&&old.kind==='capture'&&buildings.some(b=>
+   b.kind==='headquarters'&&b.territory===old.sector||
+   b.kind==='turret'&&distance(b,old)<660);
+  const saferEnemySector=blockingOld&&g.territories.some(t=>t.owner===0&&t.id!==old.sector&&
+   !buildings.some(b=>b.kind==='headquarters'&&b.territory===t.id||
+    b.kind==='turret'&&distance(b,t.point)<660)&&
+   !g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&distance(u,t.point)<350));
+  if(valid&&!costly&&!unready&&!saferEnemySector&&g.time-old.progressAt<100){
    if(remembered){old.x=remembered.x;old.y=remembered.y;if(remembered.hp<old.hp){old.progressAt=g.time;old.hp=remembered.hp;}}
    if(enemy){old.x=enemy.x;old.y=enemy.y;}
    // A newly observed tower covering an HQ approach is a concrete reason to
@@ -90,26 +117,59 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  const fieldArmy=army.length>=5&&army.some(u=>['tank','artillery'].includes(u.kind));
  const choices:{kind:WarMission['kind'];p:Point;sector:number;objective:number|null;hp:number;score:number}[]=[];
  const finishing=s.enemyHQEliminatedAt!==undefined;
- for(const b of buildings){
+ const openBastions=new Set<number>();
+ // No HQ rush while Bastions remain unheld. Existing capture missions
+ // preemptively neutralize only a tower/HQ physically blocking their circle.
+ for(const b of securingBastions?[]:buildings){
   const blocking=b.kind==='turret'&&buildings.some(other=>['headquarters','barracks','factory','airfield'].includes(other.kind??'')&&distance(other,b)<660);
-  // Cleanup destroys observed production before chasing neutral bastions.
+  // After every Bastion is held, clean up visible production and combat units.
   const production=['barracks','factory','airfield'].includes(b.kind??'');
   const value=finishing?(blocking?3500:production?3900:b.kind==='turret'?2600:1750)
    :blocking?2100:b.kind==='headquarters'?1900:b.kind==='turret'?1200:production?1450:700;
   choices.push({kind:'structure',p:b,sector:b.territory,objective:b.id,hp:b.hp,score:distance(origin,b)-value});
  }
- for(const t of g.territories)if(t.owner!==1&&t.neighbors.some(id=>g.territories[id].owner===1))
-  choices.push({kind:'capture',p:t.point,sector:t.id,objective:null,hp:0,score:distance(origin,t.point)-t.income*10+
-   (finishing?(t.owner===0?-1500:2300):(t.owner===0?(fieldArmy&&owned>=2?-900:1300):0))});
+ // Capture public Bastions first, but avoid suicidally marching into
+ // an enemy HQ or a turret just because its sector is technically adjacent.
+ // Visible blockers are legitimate siege objectives OF THAT BASTION only.
+ // Previously the strict capture-only filter removed those siege missions,
+ // costing 1-2 Bastions per 5-minute benchmark despite extra troops.
+ const frontier=unheld.filter(t=>t.neighbors.some(id=>g.territories[id].owner===1));
+ for(const t of frontier.length?frontier:unheld){
+  const blockers=buildings.filter(b=>
+   b.kind==='headquarters'&&b.territory===t.id||
+   b.kind==='turret'&&distance(b,t.point)<660);
+  const clear=blockers.length===0;
+  // Only a genuinely unguarded neutral Bastion is an immediate safe push.
+  // Never infer enemy movement behind fog or ignore a visible raiding squad.
+  const visibleGuards=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&
+   g.canSee(1,u)&&distance(u,t.point)<350);
+  if(clear&&!visibleGuards&&(t.owner===-1||pressured&&t.owner===0))openBastions.add(t.id);
+  // Neutral unfortified income is the fastest way to support paid armies.
+  // Public enemy-held sectors still matter (especially recent losses), but
+  // don't outrank a safe nearby Bastion just for being colored blue.
+  const retake=context?.experience?.lastLostSector===t.id;
+  const score=distance(origin,t.point)-t.income*10-
+   (clear&&t.owner===-1?1800:0)-
+   (pressured&&clear&&t.owner===0&&!visibleGuards?1700:0)-
+   (retake?1450:0)+(blockers.length?1000:0)+(t.owner===0?200:0);
+  choices.push({kind:'capture',p:t.point,sector:t.id,objective:null,hp:0,score});
+  // A physical shield must be destroyed before the Bastion can be secured.
+  // Do not queue unrelated enemy factories or HQs during expansion.
+  for(const b of blockers){
+   const score=distance(origin,b)-
+    (b.kind==='headquarters'?1650:1100)+(retake?-500:0);
+   choices.push({kind:'structure',p:b,sector:t.id,objective:b.id,hp:b.hp,score});
+  }
+ }
  // In cleanup, visible survivors remain targets even with neutral fronts.
- if(finishing||!choices.length)for(const u of g.units)if(u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u))
+ if(!securingBastions)for(const u of g.units)if(u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u))
   choices.push({kind:'hunt',p:u,sector:g.territories.reduce((a,b)=>distance(u,a.point)<distance(u,b.point)?a:b).id,objective:u.id,hp:u.hp,score:distance(origin,u)-(finishing?1650:0)});
  if(context){
   const ownHP=context.force.reduce((n,u)=>n+u.hp,0),siege=context.force.some(u=>u.kind==='artillery');
   const alternatives:{sector:number;score:number;expectedLoss:number;budgetCost:number}[]=[];
   for(const choice of choices){
    const forts=buildings.filter(b=>b.kind==='turret'&&distance(b,choice.p)<800);
-   const defenders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&distance(u,choice.p)<450);
+   const defenders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)&&distance(u,choice.p)<450);
    const seen=s.intel.find(i=>i.id===choice.objective)?.seenAt??g.time-45;
    const failed=context.fronts.filter(f=>f.sector===choice.sector&&g.time-f.at<120).reduce((n,f)=>n+f.failures,0);
    const rating=rateMission({base:choice.score,distance:distance(origin,choice.p),income:g.income(1),missingCredits:forts.length&&!siege?Math.max(0,600-g.credits[1]):0,
@@ -121,15 +181,24 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
   s.alternatives=alternatives.sort((a,b)=>a.score-b.score||a.sector-b.sector).slice(0,8);
  }
  choices.sort((a,b)=>a.score-b.score||a.sector-b.sector||(a.objective??0)-(b.objective??0));
+ // Open Bastions outrank fighting a distant blockade. Still validate a
+ // REAL safe route; if all free routes are blocked, siege the observed
+ // obstacle instead of doing nothing. This also fixes the long-range
+ // "turret first" case where a guarded circle and a free circle were
+ // both in scoring range but raw distance chose the unnecessary gun.
+ const safe=(c:typeof choices[number])=>c.kind==='capture'&&openBastions.has(c.sector);
+ const ordered=securingBastions?
+  [...choices.filter(safe),...choices.filter(c=>!safe(c))]:choices;
  const routed:{c:typeof choices[number];route:{length:number;risk:number}}[]=[];
- // Test as many as sixteen scored candidates (not merely the first three).
- // An unreachable attractive bunker must not conceal the next valid flank.
- if(context)for(const c of choices.slice(0,context.intelligent?16:choices.length)){
+ // Inspect all safe public fronts first, then the best available siege.
+ // A blocked/unreachable neutral must never permanently freeze the army.
+ if(context)for(const c of ordered.slice(0,context.intelligent?24:ordered.length)){
   const route=context.route(c.p);if(route)routed.push({c,route});
-  if(routed.length===(context.intelligent?4:3))break;
+  if(routed.length===(context.intelligent?8:6))break;
  }
  routed.sort((a,b)=>a.c.score+a.route.length*.15+a.route.risk*12-b.c.score-b.route.length*.15-b.route.risk*12);
- const next=context?routed[0]?.c:choices[0];
+ const safeRoute=routed.filter(r=>safe(r.c)&&r.route.risk<8)[0];
+ const next=context?(safeRoute??routed[0])?.c:ordered[0];
  return s.mission=next?{kind:next.kind,x:next.p.x,y:next.p.y,sector:next.sector,objective:next.objective,hp:next.hp,since:g.time,progressAt:g.time,distance:distance(origin,next.p)}:undefined;
 }
 /** Coarse, deterministic fog frontiers. Sampling terrain is public navigation

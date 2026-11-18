@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {disposeOwnedMeshes} from './webgl-resource-lifecycle.js';
+import {barracksPropMaterial} from './webgl-barracks-prop-materials.js';
 
 // Decorative props live next to authored buildings, independently of glTF
 // loading and without altering building collision, navigation or saves.
@@ -84,7 +85,15 @@ function supplyBarrel(group,x,z){
  box(g,'BarrelCap',[8,1.2,8],dark,0,17.7,0);
 }
 function securityLamp(group,x,z,height=53){
- const g=new THREE.Group();g.name='SecurityLamp';g.position.set(x,0,z);group.add(g);
+ const g=new THREE.Group();g.name='SecurityLamp';g.position.set(x,0,z);
+ // LampArm and LampHead project along the lamp's local +X axis.
+ // At the LEFT side of the command centre that previously pointed back
+ // into the facade; face the head and diffuser away from the wall instead.
+ // The opposite/right perimeter lamp already points outward along +X.
+ g.rotation.y=x<0?Math.PI:0;
+ g.userData={visualOnly:true,nonPlayable:true,securityLamp:true,
+  facesOutward:true};
+ group.add(g);
  box(g,'LampFoot',[11,2.5,11],steel,0,1.25,0);
  mesh(g,'LampPost',new THREE.CylinderGeometry(1.8,2.1,height,8),fencePost,0,height*.5,0);
  box(g,'LampArm',[13,2.7,3.2],steel,5,height,0);
@@ -113,12 +122,11 @@ function instanceBoxes(group,name,paint,parts){
  instances.receiveShadow=true;
  group.add(instances);
 }
-function instanceFenceWires(group,parts){
+function instanceFenceWires(group,parts,{radius=.42,name='YardFenceMesh'}={}){
  if(!parts.length)return;
- // Cross-bracing reads like a light wire fence at strategic camera distance.
- const wires=new THREE.InstancedMesh(new THREE.CylinderGeometry(.42,.42,1,5),
+ const wires=new THREE.InstancedMesh(new THREE.CylinderGeometry(radius,radius,1,6),
   fenceRail,parts.length);
- wires.name='YardFenceMesh';
+ wires.name=name;
  wires.userData={visualOnly:true,nonPlayable:true,siteDecor:true};
  const helper=new THREE.Object3D(),up=new THREE.Vector3(0,1,0);
  const direction=new THREE.Vector3();
@@ -172,27 +180,162 @@ function perimeterFence(group,width){
  group.userData.fenceRails=rails.length;
  group.userData.fenceWires=wires.length;
 }
+
+/** Barracks-only military wire perimeter. Unlike the old wooden fence, this
+ * has slim steel posts and horizontal wire/barbs, no bulky rail or X braces.
+ * Three sides plus two front sections keep the actual infantry exit clear. */
+function perimeterBarracksWire(group,width,{factory=false,generator=false,research=false,silo=false}={}){
+ // Measure the ACTUAL outdoor crates, barrel rims and pallet. Their
+ // footprints can extend beyond a proportional fence line on both the
+ // Energiekern and the enlarged Forschungzentrum. Never run wire through kit.
+ let cacheBounds=null;
+ if(generator||research||silo){
+  const cache=group.getObjectByName('BaseSupplyCache');
+  if(cache){
+   group.updateWorldMatrix(true,true);
+   const worldBounds=new THREE.Box3().setFromObject(cache);
+   if(!worldBounds.isEmpty()){
+    // Express measured bounds in fence-local coordinates (the reactor
+    // decor is separately scaled to .66, the research yard is unscaled).
+    cacheBounds=worldBounds.applyMatrix4(group.matrixWorld.clone().invert());
+   }
+  }
+ }
+ const leftX=-width*(generator?.70:research?.74:silo?.73:.65);
+ const rightX=generator?Math.max(width*.96,
+  cacheBounds?cacheBounds.max.x+15:width*.96):
+  research?Math.max(width*.86,cacheBounds?cacheBounds.max.x+18:width*.86):
+  silo?Math.max(width*.72,cacheBounds?cacheBounds.max.x+20:width*.72):
+  width*.65;
+ const rear=generator?Math.min(-width*.56,
+  cacheBounds?cacheBounds.min.z-14:-width*.56):
+  research?Math.min(-width*.59,cacheBounds?cacheBounds.min.z-16:-width*.59):
+  silo?Math.min(-width*.57,cacheBounds?cacheBounds.min.z-20:-width*.57):
+  -width*.53;
+ const front=generator?Math.max(width*.53,
+  cacheBounds?cacheBounds.max.z+14:width*.53):
+  research?Math.max(width*.56,cacheBounds?cacheBounds.max.z+18:width*.56):
+  silo?Math.max(width*.52,cacheBounds?cacheBounds.max.z+20:width*.52):
+  width*.28;
+ const gateHalf=width*(generator?.30:research?.28:silo?.24:.23);
+ if(generator||research||silo)group.userData[
+  generator?'generatorFenceBounds':research?'researchFenceBounds':'siloFenceBounds']={
+  leftX,rightX,rear,front,gateHalf,
+  cacheMinX:cacheBounds?.min.x??null,cacheMaxX:cacheBounds?.max.x??null,
+  cacheMinZ:cacheBounds?.min.z??null,cacheMaxZ:cacheBounds?.max.z??null
+ };
+ const posts=[],strands=[],barbs=[],seen=new Set();
+ function segment(x0,z0,x1,z1){
+  const dx=x1-x0,dz=z1-z0,dist=Math.hypot(dx,dz);
+  const steps=Math.max(1,Math.ceil(dist/24));
+  for(let i=0;i<=steps;i++){
+   const t=i/steps,px=x0+dx*t,pz=z0+dz*t;
+   const key=px.toFixed(2)+':'+pz.toFixed(2);
+   if(!seen.has(key)){
+    seen.add(key);
+    posts.push({x:px,y:13.5,z:pz,w:1.45,h:27,d:1.45});
+   }
+   if(i===steps)continue;
+   const sx=dx/steps,sz=dz/steps,ux=sx/(dist/steps),uz=sz/(dist/steps);
+   const mx=px+sx*.5,mz=pz+sz*.5;
+   for(const y of [7.5,14.5,21.5])
+    strands.push({x:mx,y,z:mz,dx:sx,dy:0,dz:sz});
+   // An upper twisted strand and sparse barbs, all instanced.
+   barbs.push({x:mx,y:24.5,z:mz,dx:sx,dy:0,dz:sz});
+   for(const u of [.25,.50,.75]){
+    const bx=px+sx*u,bz=pz+sz*u;
+    barbs.push({x:bx,y:24.5,z:bz,
+     dx:uz*1.7,dy:2.9,dz:-ux*1.7});
+    barbs.push({x:bx,y:24.5,z:bz,
+     dx:-uz*1.7,dy:2.9,dz:ux*1.7});
+   }
+  }
+ }
+ segment(leftX,rear,rightX,rear);
+ segment(leftX,rear,leftX,front);
+ // The separate vehicle repair deck starts at the factory's RIGHT side.
+ // Keep the right front open instead of crossing its drive-on ramp with wire.
+ segment(rightX,rear,rightX,factory?-width*.13:front);
+ segment(leftX,front,-gateHalf,front);
+ if(!factory)segment(gateHalf,front,rightX,front);
+ instanceBoxes(group,'BarracksWireFencePosts',fencePost,posts);
+ instanceFenceWires(group,strands,{radius:.18,name:'BarracksWireFenceStrands'});
+ instanceFenceWires(group,barbs,{radius:.12,name:'BarracksWireFenceBarbs'});
+ group.userData.fencePosts=posts.length;
+ group.userData.fenceRails=0;
+ group.userData.fenceWires=strands.length+barbs.length;
+ group.userData.barracksWireFence=true;
+ group.userData.factoryWireFence=factory;
+ group.userData.generatorWireFence=generator;
+ group.userData.siloWireFence=silo;
+}
+
+const barracksYardPaint=new Map([
+ [rubber,'rubber'],[tread,'trackMetal'],[steel,'brightSteel'],
+ [wood,'supplyWood'],[sand,'linen'],[olive,'helmetPaint'],
+ [dark,'darkSteel'],[fencePost,'fenceSteel'],[fenceRail,'fenceSteel'],
+ [crateBand,'darkSteel'],[barrelPaint,'olivePaint']
+]);
+/** Replace procedural single-color swatches in the barracks yard with real
+ * tiled PBR maps. Leave the other buildings and emissive lamp glass alone. */
+function textureBarracksYard(root){
+ root.traverse(obj=>{
+  if(!obj.isMesh)return;
+  const role=barracksYardPaint.get(obj.material);
+  if(role){
+   obj.material=barracksPropMaterial(role);
+   obj.userData.sandforgeBarracksPropPolish=true;
+  }
+ });
+}
+
 function addSiteDecor(root,kind,width){
  // Dedicated grouping avoids changing the legacy barracks/factory prop names
  // and lets renderer integration identify the decorations independently.
  const g=new THREE.Group();
  g.name='BasePerimeter_'+kind;
  g.userData={visualOnly:true,nonPlayable:true,siteDecor:true};
+ // Keep a small generator's props and side lamp proportional to its new
+ // compact reactor model. Rendering only: no navigation or collision change.
+ if(kind==='generator')g.scale.setScalar(.66);
  root.add(g);
  const large=width>=155;
- if(fencedSites.has(kind))perimeterFence(g,width);
  const supplies=new THREE.Group();
- supplies.name='BaseSupplyCache';supplies.position.set(width*.55,0,-width*.2);
+ // The original depot was centered at x=.55*width while its pallet
+ // extended another 30+ units into the wire-fence line (x=.65*width).
+ // Keep the barracks-only cache compact and clearly inside the perimeter.
+ supplies.name='BaseSupplyCache';
+ // Keep HQ crates clear of the thinner wire at small and real HQ sizes:
+  // the outer crate lid reaches 20 units past the cache origin.
+  // At width 160, .50 placed its edge at x=100: only 4 from the wire (x=104).
+  // .47 leaves 8.8 clearance; real HQ width 225 has >20.
+  supplies.position.set(kind==='barracks'?width*.49:kind==='headquarters'?width*.47:
+  kind==='factory'?width*.43:width*.55,0,-width*.2);
  g.add(supplies);
  // Different silhouettes per facility, all deterministic and inexpensive.
- storageCrate(supplies,0,0,large?19:13);
- storageCrate(supplies,large?18:13,12,large?14:11,sand);
- if(kind!=='airfield'){
-  box(supplies,'SupplyPallet',[43,3.2,27],wood,9,1.6,4);
-  supplyBarrel(supplies,-16,-11);
-  if(kind==='factory'||kind==='research'||kind==='headquarters')
-   supplyBarrel(supplies,-3,-19);
+ if(kind==='barracks'||kind==='headquarters'){
+  // Fit all boxes, wood pallet and drum between the building facade
+  // and side wire. Preserve crate/metal texture roles and visual shadows.
+  storageCrate(supplies,0,0,14);
+  storageCrate(supplies,14,9,10,sand);
+  box(supplies,'SupplyPallet',[28,3.2,22],wood,3,1.6,3);
+  supplyBarrel(supplies,-10,-11);
+ }else{
+  storageCrate(supplies,0,0,large?19:13);
+  storageCrate(supplies,large?18:13,12,large?14:11,sand);
+  if(kind!=='airfield'){
+   box(supplies,'SupplyPallet',[43,3.2,27],wood,9,1.6,4);
+   supplyBarrel(supplies,-16,-11);
+   if(kind==='factory'||kind==='research'||kind==='headquarters')
+    supplyBarrel(supplies,-3,-19);
+  }
  }
+ // Build perimeter AFTER props so Energiekern can calculate their real
+ // dimensions and reserve clearance on the right and in front. All other
+ // military building perimeters keep their original geometry.
+ if(['barracks','headquarters','factory','generator','research','silo'].includes(kind))
+  perimeterBarracksWire(g,width,{factory:kind==='factory',generator:kind==='generator',research:kind==='research',silo:kind==='silo'});
+ else if(fencedSites.has(kind))perimeterFence(g,width);
  // Place masts near the side fencing, never along the open front door/spawn.
  const lampHeight=Math.min(60,Math.max(43,width*.29));
  securityLamp(g,-width*.56,width*.20,lampHeight);
@@ -214,8 +357,12 @@ function addSiteDecor(root,kind,width){
  // Keep shadows on the building and original production-yard props.
  g.traverse(object=>{
   if(!object.isMesh)return;
-  object.castShadow=false;
-  object.receiveShadow=false;
+  // Only the larger barracks-yard objects need an actual sunlight shadow.
+  // Tiny fence wires/straps stay shadow-free to avoid shadow-map aliasing.
+  const majorBarracksProp=(kind==='barracks'||kind==='headquarters')&&
+   /^(CrateBody|CrateLid|SupplyPallet|BarrelShell|LampPost|LampHead)$/.test(object.name);
+  object.castShadow=majorBarracksProp;
+  object.receiveShadow=majorBarracksProp;
   // Decorative meshes must not compete with the building model when
   // recursive unit/building raycasts resolve game selection.
   object.raycast=()=>{};
@@ -223,6 +370,69 @@ function addSiteDecor(root,kind,width){
  return g;
 }
 
+/** Small, optional-looking military camo shade. NOT a roof replacement:
+ * it shelters a little rear-side kit only, leaving main roof, flags, radar,
+ * ventilation, entrance and production path completely clear.
+ * Vertex colours and intentional perforations provide lightweight visual
+ * fabric without a new downloaded texture or a separate terrain pass.
+ */
+export const CAMO_NET_DETAIL_VERSION='limited-rear-side-camo-mesh-v1';
+export const CAMO_NET_BUILDING_KINDS=Object.freeze(['headquarters','barracks','research']);
+const netPaint=new THREE.MeshStandardMaterial({
+ color:'#e2ddce',vertexColors:true,roughness:1,metalness:0,
+ side:THREE.DoubleSide,transparent:true,opacity:.83,depthWrite:false
+});
+function attachSmallCamouflageNet(root,width){
+ const net=new THREE.Group();net.name='SmallDesertCamouflageNet';
+ net.userData={visualOnly:true,nonPlayable:true,decorativeNet:true,
+  version:CAMO_NET_DETAIL_VERSION};
+ const w=Math.min(width*.30,58),d=Math.min(width*.24,40);
+ // Offset to the REAR LEFT. Building access doors at local +Z stay clear.
+ net.position.set(-width*.50,0,-width*.21);
+ const geometry=new THREE.PlaneGeometry(w,d,12,9);
+ const positions=geometry.getAttribute('position'),colors=[];
+ const sandCol=new THREE.Color('#a99c76');
+ const oliveCol=new THREE.Color('#747f60');
+ const shadowCol=new THREE.Color('#7f806f');
+ for(let i=0;i<positions.count;i++){
+  const x=positions.getX(i),y=positions.getY(i);
+  const nx=x/(w*.5),ny=y/(d*.5);
+  const droop=2.1*(1-nx*nx)*(1-ny*ny);
+  positions.setZ(i,-droop+.24*Math.sin(x*.52+y*.40));
+  const n=Math.sin(Math.floor((x+w*.5)/9)*2.4+
+   Math.floor((y+d*.5)/7)*3.17);
+  const col=n>.32?oliveCol:n<-.34?sandCol:shadowCol;
+  colors.push(col.r,col.g,col.b);
+ }
+ geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+ // One open weave with small intentional diamond/triangle holes. Avoid
+ // dense solid-looking camouflage tarps that obscure the building model.
+ const original=Array.from(geometry.index.array),faces=[];
+ for(let i=0;i<original.length;i+=3){
+  const tri=i/3;
+  if(tri%13===0||tri%19===7)continue;
+  faces.push(original[i],original[i+1],original[i+2]);
+ }
+ geometry.setIndex(faces);geometry.computeVertexNormals();
+ const fabric=new THREE.Mesh(geometry,netPaint);
+ fabric.name='PartialCamouflageMesh';fabric.rotation.x=-Math.PI/2;
+ fabric.position.y=27;
+ fabric.castShadow=false;fabric.receiveShadow=true;fabric.raycast=()=>{};
+ fabric.userData={visualOnly:true,nonPlayable:true,camoNetFabric:true};
+ net.add(fabric);
+ // Only two thin supports at the outer edge; the inner edge is attached
+ // to the side of the building, not held by a forest of posts.
+ for(const z of [-d*.46,d*.46]){
+  const pole=mesh(net,'CamoNetOuterPole',
+   new THREE.CylinderGeometry(.67,.86,26,6),fencePost,-w*.48,13,z);
+  pole.raycast=()=>{};pole.castShadow=false;
+ }
+ // A minimal, low-cost net perimeter (two cords) gives a sagging silhouette.
+ for(const z of [-d*.49,d*.49])
+  box(net,'CamouflageNetRope',[w,.40,.55],fenceRail,0,27.0,z).raycast=()=>{};
+ root.add(net);
+ return net;
+}
 // Airfield has its own service yard with a true runway, apron and hangar.
 // The generic crate cache was positioned at (+width*.55,-width*.2), which
 // falls DIRECTLY on that runway and left visible boxes in the landing lane.
@@ -236,7 +446,8 @@ export function createBuildingYard(kind,width=160){
  // doors or spawn lanes. Parent rotation follows the placed building.
  if(kind==='factory'){
   const g=new THREE.Group();g.name='VehicleSpareParts';
-  g.position.set(-width*.47,0,width*.30);root.add(g);
+  // Move spares behind the new left-front wire instead of straddling it.
+  g.position.set(-width*.43,0,width*.04);root.add(g);
   box(g,'RepairPallet',[63,4,45],wood,3,2,0);
   wheel(g,-17,-8,3);wheel(g,10,-10,2);
   box(g,'EngineBlock',[24,14,20],steel,30,12,2);
@@ -267,6 +478,13 @@ export function createBuildingYard(kind,width=160){
   }
  }
  addSiteDecor(root,kind,width);
+ // Only three selected facilities get ONE small side awning; most buildings
+ // have no camouflage fabric at all. Never cover doors or active roof gear.
+ if(CAMO_NET_BUILDING_KINDS.includes(kind))attachSmallCamouflageNet(root,width);
+ // The generator's side crates, pallet and barrels need the same authored
+ // wood/steel/cloth PBR mapping as HQ supplies, not plain colored blocks.
+ if(['barracks','headquarters','factory','generator','research','silo'].includes(kind))
+  textureBarracksYard(root);
  return root;
 }
 

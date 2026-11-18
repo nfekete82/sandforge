@@ -32,7 +32,6 @@ export function installClassicHud(){
    <button data-tab="infantry" aria-pressed="false" hidden>INFANTERIE</button>
    <button data-tab="vehicles" aria-pressed="false" hidden>FAHRZEUGE</button>
    <button data-tab="aircraft" aria-pressed="false" hidden>FLUGZEUGE</button>
-   <button data-tab="research" aria-pressed="false" hidden>FORSCHUNG</button>
   </nav>
   <div class="catalog-scroll" id="sf-actions" aria-label="Einheiten, Gebäude und Territorien"></div>
   <section class="production hud frame sf-production-panel" id="sf-production" aria-label="Produktion und Warteschlange">
@@ -68,15 +67,13 @@ export function installClassicHud(){
  <div class="command-group">
   <div class="section-label">KOMMANDOS</div>
   <div class="commands" id="sf-command-buttons">
-   <button data-action="select-engineer" title="Lebenden Pionier auswählen (P)">PIONIER</button>
-   <button data-action="select-all" title="Alle Truppen auswählen">ALLE</button>
-   <button data-action="attack" title="Angriffsbewegung (F)">ANGRIFF</button>
-   <button data-action="rally" id="sf-rally" title="Sammelpunkt für neue Einheiten setzen">SAMMELPUNKT</button>
-   <button data-action="stop" title="Einheiten anhalten (X)">STOPP</button>
-   <button data-action="unload" title="Alle Passagiere aus Humvee oder Transporthubschrauber ausladen (U)" hidden>ALLE AUSLADEN</button>
+   <button data-action="stop" title="Stellung halten und Gegner im Waffenradius automatisch bekämpfen (X)">STOPP</button>
+   <button data-action="return-base" title="Zur eigenen Basis marschieren und dort Stellung halten (G)">ZUR BASIS</button>
+   <button data-action="select-all" title="Alle sichtbaren eigenen Einheiten auf diesem Bildschirm auswählen (H)">ALLE</button>
+   <button data-action="rally" id="sf-rally" title="Sammelpunkt für neue Einheiten setzen" hidden>SAMMELPUNKT</button>
+   <button data-action="demolish" title="Eigenes Gebäude abreißen (nicht rückgängig)" hidden>ABREISSEN</button>
    <button data-action="missile-target" id="sf-strategic-fire" title="Langstreckenrakete: Ziel auf der Karte markieren" hidden>RAKETE STARTEN</button>
    <button data-action="interceptor-rearm" id="sf-interceptor-rearm" title="Drei Abwehrraketen für 650 Credits nachladen" hidden>ABWEHR LADEN</button>
-   <button data-action="cancel" title="Auswahl oder Bauplatz abbrechen (Esc)">ZURÜCK</button>
   </div>
  </div>
 </section>
@@ -87,6 +84,45 @@ export function installClassicHud(){
 <div class="sf-debug" id="sf-debug"><span id="sf-debug-status"></span><span id="sf-debug-error"></span></div>
 `;
  document.body.append(panel);
+ // Small consistent 14px tactical pictograms to the LEFT of labels.
+ // SVGs are decorative; retain the actual button text, title, tabindex,
+ // data-action, shortcuts and existing click listeners unchanged.
+ const hudPaths={
+  buildings:'<path d="M3 21V8l9-5 9 5v13H3Z"/><path d="M9 21v-9h6v9M3 10h18"/>',
+  infantry:'<circle cx="12" cy="6" r="3"/><path d="M5 21v-4c0-4 3-7 7-7s7 3 7 7v4M8 21v-5m8 5v-5"/>',
+  vehicles:'<path d="M3 10h16l2 5v4h-3m-12 0H3v-9Zm4-6h8l3 6H4l3-6Z"/><circle cx="8" cy="19" r="2"/><circle cx="17" cy="19" r="2"/>',
+  aircraft:'<path d="m3 13 8-2V3a1 1 0 0 1 2 0v8l8 2v3l-8-2v4l3 2v2l-4-1-4 1v-2l3-2v-4l-8 2v-3Z"/>',
+  'select-engineer':'<path d="m14 7 4-4 3 3-4 4M13 11l-8 8a2 2 0 0 0 3 3l8-8"/><path d="m13 11-3-3-3 1-2-2 3-4 4 1 1 4"/>',
+  'select-all':'<circle cx="9" cy="7" r="3"/><path d="M3 20v-3a6 6 0 0 1 12 0v3"/><path d="M16 4a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5v1"/>',
+  attack:'<path d="m4 20 6-6m-5-8 13 13m-1-15L4 17m1 4 4-4m6-9 5-5 1 4-5 5"/>',
+  rally:'<path d="M5 22V3m0 1c5-3 8 3 15 0v11c-6 3-10-3-15 0"/>',
+  stop:'<rect x="5" y="5" width="14" height="14" rx="1"/>',
+  'return-base':'<path d="m3 11 9-8 9 8M5 10v11h14V10M9 21v-7h6v7"/><path d="M9 7H3m0 0 2-2m-2 2 2 2"/>',
+  demolish:'<path d="M4 7h16M9 7V4h6v3m-9 0 1 14h10l1-14M10 11v7m4-7v7"/>',
+  unload:'<path d="M12 3v13m-5-5 5 5 5-5M4 18v3h16v-3"/>',
+  'missile-target':'<path d="M12 2c3 3 5 6 5 11v3H7v-3c0-5 2-8 5-11Z"/><path d="M7 11 4 15v4l3-2m10-6 3 4v4l-3-2M10 21v-3m4 3v-3"/>',
+  'interceptor-rearm':'<path d="m12 2 8 3v6c0 5-3 8-8 11-5-3-8-6-8-11V5l8-3Z"/><path d="m9 12 2 2 4-4"/>',
+  cancel:'<path d="m5 5 14 14M19 5 5 19"/>'
+ };
+ const addHudIcon=(button,kind)=>{
+  const shape=hudPaths[kind];
+  if(!button||!shape||button.querySelector('.sf-hud-label-icon'))return;
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox','0 0 24 24');
+  svg.setAttribute('fill','none');
+  svg.setAttribute('stroke','currentColor');
+  svg.setAttribute('stroke-width','1.65');
+  svg.setAttribute('stroke-linecap','round');
+  svg.setAttribute('stroke-linejoin','round');
+  svg.setAttribute('aria-hidden','true');
+  svg.classList.add('sf-hud-label-icon');
+  svg.innerHTML=shape;
+  button.prepend(svg);
+ };
+ panel.querySelectorAll('#sf-tabs button[data-tab]').forEach(button=>
+  addHudIcon(button,button.dataset.tab));
+ panel.querySelectorAll('#sf-command-buttons button[data-action]').forEach(button=>
+  addHudIcon(button,button.dataset.action));
  // One full-width tactical dock. Move the existing nodes rather than
  // cloning them, preserving all click/keyboard handlers and accessible IDs.
  const dock=panel.querySelector('#sidebar');

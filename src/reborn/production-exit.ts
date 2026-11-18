@@ -36,6 +36,23 @@ export function factoryDoorExitCandidates(base:{x:number;y:number;radius:number;
  return candidates;
 }
 /** Dust belongs at the real world-space release point, not on a fake door. */
+/** Legal staged foot-unit exits follow the ACTUAL front (+Z) of the
+ * headquarters/barracks, instead of forcing the old right-hand
+ * diagonal spawn. The nearest valid point is approximately five metres
+ * beyond the facade at real infantry scale. The actual Simulation picks a walkable clear candidate;
+ * the renderer only animates the already-authoritative unit into that spot.
+ */
+export function infantryDoorExitCandidates(base:{x:number;y:number;radius:number;facing?:number}):Point[]{
+ const angle=[0,Math.PI,Math.PI/2,Math.PI*1.5][base.facing??0]??0;
+ const forward={x:Math.sin(angle),y:Math.cos(angle)};
+ const side={x:Math.cos(angle),y:-Math.sin(angle)};
+ const candidates:Point[]=[];
+ for(const distance of [base.radius+75,base.radius+100,base.radius+130])
+  for(const offset of [0,22,-22,45,-45])
+   candidates.push({x:base.x+forward.x*distance+side.x*offset,
+    y:base.y+forward.y*distance+side.y*offset});
+ return candidates;
+}
 export function productionExitDustPoint(event:Pick<ProductionRelease,'to'|'from'>):Point{
  const dx=event.to.x-event.from.x,dy=event.to.y-event.from.y,l=Math.hypot(dx,dy)||1;
  return {x:event.to.x-dx/l*5,y:event.to.y-dy/l*5+6};

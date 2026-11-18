@@ -31,10 +31,12 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
  const available=(kind:UnitKind)=>c.own.some(b=>b.buildRemaining<=0&&b.queue.length<2&&UNITS[kind].producers.includes(b.kind));
  const counts=()=>Object.fromEntries((Object.keys(UNITS) as UnitKind[]).map(k=>[k,count(k)])) as Record<UnitKind,number>;
  const ground=()=>count('rover')+count('tank')+count('artillery');
- const enemyAir=c.seen.find(u=>UNITS[u.kind].flying);
- const observed={infantry:c.seen.filter(u=>UNITS[u.kind].group==='Infanterie'&&!['engineer','medic'].includes(u.kind)).length,
-  armor:c.seen.filter(u=>UNITS[u.kind].group==='Fahrzeuge'&&!UNITS[u.kind].flying).length,
-  air:c.seen.filter(u=>UNITS[u.kind].flying).length};
+ // Unarmed recon drones must not consume AA budgets or suspend a bomber plan.
+ const seen=c.seen.filter(u=>u.kind!=='drone');
+ const enemyAir=seen.find(u=>UNITS[u.kind].flying);
+ const observed={infantry:seen.filter(u=>UNITS[u.kind].group==='Infanterie'&&!['engineer','medic'].includes(u.kind)).length,
+  armor:seen.filter(u=>UNITS[u.kind].group==='Fahrzeuge'&&!UNITS[u.kind].flying).length,
+  air:seen.filter(u=>UNITS[u.kind].flying).length};
  const belief=s.adaptive;
  if(belief&&belief.confidence>=.55&&g.time-belief.updatedAt<=30){
   // Briefly losing sight of a force should not immediately restart a siege
@@ -45,7 +47,7 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   if(belief.strategy==='infantry')observed.infantry=Math.max(observed.infantry,recent.filter(v=>v.kind==='infantry'||v.kind==='heavy').length);
  }
  const airTarget=enemyAir??(observed.air?{kind:'bomber' as const}:undefined);
- const fighters=c.army.filter(u=>!['engineer','medic','scout'].includes(u.kind)).length;
+ const fighters=c.army.filter(u=>!['engineer','medic','scout','supply','drone'].includes(u.kind)).length;
  const rocketQuota=rocketInfantryQuota({fighters,time:g.time,
   vehicles:observed.armor,air:observed.air,
   barracksReady:available('rocket'),underAttack:c.underAttack});
@@ -131,11 +133,18 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   if(available('medic')&&count('infantry')+count('heavy')>=4&&count('heavy')>0&&count('medic')===0)return 'medic';
   return null;
  };
+ // Real paid unit-count ceilings: the earlier 8 rifles / 3 heavy / 1
+ // rover / 2 tanks exhausted almost every factory's useful composition
+ // before the global army cap. Keep anti-air and airstrike quotas driven
+ // by OBSERVED enemies, rather than manufacturing invisible-threat counters.
  const ceiling=(kind:UnitKind):number=>({
-  infantry:8,heavy:c.income>=65?4:3,rocket:rocketQuota,medic:Math.min(2,Math.ceil((count('infantry')+count('heavy'))/5)),
-  engineer:c.defenseNeedsWorker||c.own.length>=4&&(s.recovering?.length??0)>0?2:1,rover:1,tank:c.income>=65||observed.armor>=3?4:2,
-  artillery:c.knownTurrets>1?3:c.knownEnemyHQ||c.knownTurrets?2:1,
+  infantry:12,heavy:c.income>=65?6:5,rocket:rocketQuota,
+  medic:Math.min(3,Math.ceil((count('infantry')+count('heavy'))/5)),
+  engineer:c.defenseNeedsWorker||c.own.length>=4&&(s.recovering?.length??0)>0?2:1,
+  supply:0,rover:2,tank:c.income>=65||observed.armor>=3?6:4,
+  artillery:c.knownTurrets>1?4:c.knownEnemyHQ||c.knownTurrets?3:2,
   scout:1,bomber:Math.max(bomberQuota,c.income>=65&&!c.finishing?1:0),
+  drone:0,
  })[kind];
  const ranks=(producer:Base):UnitKind[]=>{
   const n=counts();

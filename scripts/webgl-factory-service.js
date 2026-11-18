@@ -52,13 +52,55 @@ export function createFactoryServiceYard(){
  for(const side of [-1,1]){
   block(root,'HydraulicVehicleLiftRail_0',[5,.45,75],[cx+side*33,9.73,45],steel);
   block(root,'VehiclePlatformSafetyStrip_0',[2,.08,87],[cx+side*44.3,9.56,45],yellow);
-  block(root,'FactoryServiceTireTrack_0',[3,.08,47],[cx+side*29,1.23,165],dark);
+  // No pair of dark tyre stripes in front of the repair ramp: they looked
+  // like permanent skid marks even when no vehicle had driven here.
   for(const z of [0,80])
    block(root,'FactoryPlatformEdgeMarker_0',[5,.45,8],[cx+side*48,9.72,z],yellow);
  }
  // Compact service instruments stay OUTSIDE the platform/vehicle lane.
  block(root,'FactoryRepairToolTray_0',[15,6,19],[cx+66,3.1,-12],deck);
  block(root,'FactoryRepairEquipmentPad_0',[21,.5,25],[cx+66,.75,-12],sandConcrete);
+ // Low-poly logistics corner BEHIND the lift (negative Z), not on the
+ // +Z drive-on ramp. These are visual-only props with no collision, targets
+ // or effect on vehicle repair/exit trajectories.
+ const supplies=new THREE.Group();
+ supplies.name='FactoryRearRepairSupplies_0';
+ supplies.userData={visualOnly:true,nonPlayable:true,decorativeSupplies:true};
+ root.add(supplies);
+ const crateWood=mat('#887855',.06,.94),crateTop=mat('#ae986d',.06,.9);
+ const crateBand=mat('#655f48',.22,.79);
+ const barrelOlive=mat('#65715c',.29,.68),barrelBlue=mat('#526969',.31,.64);
+ const barrelRim=mat('#383f38',.42,.6);
+ function crate(i,x,z,w,d,h){
+  block(supplies,'FactoryRepairCrate_'+i,[w,h,d],[x,h/2,z],crateWood);
+  block(supplies,'FactoryRepairCrateLid_'+i,[w+1.4,2,d+1.4],[x,h+1,z],crateTop);
+  for(const side of [-1,1])
+   block(supplies,'FactoryRepairCrateBrace_'+i+'_'+side,
+    [2,h-.7,d+.7],[x+side*(w*.35),h/2,z],crateBand);
+ }
+ function barrel(i,x,z,paint){
+  const drum=new THREE.Mesh(new THREE.CylinderGeometry(6.3,6.3,17,12),
+   paint);
+  drum.name='FactoryRepairBarrel_'+i;
+  drum.position.set(x,8.5,z);
+  supplies.add(drum);
+  for(const y of [2.2,14.7]){
+   const rim=new THREE.Mesh(new THREE.CylinderGeometry(6.6,6.6,1.4,12),
+    barrelRim);
+   rim.name='FactoryRepairBarrelRim_'+i+'_'+y;
+   rim.position.set(x,y,z);supplies.add(rim);
+  }
+  const lid=new THREE.Mesh(new THREE.CylinderGeometry(5.6,5.6,.8,12),
+   barrelRim);
+  lid.name='FactoryRepairBarrelLid_'+i;
+  lid.position.set(x,17.2,z);supplies.add(lid);
+ }
+ crate(0,cx-47,-29,19,16,14);
+ crate(1,cx-24,-39,16,15,12);
+ crate(2,cx-11,-23,13,12,10);
+ barrel(0,cx+21,-30,barrelOlive);
+ barrel(1,cx+35,-37,barrelBlue);
+ barrel(2,cx+49,-28,barrelOlive);
  const indicator=block(root,'RepairStatusIndicator_0',[8,.7,8],[cx+54,1.8,113],yellow);
  indicator.visible=false;
  const glow=block(root,'VehicleWeldingFlash_0',[4,3.3,4],[cx+35,12.5,45],yellow);

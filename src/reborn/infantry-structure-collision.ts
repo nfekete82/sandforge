@@ -3,6 +3,7 @@ import type {BuildingKind} from './catalog.js';
 import {buildingArtWidth} from './visual-scale.js';
 import type {Base} from './simulation.js';
 import {wallColliderSamples} from './defensive-wall.js';
+import {airfieldGroundStructureColliders} from './airfield-maintenance.js';
 
 /** The same facade footprint is used by navigation and construction placement. */
 export function infantryStructureCollider(kind:BuildingKind,point:{x:number;y:number},radius=BUILDINGS[kind].radius):{x:number;y:number;radius:number}{
@@ -17,5 +18,6 @@ export function infantryStructureCollider(kind:BuildingKind,point:{x:number;y:nu
  * reach the repair/construction interaction ring, including large airfields. */
 export function infantryStructureColliders(bases:readonly Base[]):{x:number;y:number;radius:number}[]{
  return bases.filter(b=>b.hp>0).flatMap(b=>b.kind==='wall'?
-  wallColliderSamples(b):[infantryStructureCollider(b.kind,b,b.radius)]);
+  wallColliderSamples(b):b.kind==='airfield'?
+  airfieldGroundStructureColliders(b):[infantryStructureCollider(b.kind,b,b.radius)]);
 }

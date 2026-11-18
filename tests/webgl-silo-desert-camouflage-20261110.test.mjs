@@ -49,10 +49,15 @@ test('missile silo and research center share desert khaki and olive PBR paint',(
   for(const materialName of ['SF_camoOlive','SF_camoSand'])
    assert.ok(meshes(research).some(n=>n.material.name===materialName),
     'research lab camouflage must remain available');
-  assert.ok(meshes(silo).length<=20,'static wall patches must remain batched');
+  // One additional dedicated depth-mask mesh is necessary to occlude
+  // the terrain beneath the real shaft; all other static pieces stay batched.
+  assert.equal(meshes(silo).filter(n=>n.name==='Silo_TerrainOcclusion').length,1);
+  assert.ok(meshes(silo).length<=21,
+   'static details remain batched; allow one dedicated shaft depth mask');
   assert.ok(silo.getObjectByName('Silo_RocketBody'));
   assert.ok(silo.getObjectByName('Silo_RocketNose'));
-  assert.ok(silo.getObjectByName('Silo_RocketStageSeam'));
+  assert.equal(silo.getObjectByName('Silo_RocketStageSeam'),undefined,
+   'the brushed steel rocket must be smooth without decorative raised bands');
   dispose(silo);dispose(research);
  }
 });
@@ -63,6 +68,10 @@ test('faction tint preserves the silo painted texture, rocket and signal equipme
  const rocketColor=rocket.material.color.getHex();
  const nose=silo.getObjectByName('Silo_RocketNose');
  const noseColor=nose.material.color.getHex();
+ const metalDeck=silo.getObjectByName('Silo_ExcavatedConcreteDeck');
+ const steelMap=metalDeck.material.map;
+ assert.equal(steelMap?.name,'Sandforge silo stamped steel maintenance panels');
+ assert.equal(metalDeck.material.userData.sandforgeAuthoredMetal,true);
  const before=meshes(silo).filter(n=>n.material.userData.sandforgeColorMapCamo);
  const texture=before[0].material.map;
  const count=tintFactionMaterials(silo,0,'silo','building');
@@ -76,6 +85,10 @@ test('faction tint preserves the silo painted texture, rocket and signal equipme
   'the generic shader must not repaint the authored camouflage map');
  assert.equal(rocket.material.color.getHex(),rocketColor);
  assert.equal(nose.material.color.getHex(),noseColor);
+ const paintedDeck=silo.getObjectByName('Silo_ExcavatedConcreteDeck');
+ assert.equal(paintedDeck.material.map,steelMap,'stamped deck albedo survives team changes');
+ assert.ok(!paintedDeck.material.userData.sandforgeDesertFinish,
+  'steel plating must never receive the generic camouflage shader');
  assert.ok(meshes(silo).some(n=>n.material.name==='SF_glow'&&n.material.emissiveIntensity>.4),
   'blue/red team indicators must remain visible');
  dispose(silo);

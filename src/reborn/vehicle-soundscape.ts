@@ -3,9 +3,9 @@ import {distance,clamp,RULES} from './config.js';
 import {unitSpec,type UnitKind} from './catalog.js';
 import type {Simulation} from './simulation.js';
 
-/** Five lightweight synthesized families; no prerecorded samples or downloads. */
-export type EngineKind='rover'|'tank'|'artillery'|'scout'|'bomber';
-export const ENGINE_KINDS:readonly EngineKind[]=['rover','tank','artillery','scout','bomber'];
+/** Six lightweight synthesized engine families; all silent when physically parked. */
+export type EngineKind='rover'|'supply'|'tank'|'artillery'|'scout'|'bomber';
+export const ENGINE_KINDS:readonly EngineKind[]=['rover','supply','tank','artillery','scout','bomber'];
 export interface EngineMix {level:number;throttle:number;pan:number;moving:number;count:number}
 export type EngineMixes=Record<EngineKind,EngineMix>;
 export const ENGINE_PROFILES:Readonly<Record<EngineKind,{
@@ -13,6 +13,7 @@ export const ENGINE_PROFILES:Readonly<Record<EngineKind,{
   type:OscillatorType;secondary:OscillatorType;volume:number;texture:number;pulse:number
 }>>={
  rover:{low:67,high:117,cutoff:310,noiseHz:680,noiseQ:.5,type:'sawtooth',secondary:'triangle',volume:.075,texture:.17,pulse:0},
+ supply:{low:54,high:96,cutoff:255,noiseHz:590,noiseQ:.72,type:'sawtooth',secondary:'triangle',volume:.078,texture:.24,pulse:0}, // restrained diesel
  tank:{low:44,high:70,cutoff:180,noiseHz:480,noiseQ:.9,type:'sawtooth',secondary:'square',volume:.095,texture:.37,pulse:11},
  artillery:{low:50,high:82,cutoff:225,noiseHz:510,noiseQ:.65,type:'sawtooth',secondary:'triangle',volume:.085,texture:.24,pulse:0},
  scout:{low:37,high:66,cutoff:330,noiseHz:760,noiseQ:.6,type:'triangle',secondary:'sawtooth',volume:.095,texture:.40,pulse:17},
@@ -56,8 +57,8 @@ export function vehicleSoundMix(
  g:Pick<Simulation,'units'>,camera:Point,visible:(p:Point)=>boolean,
  radius=730
 ):EngineMixes {
- const result:EngineMixes={rover:empty(),tank:empty(),artillery:empty(),scout:empty(),bomber:empty()};
- const sums:Record<EngineKind,number>={rover:0,tank:0,artillery:0,scout:0,bomber:0};
+ const result:EngineMixes={rover:empty(),supply:empty(),tank:empty(),artillery:empty(),scout:empty(),bomber:empty()};
+ const sums:Record<EngineKind,number>={rover:0,supply:0,tank:0,artillery:0,scout:0,bomber:0};
  const maxRange=Math.max(120,Number.isFinite(radius)?radius:730);
  for(const u of g.units){
   // Only actual measured physical motion is audible; moving=true alone,

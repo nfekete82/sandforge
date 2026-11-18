@@ -17,11 +17,14 @@ export function homeDefensePlan(x:HomeDefenseInput):HomeDefensePlan {
  const failures=Math.max(0,Math.floor(x.recentFailures));
  const losses=Math.max(0,Math.floor(x.recentLosses));
  const setback=failures>0||losses>=2;
- const early=x.time<180;
- const base=fighters>=14?5:fighters>=9?4:fighters>=6?3:fighters>=3?2:fighters;
+ // A 180-second forced buildup and 2-5 stationary sentries made the AI
+ // look passive even after it had bought a valid paid attack group.
+ // Keep a genuine garrison, but release useful combat troops sooner.
+ const early=x.time<125;
+ const base=fighters>=14?4:fighters>=9?3:fighters>=6?2:fighters>=3?1:fighters;
  // A beaten force needs surviving screens at the headquarters; a visible
  // intruder earns more guards, never imaginary instant defenders.
- const guards=Math.min(fighters,Math.max(early?2:1,base)+(setback?1:0)+(x.observedHomePressure?2:0));
+ const guards=Math.min(fighters,Math.max(1,base)+(setback?1:0)+(x.observedHomePressure?2:0));
  // An unguarded neutral bastion is not a fortified assault: a pair of
  // available troops may secure it after the opening delay while the real
  // base garrison stays home. Requiring four *after* reserving two guards
@@ -33,8 +36,8 @@ export function homeDefensePlan(x:HomeDefenseInput):HomeDefensePlan {
   losses>=2?x.time+12:0;
  return {
   guards,minimumReady,
-  notBefore:Math.max(early?65:0,cooldown),
-  allowSecondaryRaids:!early&&!setback&&!x.observedHomePressure&&fighters>=12,
+  notBefore:Math.max(early?50:0,cooldown),
+  allowSecondaryRaids:!early&&!setback&&!x.observedHomePressure&&fighters>=10,
   mode:x.observedHomePressure?'defense':setback?'recover':early?'buildup':'probe'
  };
 }
