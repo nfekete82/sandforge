@@ -27,6 +27,7 @@ jobs:
         run: |
           node --test \
             tests/sandforge-ai33-map-adaptive-20261118.test.mjs \
+            tests/sandforge-ai33-tournament-report-20261118.test.mjs \
             tests/sandforge-ai32-multifront-20261117.test.mjs \
             tests/reborn-bastion-priority-20261117.test.mjs \
             tests/reborn-ai-combat-commit-20261109.test.mjs \
