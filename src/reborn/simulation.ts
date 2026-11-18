@@ -15,7 +15,7 @@ import {wallColliderSamples} from './defensive-wall.js';
 import {bastionStructureColliders} from './bastion-structure-collision.js';
 import {constructionVisualClearance,sitesVisuallyOverlap,siteNearBastion,siteExceedsMap,siteTerrainCompatible,type SiteFacing} from './construction-spacing.js';
 import {segmentDistance} from './world-generation.js';
-import {canCaptureSector,captureSeconds} from './territory-warfare.js';
+import {canCaptureSector,captureSeconds,capturePresenceRadius} from './territory-warfare.js';
 import { UNITS, BUILDINGS, TANK_MG, canAttack, weaponDamage, unitSpec, buildingSpec, unitKinds, MAX_GENERATORS_PER_FACTION, type UnitKind, type BuildingKind } from './catalog.js';
 import {angleDifference,turnTowards} from './sprite-animator.js';
 import {newMatchStatistics,countDeployed,countProduced,countIncome,validMatchStatistics,type MatchStatistics} from './match-statistics.js';
@@ -671,6 +671,14 @@ export class Simulation {
    * Invalidate on any structure destruction or new simulation tick. */
   /** Short-lived drive watchdog. New saves and the fixed-step logic are unchanged. */
   private readonly vehicleProgress=new WeakMap<Unit,{x:number;y:number;since:number;retryAt:number}>();
+  /** Transient AI-only progress monitors. No new save fields, free units,
+   * teleportation or per-tick world scans. */
+  private readonly aiBuilderProgress=new WeakMap<Unit,{
+    site:number;x:number;y:number;remaining:number;since:number;retries:number;
+  }>();
+  private readonly aiRouteProgress=new WeakMap<Unit,{
+    order:Order;x:number;y:number;since:number;retries:number;
+  }>();
   private movementCollision?:{
     at:number;
     buildings:Base[];
@@ -1049,9 +1057,10 @@ export class Simulation {
     if(t.owner===owner)return 'owned';
     const friendly=this.units.filter(u=>u.owner===owner&&u.hp>0&&!u.carrier&&u.kind!=='drone');
     if(!friendly.length)return 'no-unit';
-    const inside=friendly.some(u=>distance(u,t.point)<=RULES.captureRadius);
-    if(!inside)return friendly.some(u=>distance(u,t.point)<=RULES.captureRadius+120)?'out-of-range':'no-unit';
-    if(this.units.some(u=>u.owner!==owner&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&distance(u,t.point)<=RULES.captureRadius))return 'contested';
+    const radius=capturePresenceRadius(this.world.mapVersion);
+    const inside=friendly.some(u=>distance(u,t.point)<=radius);
+    if(!inside)return friendly.some(u=>distance(u,t.point)<=radius+120)?'out-of-range':'no-unit';
+    if(this.units.some(u=>u.owner!==owner&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&distance(u,t.point)<=radius))return 'contested';
     if(this.bases.some(b=>b.kind==='headquarters'&&b.territory===t.id&&b.owner!==owner&&b.hp>0))return 'enemy-hq';
     return 'capturing';
   }
@@ -1063,7 +1072,7 @@ export class Simulation {
       return target.id!==u.id&&(unitSpec(target).group==='Fahrzeuge'||unitSpec(target).flying)&&target.hp<this.maxUnitHp(target);
     return u.kind==='engineer'&&'queue' in target&&(kind==='build'?target.buildRemaining>0:target.buildRemaining<=0&&target.hp<buildingSpec(target).hp);
   }
-  private supportApproach(u:Unit,target:Unit|Base,requireReachable=false):Point|null {
+  private supportApproach(u:Unit,target:Unit|Base,requireReachable=false,startSide=0):Point|null {
     const radius='queue' in target?target.radius+32:35,angle=Math.atan2(u.y-target.y,u.x-target.x),range='queue' in target?target.radius+55:u.kind==='engineer'?REPAIR_RADIUS:this.healRadius(u);
     const buildings=this.obstacles(),routeObstacles=[...buildings,...infantryStructureColliders(buildings)],
       obstacles=[...routeObstacles,...this.bastionColliders()];
@@ -1084,7 +1093,8 @@ export class Simulation {
       }
     }
     for(let i=0;i<16;i++){
-      const turn=angle+(i%2?1:-1)*Math.ceil(i/2)*Math.PI/8;
+      const side=(i+startSide)%16;
+      const turn=angle+(side%2?1:-1)*Math.ceil(side/2)*Math.PI/8;
       const p=this.world.nearest({x:target.x+Math.cos(turn)*radius,y:target.y+Math.sin(turn)*radius},obstacles,[],u);
       if(!p||distance(p,target)>range||!this.world.line(p,target))continue;
       if(requireReachable&&distance(u,target)>range){
@@ -1094,6 +1104,46 @@ export class Simulation {
       return p;
     }
     return null;
+  }
+  /** AI-only construction recovery. A cached approach can become blocked
+   * after another structure or unit moves into the way. Try a DIFFERENT,
+   * reachable side before asking the director to reassign the idle pioneer.
+   * Real enemy fire still takes precedence; no construction speed bonus. */
+  private recoverStalledAiBuilder(u:Unit,site:Base,order:Order):boolean {
+    if(u.owner!==1||u.kind!=='engineer'||u.hold||
+       u.defendUntil>this.time)return false;
+    if(distance(u,site)<=site.radius+55&&this.world.line(u,site)){
+      this.aiBuilderProgress.delete(u);return false;
+    }
+    let s=this.aiBuilderProgress.get(u);
+    if(!s||s.site!==site.id){
+      s={site:site.id,x:u.x,y:u.y,remaining:site.buildRemaining,
+         since:this.time,retries:0};
+      this.aiBuilderProgress.set(u,s);return false;
+    }
+    if(distance(u,s)>=8||site.buildRemaining<s.remaining-.04){
+      s.x=u.x;s.y=u.y;s.remaining=site.buildRemaining;
+      s.since=this.time;s.retries=0;return false;
+    }
+    if(this.time-s.since<5)return false;
+    s.since=this.time;s.retries++;
+    // The original approach may be physically reachable only before new
+    // facades/obstacles appeared. Recheck LOS and full path before adopting.
+    const approach=this.supportApproach(u,site,true,s.retries*3);
+    if(approach){
+      order.approach=approach;
+      u.path=[];u.repath=0;u.exactPath=true;
+      return false;
+    }
+    u.path=[];u.repath=0;u.exactPath=true;
+    if(s.retries>=3){
+      // No physically reachable building face: relinquish the stale job.
+      // The paid site remains intact and the AI may select another worker.
+      u.orders.shift();u.workingTarget=null;u.hold=false;
+      this.aiBuilderProgress.delete(u);
+      return true;
+    }
+    return false;
   }
   /** Rear support follows the slowest surviving front rank, rather than racing to the destination. */
   private escort(u:Unit,dt:number):boolean {
@@ -1194,11 +1244,13 @@ export class Simulation {
         a.hp/('orders' in a?unitSpec(a).hp:buildingSpec(a).hp)-b.hp/('orders' in b?unitSpec(b).hp:buildingSpec(b).hp)||a.id-b.id)[0];
     }
     if(!target)return false;
+    if(explicit&&order?.kind==='build'&&'queue' in target&&
+       this.recoverStalledAiBuilder(u,target,order))return true;
     // A recently attacked worker pauses construction/repair to defend itself.
     if(u.kind==='engineer'&&u.defendUntil>this.time)return false;
     const range='queue' in target?target.radius+55:u.kind==='engineer'?REPAIR_RADIUS:this.healRadius(u);
     if(distance(u,target)>range||!this.world.line(u,target)){
-      if(explicit&&!u.hold){if(u.repath<=0)u.path=[];const buildings=this.obstacles();const p=order?.approach&&this.world.walkable(order.approach,[...buildings,...infantryStructureColliders(buildings),...this.bastionColliders()])?order.approach:this.supportApproach(u,target);if(p)this.move(u,p,dt);}
+      if(explicit&&!u.hold){if(u.repath<=0)u.path=[];const buildings=this.obstacles();const p=order?.approach&&this.world.walkable(order.approach,[...buildings,...infantryStructureColliders(buildings),...this.bastionColliders()])&&this.world.line(order.approach,target)?order.approach:this.supportApproach(u,target,true);if(p)this.move(u,p,dt);}
       return true;
     }
     u.path=[];u.combatTarget=null;u.pursuitOrigin=null;u.workingTarget=target.id;
@@ -1555,9 +1607,40 @@ export class Simulation {
     u.combatTarget=best?.id??null;
     return best;
   }
+  /** Combat-unit orders can get stuck after a new building blocks an old
+   * route. Repath first; if the real AI attack-move stays immobile across
+   * several attempts, free that order for the next tactical plan. */
+  private recoverStalledAiRoute(u:Unit,target:Point):boolean {
+    const order=u.orders[0];
+    if(u.owner!==1||this.world.mapVersion<23||
+       !order||!['move','attackMove'].includes(order.kind)||
+       u.hold||u.defendUntil>this.time||u.combatTarget!=null||
+       distance(order,target)>2||distance(u,target)<25)return false;
+    let s=this.aiRouteProgress.get(u);
+    if(!s||s.order!==order){
+      s={order,x:u.x,y:u.y,since:this.time,retries:0};
+      this.aiRouteProgress.set(u,s);return false;
+    }
+    if(distance(u,s)>=8){
+      s.x=u.x;s.y=u.y;s.since=this.time;s.retries=0;return false;
+    }
+    if(this.time-s.since<6)return false;
+    s.since=this.time;s.retries++;
+    u.path=[];u.repath=0;u.exactPath=true;
+    if(s.retries>=3&&order.kind==='attackMove'){
+      u.orders.shift();u.combatTarget=null;u.pursuitOrigin=null;
+      this.aiRouteProgress.delete(u);
+      return true;
+    }
+    return false;
+  }
   private move(u:Unit,target:Point,dt:number,speedLimit=Infinity,formationCatchUp=false):void {
     const spec=unitSpec(u),clearance=Math.max(0,spec.radius-10);
     const vehicle=spec.group==='Fahrzeuge'&&!spec.flying,ground=!spec.flying;
+    // Support units are controlled by their explicit work order; protect them
+    // from the separate battlefield-movement watchdog.
+    if(ground&&!vehicle&&u.kind!=='engineer'&&u.kind!=='medic'&&
+       this.recoverStalledAiRoute(u,target))return;
     const cached=this.movingColliders();
     const {buildings}=cached;
     const towers=ground?cached.towers:[];
@@ -2213,8 +2296,10 @@ export class Simulation {
     this.spatial.rebuild(this.units);
     this.bases=this.bases.filter(b=>b.hp>0||b.kind==='headquarters');
     let ownershipChanged=false;
+    const captureRadius=capturePresenceRadius(this.world.mapVersion);
     for(const t of this.territories){
-      const nearby=this.spatial.query(t.point,RULES.captureRadius).filter(u=>u.hp>0&&!u.carrier&&u.kind!=='drone');
+      // Use the same modern 3D Bastion ring as captureReadiness and RMB.
+      const nearby=this.spatial.query(t.point,captureRadius).filter(u=>u.hp>0&&!u.carrier&&u.kind!=='drone');
       const blue=nearby.some(u=>u.owner===0),red=nearby.some(u=>u.owner===1);
       if(blue&&red)continue;
       const owner:Owner=blue?0:red?1:-1;

@@ -1,0 +1,63 @@
+name: Sandforge AI 3.3 Local Lab
+on:
+  push:
+    branches: ['feat/sandforge-ai33-local-lab-20261118']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ai33-local-qa:
+    name: AI 3.2/3.3 + drone + bastion safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript + WebGL module audit
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: AI 3.2/3.3 and production regression tests
+        run: |
+          node --test \
+            tests/sandforge-ai32-multifront-20261117.test.mjs \
+            tests/sandforge-ai33-map-adaptive-20261118.test.mjs \
+            tests/sandforge-ai33-local-url-20261118.test.mjs \
+            tests/reborn-ai-ignore-drone-20261118.test.mjs \
+            tests/sandforge-recon-drone.test.mjs \
+            tests/sandforge-bastion-economy-rollback-20261117.test.mjs \
+            tests/reborn-threat-response.test.mjs \
+            tests/reborn-ai-fight-instead-of-flee-20261109.test.mjs \
+            tests/webgl-global-production-20261111.test.mjs
+      - name: Same-binary AI 3.2 vs 3.3 smoke on eight Bastions
+        run: |
+          node scripts/benchmark-reborn-ai.mjs \
+            --map 24 --seconds 240 --seeds 2601,2602 --modes director \
+            --opponent contesting --ai33 off --label ai32 \
+            --output /tmp/sandforge-ai32-smoke.json > /tmp/sandforge-ai32-smoke.log
+          node scripts/benchmark-reborn-ai.mjs \
+            --map 24 --seconds 240 --seeds 2601,2602 --modes director \
+            --opponent contesting --ai33 adaptive --label ai33 \
+            --output /tmp/sandforge-ai33-smoke.json > /tmp/sandforge-ai33-smoke.log
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const a=JSON.parse(fs.readFileSync("/tmp/sandforge-ai32-smoke.json","utf8"));
+            const b=JSON.parse(fs.readFileSync("/tmp/sandforge-ai33-smoke.json","utf8"));
+            if(!a.complete||!b.complete||a.details.length!==2||b.details.length!==2)
+              throw Error("Incomplete 2-seed A/B smoke");
+            for(let i=0;i<2;i++){
+              if(a.details[i].initialStateHash!==b.details[i].initialStateHash)
+                throw Error("Unequal worlds");
+              if(a.simulationSourceHash!==b.simulationSourceHash)
+                throw Error("Different simulation binaries");
+            }
+            console.log("2 paired fair maps checked",a.details.map((d,i)=>({
+              seed:d.seed,old:d.outcome,experimental:b.details[i].outcome,
+              scoreDelta:b.details[i].score-d.score
+            })));
+          '

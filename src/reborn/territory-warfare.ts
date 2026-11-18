@@ -5,6 +5,14 @@ import type {Territory} from './world.js';
  * their original fixed eight-second, adjacent-only territory mechanics. */
 export const dynamicTerritoryWarfare=(version:MapVersion):boolean=>version>=11;
 
+/** On spacious WebGL maps the solid 116-unit-wide Bastion can make a soldier
+ * standing visibly beside the tower fall just outside the old 95-unit ring.
+ * The physical capture zone now extends to 125 units on v23+ only; older
+ * maps and saves keep their original 95-unit rule unchanged. Same for both
+ * factions; airborne recon drones still cannot capture. */
+export const capturePresenceRadius=(version:MapVersion):number=>
+ version>=23?125:RULES.captureRadius;
+
 /** Any neutral or hostile bastion may be captured by either faction, regardless
  * of adjacent ownership. The simulation still enforces presence, contest and
  * the intact-enemy-HQ lock. Keep the original parameters for caller stability. */

@@ -61,6 +61,10 @@ const session=query.get('resume')==='1'?(()=>{
  return restored;
 })():null;
 const game=session??(profile?Simulation.campaign(seed,sizes[bastions],profile):Simulation.campaign(seed,sizes[bastions]));
+// Local AI laboratory: compare the same game and seed with 3.2 or 3.3 tactics.
+// Not serialized, never affects the live Uberspace release.
+if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
+ game.tactical.ai33Mode=query.get('ai33');
 // The WebGL renderer stages a single authoritative factory actor while its
 // real 3D gate is opening. Classic, tests and old saves keep normal rules.
 game.stageWebGLProduction=true;

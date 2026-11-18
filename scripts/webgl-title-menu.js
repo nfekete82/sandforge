@@ -10,9 +10,8 @@
  const validBiome=value=>['desert','snow','jungle'].includes(value)?value:'desert';
  // The 3D game may run at / (release candidate) or /webgl-preview.html
  // (existing QA/deep links). Stay on the active entry during navigation.
- const gameRoute=()=>/^\/releases\/v-[a-z0-9-]+\/(?:index|webgl-preview)\.html$/.test(location.pathname)
-  ?location.pathname:location.pathname==='/'||location.pathname==='/index.html'
-   ?'/':'/webgl-preview.html';
+ const gameRoute=()=>location.pathname==='/'||location.pathname==='/index.html'
+  ?'/':'/webgl-preview.html';
  const modes={15:4,16:8,17:12,18:16,19:4,20:8,21:12,22:16,23:4,24:8,25:12,26:16};
  const menu=$('main-dialog'),newDialog=$('sf3d-new-dialog');
  const optionsDialog=$('sf3d-options-dialog'),pauseDialog=$('sf3d-pause-dialog');
@@ -70,6 +69,9 @@
  const saved=readSave();
  const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert'}={})=>{
   const params=new URLSearchParams({bastions:String(count),seed:String(seed>>>0),play:'1'});
+  // Keep local A/B policy selection while navigating from the main menu.
+  if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
+   params.set('ai33',query.get('ai33'));
   if(resume)params.set('resume','1');
   if(legacy)params.set('legacy','1');
   const options=readOptions();

@@ -18,6 +18,8 @@ import {assignScreen,assignFlank,flankRouteScore,isContinuingFlank} from './batt
 import {assaultWaveDecision,reinforcementStagingPoint} from './assault-wave.js';
 import {homeDefensePlan} from './home-defense-doctrine.js';
 import {chooseSiegeShot,chooseRaidFront,allowSecondaryPressure,type SiegeShot,type RaidFront} from './ai25-doctrine.js';
+import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefenseMultiplier} from './ai32-doctrine.js';
+import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,type AI33Mode} from './ai33-map-doctrine.js';
 import type {Simulation,Unit,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
@@ -132,6 +134,8 @@ export class TacticalAI {
  missionPlannerMode:'inherit'|'legacy'='inherit';
  siegeEvaluationMode:'inherit'|'legacy'='inherit';
  raidDetachmentMode:'inherit'|'off'|'selective'='inherit';
+ /** Runtime-only benchmark ablation: off restores exact AI 3.2 tactics. */
+ ai33Mode:AI33Mode='adaptive';
  /** Runtime-only diagnostics: never influence simulation or serialize in saves. */
  diagnostics:TacticalDiagnostics=newDiagnostics();
  state=fresh();private risk:Float32Array|undefined;private riskAt=-1;private routeCache=new Map<string,Point[]>();private routeSignature='';
@@ -305,14 +309,21 @@ export class TacticalAI {
   const threatScore=(u:Unit)=>Math.min(...protectedSites.map(site=>distance(u,site)))-
    (u.kind==='artillery'?250:u.kind==='heavy'?100:u.kind==='bomber'?120:0);
   const target=intruders.slice().sort((a,v)=>threatScore(a)-threatScore(v)||a.id-v.id)[0];
-  const nearby=intruders.filter(u=>distance(u,target)<400),needed=fightingPower(nearby)*1.2;
+  const nearby=intruders.filter(u=>distance(u,target)<400);
+  // High-value captured Bastions get a stronger LOCAL counterattack.
+  // Guard assignments are still real paid units; never strip remote waves.
+  const baseEmergency=protectedBases.some(base=>distance(base,target)<
+   (base.kind==='headquarters'?560:420));
+  const threatenedBastion=g.territories.filter(t=>t.owner===1&&distance(target,t.point)<300)
+   .sort((a,b)=>distance(target,a.point)-distance(target,b.point)||a.id-b.id)[0];
+  const multiplier=g.world.mapVersion>=24
+   ?localBastionDefenseMultiplier(threatenedBastion?.income??0,baseEmergency):1.2;
+  const needed=fightingPower(nearby)*multiplier;
   // Base invasions remain a FULL emergency: all actually paid fighters
   // may confront a landing on the HQ, barracks, factory or research yard.
   // An isolated Bastion raid, by contrast, must not pull a distant
   // 18-member offensive column halfway across the desert. Respond with
   // genuinely LOCAL guards/reserves, preserve s.group for the main front.
-  const baseEmergency=protectedBases.some(base=>distance(base,target)<
-   (base.kind==='headquarters'?560:420));
   const available=fighters.filter(u=>baseEmergency||
     (distance(u,target)<900&&(!s.group.includes(u.id)||distance(u,target)<460)))
    .sort((a,v)=>Number(old?.ids.includes(v.id))-Number(old?.ids.includes(a.id))||
@@ -832,17 +843,22 @@ export class TacticalAI {
    .slice(0,3);
   const frontAngle=Math.atan2(g.world.size/2-home.y,g.world.size/2-home.x);
   const angles=[-.85,.85,Math.PI,-.15,1.8];
-  // One of at least two PAID reserve soldiers is posted at a captured
-  // frontier Bastion (not only behind the HQ). Never remove the first home
-  // defender and never send more than one away from production defenses.
-  // Public sector neighbors/income are permitted; no fogged enemy knowledge.
-  const border=g.territories.filter(t=>t.owner===1&&
+  // AI 3.2 positions up to TWO already-paid guards at separate valuable
+  // frontier Bastions, with at least two sentries retained at home when
+  // four or more are available. Never inspect hidden enemy units.
+  const frontiers=g.territories.filter(t=>t.owner===1&&
     t.neighbors.some(id=>g.territories[id]?.owner!==1))
    .sort((a,b)=>Number(b.neighbors.some(id=>g.territories[id]?.owner===0))-
       Number(a.neighbors.some(id=>g.territories[id]?.owner===0))||
-      b.income-a.income||distance(home,a.point)-distance(home,b.point)||a.id-b.id)[0];
+      b.income-a.income||distance(home,a.point)-distance(home,b.point)||a.id-b.id);
+  const originalPosts=g.world.mapVersion>=24
+   ?frontierGuardPosts(guards.length,frontiers.length)
+   :Math.min(1,guards.length-1,frontiers.length);
+  const posted=this.ai33Mode==='adaptive'
+   ?mapFrontierPosts(g.world.mapVersion,guards.length,frontiers.length,originalPosts)
+   :originalPosts;
   for(const [i,u] of guards.entries()){
-   const fort=i===1&&guards.length>=2&&border?border:null;
+   const fort=i>0&&i<=posted?frontiers[i-1]:null;
    // Keep all remaining reserves around HQ and production structures.
    const base=fort?.point??protectedBases[i%Math.max(1,protectedBases.length)]??home;
    const angle=fort?Math.atan2(home.y-base.y,home.x-base.x):
@@ -851,6 +867,9 @@ export class TacticalAI {
    const proposed={x:base.x+Math.cos(angle)*radius,y:base.y+Math.sin(angle)*radius};
    const post=g.world.nearest(proposed,this.obstacles(),[],u,Math.max(0,unitSpec(u).radius-10));
    if(!post||distance(post,base)>(fort?200:310))continue;
+   // An unreachable perimeter post is not useful defense. The same
+   // navigation rules apply to guards as to the attack formation.
+   if(distance(u,post)>58&&!this.route(u,post).length)continue;
    if(distance(u,post)<58){
     if(u.orders.length&&u.orders[0]?.tactical?.mode==='safe')g.stop([u.id],true);
     else if(!u.orders.length&&!u.hold)g.stop([u.id],true);
@@ -886,28 +905,41 @@ export class TacticalAI {
   if(this.raidDetachmentMode==='off'||this.doctrineMode!=='intelligent'||this.mode!=='director'||this.planningMode!=='tactical'
     ||this.g.world.mapVersion<3)return new Set();
   const g=this.g,s=this.state,b=s.battle??=newBattle();
-  if(g.world.mapVersion>=19){
-   // No two-man diversion while a modern base is still assembling or
-   // recovering from a failed attack. Main waves retain their own strength.
-   const recentFailures=b.fronts.filter(f=>g.time-f.at<100).length;
-   const recentLosses=s.losses.filter(l=>g.time-l.at<70).length;
-   const homePressure=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'
-    &&g.canSee(1,u)&&distance(u,home)<850);
-   if(!homeDefensePlan({fighters:fighters.length,time:g.time,recentLosses,
-     recentFailures,lastFailureAt:b.fronts.at(-1)?.at??-1,
-     observedHomePressure:homePressure,defendedTarget:false,
-     confirmedEndgame:false}).allowSecondaryRaids)return new Set();
-  }
+  const recentFailures=b.fronts.filter(f=>g.time-f.at<100).length;
+  const recentLosses=s.losses.filter(l=>g.time-l.at<70).length;
+  const homePressure=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'
+   &&g.canSee(1,u)&&distance(u,home)<850);
+  const defensePlan=g.world.mapVersion>=19?homeDefensePlan({
+   fighters:fighters.length,time:g.time,recentLosses,recentFailures,
+   lastFailureAt:b.fronts.at(-1)?.at??-1,observedHomePressure:homePressure,
+   defendedTarget:false,confirmedEndgame:false}):null;
+  const emergency=b.squads.some(q=>q.role==='defense'&&q.ids.length>0);
   const old=b.squads.find(q=>q.role==='raid');
-  // Losing two sectors triggers a small paid detachment sooner than the
-  // normal ten-fighter doctrine. No new units or economic bonuses.
   const comeback=g.world.mapVersion>=11&&g.time>=45&&comebackPressure(g.territories,1);
-  const candidates=fighters.filter(u=>!s.group.includes(u.id)&&['rover','infantry'].includes(u.kind)
+  // Reserve genuine paid HQ guards BEFORE selecting the mobile detachment.
+  // Otherwise a fast raider can steal the exact sentry needed at home.
+  const homeGuards=defensePlan?.guards??homeGarrisonSize(fighters.length,false);
+  const protectedIds=g.world.mapVersion>=24?new Set(fighters.slice()
+   .sort((a,v)=>distance(a,home)-distance(v,home)||a.id-v.id)
+   .slice(0,homeGuards).map(u=>u.id)):new Set<number>();
+  const candidates=fighters.filter(u=>!s.group.includes(u.id)&&
+    !protectedIds.has(u.id)&&['rover','infantry'].includes(u.kind)
     &&u.hp>=unitSpec(u).hp*.7&&!b.withdrawals.some(w=>w.unit===u.id&&w.until>g.time));
+  const mainScreen=s.group.filter(id=>fighters.some(u=>u.id===id)).length;
+  const earlyParallel=parallelFrontReady({
+   mapVersion:g.world.mapVersion,time:g.time,phase:s.phase,
+   fighters:fighters.length,main:mainScreen,eligible:candidates.length,
+   homeGuards,homePressure,recentLosses,recentFailures,emergency});
+  // AI 3.3 adjusts ONLY the two sizes which underperformed in the
+  // matched 3.1/3.2 arena. On the 12-Bastion map this gate is a no-op.
+  if(this.ai33Mode==='adaptive'&&!mapRaidReady({
+   mapVersion:g.world.mapVersion,time:g.time,phase:s.phase,
+   fighters:fighters.length,main:mainScreen,eligible:candidates.length,
+   homeGuards,homePressure,recentLosses,recentFailures,emergency
+  }))return new Set();
+  if(defensePlan&&!defensePlan.allowSecondaryRaids&&!earlyParallel)return new Set();
   const normal=allowSecondaryPressure(fighters.length,fighters.length-2,
     fighters.length-s.group.filter(id=>!fighters.some(u=>u.id===id)).length-2,candidates.length);
-  // Keep three paid fighters on main defense; never steal emergency defenders.
-  const emergency=b.squads.some(q=>q.role==='defense'&&q.ids.length>0);
   const selective=this.raidDetachmentMode==='selective'&&g.world.mapVersion===11;
   const currentFront=s.group.filter(id=>fighters.some(u=>u.id===id)).length;
   const homeThreat=selective&&g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'
@@ -916,7 +948,7 @@ export class TacticalAI {
     fighters:fighters.length,mainScreen:currentFront,
     eligibleRaiders:candidates.length,normalDoctrine:normal,
     behindByTwoSectors:comeback,observedHomeThreat:homeThreat}):
-    (normal||comeback&&fighters.length>=5&&candidates.length>=2);
+    (normal||earlyParallel||comeback&&fighters.length>=5&&candidates.length>=2);
   if(!permitted||emergency){
    b.squads=b.squads.filter(q=>q.role!=='raid');return new Set();
   }
@@ -938,7 +970,8 @@ export class TacticalAI {
    const route=this.route(anchor,t.point);
    if(!route.length)continue;
    const path=this.sampleRoute(route,anchor);
-   if(path.risk>=8||comeback&&path.length>2400)continue;
+   if(path.risk>=8||comeback&&path.length>2400||
+      this.ai33Mode==='adaptive'&&!mapRaidRouteReady(g.world.mapVersion,path.length,path.risk))continue;
    fronts.push({id:t.id,x:t.point.x,y:t.point.y,owner:t.owner,income:t.income,
      routeLength:path.length,routeRisk:path.risk,observedThreat:threatened});
   }
@@ -1116,6 +1149,14 @@ export class TacticalAI {
    const inRange=members.filter(u=>engageable.some(v=>canAttack(u,v)&&
     distance(u,v)<=Math.max(g.range(u),unitSpec(v).range)+40));
    const healthy=inRange.filter(u=>u.hp>=unitSpec(u).hp*.26).length;
+   // AI 3.2: when actually observed, healthy forces outmatch a real
+   // local enemy by >=1.5:1, keep the line for another nine seconds.
+   // Uncovered towers, unseen troops and single survivors grant no bonus.
+   const decisive=g.world.mapVersion>=24&&decisiveContact({
+    own:assessment.own,enemy:assessment.enemy,visible:visible.length,
+    inRange:inRange.length,healthy,knownTowers:towers.length,
+    artillery:readyForce.filter(u=>u.kind==='artillery').length});
+   if(decisive)battle.commitUntil=Math.max(battle.commitUntil??0,g.time+9);
    const holdLine=shouldCommitFirefight({
     own:assessment.own,enemy:assessment.enemy,visible:visible.length,
     inRange:inRange.length,healthy,knownTowers:towers.length,
@@ -1124,10 +1165,10 @@ export class TacticalAI {
    // Keep the tactical director's screening/flanking decisions when an
    // assault is already favoured; intercept only unwanted macro withdrawals.
    if(holdLine&&(assessment.stance==='withdraw'||assessment.stance==='reinforce')){
-    // Commit for at least 6 seconds after an actual contact. A collapse
-    // below 32% of observed opposing power still permits disengagement.
+    // AI 3.2 gives a proven local overmatch nine seconds instead of six.
+    // A collapse below 32% of the actually observed enemy still disengages.
     if(assessment.own>=assessment.enemy*.48)
-     battle.commitUntil=Math.max(battle.commitUntil??0,g.time+6);
+     battle.commitUntil=Math.max(battle.commitUntil??0,g.time+(decisive?9:6));
     for(const u of members){
      const candidates=visible.filter(v=>canAttack(u,v));
      const target=candidates.sort((a,b)=>distance(u,a)-distance(u,b)||a.id-b.id)[0];
