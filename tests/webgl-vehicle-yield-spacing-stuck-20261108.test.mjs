@@ -62,7 +62,8 @@ test('tank behind stopped tank continues along route; spacing cannot freeze both
  const initial=rear.x;
  assert.equal(g.command([rear.id],{kind:'move',x:2800,y:2000}),1);
  for(let i=0;i<340;i++)g.step(.05);
- assert.ok(rear.x>initial+300,'rear tank should make meaningful progress');
+ assert.ok(rear.x>initial+300,
+   `rear tank progress x=${rear.x.toFixed(1)} y=${rear.y.toFixed(1)} moving=${rear.moving} path=${JSON.stringify(rear.path.slice(0,2))} order=${JSON.stringify(rear.orders[0])}`);
  assert.ok(g.world.walkable(rear,g.movingColliders().vehicle,12),
   'tank must never ghost through static world obstacles');
  assert.ok(g.units.includes(front)&&g.units.includes(rear));
