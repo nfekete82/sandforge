@@ -118,7 +118,7 @@ test('paid frontier guard: retain home reserve and post only reachable paid defe
  assert.equal(frontierGuardPosts(1,4),0,'one sentry must stay at the base');
  assert.equal(frontierGuardPosts(2,4),1,'two guards may split only one frontier post');
  assert.equal(frontierGuardPosts(4,4),2,'four guards may cover two exposed Bastions');
- assert.equal(mapFrontierPosts(24,4,4,2),0,'8-Bastion KI 3.3 concentrates small reserves at home');
+ assert.equal(mapFrontierPosts(24,4,4,2),1,'AI 3.4 keeps three home guards and posts one paid soldier at the exposed frontier');
  assert.equal(mapFrontierPosts(24,5,4,2),1,'8-Bastion KI 3.3 posts only one of five guards');
  assert.equal(mapFrontierPosts(25,4,4,2),2,'12-Bastion version retains KI 3.2');
  assert.equal(mapFrontierPosts(26,6,4,2),2,'16-Bastion version protects HQ with four guards');
