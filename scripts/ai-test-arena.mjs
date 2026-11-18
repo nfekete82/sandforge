@@ -52,6 +52,7 @@ export async function runArena(options){
   opponentSourceHash:sha(new URL('./benchmark-ai-opponent.mjs',import.meta.url)),
   benchmarkSourceHash:sha(new URL('./benchmark-reborn-ai.mjs',import.meta.url)),
   maps:options.maps,seeds:options.seeds,modes:options.modes,opponent:options.opponent,
+  ai33Policy:options.ai33??'adaptive',
   requestedSeconds:options.seconds,timestep:0.05,expectedRuns:options.maps.length*options.seeds.length*options.modes.length,
   completedRuns:0,complete:false,summary:{},analysis:null,details
  };
