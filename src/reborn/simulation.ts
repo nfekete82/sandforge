@@ -33,6 +33,7 @@ import {eliminationOutcome} from './match-outcome.js';
 // Only legacy save validation uses supply types; no active logistics controller.
 import {validSupplyJob,SUPPLY_RESTOCK_INTERVAL,type SupplyCache,type SupplyJob} from './legacy-supply-save.js';
 import {formationSlotPitch,vehicleSpacingGap,preservesVehicleProgress,vehicleYieldWaypoint} from './vehicle-spacing.js';
+import {rocketStandoffPoint,shouldRocketReposition} from './combat-movement.js';
 import {UPGRADES,UPGRADE_KINDS,newResearchState,canResearchUpgrade,researchModifiers,
  validResearchState,strategicBlastDamage,validStrategicMissile,
  SILO_CHARGE_SECONDS,STRATEGIC_WARNING_SECONDS,STRATEGIC_BLAST_RADIUS,
@@ -671,6 +672,8 @@ export class Simulation {
    * Invalidate on any structure destruction or new simulation tick. */
   /** Short-lived drive watchdog. New saves and the fixed-step logic are unchanged. */
   private readonly vehicleProgress=new WeakMap<Unit,{x:number;y:number;since:number;retryAt:number}>();
+  /** Temporary, deliberately non-serialized combat position for AI rockets. */
+  private readonly rocketStandoff=new WeakMap<Unit,{targetId:number;point:Point;expires:number}>();
   /** Transient AI-only progress monitors. No new save fields, free units,
    * teleportation or per-tick world scans. */
   private readonly aiBuilderProgress=new WeakMap<Unit,{
@@ -981,9 +984,15 @@ export class Simulation {
     for(const u of members)this.cancelProductionDeparture(u.id);
     const armoredFront=members.filter(u=>u.kind==='tank'||u.kind==='rover');
     const fighters=members.filter(u=>u.kind!=='medic'&&u.kind!=='engineer'&&!unitSpec(u).flying);
-    const front=armoredFront.length?armoredFront:fighters;
+    // On modern 3D maps place fragile long-range specialists BEHIND real
+    // frontline infantry, unless the player selected only rocket units.
+    // Legacy formations, armored vanguards and solo orders are unchanged.
+    const realFront=fighters.filter(u=>!['rocket','artillery'].includes(u.kind));
+    const longRangeRear=this.world.mapVersion>=23&&realFront.length>0;
+    const front=armoredFront.length?armoredFront:longRangeRear?realFront:fighters;
     const support=members.filter(u=>u.kind==='medic'||u.kind==='engineer');
-    const rearFighters=armoredFront.length?members.filter(u=>['infantry','heavy','rocket','artillery'].includes(u.kind)):[];
+    const rearFighters=armoredFront.length||longRangeRear?
+      members.filter(u=>['infantry','heavy','rocket','artillery'].includes(u.kind)&&!front.includes(u)):[];
     const mixed=front.length>0&&(support.length>0||rearFighters.length>0)&&['move','attackMove','attack'].includes(order.kind);
     // A player-selected ground squad marches at the pace of its slowest
     // surviving member. The existing march metadata makes this deterministic,
@@ -1022,7 +1031,10 @@ export class Simulation {
         if(support.includes(u)||rearFighters.includes(u)){
           const helper=support.includes(u),group=helper?support:rearFighters;
           const index=group.indexOf(u),columns=Math.min(3,group.length),lane=(index%columns-(columns-1)/2)*34;
-          const rear=(armoredFront.length?(helper?200:u.kind==='artillery'?150:86):72)+Math.floor(index/columns)*36;
+          const rear=(armoredFront.length?
+            (helper?200:u.kind==='artillery'?150:u.kind==='rocket'?126:86):
+            (helper?94:u.kind==='artillery'?150:u.kind==='rocket'?115:72))+
+            Math.floor(index/columns)*36;
           formation={front:front.map(v=>v.id),...(armoredFront.length?{fallback:rearFighters.filter(v=>v.kind==='infantry'||v.kind==='heavy'||v.kind==='rocket').map(v=>v.id)}:{}),heading,origin,goal:{x:order.x,y:order.y},lane,rear};
           offset={x:-heading.x*rear-heading.y*lane,y:-heading.y*rear+heading.x*lane};
         }else{
@@ -1607,6 +1619,46 @@ export class Simulation {
     u.combatTarget=best?.id??null;
     return best;
   }
+  /** Brief fire-and-reposition against a real, currently visible ground
+   * vehicle. The rocket fires normally when ready, then moves to a legal
+   * longer-range firing lane during cooldown. Player orders, HQ hold posts,
+   * ordinary movement and stored mission goals are never overwritten. */
+  private moveRocketToStandoff(u:Unit,enemy:Unit|Base,dt:number):boolean {
+    const previous=this.rocketStandoff.get(u);
+    const order=u.orders[0];
+    const enemyVehicle='orders' in enemy&&
+      unitSpec(enemy).group==='Fahrzeuge'&&!unitSpec(enemy).flying;
+    const enabled=shouldRocketReposition({
+      ownedByAI:u.owner===1&&this.tactical.mode==='director',
+      mapVersion:this.world.mapVersion,enemyVehicle,held:u.hold||
+       !!order?.guardOnArrival,
+      directMove:order?.kind==='move'||order?.kind==='build'||
+       order?.kind==='repair'||order?.kind==='board',
+      readyToFire:u.cooldown<=.35,threatDistance:distance(u,enemy)
+    });
+    if(!enabled){
+      if(previous){this.rocketStandoff.delete(u);u.path=[];u.repath=0;}
+      return false;
+    }
+    let state=previous;
+    if(!state||state.targetId!==enemy.id||state.expires<=this.time||
+      distance(u,state.point)<24){
+      const collision=this.movingColliders().infantry;
+      const clearance=Math.max(0,unitSpec(u).radius-10);
+      const point=rocketStandoffPoint({
+        soldier:u,enemy,range:unitSpec(u).range,
+        reachable:p=>this.world.walkable(p,collision,clearance)&&
+          this.world.line(u,p,collision,clearance),
+        clearShot:p=>this.world.line(p,enemy,this.obstacles(),2)
+      });
+      if(!point)return false;
+      state={targetId:enemy.id,point,expires:this.time+3};
+      this.rocketStandoff.set(u,state);u.path=[];u.repath=0;
+      u.exactPath=true;
+    }
+    this.move(u,state.point,dt);
+    return true;
+  }
   /** Combat-unit orders can get stuck after a new building blocks an old
    * route. Repath first; if the real AI attack-move stays immobile across
    * several attempts, free that order for the next tactical plan. */
@@ -1704,13 +1756,22 @@ export class Simulation {
          Math.abs(angleDifference(u.hullAngle??u.angle,direction))>.22;
         if(!turning){
           state.retryAt=this.time;state.since=this.time;
-          const nearby=this.spatial.query(u,125).filter(v=>v!==u&&v.hp>0&&!v.carrier&&
-           !unitSpec(v).flying&&unitSpec(v).group==='Fahrzeuge'&&distance(u,v)<110);
+          const nearby=this.spatial.query(u,175).filter(v=>v!==u&&v.hp>0&&!v.carrier&&
+           !unitSpec(v).flying&&unitSpec(v).group==='Fahrzeuge'&&distance(u,v)<150);
+          // Preserve the proven closest-blocker fallback even when a tank
+          // needs to sidestep *past* the blocker: restricting candidates to
+          // the forward half-plane caused endless repaths after the first
+          // successful detour. The occupied-lane check below remains active.
           const blocker=nearby.sort((a,b)=>distance(u,a)-distance(u,b))[0];
           const gap=blocker?vehicleSpacingGap(u,blocker).comfortable:0;
           const detour=blocker?vehicleYieldWaypoint(u,next,blocker,gap,p=>
            this.world.walkable(p,collisionObstacles,clearance)&&
-           this.world.line(u,p,collisionObstacles,clearance)):null;
+           this.world.line(u,p,collisionObstacles,clearance)&&
+           // The old algorithm picked a side solely by rock/building
+           // clearance. A second *real* vehicle may already occupy it.
+           // Check both available lanes against current physical traffic.
+           nearby.every(v=>v===blocker||
+            distance(p,v)>vehicleSpacingGap(u,v).hard+12)):null;
           if(detour){
             u.path.unshift(detour);
             u.repath=.7;
@@ -1766,7 +1827,9 @@ export class Simulation {
     }
     const cohort=u.orders[0]?.march;
     if(cohort){const allies=cohort.map(id=>this.unitById.get(id)).filter((v):v is Unit=>v!==undefined&&v.owner===u.owner&&v.hp>0&&
-        (u.owner!==0||v.id===u.id||v.orders[0]?.march?.includes(u.id)===true));
+        // The same reciprocal membership check now also protects AI from
+        // being held back by a soldier reassigned to a different mission.
+        (v.id===u.id||v.orders[0]?.march?.includes(u.id)===true));
       // A separately redirected/stopped soldier immediately leaves the
       // cohort; remaining units no longer inherit its former slow speed.
       if(allies.length){
@@ -1987,6 +2050,8 @@ export class Simulation {
       }
       if(u.kind==='tank'){u.mgCooldown=Math.max(0,(u.mgCooldown??0)-dt);this.tankMachinegun(u);}
       const engagementRange=u.kind==='tank'&&enemy&&'orders' in enemy&&unitSpec(enemy).group==='Infanterie'?TANK_MG.range:this.range(u);
+      if(u.kind==='rocket'&&enemy&&this.moveRocketToStandoff(u,enemy,dt))
+        continue;
       if(enemy&&distance(u,enemy)<=engagementRange&&(spec.flying||('orders' in enemy&&unitSpec(enemy).flying)||this.world.line(u,enemy,this.obstacles().filter(b=>b.id!==enemy.id)))){
         u.facing=enemy.x<u.x?-1:1;u.angle=Math.atan2(enemy.y-u.y,enemy.x-u.x);
         // Tank's main guided rocket is anti-armor only; infantry is handled by the independent roof MG.

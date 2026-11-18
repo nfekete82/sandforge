@@ -22,6 +22,7 @@ import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefens
 import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,type AI33Mode} from './ai33-map-doctrine.js';
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
+import {coordinatedFrontMarch} from './combat-movement.js';
 import type {Simulation,Unit,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
@@ -445,11 +446,23 @@ export class TacticalAI {
    const front=(armor.length?armor:units.filter(frontRole)).sort((a,b)=>
      (b.kind==='tank'?5:b.kind==='rover'?4:b.kind==='heavy'?3:1)-(a.kind==='tank'?5:a.kind==='rover'?4:a.kind==='heavy'?3:1)||a.id-b.id);
   const campaign=g.world.mapVersion>=3&&this.mode==='director';
+  // March only the real, ground front together. Medics, artillery and
+  // depleted retreating units keep their independent escort/work orders.
+  const modernMarch=coordinatedFrontMarch({
+   modern:g.world.mapVersion>=23&&campaign,
+   assault:mode==='assault',
+   frontCount:front.length,allGround:front.every(v=>!unitSpec(v).flying)
+  });
   const same=!append&&units.every(u=>{const o=u.orders[0];return o?.tactical?.group===s.groupId&&o.tactical.mode===mode&&o.target===target&&(campaign?(target!==undefined||distance(o.tactical.goal??o,point)<45):distance(o,point)<45)&&(coordinated||!o.march);});if(same)return false;
   if(!g.command(ids,{x:point.x,y:point.y,kind:target!==undefined?'attack':mode==='safe'?'move':'attackMove',...(target===undefined?{}:{target})},append))return false;
   const origin=front.length?front.reduce((p,u)=>({x:p.x+u.x/front.length,y:p.y+u.y/front.length}),{x:0,y:0}):point,dist=distance(origin,point)||1,h={x:(point.x-origin.x)/dist,y:(point.y-origin.y)/dist};
   for(const u of units){const o=append?u.orders.at(-1):u.orders[0];if(!o)continue;o.tactical={group:s.groupId,mode,...(campaign?{goal:{x:point.x,y:point.y}}:{})};if(combat(u)){
-    if(coordinated&&front.length&&(g.world.mapVersion<=2||this.mode==='baseline'||mode!=='assault'))o.march=front.map(v=>v.id);else delete o.march;if(u.kind==='artillery')o.rear=150;
+    if(coordinated&&front.length&&
+      (g.world.mapVersion<=2||this.mode==='baseline'||mode!=='assault'||modernMarch)&&
+      front.includes(u))
+      o.march=front.map(v=>v.id);
+    else delete o.march;
+    if(u.kind==='artillery')o.rear=150;
     if(target===undefined&&front.includes(u)&&front.length>1){const i=front.indexOf(u),lane=(i%2-.5)*30,depth=-Math.floor(i/2)*30,p={x:point.x+h.x*depth-h.y*lane,y:point.y+h.y*depth+h.x*lane};
      const at=unitSpec(u).flying?p:g.world.nearest(p,this.obstacles(),[],u,Math.max(0,unitSpec(u).radius-10));if(at){o.x=at.x;o.y=at.y;}
     }
