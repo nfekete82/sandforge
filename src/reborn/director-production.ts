@@ -32,7 +32,7 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
  const counts=()=>Object.fromEntries((Object.keys(UNITS) as UnitKind[]).map(k=>[k,count(k)])) as Record<UnitKind,number>;
  const ground=()=>count('rover')+count('tank')+count('artillery');
  // Unarmed recon drones must not consume AA budgets or suspend a bomber plan.
- const seen=seen.filter(u=>u.kind!=='drone');
+ const seen=c.seen.filter(u=>u.kind!=='drone');
  const enemyAir=seen.find(u=>UNITS[u.kind].flying);
  const observed={infantry:seen.filter(u=>UNITS[u.kind].group==='Infanterie'&&!['engineer','medic'].includes(u.kind)).length,
   armor:seen.filter(u=>UNITS[u.kind].group==='Fahrzeuge'&&!UNITS[u.kind].flying).length,
