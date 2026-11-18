@@ -1,0 +1,102 @@
+name: Sandforge KI 3.6 coordinated Bastion recapture
+on:
+  push:
+    branches: ['feat/sandforge-ai36-coordinated-recapture-lab-20261118']
+  pull_request:
+    branches: ['feat/sandforge-ai35-bastion-defense-local-20261118']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  safe-tactics:
+    name: 3.6 real squad orders, capture, fog, HQ defense, WebGL boot
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and complete WebGL import graph (Mac PBR not required)
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Actual game mission, Bastion and anti-regression tests
+        run: |
+          node --test \
+            tests/sandforge-ai36-recapture-20261118.test.mjs \
+            tests/sandforge-ai35-bastion-defense-20261118.test.mjs \
+            tests/sandforge-ai34-bastion-control-20261118.test.mjs \
+            tests/sandforge-ai33-map-adaptive-20261118.test.mjs \
+            tests/reborn-bastion-priority-20261117.test.mjs \
+            tests/reborn-bastion-defense.test.mjs \
+            tests/reborn-threat-response.test.mjs \
+            tests/sandforge-ai33-bastion-near-capture-20261118.test.mjs \
+            tests/reborn-ai-ignore-drone-20261118.test.mjs \
+            tests/sandforge-ai33-drone-hud-unstick-20261118.test.mjs \
+            tests/sandforge-engineer-sequential-orders.test.mjs \
+            tests/webgl-elimination-victory-banner-20261108.test.mjs
+  fair-bastion-tournament:
+    name: 3.5 vs 3.6 – same binary, Bastion-rush opponent
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: safe-tactics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile simulation only
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+      - name: Same-seed Bastion-rush matches
+        run: |
+          mkdir -p reports
+          for POLICY in off coordinated; do
+            node scripts/benchmark-reborn-ai.mjs \
+              --maps 24,26 --seconds 360 --seeds 2026,2027,2028 \
+              --modes director --opponent bastion-rush \
+              --ai33 adaptive --ai35 control --ai36 "$POLICY" \
+              --label "$POLICY" --output "reports/$POLICY.json" \
+              > "reports/$POLICY.log"
+          done
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const a=JSON.parse(fs.readFileSync('reports/off.json','utf8'));
+          const b=JSON.parse(fs.readFileSync('reports/coordinated.json','utf8'));
+          if(!a.complete||!b.complete||a.details.length!==6||b.details.length!==6||
+             a.simulationSourceHash!==b.simulationSourceHash)
+           throw Error('Incomplete or mismatched AI 3.5 vs 3.6 executable');
+          for(const map of [24,26]){
+           const old=a.details.filter(d=>d.mapVersion===map),now=b.details.filter(d=>d.mapVersion===map);
+           const pairs=old.map(v=>{
+            const next=now.find(d=>d.seed===v.seed);
+            if(!next||next.initialStateHash!==v.initialStateHash||
+               v.ai36Policy!=='off'||next.ai36Policy!=='coordinated')
+             throw Error('Unfair start or invalid policy map='+map+' seed='+v.seed);
+            const share=x=>x.bastionControlSeconds/(x.elapsedSeconds*(map===24?8:16));
+            return {seed:v.seed,
+             old:{win:v.win,held:v.redSectors,lost:v.territoriesLost,control:share(v)},
+             new:{win:next.win,held:next.redSectors,lost:next.territoriesLost,control:share(next)},
+             delta:share(next)-share(v)};
+           });
+           const avg=items=>items.reduce((s,x)=>s+x,0)/items.length;
+           console.log('AI36 BASTION TOURNAMENT',JSON.stringify({map,
+            meanControlDelta:avg(pairs.map(x=>x.delta)),
+            gains:pairs.filter(x=>x.delta>.001).length,
+            losses:pairs.filter(x=>x.delta<-.001).length,pairs}));
+          }
+          NODE
+      - name: Retain complete matched sim data for manual inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai36-bastion-recapture-ab
+          path: reports/
+          retention-days: 45
