@@ -47,6 +47,9 @@ test('3.2: at least two sentries guard home while up to two defend separate fron
 
 test('3.2: early double-front detachment issues ordinary orders without taking credits or stealing HQ guards',()=>{
  const g=new Simulation(2026,24);
+ // Pin the old policy in this historical regression; KI 3.3 tests the
+ // adaptive guard separately with the identical simulation engine.
+ g.tactical.ai33Mode='off';
  const home=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
  assert.ok(home);
  g.world.blocked.fill(0);g.world.opaque.fill(0);g.world.components.fill(0);
