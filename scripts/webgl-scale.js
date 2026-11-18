@@ -7,7 +7,7 @@
  */
 export const MODEL_HEIGHTS=Object.freeze({
  infantry:61,medic:61,engineer:61,heavy:65,rocket:61,
- rover:42,supply:49,tank:46,artillery:51,scout:48,bomber:51,
+ rover:42,supply:49,tank:46,artillery:51,scout:48,bomber:51,drone:14,
  headquarters:158,barracks:119,factory:125,airfield:137,generator:79,turret:95
 });
 export const DIMENSIONS_VERSION=3;
@@ -88,6 +88,7 @@ export function unitVisualYaw(kind,heading){
  * really touches the ground at 0, rather than hovering 75 world units above it.
  * The bomber remains in continuous flight at the existing cruise height. */
 export function unitRenderAltitude(kind,flightHeight=1){
+ if(kind==='drone')return 142;
  if(kind==='scout')return 3+172*Math.max(0,Math.min(1,flightHeight));
  if(kind==='bomber')return 175*Math.max(0,Math.min(1,flightHeight));
  return 0;

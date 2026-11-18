@@ -1070,11 +1070,11 @@ export class Simulation {
    * The same radius, defender contest and enemy-HQ rules govern ownership. */
   captureReadiness(t:Territory,owner:Faction=0):CaptureReadiness {
     if(t.owner===owner)return 'owned';
-    const friendly=this.units.filter(u=>u.owner===owner&&u.hp>0&&!u.carrier);
+    const friendly=this.units.filter(u=>u.owner===owner&&u.hp>0&&!u.carrier&&u.kind!=='drone');
     if(!friendly.length)return 'no-unit';
     const inside=friendly.some(u=>distance(u,t.point)<=RULES.captureRadius);
     if(!inside)return friendly.some(u=>distance(u,t.point)<=RULES.captureRadius+120)?'out-of-range':'no-unit';
-    if(this.units.some(u=>u.owner!==owner&&u.hp>0&&!u.carrier&&distance(u,t.point)<=RULES.captureRadius))return 'contested';
+    if(this.units.some(u=>u.owner!==owner&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&distance(u,t.point)<=RULES.captureRadius))return 'contested';
     if(this.bases.some(b=>b.kind==='headquarters'&&b.territory===t.id&&b.owner!==owner&&b.hp>0))return 'enemy-hq';
     return 'capturing';
   }
@@ -1864,8 +1864,13 @@ export class Simulation {
       }
       // Unarmed supply trucks are civilians. Even when idle or explicitly
       // attack-moved, they must not chase combat targets and abandon cargo.
-      if(u.kind==='supply'){
+      if(u.kind==='supply'||u.kind==='drone'){
         u.combatTarget=null;delete u.burst;
+        if(u.kind==='drone'&&u.orders[0]&&u.orders[0].kind!=='move'){
+          const destination=u.orders[0];
+          if(distance(u,destination)<18)u.orders.shift();
+          else this.move(u,destination,dt);
+        }
         continue;
       }
       const acquired=this.acquire(u);
@@ -2201,7 +2206,8 @@ export class Simulation {
     this.bases=this.bases.filter(b=>b.hp>0||b.kind==='headquarters');
     let ownershipChanged=false;
     for(const t of this.territories){
-      const nearby=this.spatial.query(t.point,RULES.captureRadius).filter(u=>u.hp>0);
+      // Recon-only drones reveal fog but never capture or contest a Bastion.
+      const nearby=this.spatial.query(t.point,RULES.captureRadius).filter(u=>u.hp>0&&!u.carrier&&u.kind!=='drone');
       const blue=nearby.some(u=>u.owner===0),red=nearby.some(u=>u.owner===1);
       if(blue&&red)continue;
       const owner:Owner=blue?0:red?1:-1;

@@ -1,6 +1,6 @@
 import { RULES } from './config.js';
 
-export type UnitKind='infantry'|'medic'|'engineer'|'heavy'|'rocket'|'rover'|'supply'|'tank'|'artillery'|'scout'|'bomber';
+export type UnitKind='infantry'|'medic'|'engineer'|'heavy'|'rocket'|'rover'|'supply'|'tank'|'artillery'|'scout'|'bomber'|'drone';
 export type BuildingKind='headquarters'|'barracks'|'factory'|'airfield'|'generator'|'turret'|'research'|'silo'|'interceptor'|'wall';
 /** Both factions may operate the same maximum number of recurring-income generators. */
 export const MAX_GENERATORS_PER_FACTION=3;
@@ -20,12 +20,13 @@ export const UNITS:Record<UnitKind,UnitSpec>={
  rover:{name:'Humvee',group:'Fahrzeuge',cost:350,buildTime:11,hp:295,speed:235,sight:465,range:240,damage:13,cooldown:.68,radius:18,width:76,producers:['factory'],flying:false,description:'Schneller Humvee mit schwerem Dach-MG, animierten Geländereifen und vier Sitzplätzen. Eigene Infanterie per Rechtsklick einladen und am Ziel ausladen.'},
  tank:{name:'Kampfpanzer',group:'Fahrzeuge',cost:550,buildTime:18,hp:1000,speed:80,sight:390,range:300,damage:155,cooldown:2.35,targetsAir:false,radius:22,width:90,producers:['factory'],flying:false,description:'Schwerer Kampfpanzer mit 1.000 LP: gelenkte Panzerabwehrraketen gegen Fahrzeuge und Gebäude (300 M), unabhängiges starkes Dach-MG gegen Infanterie. Widerstandsfähig gegen normale Gewehre.'},
  artillery:{name:'Raketenwerfer',group:'Fahrzeuge',cost:600,buildTime:18,hp:340,speed:65,sight:RULES.turret.sight+80,range:RULES.turret.range+80,damage:120,cooldown:3.8,targetsAir:false,radius:20,width:94,producers:['factory'],flying:false,description:'Schwerer 6×6-Raketenwerfer mit sechs Werferrohren. 680 M Reichweite und 830 M Sicht: bekämpft Bodenziele außerhalb der Turmreichweite.'},
+ drone:{name:'R-01 Aufklärungsdrohne',group:'Luftunterstützung',cost:50,buildTime:4,hp:35,speed:680,sight:1120,range:0,damage:0,cooldown:1,radius:8,width:40,producers:['headquarters'],flying:true,description:'Extrem schnelle und günstige unbewaffnete Aufklärungsdrohne. Enthüllt große Bereiche der Karte; sehr zerbrechlich, kann keine Bastionen erobern.'},
  scout:{name:'Transporthelikopter',group:'Luftunterstützung',cost:600,buildTime:14,hp:360,speed:220,sight:780,range:200,damage:18,cooldown:.6,radius:20,width:106,producers:['airfield'],flying:true,description:'Militärischer Transporthelikopter für zehn Infanteristen. Rechtsklick mit Soldaten zum Einsteigen; Ausladen über das Kommando.'},
  bomber:{name:'Bomber',group:'Luftunterstützung',cost:1000,buildTime:24,hp:700,speed:350,sight:680,range:300,damage:135,cooldown:4.8,targetsAir:false,radius:24,width:107,producers:['airfield'],flying:true,description:'Schneller Bomber: Anflug aufs Ziel, Bombe abwerfen und weiter Ausholbogen für den nächsten Angriff. Ohne Auftrag große Patrouillenkreise.'},
 };
 export interface BuildingSpec {name:string;cost:number;buildTime:number;hp:number;sight:number;radius:number;width:number;income:number;description:string}
 export const BUILDINGS:Record<BuildingKind,BuildingSpec>={
- headquarters:{...RULES.headquarters,name:'Kommandozentrale',cost:300,buildTime:20,width:225,income:10,description:'Hauptquartier der Blauen Legion. Bildet Pioniere und Nachschubtransporter aus. Transporter liefern Credits aus begrenzten Vorratslagern; errichte Kaserne, Fabrik und Flugfeld für weitere Einheiten.'},
+ headquarters:{...RULES.headquarters,name:'Kommandozentrale',cost:300,buildTime:20,width:225,income:10,description:'Hauptquartier der Blauen Legion. Bildet Pioniere, Nachschubtransporter und R-01 Aufklärungsdrohnen aus. Transporter liefern Credits aus begrenzten Vorratslagern; errichte Kaserne, Fabrik und Flugfeld für weitere Einheiten.'},
  barracks:{name:'Kaserne',cost:200,buildTime:12,hp:800,sight:300,radius:53,width:158,income:0,description:'Bildet Infanterie, Sanitäter, schwere Infanterie und Raketenwerfer-Soldaten aus.'},
  factory:{name:'Fahrzeugfabrik',cost:350,buildTime:18,hp:1100,sight:310,radius:70,width:200,income:0,description:'Große Fahrzeugfabrik mit zwei Außenwerkstattplätzen. Produziert Humvees, Kampfpanzer und Raketenwerfer. Reparatur per Einheit für Credits.'},
  airfield:{name:'Flugfeld',cost:450,buildTime:22,hp:1200,sight:410,radius:91,width:218,income:0,description:'Kleines Feldflugfeld: ein Hangar links, kurze Landebahn direkt rechts und ein kleiner Tower. Bomber und Transporthelikopter können dort landen und für Credits reparieren.'},
@@ -41,7 +42,7 @@ export const buildingSpec=(b:{kind?:BuildingKind}):BuildingSpec=>BUILDINGS[b.kin
 export const unitKinds=Object.keys(UNITS) as UnitKind[];
 export const buildingKinds=Object.keys(BUILDINGS) as BuildingKind[];
 
-export const canAttack=(u:{kind?:UnitKind},target:{kind?:UnitKind|BuildingKind;queue?:unknown}):boolean=>'queue' in target||unitSpec(u).targetsAir!==false||!unitSpec(target as {kind?:UnitKind}).flying;
+export const canAttack=(u:{kind?:UnitKind},target:{kind?:UnitKind|BuildingKind;queue?:unknown}):boolean=>u.kind!=='drone'&&('queue' in target||unitSpec(u).targetsAir!==false||!unitSpec(target as {kind?:UnitKind}).flying);
 /** Balanced separately from the anti-armor main gun; both are independent weapon clocks. */
 export const TANK_MG={damage:18,cooldown:.55,range:230} as const;
 /** Conventional small arms and roof MGs still excel against infantry.

@@ -191,6 +191,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   medic:(wounded>=2?30:Math.max(0,fighters.length-2)*4)-count('medic')*20,
   engineer:count('engineer')===0?(!complete('barracks')?80:fighters.length>=2?38:0):own.length>=4&&count('engineer')<2?15:0,
   supply:0, // Purchased by dedicated paid logistics policy above.
+  drone:0, // Optional human-controlled scout; AI avoids mass-producing disposable drones.
   rover:complete('factory')?35+(g.explored[1].reduce((n,v)=>n+v,0)/g.explored[1].length<.4?6:0)-count('rover')*17:0,
   tank:complete('factory')?44+known*4+armor*6
    +(director&&income>=65?24:0)-count('tank')*(director?12:16):0,

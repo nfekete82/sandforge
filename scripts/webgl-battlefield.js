@@ -56,6 +56,7 @@ import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
+import {createReconDrone,animateReconDrone} from '/webgl-recon-drone.js';
 import {createSupplyTruckVisual,createSupplyCacheVisual,updateSupplyCacheVisual,setSupplyTruckCargo,animateSupplyTruckRig,updateSupplyLoadingIndicator} from '/webgl-supply-logistics.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
@@ -149,6 +150,7 @@ export class SandforgeBattlefield {
  }
  entityPosition(p){return this.pos(p.x,p.y,this.heightAt(p.x,p.y)+unitRenderAltitude(p.kind,p.flightHeight??1));}
  createFallback(kind,owner,type){
+  if(type==='unit'&&kind==='drone')return createReconDrone(owner);
   if(type==='unit'&&kind==='supply')return createSupplyTruckVisual(owner);
   if(type==='building'&&isStrategicBuilding(kind))return createStrategicBuilding(kind,owner);
   if(type==='unit'&&kind==='rocket')return createRocketInfantry(owner);
@@ -289,6 +291,8 @@ export class SandforgeBattlefield {
  }
  // Do not download every 15–25 MB faction model on the first frame.
  scheduleDetail(entry,entity,type){
+  // R-01 is an authored procedural 3D asset; there is no remote/binary GLB request.
+  if(type==='unit'&&entity.kind==='drone')return;
   // Lite mode reduces terrain/actor detail, but authored PBR buildings must
   // still appear. Falling back to primitive grey cubes would make the actual
   // player's base look markedly worse than the 2D game.
@@ -1152,6 +1156,7 @@ export class SandforgeBattlefield {
    const travel=Math.hypot(u.x-u.previousX,u.y-u.previousY);
    if(u.kind==='supply')
     animateSupplyTruckRig(entry.detail??entry.placeholder,u,entry,travel,this.game.time,dt,active);
+   if(u.kind==='drone'&&entry.node.visible!==false)animateReconDrone(entry.placeholder,dt,active);
    // AI orders, path retries and the rally hand-off can report moving=true
    // while an actor has made no actual progress. Never rotate rover tyres
    // from the command flag alone; use authoritative 20-Hz displacement.
@@ -1922,7 +1927,8 @@ export class SandforgeBattlefield {
   // Classify by UNIT, not by its factory: HQ builds unarmed supply vehicles.
   const vehicleRoster=roster([['headquarters','KOMMANDOZENTRALE · LOGISTIK'],
    ['factory','FAHRZEUGFABRIK']],'Fahrzeuge');
-  const aircraftRoster=roster([['airfield','FLUGFELD']],'Luftunterstützung');
+  const aircraftRoster=roster([['headquarters','KOMMANDOZENTRALE · AUFKLÄRUNG'],
+   ['airfield','FLUGFELD']],'Luftunterstützung');
   // The original markup embedded a changing capture timer. Every 280 ms
   // during a late-game sector contest it changed the ENTIRE catalogue HTML,
   // destroyed all image elements and caused new 3D portrait uploads/readbacks.
