@@ -1,0 +1,37 @@
+name: Sandforge KI 3.3 - map-aware tactics
+on:
+  push:
+    branches: [feat/sandforge-ai33-map-adaptive-20261118]
+  pull_request:
+    branches: [feat/sandforge-supply-pbr-animated-20261117]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  strategy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and browser import graph
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --no-warnings --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Map-specific policy, A/B parity and historical KI regressions
+        run: |
+          node --test \
+            tests/sandforge-ai33-map-adaptive-20261118.test.mjs \
+            tests/sandforge-ai32-multifront-20261117.test.mjs \
+            tests/reborn-bastion-priority-20261117.test.mjs \
+            tests/reborn-ai-combat-commit-20261109.test.mjs \
+            tests/sandforge-ai-home-defense-20261111.test.mjs \
+            tests/reborn-ai-fight-instead-of-flee-20261109.test.mjs \
+            tests/reborn-ai3-bastion-rush-20261117.test.mjs \
+            tests/reborn-bastion-defense.test.mjs \
+            tests/sandforge-bastion-economy-rollback-20261117.test.mjs
