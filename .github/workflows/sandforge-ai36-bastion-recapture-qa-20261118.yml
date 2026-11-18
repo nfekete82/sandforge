@@ -60,7 +60,7 @@ jobs:
           mkdir -p reports
           for POLICY in off coordinated; do
             node scripts/benchmark-reborn-ai.mjs \
-              --maps 24,26 --seconds 360 --seeds 2026,2027,2028 \
+              --maps 24,26 --seconds 480 --seeds 3031,3032,3033 \
               --modes director --opponent bastion-rush \
               --ai33 adaptive --ai35 control --ai36 "$POLICY" \
               --label "$POLICY" --output "reports/$POLICY.json" \
