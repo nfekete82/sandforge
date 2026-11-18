@@ -1,0 +1,40 @@
+name: Sandforge Uberspace WebGL Release Gate
+on:
+  pull_request:
+    branches: ['integration/sandforge-current-20261117']
+  push:
+    branches: ['feat/sandforge-webgl-uberspace-live-20261118']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  webgl-release:
+    name: Versioned WebGL package and safety checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile and audit browser module graph
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Check deployment JavaScript syntax
+        run: |
+          node --check scripts/deploy-uberspace.mjs
+          node --check scripts/uberspace/webgl-package.mjs
+          node --check scripts/uberspace/webgl-live-check.mjs
+          node --check scripts/uberspace/webgl-browser-check.mjs
+      - name: Package and gameplay regressions
+        run: |
+          node --test \
+            tests/uberspace-webgl-package-20261118.test.mjs \
+            tests/uberspace-deployment.test.mjs \
+            tests/sandforge-recon-drone.test.mjs \
+            tests/reborn-ai-ignore-drone-20261118.test.mjs \
+            tests/sandforge-bastion-economy-rollback-20261117.test.mjs
