@@ -15,7 +15,7 @@ import {wallColliderSamples} from './defensive-wall.js';
 import {bastionStructureColliders} from './bastion-structure-collision.js';
 import {constructionVisualClearance,sitesVisuallyOverlap,siteNearBastion,siteExceedsMap,siteTerrainCompatible,type SiteFacing} from './construction-spacing.js';
 import {segmentDistance} from './world-generation.js';
-import {canCaptureSector,captureSeconds} from './territory-warfare.js';
+import {canCaptureSector,captureSeconds,capturePresenceRadius} from './territory-warfare.js';
 import { UNITS, BUILDINGS, TANK_MG, canAttack, weaponDamage, unitSpec, buildingSpec, unitKinds, MAX_GENERATORS_PER_FACTION, type UnitKind, type BuildingKind } from './catalog.js';
 import {angleDifference,turnTowards} from './sprite-animator.js';
 import {newMatchStatistics,countDeployed,countProduced,countIncome,validMatchStatistics,type MatchStatistics} from './match-statistics.js';
@@ -1057,9 +1057,10 @@ export class Simulation {
     if(t.owner===owner)return 'owned';
     const friendly=this.units.filter(u=>u.owner===owner&&u.hp>0&&!u.carrier&&u.kind!=='drone');
     if(!friendly.length)return 'no-unit';
-    const inside=friendly.some(u=>distance(u,t.point)<=RULES.captureRadius);
-    if(!inside)return friendly.some(u=>distance(u,t.point)<=RULES.captureRadius+120)?'out-of-range':'no-unit';
-    if(this.units.some(u=>u.owner!==owner&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&distance(u,t.point)<=RULES.captureRadius))return 'contested';
+    const radius=capturePresenceRadius(this.world.mapVersion);
+    const inside=friendly.some(u=>distance(u,t.point)<=radius);
+    if(!inside)return friendly.some(u=>distance(u,t.point)<=radius+120)?'out-of-range':'no-unit';
+    if(this.units.some(u=>u.owner!==owner&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&distance(u,t.point)<=radius))return 'contested';
     if(this.bases.some(b=>b.kind==='headquarters'&&b.territory===t.id&&b.owner!==owner&&b.hp>0))return 'enemy-hq';
     return 'capturing';
   }
@@ -2295,8 +2296,10 @@ export class Simulation {
     this.spatial.rebuild(this.units);
     this.bases=this.bases.filter(b=>b.hp>0||b.kind==='headquarters');
     let ownershipChanged=false;
+    const captureRadius=capturePresenceRadius(this.world.mapVersion);
     for(const t of this.territories){
-      const nearby=this.spatial.query(t.point,RULES.captureRadius).filter(u=>u.hp>0&&!u.carrier&&u.kind!=='drone');
+      // Use the same modern 3D Bastion ring as captureReadiness and RMB.
+      const nearby=this.spatial.query(t.point,captureRadius).filter(u=>u.hp>0&&!u.carrier&&u.kind!=='drone');
       const blue=nearby.some(u=>u.owner===0),red=nearby.some(u=>u.owner===1);
       if(blue&&red)continue;
       const owner:Owner=blue?0:red?1:-1;

@@ -29,6 +29,7 @@ jobs:
         run: |
           node --test \
             tests/sandforge-ai33-drone-hud-unstick-20261118.test.mjs \
+            tests/sandforge-ai33-bastion-near-capture-20261118.test.mjs \
             tests/reborn-ai-ignore-drone-20261118.test.mjs \
             tests/sandforge-recon-drone.test.mjs \
             tests/sandforge-ai33-map-adaptive-20261118.test.mjs \
