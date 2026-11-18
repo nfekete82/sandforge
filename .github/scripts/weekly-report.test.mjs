@@ -4,14 +4,14 @@ import {mkdtempSync,rmSync,writeFileSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {analyze,markdown} from './weekly-report.mjs';
-const maps=[[24,8],[25,12],[26,16]],variants=['ai32','ai33','ai34'];
+const maps=[[24,8],[25,12],[26,16]],variants=['ai32','ai33','ai34','ai35'];
 function setup(){
  const dir=mkdtempSync(join(tmpdir(),'sandforge-leaderboard-'));
  for(const [map,size] of maps)for(const variant of variants){
   const weight=Number(variant.slice(2))-32;
   const details=[2026,2027].map(seed=>({
    mapVersion:map,seed,mode:'director',opponent:'contesting',
-   ai33Policy:variant==='ai32'?'off':'adaptive',requestedSeconds:420,
+   ai33Policy:variant==='ai32'?'off':'adaptive',ai35Policy:variant==='ai35'?'control':undefined,requestedSeconds:420,
    initialStateHash:'initial-'+map+'-'+seed,elapsedSeconds:420,
    outcome:weight===2?'win':'timeout',redSectors:1+weight,
    bastionControlSeconds:(.2+.1*weight)*420*size,
@@ -28,11 +28,11 @@ function setup(){
 test('ranks better Bastion control, never counts timeout as win',()=>{
  const dir=setup();try{
   const data=analyze(dir);
-  assert.deepEqual(data.ranking.map(x=>x.name),['ai34','ai33','ai32']);
+  assert.deepEqual(data.ranking.map(x=>x.name),['ai34','ai35','ai33','ai32']);
   assert.equal(data.ranking[0].wins,6);
-  assert.equal(data.ranking[2].wins,0);
-  assert.equal(data.ranking[2].timeouts,6);
-  assert.equal(data.changes.length,6);
+  assert.equal(data.ranking[3].wins,0);
+  assert.equal(data.ranking[3].timeouts,6);
+  assert.equal(data.changes.length,9);
   assert.match(markdown(data),/Vorläufige/);
   assert.match(markdown(data),/gleichen geskripteten Gegner/);
  }finally{rmSync(dir,{force:true,recursive:true});}

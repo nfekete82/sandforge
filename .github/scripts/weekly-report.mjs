@@ -2,7 +2,7 @@
  * This measures matches against the SAME scripted BLUE opponent, not direct PvP. */
 import fs from 'node:fs';
 import path from 'node:path';
-const maps={24:8,25:12,26:16},names=['ai32','ai33','ai34'];
+const maps={24:8,25:12,26:16},names=['ai32','ai33','ai34','ai35'];
 const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
 const rnd=n=>Number(n.toFixed(3));
 const fmt=n=>(100*n).toFixed(1)+'%';
@@ -26,6 +26,7 @@ export function analyze(dir){
    for(const d of details){
     assert(d.mapVersion===Number(map)&&d.mode==='director'&&d.opponent==='contesting'&&d.requestedSeconds===horizon&&d.initialStateHash,'Wrong game identity '+filename);
     assert(d.ai33Policy===(name==='ai32'?'off':'adaptive'),'Wrong AI policy '+filename);
+    if(name==='ai35')assert(d.ai35Policy==='control','Wrong AI 3.5 policy '+filename);
     assert(['win','loss','timeout'].includes(d.outcome)&&d.elapsedSeconds>0&&Number.isFinite(d.bastionControlSeconds)&&Number.isFinite(d.redSectors)&&Number.isFinite(d.territoriesLost)&&Number.isFinite(d.redUnitsLost),'Missing metrics '+filename);
     assert(d.redSectors>=0&&d.redSectors<=maps[map],'Impossible territory count '+filename);
    }
@@ -51,7 +52,7 @@ export function analyze(dir){
    })};
  }).sort((a,b)=>b.wins-a.wins||b.control-a.control||b.held-a.held);
  const changes=[];
- for(const [older,newer] of [['ai32','ai33'],['ai33','ai34']])for(const [map,size] of Object.entries(maps)){
+ for(const [older,newer] of [['ai32','ai33'],['ai33','ai34'],['ai34','ai35']])for(const [map,size] of Object.entries(maps)){
   const old=new Map(table[older+':'+map].map(d=>[d.seed,d]));
   const diffs=table[newer+':'+map].map(d=>{
    const a=old.get(d.seed);
