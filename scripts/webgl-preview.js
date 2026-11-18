@@ -29,6 +29,7 @@ import {DESERT_SCENIC_STYLE as desertStyle} from '/webgl-desert-style.js';
 import {installDesertSandPBR,SANDFORGE_SAND_PBR} from '/webgl-sand-pbr.js';
 import {createDesertVillages} from '/webgl-desert-village.js';
 import {installMatchResultOverlay} from '/webgl-match-result.js';
+import {installBattleDebrief} from '/webgl-battle-debrief.js';
 import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry} from '/webgl-rock-materials.js';
 import {makeSmallRuinFragments,isSmallRuin} from '/webgl-ruin-fragments.js';
 import {chooseRareScenicHouseIndex,createScenicDesertHouse} from '/webgl-scenic-desert-houses.js';
@@ -189,8 +190,10 @@ simulationBanner.hidden=true;
 simulationBanner.style.cssText='position:fixed;top:71px;left:50%;transform:translateX(-50%);z-index:15;pointer-events:none;background:#111d23ea;border:1px solid #c5a570;color:#f6dfa9;font:800 12px/1.3 system-ui;padding:7px 13px;letter-spacing:.04em;text-align:center;box-shadow:0 5px 18px #0008';
 document.body.append(simulationBanner);
 const matchResultOverlay=installMatchResultOverlay(document);
+const battleDebrief=installBattleDebrief(document,game,{resumed:!!session});
 function updateSimulationBanner(){
  matchResultOverlay.render(game.status);
+ battleDebrief.render(game.status);
  const reason=game.status!=='playing'?'':!running?
   'SIMULATION PAUSIERT'+(pauseSource?' ('+pauseSource+')':'')+' · ▶ zum Fortsetzen':
   game.paused?'SIMULATION INTERN PAUSIERT':'';
@@ -1269,6 +1272,9 @@ function animate(now){
  const lost=running?sound.reportUnitLosses(game):0;
  if(lost)battlefield.message(lost===1?'Einheit verloren':
   'Einheit verloren · '+lost+' Einheiten');
+ // Read only public ownership and existing statistics once per simulated second.
+ // No game-state mutation, extra animation loop, AI advantage or save-field changes.
+ if(running)battleDebrief.sample();
  // Show the end-of-match banner on the same frame that the final unit or
  // building falls, instead of waiting for the twice-a-second HUD refresh.
  if(game.status!==lastOutcome){lastOutcome=game.status;updateSimulationBanner();}

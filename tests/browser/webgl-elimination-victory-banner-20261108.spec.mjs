@@ -33,6 +33,13 @@ test('real WebGL does not prematurely win and displays large centered endgame ba
  await expect(overlay.locator('.sf3d-match-result-heading')).toHaveText('SIEG');
  await expect(overlay.locator('.sf3d-match-result-subheading')).toHaveText('Gefecht beendet');
  await expect(overlay).toHaveAttribute('data-result','victory');
+ const debrief=page.locator('#sf3d-battle-debrief');
+ await expect(debrief).toBeVisible();
+ await expect(debrief.locator('.sf3d-debrief-toggle')).toContainText('Bastionen');
+ await debrief.locator('.sf3d-debrief-toggle').click();
+ await expect(debrief.locator('.sf3d-debrief-title')).toHaveText('Siegbilanz');
+ await expect(debrief.locator('.sf3d-debrief-facts')).toContainText('Ø Gebietskontrolle');
+ await expect(debrief.locator('.sf3d-debrief-toggle')).toHaveAttribute('aria-expanded','true');
  await expect(page.locator('#sf3d-simulation-state')).toBeHidden();
  const measured=await page.evaluate(()=>{
   const root=document.querySelector('#sf3d-match-result');
