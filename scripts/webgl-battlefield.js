@@ -46,6 +46,7 @@ import {attachTeamMarkings,detachTeamMarkings} from '/webgl-team-markings.js';
 import {finishBarracksSides,finishBarracksDesertPalette,disposeBarracksSides} from '/webgl-barracks-shell.js';
 import {SandforgeConstructionPresentation} from '/webgl-construction.js';
 import {createBastionCaptureBar,updateBastionCaptureBar} from '/webgl-bastion-capture.js';
+import {capturePresenceRadius} from '/src/reborn/territory-warfare.js';
 import {snapToPlayableEdge,worldToMinimap} from '/webgl-map-edges.js';
 import {attackBlinkAlpha} from '/src/reborn/attack-alerts.js';
 import {UPGRADES,UPGRADE_KINDS,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
@@ -2488,7 +2489,7 @@ export class SandforgeBattlefield {
   // Recognize both the terrain near the site and the visible 3D model.
   const capturable=this.game.territories.filter(t=>t.owner!==0);
   if(groundPoint){
-   const near=capturable.filter(t=>dist(t.point,groundPoint)<=RULES.captureRadius+34)
+   const near=capturable.filter(t=>dist(t.point,groundPoint)<=capturePresenceRadius(this.game.world.mapVersion)+34)
     .sort((a,b)=>dist(a.point,groundPoint)-dist(b.point,groundPoint))[0];
    if(near)return near;
   }

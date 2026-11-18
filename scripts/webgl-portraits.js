@@ -3,6 +3,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
 import {createStrategicBuilding,isStrategicBuilding,prepareSiloForPortrait} from './webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry} from './webgl-rocket-infantry.js';
+import {createReconDrone} from './webgl-recon-drone.js';
 import {createResearchArtwork,RESEARCH_ARTWORK_KINDS} from './webgl-research-artworks.js';
 import {tintFactionMaterials} from './webgl-faction-accents.js';
 import {finishBarracksSides,finishBarracksDesertPalette} from './webgl-barracks-shell.js';
@@ -109,7 +110,7 @@ export function researchIconMarkup(kind){
  * research objects, using the actual scene meshes. PNG generation happens
  * once per kind and never on the animation/render loop.
  */
-function renderModelPortrait(model,renderer,{width=320,height=220,research=false,infantryCard=false,headquartersCard=false,buildingCard=false}={}){
+function renderModelPortrait(model,renderer,{width=320,height=220,research=false,infantryCard=false,droneCard=false,headquartersCard=false,buildingCard=false}={}){
  // Atlas heavy infantry uses direction index 1: yaw PI/4 with camera (0,8,12).
  // Apply that exact view to the rocket portrait only, never to its game model.
  if(infantryCard)model.rotation.y+=Math.PI/4;
@@ -133,7 +134,9 @@ function renderModelPortrait(model,renderer,{width=320,height=220,research=false
  const span=Math.max(size.y*(research?1.9:1.8),(size.x+size.z)*(research?1.03:.95),1);
  const camera=new THREE.OrthographicCamera(-span*aspect/2,span*aspect/2,span/2,-span/2,.1,2000);
  camera.position.copy(center).add(infantryCard?
-  new THREE.Vector3(0,8,12):new THREE.Vector3(research?115:350,research?115:310,research?170:380));
+  new THREE.Vector3(0,8,12):droneCard?
+  // Look down the nose and across all four rotor arms; isolated HUD view only.
+  new THREE.Vector3(95,170,255):new THREE.Vector3(research?115:350,research?115:310,research?170:380));
  camera.lookAt(center);camera.updateMatrixWorld();
  const target=new THREE.WebGLRenderTarget(width,height,{format:THREE.RGBAFormat,depthBuffer:true});
  const oldTarget=renderer.getRenderTarget(),oldColor=renderer.getClearColor(new THREE.Color()).clone();
@@ -176,7 +179,10 @@ function renderModelPortrait(model,renderer,{width=320,height=220,research=false
   // This prevents the shoulder launcher from altering the soldier's apparent size.
   // Scale infantry by body height, NOT by the shoulder launcher's width.
   // Otherwise the longer weapon makes the entire rocket soldier appear tiny.
-  const scale=infantryCard?105/h:
+  const scale=infantryCard?105/h:droneCard?
+   // Drone hull and all four rotors must fit in both the catalog thumbnail
+   // and the selected-unit portrait, with real transparent breathing room.
+   Math.min(width*.76/w,height*.80/h):
    Math.min(width*(research?.89:.93)/w,height*(research?.89:.92)/h);
   const dw=w*scale,dh=h*scale;
   let drawX=(width-dw)/2;
@@ -326,25 +332,42 @@ function rocketUnitIconFallback(){
  '</g></svg>';
  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
 }
+/** Network-free fallback only: production normally renders the actual R-01 mesh. */
+function droneUnitIconFallback(){
+ const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 132">'+
+  '<rect width="192" height="132" fill="#28312d"/>'+
+  '<g stroke="#343b36" stroke-width="7" stroke-linecap="round">'+
+  '<path d="M91 61 35 35M101 61 157 35M91 74 35 99M101 74 157 99"/></g>'+
+  '<g fill="#b5a27e" stroke="#403c33" stroke-width="3">'+
+  '<circle cx="35" cy="35" r="12"/><circle cx="157" cy="35" r="12"/>'+
+  '<circle cx="35" cy="99" r="12"/><circle cx="157" cy="99" r="12"/></g>'+
+  '<path d="M86 47 107 47 118 82 96 99 74 82Z" fill="#b7a783" stroke="#4a4539" stroke-width="3"/>'+
+  '<path d="M89 50 101 51 94 83 80 75Z" fill="#787b63" opacity=".9"/>'+
+  '<path d="M98 56 113 70 103 78 94 67Z" fill="#947c61" opacity=".9"/>'+
+  '<circle cx="96" cy="87" r="7" fill="#343c42" stroke="#dfc99c" stroke-width="2"/>'+
+  '<circle cx="96" cy="87" r="3" fill="#728dc0"/>'+
+  '<path d="M108 48 118 26" fill="none" stroke="#383d3b" stroke-width="2"/>'+
+  '<path d="M21 35h28M143 35h28M21 99h28M143 99h28" stroke="#adb0a6" stroke-width="2" opacity=".85"/>'+
+  '</svg>';
+
+ return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
+}
 export function unitIcon(kind,renderer){
  if(kind==='drone'){
-  // Compact, deterministic R-01 silhouette; avoids requesting a non-existent sprite atlas.
-  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 132">'+
-   '<rect width="192" height="132" fill="#28312d"/>'+
-   '<g stroke="#343b36" stroke-width="7" stroke-linecap="round">'+
-   '<path d="M91 61 35 35M101 61 157 35M91 74 35 99M101 74 157 99"/></g>'+
-   '<g fill="#b5a27e" stroke="#403c33" stroke-width="3">'+
-   '<circle cx="35" cy="35" r="12"/><circle cx="157" cy="35" r="12"/>'+
-   '<circle cx="35" cy="99" r="12"/><circle cx="157" cy="99" r="12"/></g>'+
-   '<path d="M86 47 107 47 118 82 96 99 74 82Z" fill="#b7a783" stroke="#4a4539" stroke-width="3"/>'+
-   '<path d="M89 50 101 51 94 83 80 75Z" fill="#787b63" opacity=".9"/>'+
-   '<path d="M98 56 113 70 103 78 94 67Z" fill="#947c61" opacity=".9"/>'+
-   '<circle cx="96" cy="87" r="7" fill="#343c42" stroke="#dfc99c" stroke-width="2"/>'+
-   '<circle cx="96" cy="87" r="3" fill="#728dc0"/>'+
-   '<path d="M108 48 118 26" fill="none" stroke="#383d3b" stroke-width="2"/>'+
-   '<path d="M21 35h28M143 35h28M21 99h28M143 99h28" stroke="#adb0a6" stroke-width="2" opacity=".85"/>'+
-   '</svg>';
-  return Promise.resolve('data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg));
+  // Exactly the same procedural 3D R-01 mesh as the battle renderer:
+  // the old four-dot SVG was a placeholder and hid the camera/body details.
+  if(!renderer)return Promise.resolve(droneUnitIconFallback());
+  if(!iconCache.has(kind))iconCache.set(kind,new Promise((resolve,reject)=>{
+   requestAnimationFrame(()=>{
+    try{resolve(renderModelPortrait(createReconDrone(0),renderer,
+     {width:192,height:132,droneCard:true}));}
+    catch(error){reject(error);}
+   });
+  }).catch(error=>{
+   console.warn('R-01 HUD 3D portrait fallback:',error);
+   iconCache.delete(kind);return droneUnitIconFallback();
+  }));
+  return iconCache.get(kind);
  }
  if(kind==='rocket'&&!renderer)return Promise.resolve(rocketUnitIconFallback());
  if(kind==='rocket'&&!iconCache.has(kind)){
