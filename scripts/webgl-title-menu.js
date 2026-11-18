@@ -74,6 +74,8 @@
    params.set('ai33',query.get('ai33'));
   if(query.get('ai35')==='off'||query.get('ai35')==='control')
    params.set('ai35',query.get('ai35'));
+  if(query.get('ai36')==='off'||query.get('ai36')==='coordinated')
+   params.set('ai36',query.get('ai36'));
   if(resume)params.set('resume','1');
   if(legacy)params.set('legacy','1');
   const options=readOptions();
