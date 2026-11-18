@@ -65,6 +65,8 @@ const game=session??(profile?Simulation.campaign(seed,sizes[bastions],profile):S
 // Not serialized, never affects the live Uberspace release.
 if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
  game.tactical.ai33Mode=query.get('ai33');
+if(query.get('ai35')==='off'||query.get('ai35')==='control')
+ game.tactical.ai35Mode=query.get('ai35');
 // The WebGL renderer stages a single authoritative factory actor while its
 // real 3D gate is opening. Classic, tests and old saves keep normal rules.
 game.stageWebGLProduction=true;

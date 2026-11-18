@@ -20,6 +20,7 @@ import {homeDefensePlan} from './home-defense-doctrine.js';
 import {chooseSiegeShot,chooseRaidFront,allowSecondaryPressure,type SiegeShot,type RaidFront} from './ai25-doctrine.js';
 import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefenseMultiplier} from './ai32-doctrine.js';
 import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,type AI33Mode} from './ai33-map-doctrine.js';
+import {bastionGuardPriority,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import type {Simulation,Unit,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
@@ -136,6 +137,12 @@ export class TacticalAI {
  raidDetachmentMode:'inherit'|'off'|'selective'='inherit';
  /** Runtime-only benchmark ablation: off restores exact AI 3.2 tactics. */
  ai33Mode:AI33Mode='adaptive';
+ /** AI 3.5 experiment: can be switched OFF on the same map and same binary. */
+ ai35Mode:'off'|'control'='control';
+ private get ai35Enabled():boolean{
+  return this.ai35Mode==='control'&&this.ai33Mode==='adaptive'&&
+   (this.g.world.mapVersion===24||this.g.world.mapVersion===26);
+ }
  /** Runtime-only diagnostics: never influence simulation or serialize in saves. */
  diagnostics:TacticalDiagnostics=newDiagnostics();
  state=fresh();private risk:Float32Array|undefined;private riskAt=-1;private routeCache=new Map<string,Point[]>();private routeSignature='';
@@ -306,8 +313,25 @@ export class TacticalAI {
   // previously let the opposing army take our economic frontline for free.
   const protectedSites:Point[]=[...protectedBases,
    ...g.territories.filter(t=>t.owner===1).map(t=>t.point)];
-  const threatScore=(u:Unit)=>Math.min(...protectedSites.map(site=>distance(u,site)))-
-   (u.kind==='artillery'?250:u.kind==='heavy'?100:u.kind==='bomber'?120:0);
+  const threatScore=(u:Unit)=>{
+   const nearest=Math.min(...protectedSites.map(site=>distance(u,site)));
+   const legacy=nearest-
+    (u.kind==='artillery'?250:u.kind==='heavy'?100:u.kind==='bomber'?120:0);
+   if(!this.ai35Enabled)return legacy;
+   // Only visibly observed raiders can become target candidates. Bastion
+   // ownership and capture progress are public information, not fog leaks.
+   const captured=g.territories.filter(t=>t.owner===1&&
+    t.capturing===0&&t.progress>0&&distance(u,t.point)<230)
+    .sort((a,v)=>distance(u,a.point)-distance(u,v.point)||a.id-v.id)[0];
+   return observedDefensePriority({
+    distanceToAsset:nearest,
+    distanceToHQ:Math.min(Infinity,...protectedBases.filter(b=>b.kind==='headquarters')
+     .map(b=>distance(u,b))),
+    kind:u.kind,
+    insideCaptureRing:!!captured,
+    endangeredIncome:captured?.income??0
+   });
+  };
   const target=intruders.slice().sort((a,v)=>threatScore(a)-threatScore(v)||a.id-v.id)[0];
   const nearby=intruders.filter(u=>distance(u,target)<400);
   // High-value captured Bastions get a stronger LOCAL counterattack.
@@ -847,10 +871,23 @@ export class TacticalAI {
   // frontier Bastions, with at least two sentries retained at home when
   // four or more are available. Never inspect hidden enemy units.
   const frontiers=g.territories.filter(t=>t.owner===1&&
-    t.neighbors.some(id=>g.territories[id]?.owner!==1))
-   .sort((a,b)=>Number(b.neighbors.some(id=>g.territories[id]?.owner===0))-
-      Number(a.neighbors.some(id=>g.territories[id]?.owner===0))||
-      b.income-a.income||distance(home,a.point)-distance(home,b.point)||a.id-b.id);
+    t.neighbors.some(id=>g.territories[id]?.owner!==1));
+  const legacyFrontier=(a:typeof frontiers[number],b:typeof frontiers[number])=>
+   Number(b.neighbors.some(id=>g.territories[id]?.owner===0))-
+   Number(a.neighbors.some(id=>g.territories[id]?.owner===0))||
+   b.income-a.income||distance(home,a.point)-distance(home,b.point)||a.id-b.id;
+  if(this.ai35Enabled){
+   // Reassign just the EXISTING paid frontier guards towards Bastions under
+   // real capture pressure. Only observed enemy units affect prioritization.
+   const visible=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
+    u.kind!=='drone'&&g.canSee(1,u));
+   const priority=(t:typeof frontiers[number])=>bastionGuardPriority({
+    id:t.id,income:t.income,capturing:t.capturing,progress:t.progress,
+    enemyAdjacent:t.neighbors.some(id=>g.territories[id]?.owner===0),
+    visibleRaiders:visible.filter(u=>distance(u,t.point)<360).length
+   });
+   frontiers.sort((a,b)=>priority(b)-priority(a)||legacyFrontier(a,b));
+  }else frontiers.sort(legacyFrontier);
   const originalPosts=g.world.mapVersion>=24
    ?frontierGuardPosts(guards.length,frontiers.length)
    :Math.min(1,guards.length-1,frontiers.length);
@@ -1012,7 +1049,7 @@ export class TacticalAI {
    const objectiveGone=a.objective!=null&&a.target!==undefined&&g.canSee(1,a.target)
     &&!g.bases.some(b=>b.id===a.objective&&b.hp>0);
    if(won||objectiveGone||g.time-a.at>120)finishExperience(experience,!!(won||objectiveGone),fighters.reduce((n,u)=>n+u.hp,0));}
-  const mission=chooseMission(g,c,origin,{strategy:s.adaptive?.strategy??'unknown',force:fighters,losses:s.losses,fronts:s.battle?.fronts??[],intelligent:this.missionPlannerMode==='legacy'?false:this.doctrineMode==='intelligent',experience,route:p=>{const route=this.route(origin,p);return route.length?this.sampleRoute(route,origin):undefined;}});
+  const mission=chooseMission(g,c,origin,{strategy:s.adaptive?.strategy??'unknown',force:fighters,losses:s.losses,fronts:s.battle?.fronts??[],intelligent:this.missionPlannerMode==='legacy'?false:this.doctrineMode==='intelligent',bastionControl:this.ai35Enabled,experience,route:p=>{const route=this.route(origin,p);return route.length?this.sampleRoute(route,origin):undefined;}});
   if(!mission){
    campaignPhase(c,'endgame',g.time);this.setPhase('regroup');s.group=[];s.objective=null;s.target=null;
    // Once the map is captured, ground patrols also search fog for survivors.
