@@ -21,6 +21,7 @@ import {chooseSiegeShot,chooseRaidFront,allowSecondaryPressure,type SiegeShot,ty
 import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefenseMultiplier} from './ai32-doctrine.js';
 import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,type AI33Mode} from './ai33-map-doctrine.js';
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
+import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import type {Simulation,Unit,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
@@ -139,6 +140,14 @@ export class TacticalAI {
  ai33Mode:AI33Mode='adaptive';
  /** AI 3.5 experiment: can be switched OFF on the same map and same binary. */
  ai35Mode:'off'|'control'='control';
+ /** Same-binary A/B: OFF retains exact AI 3.5, coordinated = KI 3.6. */
+ ai36Mode:AI36Mode='coordinated';
+ private recaptureMission:{sector:number;ids:number[];since:number;securedAt:number|null}|null=null;
+ private recaptureRetryAt=0;
+ private get ai36Enabled():boolean{
+  return this.mode==='director'&&this.ai36Mode==='coordinated'&&
+   this.ai35Enabled;
+ }
  private get ai35Enabled():boolean{
   return this.ai35Mode==='control'&&this.ai33Mode==='adaptive'&&
    (this.g.world.mapVersion===24||this.g.world.mapVersion===26);
@@ -162,7 +171,7 @@ export class TacticalAI {
   this.sectorPreference={sectorId,until:this.g.time+35};return true;
  }
  restore(state:TacticalState|undefined):void{
-  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();
+  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
   if(!state)for(const m of this.g.memories[1])if(m.owner===0&&m.kind==='turret'&&m.hp>0)this.remember(m,Math.max(0,this.g.time-45));
  }
@@ -1477,6 +1486,129 @@ export class TacticalAI {
   }
   return new Set(s.openingContests.map(e=>e.unitId));
  }
+ /** KI 3.6: a small genuine squad attacks ONE reachable blue-held Bastion
+  * together and secures the capture circle. The main assault, the HQ guard,
+  * construction, recovery and tactical emergency defense keep priority.
+  * Only public ownership and actually SEEN defenders/guns are considered.
+  * This transient mission never creates entities or changes save format. */
+ private coordinatedRecapture(fighters:Unit[],home:Point):Set<number>{
+  const g=this.g,s=this.state;
+  if(!this.ai36Enabled||g.status!=='playing'){
+   this.recaptureMission=null;return new Set();
+  }
+  const blue=g.territories.filter(t=>t.owner===0).length;
+  const red=g.territories.filter(t=>t.owner===1).length;
+  const visible=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
+   u.kind!=='drone'&&g.canSee(1,u));
+  const homeThreat=visible.some(u=>distance(u,home)<660);
+  if(homeThreat){this.recaptureMission=null;return new Set();}
+  const combatants=fighters.filter(u=>u.hp>0&&!u.carrier&&!u.hold&&
+   u.defendUntil<=g.time&&['infantry','heavy','rover'].includes(u.kind)&&
+   u.hp>=unitSpec(u).hp*.66&&!u.factoryService&&!u.airfieldService&&
+   !(s.battle?.withdrawals.some(w=>w.unit===u.id&&w.until>g.time)));
+  const sectorIsExposed=(t:typeof g.territories[number])=>
+   t.owner===0&&t.neighbors.some(i=>g.territories[i]?.owner===1);
+  const old=this.recaptureMission;
+  if(old){
+   const site=g.territories[old.sector];
+   const squad=old.ids.map(id=>fighters.find(u=>u.id===id))
+    .filter((u):u is Unit=>!!u&&u.hp>0&&!u.carrier);
+   if(site&&squad.length>=2){
+    if(site.owner===1){
+     if(old.securedAt===null)old.securedAt=g.time;
+     // Hold the *real* newly gained capture circle long enough to prevent
+     // an immediate one-soldier recapture. Normal weapons, no buffs.
+     for(const u of squad)if(distance(u,site.point)<125&&
+       u.defendUntil<=g.time&&!u.hold)g.stop([u.id],true,true);
+     if(g.time-old.securedAt<15)return new Set(squad.map(u=>u.id));
+    }else if(sectorIsExposed(site)&&g.time-old.since<70){
+     // Never reissue the same attack every 3-second macro pulse.
+     // Retarget only if an old order genuinely disappeared.
+     for(const u of squad)if(!u.orders.length&&!u.hold&&
+       distance(u,site.point)>125){
+      const p=g.world.nearest(site.point,this.obstacles(),[],u,5);
+      if(p&&this.route(u,p).length)this.issue([u],p,'assault',undefined,false,false);
+     }
+     return new Set(squad.map(u=>u.id));
+    }
+   }
+   if(site?.owner!==1)this.recaptureRetryAt=g.time+25;
+   this.recaptureMission=null;
+   if(g.time<this.recaptureRetryAt)return new Set();
+  }
+  // Active large-scale assaults retain their existing committed soldiers.
+  // Reserve an actual HQ screen from those not already doing urgent work.
+  const readiness=recaptureDetachmentSize({
+   mapVersion:g.world.mapVersion,time:g.time,ownSectors:red,
+   enemySectors:blue,eligible:combatants.length,homeUnderAttack:homeThreat,
+   recentlyLost:g.territories.some(t=>t.id===s.experience?.lastLostSector&&
+    t.owner===0)
+  });
+  if(!readiness)return new Set();
+  const protectedCount=g.world.mapVersion===26?3:2;
+  const protectedIds=new Set(combatants.slice()
+   .sort((a,b)=>distance(a,home)-distance(b,home)||a.id-b.id)
+   .slice(0,protectedCount).map(u=>u.id));
+  const available=combatants.filter(u=>!protectedIds.has(u.id)&&
+   (s.phase!=='attack'||!s.group.includes(u.id)));
+  if(available.length<readiness+2)return new Set();
+  const knownBad=(t:typeof g.territories[number])=>
+   s.knownTurrets.some(tower=>distance(tower,t.point)<tower.range+95)||
+   g.memories[1].some(m=>m.owner===0&&m.hp>0&&(
+    m.kind==='headquarters'&&m.territory===t.id||
+    m.kind==='turret'&&distance(m,t.point)<700));
+  // Visible contacts are genuine fog-limited observations; never use all
+  // BLUE units to rank an unseen Bastion's defenses.
+  const blockers=[...this.obstacles(),...g.bastionColliders()];
+  const approach=(u:Unit,t:typeof g.territories[number],i:number):Point|undefined=>{
+   const angle=Math.atan2(u.y-t.point.y,u.x-t.point.x);
+   for(const spin of [0,.35,-.35,.72,-.72,1.4,-1.4,Math.PI]){
+    const a=angle+spin+(i-1)*.15;
+    const p={x:t.point.x+105*Math.cos(a),y:t.point.y+105*Math.sin(a)};
+    if(g.world.walkable(p,blockers,5)&&
+      g.world.path(u,p,blockers,5).length)return p;
+   }
+  };
+  let best:{score:number;sector:number;squad:Unit[];points:Point[]}|null=null;
+  const targets=g.territories.filter(t=>sectorIsExposed(t)&&!knownBad(t))
+   .sort((a,b)=>Number(b.id===s.experience?.lastLostSector)-
+    Number(a.id===s.experience?.lastLostSector)||b.income-a.income||a.id-b.id);
+  for(const t of targets.slice(0,6)){
+   const near=available.slice().sort((a,b)=>distance(a,t.point)-distance(b,t.point)||a.id-b.id);
+   const squad=near.slice(0,readiness);
+   if(squad.length!==readiness)continue;
+   const seen=visible.filter(u=>distance(u,t.point)<380);
+   if(!recaptureThreatPermits(fightingPower(squad),fightingPower(seen),false))continue;
+   const points=squad.map((u,i)=>approach(u,t,i));
+   if(points.some(p=>!p))continue;
+   const travel=squad.map((u,i)=>this.sampleRoute(
+     g.world.path(u,points[i]!,blockers,5),u));
+   if(travel.some(t=>t.length===0||t.length>(g.world.mapVersion===26?2500:1900)||
+     t.risk>=12))continue;
+   const average=travel.reduce((n,v)=>n+v.length,0)/travel.length;
+   const risk=Math.max(...travel.map(v=>v.risk));
+   const score=recaptureObjectiveScore({routeLength:average,routeRisk:risk,
+    income:t.income,recentLoss:t.id===s.experience?.lastLostSector,
+    visibleDefenders:seen.length,alreadyAssigned:false});
+   if(!best||score<best.score||score===best.score&&t.id<best.sector)
+    best={score,sector:t.id,squad,points:points as Point[]};
+  }
+  if(!best)return new Set();
+  // Issue in ONE macro pulse. Keep the detachment out of the ongoing
+  // campaign roster; an attack-move can fight but cannot teleport.
+  s.group=s.group.filter(id=>!best!.squad.some(u=>u.id===id));
+  const sent:Unit[]=[];
+  for(const [i,u] of best.squad.entries()){
+   if(this.issue([u],best.points[i],'assault',undefined,false,false)){
+    if(u.orders[0])u.orders[0].guardOnArrival=true;
+    sent.push(u);
+   }
+  }
+  if(sent.length!==readiness)return new Set(sent.map(u=>u.id));
+  this.recaptureMission={sector:best.sector,ids:sent.map(u=>u.id),
+   since:g.time,securedAt:null};
+  return new Set(sent.map(u=>u.id));
+ }
  /** Opening uses ordinary paid construction and reachable worker orders. */
  private bootstrapHeadquarters():void{
   const g=this.g,workers=g.units.filter(u=>u.owner===1&&u.kind==='engineer'&&u.hp>0&&!u.carrier);
@@ -1524,9 +1656,13 @@ export class TacticalAI {
    // Earlier paid raids follow the shorter home-defense buildup.
    // Preserve an uncontested initial setup and never strip emergency
    // defenders; expansionRaid independently checks actual safe sectors.
+   const recapture=this.coordinatedRecapture(fighters.filter(u=>
+    !defense.has(u.id)&&!earlyContesters.has(u.id)),home);
    const raiders=g.world.mapVersion>=19&&g.time<125
-    ?new Set<number>():this.expansionRaid(fighters.filter(u=>!defense.has(u.id)),home);
-   const main=fighters.filter(u=>!defense.has(u.id)&&!raiders.has(u.id)&&!earlyContesters.has(u.id));
+    ?new Set<number>():this.expansionRaid(fighters.filter(u=>
+     !defense.has(u.id)&&!earlyContesters.has(u.id)&&!recapture.has(u.id)),home);
+   const main=fighters.filter(u=>!defense.has(u.id)&&!raiders.has(u.id)&&
+    !earlyContesters.has(u.id)&&!recapture.has(u.id));
    if(main.length)this.campaign(army,main,medics.filter(u=>!defense.has(u.id)),home);
    this.dispatchObservedSpecialists(army);
    if(defense.size)campaignPhase(s.commander??=newCampaign(),'emergencyDefense',g.time);
