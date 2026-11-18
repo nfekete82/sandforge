@@ -1,0 +1,36 @@
+name: Sandforge AI35 Match Debrief QA
+on:
+  push:
+    branches: ['feat/sandforge-ai35-battle-debrief-local-20261118']
+  pull_request:
+    branches: ['feat/sandforge-ai35-bastion-defense-local-20261118']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  debrief:
+    name: Endgame report, territory accounting, no save changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript + WebGL module packaging
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+          node --check scripts/webgl-battle-debrief.js
+      - name: Genuine match outcome and debrief regression
+        run: |
+          node --test \
+            tests/webgl-elimination-victory-banner-20261108.test.mjs \
+            tests/sandforge-building-victory-20261117.test.mjs \
+            tests/sandforge-ai35-bastion-defense-20261118.test.mjs \
+            tests/sandforge-ai34-bastion-control-20261118.test.mjs \
+            tests/sandforge-ai33-bastion-near-capture-20261118.test.mjs \
+            tests/reborn-ai-ignore-drone-20261118.test.mjs

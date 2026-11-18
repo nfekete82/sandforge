@@ -30,6 +30,7 @@ cpSync('scripts/webgl-preview.js','dist/webgl-preview.js');
 cpSync('scripts/webgl-biomes.js','dist/webgl-biomes.js');
 cpSync('scripts/webgl-golden-hour.js','dist/webgl-golden-hour.js');
 cpSync('scripts/webgl-match-result.js','dist/webgl-match-result.js');
+cpSync('scripts/webgl-battle-debrief.js','dist/webgl-battle-debrief.js');
 cpSync('scripts/webgl-desert-art.js','dist/webgl-desert-art.js');
 cpSync('scripts/webgl-desert-style.js','dist/webgl-desert-style.js');
 cpSync('scripts/webgl-sand-pbr.js','dist/webgl-sand-pbr.js');
