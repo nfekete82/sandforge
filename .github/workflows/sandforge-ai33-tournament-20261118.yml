@@ -1,0 +1,140 @@
+name: Sandforge AI 3.2 vs 3.3 - paired map-size tournament
+on:
+  push:
+    branches: [feat/sandforge-ai33-map-adaptive-20261118]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-ai33-ab-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  preflight:
+    name: Verify same-binary ablation and six paired battlefields
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile headless simulation without Mac-only GLB assets
+        run: npx tsc -p tsconfig.json
+      - name: Verify deterministic AI 3.3 rules and paired report parser
+        run: node --test tests/sandforge-ai33-map-adaptive-20261118.test.mjs tests/sandforge-ai33-tournament-report-20261118.test.mjs
+      - name: Run identical starting worlds using only a runtime policy toggle
+        run: |
+          mkdir -p ai33-artifacts
+          node scripts/ai-test-arena.mjs \
+            --maps 24,25,26 --seeds 2601,2602 --seconds 180 \
+            --modes director --opponent contesting --ai33 off \
+            --label ai32-preflight --output ai33-artifacts/smoke-before.json
+          node scripts/ai-test-arena.mjs \
+            --maps 24,25,26 --seeds 2601,2602 --seconds 180 \
+            --modes director --opponent contesting --ai33 adaptive \
+            --label ai33-preflight --output ai33-artifacts/smoke-after.json
+          node scripts/ai-test-arena-compare.mjs \
+            ai33-artifacts/smoke-before.json ai33-artifacts/smoke-after.json \
+            ai33-artifacts/smoke-comparison.md
+          node --input-type=module -e '
+            import {readFileSync} from "node:fs";
+            const old=JSON.parse(readFileSync("ai33-artifacts/smoke-before.json"));
+            const next=JSON.parse(readFileSync("ai33-artifacts/smoke-after.json"));
+            if(old.simulationSourceHash!==next.simulationSourceHash||
+              old.ai33Policy!=="off"||next.ai33Policy!=="adaptive"||
+              old.completedRuns!==6||next.completedRuns!==6)
+              throw Error("Preflight did not use same compiled game with six matched A/B pairs");
+          '
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai33-preflight
+          path: ai33-artifacts/
+          retention-days: 30
+
+  arena:
+    name: ${{ matrix.bastions }} Bastions / 20 matched 3.2-vs-3.3 battles
+    needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - map: 24
+            bastions: 8
+          - map: 25
+            bastions: 12
+          - map: 26
+            bastions: 16
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile exact common simulation for both AI versions
+        run: npx tsc -p tsconfig.json
+      - name: Run 20 baseline AI 3.2 contests (identical paid resources)
+        env:
+          MAP_VERSION: ${{ matrix.map }}
+        run: |
+          mkdir -p ai33-artifacts
+          node scripts/ai-test-arena.mjs \
+            --maps "$MAP_VERSION" \
+            --seeds 2601,2602,2603,2604,2605,2606,2607,2608,2609,2610,2611,2612,2613,2614,2615,2616,2617,2618,2619,2620 \
+            --seconds 900 --modes director --opponent contesting \
+            --ai33 off --label "KI-3.2-map-$MAP_VERSION" \
+            --output "ai33-artifacts/arena-$MAP_VERSION-before.json"
+      - name: Run 20 KI 3.3 contests with exactly the same initial world
+        env:
+          MAP_VERSION: ${{ matrix.map }}
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps "$MAP_VERSION" \
+            --seeds 2601,2602,2603,2604,2605,2606,2607,2608,2609,2610,2611,2612,2613,2614,2615,2616,2617,2618,2619,2620 \
+            --seconds 900 --modes director --opponent contesting \
+            --ai33 adaptive --label "KI-3.3-map-$MAP_VERSION" \
+            --output "ai33-artifacts/arena-$MAP_VERSION-after.json"
+      - name: Reject mismatched starting worlds and report local results
+        env:
+          MAP_VERSION: ${{ matrix.map }}
+        run: |
+          node scripts/ai-test-arena-compare.mjs \
+            "ai33-artifacts/arena-$MAP_VERSION-before.json" \
+            "ai33-artifacts/arena-$MAP_VERSION-after.json" \
+            "ai33-artifacts/arena-$MAP_VERSION-comparison.md"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai33-map-${{ matrix.map }}
+          path: ai33-artifacts/
+          retention-days: 45
+
+  summary:
+    name: Publish 60 paired AI 3.2 / AI 3.3 results
+    needs: arena
+    if: ${{ always() && needs.arena.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ai33-map-*
+          merge-multiple: true
+          path: reports/
+      - name: Verify same binary, 60 pairs, 3 map sizes and honest timeout counting
+        run: |
+          node scripts/ai33-tournament-report.mjs reports reports/ai33-tournament.md
+          cat reports/ai33-tournament.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai33-final-tournament-60-pairs
+          path: reports/
+          retention-days: 90
