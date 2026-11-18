@@ -42,7 +42,7 @@ export const buildingSpec=(b:{kind?:BuildingKind}):BuildingSpec=>BUILDINGS[b.kin
 export const unitKinds=Object.keys(UNITS) as UnitKind[];
 export const buildingKinds=Object.keys(BUILDINGS) as BuildingKind[];
 
-export const canAttack=(u:{kind?:UnitKind},target:{kind?:UnitKind|BuildingKind;queue?:unknown}):boolean=>u.kind!=='drone'&&'queue' in target||unitSpec(u).targetsAir!==false||!unitSpec(target as {kind?:UnitKind}).flying;
+export const canAttack=(u:{kind?:UnitKind},target:{kind?:UnitKind|BuildingKind;queue?:unknown}):boolean=>u.kind!=='drone'&&('queue' in target||unitSpec(u).targetsAir!==false||!unitSpec(target as {kind?:UnitKind}).flying);
 /** Balanced separately from the anti-armor main gun; both are independent weapon clocks. */
 export const TANK_MG={damage:18,cooldown:.55,range:230} as const;
 /** Conventional small arms and roof MGs still excel against infantry.
