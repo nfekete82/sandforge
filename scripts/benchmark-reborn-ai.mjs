@@ -9,7 +9,7 @@ import {createHash} from 'node:crypto';
 import {readFileSync,mkdirSync,writeFileSync,renameSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {blueDefense,blueContest} from './benchmark-ai-opponent.mjs';
+import {blueDefense,blueContest,blueBastionRush} from './benchmark-ai-opponent.mjs';
 import {createArtilleryObserver} from './ai-artillery-observer.mjs';
 import {createEndgameObserver} from './ai-51-endgame-observer.mjs';
 
@@ -27,18 +27,18 @@ export function parseOptions(argv){
  for(let i=0;i<argv.length;i+=2){
   if(!argv[i].startsWith('--')||argv[i+1]===undefined||argv[i+1].startsWith('--'))throw Error('Every option requires a value.');
   const key=argv[i].slice(2);
-  if(!['map','maps','seconds','seeds','opponent','modes','output','label','ai33'].includes(key))throw Error('Unknown option: '+argv[i]);
+  if(!['map','maps','seconds','seeds','opponent','modes','output','label','ai33','ai35'].includes(key))throw Error('Unknown option: '+argv[i]);
   values[key]=argv[i+1];
  }
  const result={maps:String(values.maps??values.map??4).split(',').map(Number),seconds:Number(values.seconds??240),
   seeds:String(values.seeds??'2026,2027,2028').split(',').map(Number),opponent:values.opponent??'guarded',
   modes:String(values.modes??'baseline,director').split(','),output:values.output?resolve(values.output):null,label:values.label??'current',
-  ai33:values.ai33??'adaptive'};
+  ai33:values.ai33??'adaptive',ai35:values.ai35??'control'};
  if(result.maps.some(v=>![3,4,5,23,24,25,26].includes(v))||new Set(result.maps).size!==result.maps.length
-  ||!['guarded','contesting','idle'].includes(result.opponent)||!Number.isInteger(result.seconds)||result.seconds<30||result.seconds>3600
+  ||!['guarded','contesting','bastion-rush','idle'].includes(result.opponent)||!Number.isInteger(result.seconds)||result.seconds<30||result.seconds>3600
   ||result.seeds.length<1||result.seeds.length>24||result.seeds.some(v=>!Number.isSafeInteger(v)||v<0||v>4294967295)
   ||new Set(result.seeds).size!==result.seeds.length||result.modes.some(v=>!['baseline','director'].includes(v))
-  ||new Set(result.modes).size!==result.modes.length||!['off','adaptive'].includes(result.ai33))
+  ||new Set(result.modes).size!==result.modes.length||!['off','adaptive'].includes(result.ai33)||!['off','control'].includes(result.ai35))
     throw Error('Invalid benchmark options.');
  return result;
 }
@@ -64,6 +64,7 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
  // Controlled ablation within ONE compiled game: 'off' is exact AI 3.2
  // tactical policy, 'adaptive' enables KI 3.3. No saved game or cost changes.
  if('ai33Mode' in g.tactical)g.tactical.ai33Mode=options.ai33??'adaptive';
+ if('ai35Mode' in g.tactical)g.tactical.ai35Mode=options.ai35??'control';
  if(options.plannerMode&&'planningMode' in g.tactical)g.tactical.planningMode=options.plannerMode;
  if(options.waveMode&&'waveMode' in g.tactical)g.tactical.waveMode=options.waveMode;
  if(options.doctrineMode&&'doctrineMode' in g.tactical)g.tactical.doctrineMode=options.doctrineMode;
@@ -77,7 +78,7 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
  const initialHQId=initialHQ?.id,initialHQHp=initialHQ?.hp??0;
  const startingRedSectors=g.territories.filter(t=>t.owner===1).length;
  const metrics={seed,mode,mapVersion:version,label:options.label,opponent:options.opponent,
-  ai33Policy:options.ai33??'adaptive',initialStateHash,initialStateHashScope:'playable-world-v1',
+  ai33Policy:options.ai33??'adaptive',ai35Policy:options.ai35??'control',initialStateHash,initialStateHashScope:'playable-world-v1',
   requestedSeconds:options.seconds,elapsedSeconds:0,terminalStatus:'playing',outcome:'timeout',win:false,loss:false,
   initialCredits:g.credits[1],initialComposition:{red:Object.fromEntries(Object.keys(UNITS).map(k=>[k,g.units.filter(u=>u.owner===1&&u.kind===k).length])),blue:Object.fromEntries(Object.keys(UNITS).map(k=>[k,g.units.filter(u=>u.owner===0&&u.kind===k).length]))},firstAssault:null,firstOrganizedAttack:null,firstVehicle:null,firstTank:null,
   firstArtillery:null,firstAircraft:null,firstEnemyHQSeen:null,firstEnemyHQDamage:null,firstEnemyHQDestroyed:null,
@@ -206,7 +207,7 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
  try{
   for(let step=0;step<steps&&g.status==='playing';step++){
    if(options.opponent!=='idle'&&step%60===0)
-    (options.defender??(options.opponent==='contesting'?blueContest:blueDefense))(g);
+    (options.defender??(options.opponent==='bastion-rush'?blueBastionRush:options.opponent==='contesting'?blueContest:blueDefense))(g);
    const at=performance.now();g.step(dt);stepTimes.push(performance.now()-at);options.observe?.(g);artilleryObserver.sample(g);endgameObserver.sample(g);
    const s=g.tactical.state,now=time();metrics.elapsedSeconds=now;
    for(const u of g.units){

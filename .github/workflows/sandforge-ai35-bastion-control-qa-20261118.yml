@@ -1,0 +1,99 @@
+name: Sandforge KI 3.5 Bastion Control Lab
+on:
+  push:
+    branches: ['feat/sandforge-ai35-bastion-defense-local-20261118']
+  pull_request:
+    branches: ['feat/sandforge-ai34-bastion-control-local-20261118']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ai35-qa:
+    name: 3.5 defense, fog, recon, construction and gameplay
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and complete WebGL import audit
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: AI 3.5 and existing anti-regression suite
+        run: |
+          node --test \
+            tests/sandforge-ai35-bastion-defense-20261118.test.mjs \
+            tests/sandforge-ai34-bastion-control-20261118.test.mjs \
+            tests/sandforge-ai33-map-adaptive-20261118.test.mjs \
+            tests/reborn-bastion-priority-20261117.test.mjs \
+            tests/reborn-bastion-defense.test.mjs \
+            tests/reborn-threat-response.test.mjs \
+            tests/reborn-ai-ignore-drone-20261118.test.mjs \
+            tests/sandforge-ai33-bastion-near-capture-20261118.test.mjs \
+            tests/sandforge-ai33-drone-hud-unstick-20261118.test.mjs \
+            tests/sandforge-engineer-sequential-orders.test.mjs
+  ai35-ab:
+    name: AI 3.4 vs 3.5, same simulation binary and identical map seeds
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc -p tsconfig.json
+      - name: Compile headless simulation modules
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+      - name: Compare against a humanlike paid Bastion-rush opponent
+        run: |
+          mkdir -p reports
+          for POLICY in off control; do
+            node scripts/benchmark-reborn-ai.mjs \
+              --maps 24,26 --seconds 270 --seeds 2026,2027,2028 \
+              --modes director --opponent bastion-rush --ai33 adaptive \
+              --ai35 "$POLICY" --label "$POLICY" \
+              --output "reports/$POLICY.json" > "reports/$POLICY.log"
+          done
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const old=JSON.parse(fs.readFileSync('reports/off.json','utf8'));
+          const latest=JSON.parse(fs.readFileSync('reports/control.json','utf8'));
+          if(!old.complete||!latest.complete||old.details.length!==6||latest.details.length!==6)
+           throw Error('Incomplete 3.4-vs-3.5 paired match set');
+          if(old.simulationSourceHash!==latest.simulationSourceHash)
+           throw Error('Different compiled simulation binaries');
+          for(const size of [24,26]){
+           const a=old.details.filter(d=>d.mapVersion===size);
+           const b=latest.details.filter(d=>d.mapVersion===size);
+           const paired=a.map(d=>{
+            const v=b.find(x=>x.seed===d.seed);
+            if(!v||v.initialStateHash!==d.initialStateHash)
+             throw Error('Different initial units, fog, terrain or credits');
+            const share=x=>x.bastionControlSeconds/(x.elapsedSeconds*(size===24?8:16));
+            return {seed:d.seed,
+              baseline:{win:d.win,held:d.redSectors,lost:d.territoriesLost,control:share(d)},
+              experimental:{win:v.win,held:v.redSectors,lost:v.territoriesLost,control:share(v)},
+              controlDelta:share(v)-share(d)};
+           });
+           const mean=a=>a.reduce((s,x)=>s+x,0)/a.length;
+           console.log('SAME-BINARY BASTION-RUSH A/B',JSON.stringify({
+            map:size,baseline:mean(paired.map(p=>p.baseline.control)),
+            experimental:mean(paired.map(p=>p.experimental.control)),
+            meanDelta:mean(paired.map(p=>p.controlDelta)),pairs:paired
+           }));
+          }
+          NODE
+      - name: Archive matched full simulation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai35-paired-bastion-match-data
+          path: reports/
+          retention-days: 45

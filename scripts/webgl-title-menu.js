@@ -72,6 +72,8 @@
   // Keep local A/B policy selection while navigating from the main menu.
   if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
    params.set('ai33',query.get('ai33'));
+  if(query.get('ai35')==='off'||query.get('ai35')==='control')
+   params.set('ai35',query.get('ai35'));
   if(resume)params.set('resume','1');
   if(legacy)params.set('legacy','1');
   const options=readOptions();

@@ -5,6 +5,7 @@ import {Simulation} from '../dist/src/reborn/simulation.js';
 import {eliminationOutcome,hasFactionAssets}
  from '../dist/src/reborn/match-outcome.js';
 import {matchResultCopy} from '../scripts/webgl-match-result.js';
+import {createBattleDebrief,battleDebriefCopy} from '../scripts/webgl-battle-debrief.js';
 
 const soldier=(owner,overrides={})=>({owner,hp:100,kind:'infantry',...overrides});
 const building=(owner,overrides={})=>({owner,hp:500,kind:'turret',buildRemaining:0,...overrides});
@@ -167,4 +168,54 @@ test('outcome evaluation uses current live HP and excludes dead HQ capture stubs
  assert.doesNotMatch(code,/campaignLayout\(this\.world\.mapVersion,this\.seed\)\.starts\[1\]\.every/);
  assert.doesNotMatch(code,/this\.status='victory'/);
  assert.doesNotMatch(code,/this\.status='defeat'/);
+});
+
+
+test('postgame debrief tracks real sector control without modifying simulation',()=>{
+ const g=fresh();g.time=0;g.status='playing';
+ const before=JSON.stringify(g.save()),reporter=createBattleDebrief(g);
+ assert.equal(reporter.report().allies[0].captures,0);
+ assert.equal(reporter.report().allies[1].captures,0);
+ const target=g.territories.find(t=>t.owner!==0);
+ assert.ok(target);
+ g.time=6;target.owner=0;reporter.sample();
+ g.time=11;reporter.sample();
+ let out=reporter.report();
+ assert.equal(out.allies[0].captures,1);
+ assert.equal(out.allies[0].lost,0);
+ assert.equal(out.allies[0].peak>=1,true);
+ assert.equal(out.events[0].owner,0);
+ g.time=18;target.owner=1;reporter.sample();
+ out=reporter.report();
+ assert.equal(out.allies[0].lost,1);
+ assert.equal(out.allies[1].captures>=1,true);
+ assert.ok(out.allies[0].controlSeconds>0);
+ assert.ok(out.allies[0].share>=0&&out.allies[0].share<=1);
+ assert.equal(before.includes('battleDebrief'),false);
+ assert.equal(JSON.stringify(g.save()).includes('battleDebrief'),false);
+ const copy=battleDebriefCopy(out,'victory');
+ assert.match(copy.label,/Gefechtsbilanz/);
+ assert.ok(copy.facts.some(x=>x[0]==='Ø Gebietskontrolle'));
+ assert.equal(copy.events[0].includes('Rot'),true);
+});
+test('resumed sessions make no invented full-game history claims',()=>{
+ const g=fresh(),recorder=createBattleDebrief(g,{resumed:true});
+ const data=recorder.report();
+ assert.equal(data.duration,0);
+ assert.equal(data.allies[0].share,0);
+ assert.match(battleDebriefCopy(data,'defeat').note,/seit dem Laden/);
+});
+test('after-action DOM remains outside centered victory illustration',()=>{
+ const preview=readFileSync('scripts/webgl-preview.js','utf8');
+ const script=readFileSync('scripts/webgl-battle-debrief.js','utf8');
+ const style=readFileSync('src/reborn/webgl-classic-hud.css','utf8');
+ const build=readFileSync('scripts/build.mjs','utf8');
+ assert.match(preview,/installBattleDebrief\(document,game,\{resumed:!!session\}\)/);
+ assert.match(preview,/battleDebrief\.sample\(\)/);
+ assert.match(preview,/battleDebrief\.render\(game\.status\)/);
+ assert.match(script,/doc\.body\.append\(root\)/);
+ assert.match(style,/#sf3d-battle-debrief\.sf3d-battle-debrief/);
+ assert.match(style,/pointer-events:auto/);
+ assert.match(build,/cpSync\('scripts\/webgl-battle-debrief\.js','dist\/webgl-battle-debrief\.js'\)/);
+ assert.ok(existsSync('dist/webgl-battle-debrief.js'));
 });

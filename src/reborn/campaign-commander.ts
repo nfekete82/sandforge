@@ -6,12 +6,13 @@ import {rateMission,type EnemyStrategy} from './adaptive-strategy.js';
 import {learnedMissionBias,type Experience} from './battle-learning.js';
 import type {Loss} from './tactical-ai.js';
 import {replanAfterLoss} from './ai25-doctrine.js';
+import {publicBastionDeficit} from './ai35-bastion-doctrine.js';
 
 export type CampaignPhase='opening'|'expansion'|'buildup'|'offensive'|'siege'|'endgame'|'emergencyDefense';
 export interface WarMission extends Point {kind:'capture'|'structure'|'hunt';sector:number;objective:number|null;since:number;progressAt:number;distance:number;hp:number}
 export interface ReconTask extends Point {unit:number;since:number}
 export interface CampaignState {version:1;phase:CampaignPhase;phaseSince:number;mission?:WarMission;recon:ReconTask[];survey:{x:number;y:number;at:number}[];intel:{id:number;seenAt:number}[];aborted:number;observedEnemyHQ?:Point&{id:number};enemyHQEliminatedAt?:number;alternatives?:{sector:number;score:number;expectedLoss:number;budgetCost:number}[]}
-export interface MissionContext {strategy:EnemyStrategy;force:Unit[];losses:Loss[];fronts:FailedFront[];route:(p:Point)=>{length:number;risk:number}|undefined;intelligent?:boolean;experience?:Experience}
+export interface MissionContext {strategy:EnemyStrategy;force:Unit[];losses:Loss[];fronts:FailedFront[];route:(p:Point)=>{length:number;risk:number}|undefined;intelligent?:boolean;bastionControl?:boolean;experience?:Experience}
 export const newCampaign=():CampaignState=>({version:1,phase:'opening',phaseSince:0,recon:[],survey:[],intel:[],aborted:0});
 /** Preserve a recent, observed tower objective after confirmed HQ loss,
  * unless the screen suffers substantial losses or artillery disappears. */
@@ -60,9 +61,11 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  const unheld=g.territories.filter(t=>t.owner!==1);
  const securingBastions=unheld.length>0;
  // Public 3:1 sector ownership means a severe economic deficit.
+ const blueOwned=g.territories.filter(t=>t.owner===0).length,
+  redOwned=g.territories.filter(t=>t.owner===1).length;
  const pressured=g.world.mapVersion>=23&&g.territories.length===4&&
-  g.territories.filter(t=>t.owner===0).length>=3&&
-  g.territories.filter(t=>t.owner===1).length<=1;
+  blueOwned>=3&&redOwned<=1||
+  !!context?.bastionControl&&publicBastionDeficit(g.world.mapVersion,blueOwned,redOwned);
  const canKeepBlockingObjective=(mission:WarMission,remembered:Memory|undefined)=>{
   if(!remembered||g.territories[mission.sector]?.owner===1)return false;
   const target=g.territories[mission.sector];
@@ -150,7 +153,8 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
   const retake=context?.experience?.lastLostSector===t.id;
   const score=distance(origin,t.point)-t.income*10-
    (clear&&t.owner===-1?1800:0)-
-   (pressured&&clear&&t.owner===0&&!visibleGuards?1700:0)-
+   (pressured&&clear&&t.owner===0&&!visibleGuards?
+    (context?.bastionControl?2300:1700):0)-
    (retake?1450:0)+(blockers.length?1000:0)+(t.owner===0?200:0);
   choices.push({kind:'capture',p:t.point,sector:t.id,objective:null,hp:0,score});
   // A physical shield must be destroyed before the Bastion can be secured.
