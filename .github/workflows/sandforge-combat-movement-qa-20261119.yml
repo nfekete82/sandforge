@@ -40,7 +40,7 @@ jobs:
             tests/reborn-tank-dual-weapon.test.mjs \
             tests/sandforge-rocket-launcher-polish.test.mjs
   benchmark:
-    name: Realistic Bastion-rush smoke: AI 3.6 movement before vs after
+    name: 'Realistic Bastion-rush smoke: AI 3.6 movement before vs after'
     needs: movement
     runs-on: ubuntu-latest
     timeout-minutes: 28
