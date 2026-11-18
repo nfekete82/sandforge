@@ -346,23 +346,6 @@ export function unitIcon(kind,renderer){
    '</svg>';
   return Promise.resolve('data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg));
  }
- if(kind==='supply'){
-  // Dedicated 6-wheel logistics truck, not a missing animated atlas.
-  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 132">'+
-   '<rect width="192" height="132" fill="#1d2828"/>'+
-   '<rect x="16" y="61" width="108" height="45" rx="7" fill="#aba080"/>'+
-   '<rect x="112" y="71" width="52" height="35" rx="4" fill="#b7a789"/>'+
-   '<rect x="119" y="75" width="27" height="16" fill="#354849"/>'+
-   '<rect x="26" y="47" width="85" height="20" rx="5" fill="#89876b"/>'+
-   '<rect x="26" y="94" width="136" height="9" fill="#425451"/>'+
-   '<circle cx="45" cy="108" r="13" fill="#343c3a"/>'+
-   '<circle cx="104" cy="108" r="13" fill="#343c3a"/>'+
-   '<circle cx="147" cy="108" r="13" fill="#343c3a"/>'+
-   '<path d="M36 80h56" stroke="#4c909d" stroke-width="8"/>'+
-   '<path d="M38 55h58" stroke="#dbd0a5" stroke-width="4"/>'+
-   '</svg>';
-  return Promise.resolve('data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg));
- }
  if(kind==='rocket'&&!renderer)return Promise.resolve(rocketUnitIconFallback());
  if(kind==='rocket'&&!iconCache.has(kind)){
   iconCache.set(kind,new Promise((resolve,reject)=>{
