@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
-import {bastionGuardPriority,observedDefensePriority,publicBastionDeficit} from '../dist/src/reborn/ai35-bastion-doctrine.js';
+import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from '../dist/src/reborn/ai35-bastion-doctrine.js';
 import {parseOptions,runMatch} from '../scripts/benchmark-reborn-ai.mjs';
 import {UNITS} from '../dist/src/reborn/catalog.js';
 
@@ -77,4 +77,17 @@ test('humanlike Bastion rush uses only legal paid recruits and leaves a HQ defen
  assert.deepEqual(g.units.map(u=>u.id),startingIds,'no free soldiers are spawned by opponent controller');
  assert.equal(g.units.filter(u=>u.owner===0&&u.hp>0&&u.kind==='engineer').length>=1,true);
  assert.equal(parseOptions(['--opponent','bastion-rush']).opponent,'bastion-rush');
+});
+
+test('3.5 allocates only paid Bastion sentries while retaining two or three HQ guards',()=>{
+ assert.equal(bastionGarrisonReserve(24,2,8),3);
+ assert.equal(bastionGarrisonReserve(24,2,7),0);
+ assert.equal(bastionGarrisonReserve(26,3,10),4);
+ assert.equal(bastionGarrisonReserve(26,3,9),0);
+ assert.equal(bastionGarrisonReserve(26,1,20),0);
+ assert.equal(bastionGarrisonReserve(25,5,20),0);
+ assert.equal(bastionGarrisonReserve(23,4,20),0);
+ const tactical=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(tactical,/controlReserve=this\.ai35Enabled/);
+ assert.match(tactical,/policy\?\.guards\?\?0,controlReserve/);
 });

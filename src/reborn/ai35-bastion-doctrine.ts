@@ -12,6 +12,15 @@ export function bastionGuardPriority(x:GuardFront):number{
  return capture+Math.min(4,Math.max(0,x.visibleRaiders))*210+
   (x.enemyAdjacent?220:0)+Math.max(0,x.income)*9;
 }
+/** Only when enough PAID forces exist, reserve a small Bastion garrison.
+ * Eight-Bastion battles need 1 frontier + >=2 HQ guards; sixteen-Bastion
+ * battles need 1 frontier + >=3 HQ guards. Never strip a tiny army. */
+export function bastionGarrisonReserve(mapVersion:number,owned:number,available:number):number{
+ if(owned<2)return 0;
+ if(mapVersion===24&&available>=8)return 3;
+ if(mapVersion===26&&available>=10)return 4;
+ return 0;
+}
 export interface VisibleThreat {
  distanceToAsset:number;distanceToHQ:number;kind:string;
  endangeredIncome:number;insideCaptureRing:boolean;

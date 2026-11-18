@@ -20,7 +20,7 @@ import {homeDefensePlan} from './home-defense-doctrine.js';
 import {chooseSiegeShot,chooseRaidFront,allowSecondaryPressure,type SiegeShot,type RaidFront} from './ai25-doctrine.js';
 import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefenseMultiplier} from './ai32-doctrine.js';
 import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,type AI33Mode} from './ai33-map-doctrine.js';
-import {bastionGuardPriority,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
+import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import type {Simulation,Unit,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
@@ -1090,8 +1090,14 @@ export class TacticalAI {
    lastFailureAt:recentFailures.reduce((at,f)=>Math.max(at,f.at),-1),
    observedHomePressure,defendedTarget:defended,
    confirmedEndgame:c.enemyHQEliminatedAt!==undefined}):null;
+  // 3.5 retains one *real, paid* frontier sentry after controlling multiple
+  // Bastions, while preserving >=2/3 fighters at HQ. This reduces the
+  // repeated win-by-capture exploit without granting free defenders.
+  const ownBastions=g.territories.filter(t=>t.owner===1).length;
+  const controlReserve=this.ai35Enabled&&c.enemyHQEliminatedAt===undefined
+   ?bastionGarrisonReserve(g.world.mapVersion,ownBastions,mainFighters.length):0;
   const reserve=Math.max(homeGarrisonSize(mainFighters.length,c.enemyHQEliminatedAt!==undefined),
-   policy?.guards??0);
+   policy?.guards??0,controlReserve);
   // Home guards are drawn from available infantry first. Reserving a fully
   // staged tank while distant infantry are still assembling used to reduce a
   // combat-ready four-tank vanguard to three and delay a proven early wave.
