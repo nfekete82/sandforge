@@ -1,0 +1,129 @@
+name: Sandforge – Weekly AI Bastion Championship
+# Weekly on GitHub's default branch; never deploy or merge game code.
+on:
+  schedule:
+    # Sunday 02:23 UTC (03:23 CET / 04:23 CEST).
+    - cron: '23 2 * * 0'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-weekly-ai-bastion-championship
+  cancel-in-progress: false
+jobs:
+  seeds:
+    runs-on: ubuntu-latest
+    outputs:
+      seeds: ${{ steps.seedset.outputs.seeds }}
+    steps:
+      - id: seedset
+        name: Keep one stable seed and rotate two reproducible weekly seeds
+        env:
+          NUMBER: ${{ github.run_number }}
+        shell: bash
+        run: |
+          printf 'seeds=2026,%s,%s\n' "$((3001 + 2 * NUMBER))" "$((3002 + 2 * NUMBER))" >> "$GITHUB_OUTPUT"
+  matches:
+    needs: seeds
+    name: ${{ matrix.bastions }} Bastions – AI 3.2 / 3.3 / 3.4
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - map: 24
+            bastions: 8
+          - map: 25
+            bastions: 12
+          - map: 26
+            bastions: 16
+    steps:
+      - name: Read report tooling from default branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          path: report-tool
+      - name: Check out current AI 3.2/3.3 (same binary, different policy switch)
+        uses: actions/checkout@v4
+        with:
+          ref: feat/sandforge-ai33-local-lab-20261118
+          path: ai33
+          persist-credentials: false
+      - name: Check out current AI 3.4 development
+        uses: actions/checkout@v4
+        with:
+          ref: feat/sandforge-ai34-bastion-control-local-20261118
+          path: ai34
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install and compile the real branches (headless, no Mac PBR dependency)
+        shell: bash
+        run: |
+          npm ci --prefix ai33 --no-audit --no-fund
+          npm ci --prefix ai34 --no-audit --no-fund
+          (cd ai33 && npx tsc -p tsconfig.json && SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs)
+          (cd ai34 && npx tsc -p tsconfig.json && SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs)
+          mkdir -p reports
+          printf 'ai33 %s\nai34 %s\n' \
+            "$(git -C ai33 rev-parse HEAD)" "$(git -C ai34 rev-parse HEAD)" > reports/commits-map${{ matrix.map }}.txt
+      - name: Play paired seeds against the same scripted BLUE contesting opponent
+        shell: bash
+        env:
+          SEEDS: ${{ needs.seeds.outputs.seeds }}
+          MAP: ${{ matrix.map }}
+        run: |
+          set -euo pipefail
+          for VERSION in ai32 ai33 ai34; do
+            if [ "$VERSION" = ai34 ]; then DIR=ai34; POLICY=adaptive;
+            elif [ "$VERSION" = ai33 ]; then DIR=ai33; POLICY=adaptive;
+            else DIR=ai33; POLICY=off; fi
+            echo "Testing $VERSION map=$MAP seeds=$SEEDS policy=$POLICY"
+            (cd "$DIR" && node scripts/benchmark-reborn-ai.mjs \
+              --map "$MAP" --seconds 420 --seeds "$SEEDS" \
+              --modes director --opponent contesting --ai33 "$POLICY" \
+              --label "$VERSION" --output "$GITHUB_WORKSPACE/reports/$VERSION-map$MAP.json") \
+              > "reports/$VERSION-map$MAP.log"
+          done
+      - name: Preserve detailed match data even if a long match fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai-map-${{ matrix.map }}
+          path: reports/
+          if-no-files-found: warn
+          retention-days: 45
+  leaderboard:
+    name: Audit and publish weekly AI leaderboard
+    needs: matches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify that leaderboard refuses unfair and partial reports
+        run: node --test .github/scripts/weekly-report.test.mjs
+      - name: Retrieve all nine paired AI result sets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sandforge-ai-map-*
+          path: reports
+          merge-multiple: true
+      - name: Build and display the checked Bastion leaderboard
+        run: |
+          node .github/scripts/weekly-report.mjs reports out
+          cat out/leaderboard.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Archive the readable ranking and every game JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai-weekly-ranking
+          path: |
+            out/leaderboard.md
+            out/leaderboard.json
+            reports/*.json
+            reports/*commits*.txt
+          retention-days: 45
