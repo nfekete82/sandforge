@@ -29,7 +29,8 @@ test('the global dock has exactly four production tabs; research is building-onl
  assert.ok(hud.includes("panel.dataset.tab='buildings'"));
  assert.ok(hud.includes('data-action="sectors"'));
  assert.match(battlefield,/const available=globalCatalogAvailability\(g\)/);
- assert.match(battlefield,/const aircraftRoster=roster\(\[\['airfield','FLUGFELD'\]\],'Luftunterstützung'\)/);
+ assert.ok(battlefield.includes("const aircraftRoster=roster([['headquarters','KOMMANDOZENTRALE · AUFKLÄRUNG'],"));
+ assert.match(battlefield,/\['airfield','FLUGFELD'\]\],'Luftunterstützung'\)/);
  assert.match(battlefield,/const vehicleRoster=roster\(\[\['headquarters','KOMMANDOZENTRALE · LOGISTIK'\]/);
  assert.match(battlefield,/\['factory','FAHRZEUGFABRIK'\]\],'Fahrzeuge'\)/);
  assert.ok(battlefield.includes('if(!ready)return'));
@@ -166,9 +167,9 @@ test('only finished player-owned source buildings unlock their relevant producti
  const {g,add}=setup();
  const available=()=>globalCatalogAvailability(g);
  assert.deepEqual(available(),{
-  buildings:true,infantry:true,vehicles:true,aircraft:false,
+  buildings:true,infantry:true,vehicles:true,aircraft:true,
   territories:true
- },'HQ unlocks pioneer and logistics vehicle production');
+ },'HQ unlocks pioneers, logistics vehicles and recon drones');
  const barracks=add('barracks');
  barracks.buildRemaining=4;
  assert.equal(available().infantry,true);
@@ -177,25 +178,26 @@ test('only finished player-owned source buildings unlock their relevant producti
  assert.equal(available().vehicles,true,'HQ logistics works during factory construction');
  factory.buildRemaining=0;
  assert.equal(available().vehicles,true);
- assert.equal(available().aircraft,false);
+ assert.equal(available().aircraft,true);
  const airfield=add('airfield');
  airfield.buildRemaining=1;
- assert.equal(available().aircraft,false);
+ assert.equal(available().aircraft,true,'HQ drone production remains available during airfield construction');
  airfield.buildRemaining=0;
- assert.equal(available().aircraft,true,'airfield unlocks ONLY aircraft tab');
+ assert.equal(available().aircraft,true,'airfield additionally unlocks the helicopter and bomber');
  const lab=add('research');
  lab.buildRemaining=0;
  assert.equal('research' in available(),false,'research is not a global production tab');
  lab.hp=0;
  assert.equal('research' in available(),false,'destroying lab cannot show an obsolete tab');
  airfield.owner=1;
- assert.equal(available().aircraft,false,'enemy-owned airfield does not unlock air tab');
+ assert.equal(available().aircraft,true,'own HQ still permits drones after the airfield becomes enemy-owned');
  // Factory destruction hides its combat vehicles, but HQ logistics remains
  // available until the last HQ is destroyed.
  factory.hp=0;
  assert.equal(available().vehicles,true);
  g.bases.find(b=>b.kind==='headquarters'&&b.owner===0).hp=0;
  assert.equal(available().vehicles,false);
+ assert.equal(available().aircraft,false,'no surviving HQ or airfield means no aircraft production');
  assert.equal(available().buildings,true);
 });
 
