@@ -12,7 +12,7 @@ export function canCaptureSector(_territories:readonly Territory[],sector:Territ
  return (owner===0||owner===1)&&sector.owner!==owner;
 }
 
-export interface TerritoryGuard extends Point {owner:Owner;hp:number;carrier?:number|null}
+export interface TerritoryGuard extends Point {owner:Owner;hp:number;carrier?:number|null;kind?:string}
 export interface TerritoryBattery extends Point {owner:Owner;hp:number;kind:string;buildRemaining?:number}
 /** Only a truly exposed ENEMY sector is recaptured quickly. Nearby defenders
  * or a live turret in firing range preserve the full capture duration.
@@ -22,7 +22,7 @@ export function captureSeconds(input:{
 }):number{
  const {version,territory:t,attacker,units,bases}=input;
  if(!dynamicTerritoryWarfare(version)||t.owner!==1-attacker)return RULES.captureTime;
- const defended=units.some(u=>u.owner===t.owner&&u.hp>0&&!u.carrier&&distance(u,t.point)<260)
+ const defended=units.some(u=>u.owner===t.owner&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&distance(u,t.point)<260)
   ||bases.some(b=>b.owner===t.owner&&b.hp>0&&b.kind==='turret'
     &&(b.buildRemaining??0)<=0&&distance(b,t.point)<=RULES.turret.range+30);
  return defended?RULES.captureTime:5;
