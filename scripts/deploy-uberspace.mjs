@@ -4,27 +4,13 @@ import {randomBytes} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {packageProduction,sha256,validRelease} from './uberspace/package.mjs';
-import {packageWebGL} from './uberspace/webgl-package.mjs';
-import {checkWebGLRelease} from './uberspace/webgl-live-check.mjs';
-import {browserCheckWebGL} from './uberspace/webgl-browser-check.mjs';
 import {run,remote,inspect,withProbe,guardHash,unauthorizedChecks,authenticatedChecks,sshArgs,shellQuote,cancelActive,cancellation,HOST,ORIGIN,REMOTE_ROOT} from './uberspace/transport.mjs';
 import {browserCheck} from './uberspace/browser-check.mjs';
 const root=path.resolve(fileURLToPath(new URL('..',import.meta.url))),args=process.argv.slice(2),mode=args[0]??'--deploy';
-const webgl=process.env.SANDFORGE_RENDERER!=='classic';
-const publishableStatus=line=>{
- const status=line.slice(0,2),file=line.slice(3);
- return (/^[ M]{2}$/.test(status)&&file.startsWith('src/assets/reborn/buildings-3d/')&&file.endsWith('.glb'))||
-  (status==='??'&&file==='src/assets/reborn/supply-pbr/');
-};
-async function assertPublishableWorktree(){
- const {stdout}=await run('git',['status','--porcelain'],{cwd:root,quiet:true});
- const unsafe=stdout.split('\n').filter(Boolean).filter(line=>!publishableStatus(line));
- if(unsafe.length)throw Error('Uncommitted non-PBR source modifications: '+unsafe.join(', '));
-}
 for(const sig of ['SIGINT','SIGTERM'])process.once(sig,()=>{console.error('[Sandforge] Abbruch: laufende Prüfung/Übertragung beenden und Zustand wiederherstellen.');cancelActive();});
 const log=message=>console.log('[Sandforge] '+message);
 const curated=['uberspace-deployment','reborn-hq-bootstrap','reborn-production','reborn-construction-assembly','reborn-static-props-visibility','reborn-building-orientation','reborn-navigation-clearance','reborn-production-ready-notifications','reborn-campaign-records','reborn-radio','reborn-qwen-plan','reborn-animation','savegame'];
-async function localPreview(directory,release,renderer='classic'){
+async function localPreview(directory,release){
  const credentials={username:'local-check',password:randomBytes(24).toString('base64url')},authorization='Basic '+Buffer.from(credentials.username+':'+credentials.password).toString('base64');
  const server=createServer(async(req,res)=>{
   try{
@@ -34,47 +20,41 @@ async function localPreview(directory,release,renderer='classic'){
    if(file==='/')file='/index.html';else if(file.startsWith('/releases/'+release+'/'))file=file.slice(('/releases/'+release).length);
    else if(file!=='/deployment.json'){res.writeHead(404).end();return;}
    const target=path.resolve(directory,'.'+decodeURIComponent(file));if(!target.startsWith(directory+path.sep))throw Error('Invalid path');
-   const mime={'.js':'application/javascript','.json':'application/json','.png':'image/png','.css':'text/css','.html':'text/html','.webp':'image/webp','.svg':'image/svg+xml','.wav':'audio/wav','.mp3':'audio/mpeg','.gltf':'model/gltf+json','.glb':'model/gltf-binary'};
+   const mime={'.js':'application/javascript','.json':'application/json','.png':'image/png','.css':'text/css','.html':'text/html','.webp':'image/webp','.svg':'image/svg+xml','.wav':'audio/wav','.glb':'model/gltf-binary'};
    res.writeHead(200,{'Content-Type':mime[path.extname(target)]??'application/octet-stream','Cache-Control':'private, no-store'});res.end(await readFile(target));
   }catch{res.writeHead(404).end();}
  });
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
- try{return renderer==='webgl'
-  ?await browserCheckWebGL({url:'http://127.0.0.1:'+server.address().port+'/',credentials,release})
-  :await browserCheck({baseURL:'http://127.0.0.1:'+server.address().port,credentials,release});}
+ try{return await browserCheck({baseURL:'http://127.0.0.1:'+server.address().port,credentials,release});}
  finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 }
 async function status(){
  log('Prüfe SSH-Ziel, Apache, DocumentRoot, Schutzdatei und aktuelle Version.');
  const state=await inspect();const unauthorized=await unauthorizedChecks(state.current);
  if(!state.current){log('Apache geschützt; noch kein Spiel-Release aktiv.');return {current:null,unauthorized};}
- const health=await withProbe(credentials=>state.manifest?.renderer==='webgl'
-  ?checkWebGLRelease(credentials,state.current,{live:true,allAssets:false})
-  :authenticatedChecks(credentials,state.current));
+ const health=await withProbe(credentials=>authenticatedChecks(credentials,state.current));
  const result={...health,unauthorized,previous:state.state.previous??null};log(JSON.stringify(result));return result;
 }
 async function deploy(dryRun=false){
- // PBR building GLBs are authored on the Mac; accept those exact asset edits
- // but never deploy uncommitted scripts, configs, secrets or other sources.
- await assertPublishableWorktree();
+ // The legacy Uberspace package/browser verifier only understands Canvas.
+ // Never send a 3D-default build through the old partial-asset packager.
+ // --check and --rollback remain read-only/previous-version compatible.
+ if(process.env.SANDFORGE_RENDERER!=='classic')
+  throw Error('Uberspace deployment blocked: the legacy packager ships Canvas modules only. Use RC2 Docker preview; a versioned WebGL package must be validated before Uberspace deployment. Existing --check/--rollback remain available.');
+ const dirty=(await run('git',['status','--porcelain'],{cwd:root,quiet:true})).stdout.trim();
+ if(dirty&&!dryRun)throw Error('Lokale Änderungen zuerst committen; veröffentlicht werden nur nachvollziehbare Git-Versionen.');
  const commit=(await run('git',['rev-parse','HEAD'],{cwd:root,quiet:true})).stdout.trim(),branch=(await run('git',['branch','--show-current'],{cwd:root,quiet:true})).stdout.trim();
  const release='v-'+new Date().toISOString().slice(0,19).replace(/[-:]/g,'').toLowerCase()+'z'+'-'+commit.slice(0,12)+'-'+randomBytes(3).toString('hex');
  const directory=path.join(root,'release-artifacts/uberspace',release);await mkdir(directory,{recursive:true});
  log('Erzeuge aktuellen Build.');await run('npm',['run','build'],{cwd:root});
  log('Prüfe Spiel, Savegames, HQ-Aufbau, Grafik-/Audiointegration und Deployment-Invarianten.');
- await run('node',['--test',...(webgl?[
-  'sandforge-recon-drone','reborn-ai-ignore-drone-20261118',
-  'sandforge-bastion-economy-rollback-20261117',
-  'webgl-global-production-20261111','sandforge-webgl-entry',
-  'uberspace-deployment','uberspace-webgl-package-20261118'
- ]:curated).map(name=>'tests/'+name+'.test.mjs')],{cwd:root});
- if(webgl)await run('node',['--experimental-vm-modules','scripts/check-webgl-module-graph.mjs'],{cwd:root});
+ await run('node',['--test',...curated.map(name=>'tests/'+name+'.test.mjs')],{cwd:root});
  await run('python3',['-B','-m','unittest','discover','-s','tests/uberspace','-v'],{cwd:root});
  log('Packe ausschließlich Produktionsmodule, vollständige Spielassets und Versionsmanifest.');
- const pack=await (webgl?packageWebGL:packageProduction)({root,output:directory,release,commit,branch});
+ const pack=await packageProduction({root,output:directory,release,commit,branch});
  log(Object.keys(pack.manifest.files).length+' Dateien, '+(pack.bytes/1024/1024).toFixed(1)+' MiB; keine Source-Maps, Entwicklungseinstiege oder Secrets.');
  log('Phase 1/3: Prüfe lokales Produktionspaket im Browser ohne Debug-Modus.');
- const localBrowser=await localPreview(directory,release,webgl?'webgl':'classic');
+ const localBrowser=await localPreview(directory,release);
  log('Phase 1/3: Lokaler Produktionsbrowser bestanden.');
  log('Phase 2/3: Prüfe Uberspace-SSH-Zustand und Release-Zeiger.');
  const before=await inspect();
@@ -91,7 +71,7 @@ async function deploy(dryRun=false){
   log('Dry-Run erfolgreich; aktiver Stand bleibt '+(before.current??'unveröffentlicht')+'.');return;
  }
  // Local tests/build must not alter tracked files after the clean commit check.
- await assertPublishableWorktree();
+ if((await run('git',['status','--porcelain'],{cwd:root,quiet:true})).stdout.trim())throw Error('Prüfungen haben getrackte Dateien verändert; Upload abgebrochen.');
  const {token}=await remote('lease');let activated=false;
  try{
   await remote('prepare',{token,release,guardSHA256:await guardHash()});
@@ -102,21 +82,11 @@ async function deploy(dryRun=false){
   // Authentication is proven against staged files BEFORE making / active.
   await unauthorizedChecks(release);
   const result=await withProbe(async credentials=>{
-   if(webgl){
-    await checkWebGLRelease(credentials,release,{live:false});
-    await browserCheckWebGL({url:ORIGIN+'/releases/'+release+'/index.html',credentials,release});
-   }else{
-    for(const name of ['index.html','src/reborn/main.js','src/assets/reborn/props-3d/palm-tree.glb']){
-     const {request}=await import('./uberspace/transport.mjs'),r=await request(ORIGIN+'/releases/'+release+'/'+name,{credentials,method:'HEAD'});if(r.status!==200)throw Error('Staged release unavailable before activation: '+name+' '+r.status);
-    }
+   for(const name of ['index.html','src/reborn/main.js','src/assets/reborn/props-3d/palm-tree.glb']){
+    const {request}=await import('./uberspace/transport.mjs'),r=await request(ORIGIN+'/releases/'+release+'/'+name,{credentials,method:'HEAD'});if(r.status!==200)throw Error('Staged release unavailable before activation: '+name+' '+r.status);
    }
    await remote('activate',{...common,expected:before.current});activated=true;log('Release atomar aktiviert; prüfe echte HTTPS-Domain.');
-   const health=webgl
-    ?await checkWebGLRelease(credentials,release,{live:true})
-    :await authenticatedChecks(credentials,release);
-   const browser=webgl
-    ?await browserCheckWebGL({url:ORIGIN+'/',credentials,release,artifacts:directory+'/qa'})
-    :await browserCheck({baseURL:ORIGIN,credentials,release,artifacts:directory+'/qa'});
+   const health=await authenticatedChecks(credentials,release),browser=await browserCheck({baseURL:ORIGIN,credentials,release,artifacts:directory+'/qa'});
    await unauthorizedChecks(release);return {health,browser};
   });
   await remote('commit',{token,release,previous:before.current});
@@ -139,16 +109,7 @@ async function rollback(target){
  const {token}=await remote('lease');let switched=false;
  try{
   const common={token,release,guardSHA256:await guardHash()};await remote('verify',common);await unauthorizedChecks(release);
-  const result=await withProbe(async credentials=>{
-  const {request}=await import('./uberspace/transport.mjs');
-  const response=await request(ORIGIN+'/releases/'+release+'/deployment.json',{credentials,body:true});
-  if(response.status!==200)throw Error('Rollback manifest inaccessible');
-  const target=await response.json();
-  await remote('activate',{...common,expected:state.current});switched=true;
-  return target.renderer==='webgl'
-   ?checkWebGLRelease(credentials,release,{live:true})
-   :authenticatedChecks(credentials,release);
- });
+  const result=await withProbe(async credentials=>{await remote('activate',{...common,expected:state.current});switched=true;return authenticatedChecks(credentials,release);});
   await remote('commit',{token,release,previous:state.current});log('Rollback geprüft: '+JSON.stringify(result));
  }catch(error){if(switched)await remote('restore',{token,failed:release,previous:state.current,previousState:state.state});throw error;}
  finally{await remote('unlock',{token});}
