@@ -19,7 +19,7 @@ import {assaultWaveDecision,reinforcementStagingPoint} from './assault-wave.js';
 import {homeDefensePlan} from './home-defense-doctrine.js';
 import {chooseSiegeShot,chooseRaidFront,allowSecondaryPressure,type SiegeShot,type RaidFront} from './ai25-doctrine.js';
 import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefenseMultiplier} from './ai32-doctrine.js';
-import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,type AI33Mode} from './ai33-map-doctrine.js';
+import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,type AI33Mode} from './ai33-map-doctrine.js';
 import type {Simulation,Unit,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
@@ -1348,15 +1348,22 @@ export class TacticalAI {
   this.contestOpeningBastions();
  }
  /**
-  * AI 3.0: contest nearby free Bastions before a full assault army exists.
-  * A third captured Bastion is an ECONOMIC emergency: if the player holds
-  * 3 of 4, a two-unit PAID raiding pair presses the weakest exposed sector.
-  * Never inspect unseen soldiers/buildings; ownership is public information.
+  * AI 3.0/3.4: contest nearby free Bastions before a full assault army
+  * exists. AI 3.4 extends the paid opening to 8/16-Bastion maps: on these
+  * maps 3.3 previously conceded every neutral objective before attacking.
+  * A public player Bastion majority redirects a real two-soldier squad
+  * to a reachable, observed-safe recapture. No unseen threat knowledge.
   */
  private contestOpeningBastions():Set<number>{
   const g=this.g,s=this.state;
-  if(this.mode!=='director'||g.world.mapVersion<23||g.territories.length!==4||
-     g.time>145||g.status!=='playing'){s.openingContests=[];return new Set();}
+  const adaptiveLarge=this.ai33Mode==='adaptive'&&
+   (g.world.mapVersion===24||g.world.mapVersion===26);
+  const openingLimit=adaptiveLarge?(g.world.mapVersion===24?210:255):145;
+  if(this.mode!=='director'||g.world.mapVersion<23||
+     !(g.territories.length===4||adaptiveLarge)||
+     g.time>openingLimit||g.status!=='playing'){
+    s.openingContests=[];return new Set();
+  }
   const seen=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u));
   if(seen.some(u=>g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<550))){
    s.openingContests=[];return new Set(); // real invasion: preserve home defense
@@ -1368,9 +1375,12 @@ export class TacticalAI {
    !s.group.includes(u.id)).sort((a,b)=>a.id-b.id);
   const blue=g.territories.filter(t=>t.owner===0).length;
   const red=g.territories.filter(t=>t.owner===1).length;
-  const counter=blue>=3&&red<=1&&g.time>=30&&ready.length>=5;
+  const large=adaptiveLarge
+   ?mapBastionContestOpening(g.world.mapVersion,g.time,blue,red,ready.length)
+   :null;
+  const counter=large?.counter??(blue>=3&&red<=1&&g.time>=30&&ready.length>=5);
   const targets=g.territories.filter(t=>t.owner===-1||counter&&t.owner===0);
-  const maxAssigned=counter?2:ready.length>=3?2:ready.length?1:0;
+  const maxAssigned=large?.slots??(counter?2:ready.length>=3?2:ready.length?1:0);
   if(!targets.length||!maxAssigned){s.openingContests=[];return new Set();}
   const blockers=[...this.obstacles(),...g.bastionColliders()];
   const observedThreat=(t:typeof targets[number])=>
@@ -1408,8 +1418,12 @@ export class TacticalAI {
    const goals=targets.filter(t=>!observedThreat(t)&&
      (counter||!s.openingContests!.some(e=>e.sectorId===t.id)))
     .map(t=>({t,p:approach(squad[0],t)})).filter(x=>x.p)
-    .sort((a,b)=>distance(squad[0],a.p!)-distance(squad[0],b.p!)-
-     (a.t.income-b.t.income)*8||a.t.id-b.t.id);
+    .sort((a,b)=>{
+     const merit=(v:typeof a)=>
+      distance(squad[0],v.p!)-v.t.income*8-
+      (adaptiveLarge&&counter&&v.t.owner===0?700:0);
+     return merit(a)-merit(b)||a.t.id-b.t.id;
+    });
    const best=goals.find(x=>squad.every(u=>approach(u,x.t)));
    if(!best)break;
    for(const u of squad){
