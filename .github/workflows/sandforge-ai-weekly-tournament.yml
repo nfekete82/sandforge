@@ -1,4 +1,4 @@
-name: Sandforge – Weekly AI Bastion Championship (3.2–3.5)
+name: Sandforge – Weekly AI Bastion Championship (3.2–3.6)
 # Weekly on GitHub's default branch; never deploy or merge game code.
 on:
   schedule:
@@ -25,7 +25,7 @@ jobs:
           printf 'seeds=2026,%s,%s\n' "$((3001 + 2 * NUMBER))" "$((3002 + 2 * NUMBER))" >> "$GITHUB_OUTPUT"
   matches:
     needs: seeds
-    name: ${{ matrix.bastions }} Bastions – AI 3.2 / 3.3 / 3.4 / 3.5
+    name: ${{ matrix.bastions }} Bastions – AI 3.2 / 3.3 / 3.4 / 3.5 / 3.6
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -62,6 +62,12 @@ jobs:
           ref: feat/sandforge-ai35-bastion-defense-local-20261118
           path: ai35
           persist-credentials: false
+      - name: Check out experimental AI 3.6 coordinated Bastion recapture
+        uses: actions/checkout@v4
+        with:
+          ref: feat/sandforge-ai36-coordinated-recapture-lab-20261118
+          path: ai36
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -71,12 +77,14 @@ jobs:
           npm ci --prefix ai33 --no-audit --no-fund
           npm ci --prefix ai34 --no-audit --no-fund
           npm ci --prefix ai35 --no-audit --no-fund
+          npm ci --prefix ai36 --no-audit --no-fund
           (cd ai33 && npx tsc -p tsconfig.json && SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs)
           (cd ai34 && npx tsc -p tsconfig.json && SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs)
           (cd ai35 && npx tsc -p tsconfig.json && SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs)
+          (cd ai36 && npx tsc -p tsconfig.json && SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs)
           mkdir -p reports
-          printf 'ai33 %s\nai34 %s\nai35 %s\n' \
-            "$(git -C ai33 rev-parse HEAD)" "$(git -C ai34 rev-parse HEAD)" "$(git -C ai35 rev-parse HEAD)" > reports/commits-map${{ matrix.map }}.txt
+          printf 'ai33 %s\nai34 %s\nai35 %s\nai36 %s\n' \
+            "$(git -C ai33 rev-parse HEAD)" "$(git -C ai34 rev-parse HEAD)" "$(git -C ai35 rev-parse HEAD)" "$(git -C ai36 rev-parse HEAD)" > reports/commits-map${{ matrix.map }}.txt
       - name: Play paired seeds against the same scripted BLUE contesting opponent
         shell: bash
         env:
@@ -84,8 +92,9 @@ jobs:
           MAP: ${{ matrix.map }}
         run: |
           set -euo pipefail
-          for VERSION in ai32 ai33 ai34 ai35; do
-            if [ "$VERSION" = ai35 ]; then DIR=ai35; POLICY=adaptive; EXTRA=(--ai35 control);
+          for VERSION in ai32 ai33 ai34 ai35 ai36; do
+            if [ "$VERSION" = ai36 ]; then DIR=ai36; POLICY=adaptive; EXTRA=(--ai35 control --ai36 coordinated);
+            elif [ "$VERSION" = ai35 ]; then DIR=ai35; POLICY=adaptive; EXTRA=(--ai35 control);
             elif [ "$VERSION" = ai34 ]; then DIR=ai34; POLICY=adaptive; EXTRA=();
             elif [ "$VERSION" = ai33 ]; then DIR=ai33; POLICY=adaptive; EXTRA=();
             else DIR=ai33; POLICY=off; EXTRA=(); fi
@@ -116,7 +125,7 @@ jobs:
           node-version: '22'
       - name: Verify that leaderboard refuses unfair and partial reports
         run: node --test .github/scripts/weekly-report.test.mjs
-      - name: Retrieve all twelve paired AI result sets
+      - name: Retrieve all fifteen paired AI result sets
         uses: actions/download-artifact@v4
         with:
           pattern: sandforge-ai-map-*
