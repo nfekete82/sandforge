@@ -58,7 +58,7 @@ export function firstSiegeRocketReserve(input:{
 /** A production/building policy inside the existing tactical controller, using only paid game APIs. */
 export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p:Point)=>number):void{
  const e:EconomyState=s.economy??{goal:null,since:g.time,attemptAt:-9,produced:{},built:{}},own=g.bases.filter(b=>b.owner===1&&b.hp>0),home=own.find(b=>b.kind==='headquarters')??own[0];if(!home)return;
- const fighters=army.filter(fighter),workers=army.filter(u=>u.kind==='engineer'&&!u.carrier),seen=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)),income=g.income(1);
+ const fighters=army.filter(fighter),workers=army.filter(u=>u.kind==='engineer'&&!u.carrier),seen=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)),income=g.income(1);
  const underAttack=seen.some(u=>own.some(b=>distance(b,u)<480)),known=s.knownTurrets.length;
  const director=g.world.mapVersion>=3&&g.tactical.mode==='director';
  const finishing=director&&s.commander?.enemyHQEliminatedAt!==undefined;

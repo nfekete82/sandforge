@@ -169,7 +169,7 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
   const alternatives:{sector:number;score:number;expectedLoss:number;budgetCost:number}[]=[];
   for(const choice of choices){
    const forts=buildings.filter(b=>b.kind==='turret'&&distance(b,choice.p)<800);
-   const defenders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&distance(u,choice.p)<450);
+   const defenders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)&&distance(u,choice.p)<450);
    const seen=s.intel.find(i=>i.id===choice.objective)?.seenAt??g.time-45;
    const failed=context.fronts.filter(f=>f.sector===choice.sector&&g.time-f.at<120).reduce((n,f)=>n+f.failures,0);
    const rating=rateMission({base:choice.score,distance:distance(origin,choice.p),income:g.income(1),missingCredits:forts.length&&!siege?Math.max(0,600-g.credits[1]):0,

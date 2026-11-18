@@ -45,7 +45,7 @@ export type CounterRole='rocket'|'bomber';
 export function selectObservedCounterTarget(role:CounterRole,source:Point,
  seen:readonly ObservedCounterTarget[],maxDistance:number,
  mission?:Point):ObservedCounterTarget|undefined{
- return seen.filter(u=>u.hp>0&&
+ return seen.filter(u=>u.hp>0&&u.kind!=='drone'&&
    (role==='rocket'&&(UNITS[u.kind].flying||UNITS[u.kind].group==='Fahrzeuge')||
     role==='bomber'&&!UNITS[u.kind].flying&&UNITS[u.kind].group==='Fahrzeuge')&&
    distance(source,u)<=maxDistance&&
