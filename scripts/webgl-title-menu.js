@@ -69,6 +69,9 @@
  const saved=readSave();
  const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert'}={})=>{
   const params=new URLSearchParams({bastions:String(count),seed:String(seed>>>0),play:'1'});
+  // Keep local A/B policy selection while navigating from the main menu.
+  if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
+   params.set('ai33',query.get('ai33'));
   if(resume)params.set('resume','1');
   if(legacy)params.set('legacy','1');
   const options=readOptions();

@@ -27,6 +27,7 @@ jobs:
           node --test \
             tests/sandforge-ai32-multifront-20261117.test.mjs \
             tests/sandforge-ai33-map-adaptive-20261118.test.mjs \
+            tests/sandforge-ai33-local-url-20261118.test.mjs \
             tests/reborn-ai-ignore-drone-20261118.test.mjs \
             tests/sandforge-recon-drone.test.mjs \
             tests/sandforge-bastion-economy-rollback-20261117.test.mjs \
