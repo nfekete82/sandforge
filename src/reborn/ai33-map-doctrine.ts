@@ -4,6 +4,23 @@
  * Pure and deterministic so opt-out comparisons use identical worlds.
  */
 export type AI33Mode='off'|'adaptive';
+
+/** AI 3.4 Bastion-control opening for the two maps that 3.3 already adapts.
+ * Sector ownership is public. Soldiers must be paid, healthy, available
+ * and routed by TacticalAI; the policy never reads hidden enemies.
+ * 12-Bastion 3.2 and the proven four-sector opener remain unchanged. */
+export function mapBastionContestOpening(
+ mapVersion:number,time:number,blue:number,red:number,available:number
+):{slots:number;counter:boolean}{
+ if(mapVersion!==24&&mapVersion!==26||available<1||
+    time>(mapVersion===24?210:255))return {slots:0,counter:false};
+ const total=mapVersion===24?8:16;
+ const behind=blue-red>=2&&blue>=Math.max(3,Math.ceil(total*.30));
+ const counter=behind&&time>=30&&available>=3;
+ // One pioneer is never pulled from construction. With >=3 combat units
+ // contest two public Bastions, or use a paid two-unit squad for recapture.
+ return {slots:available>=3?2:1,counter};
+}
 export interface MapRaidReadiness {
  mapVersion:number;phase:string;time:number;fighters:number;main:number;
  eligible:number;homeGuards:number;homePressure:boolean;
@@ -39,6 +56,9 @@ export function mapRaidRouteReady(mapVersion:number,travel:number,risk:number):b
 export function mapFrontierPosts(mapVersion:number,guards:number,frontiers:number,legacy:number):number{
  if(mapVersion!==24&&mapVersion!==26)return legacy;
  const ready=Math.max(0,Math.floor(guards)),sites=Math.max(0,Math.floor(frontiers));
- if(mapVersion===24)return ready>=5?Math.min(1,sites):0;
+ // AI 3.3 left exposed captured Bastions unmanned until five reserves
+ // existed, often conceding the entire economy to an infantry rush.
+ // Keep at least TWO paid sentries at the HQ at all times.
+ if(mapVersion===24)return Math.min(ready>=6?2:ready>=3?1:0,sites);
  return Math.min(ready>=6?2:ready>=4?1:0,sites);
 }

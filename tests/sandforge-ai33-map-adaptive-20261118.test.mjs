@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {newBattle} from '../dist/src/reborn/battle-response.js';
-import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts} from '../dist/src/reborn/ai33-map-doctrine.js';
+import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening} from '../dist/src/reborn/ai33-map-doctrine.js';
 import {parseOptions} from '../scripts/benchmark-reborn-ai.mjs';
 
 const shape={mapVersion:24,time:110,phase:'attack',fighters:12,main:6,
@@ -17,8 +17,10 @@ test('3.3 concentrates eight-Bastion armies instead of splitting the opening',()
  assert.equal(mapRaidRouteReady(24,1200,4),true);
  assert.equal(mapRaidRouteReady(24,1800,4),false);
  assert.equal(mapRaidRouteReady(24,1100,7),false);
- assert.equal(mapFrontierPosts(24,4,3,2),0);
- assert.equal(mapFrontierPosts(24,5,3,2),1);
+ assert.equal(mapFrontierPosts(24,2,3,2),0);
+ assert.equal(mapFrontierPosts(24,3,3,2),1);
+ assert.equal(mapFrontierPosts(24,4,3,2),1);
+ assert.equal(mapFrontierPosts(24,6,3,2),2);
 });
 
 test('3.3 leaves twelve-Bastion AI 3.2 decisions byte-for-byte equivalent',()=>{

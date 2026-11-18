@@ -75,8 +75,9 @@ test('modern four-sector economy purchases paid barracks before passive generato
  assert.ok(g.credits[1]<money);
 });
 
-test('larger modern maps do not inherit the special four-Bastion opening',()=>{
+test('AI 3.2 comparison still has no special eight-Bastion opening',()=>{
  const g=Simulation.campaign(2026,24,'dunes');
+ g.tactical.ai33Mode='off';
  g.time=3;g.tactical.plan();
  assert.equal(g.tactical.state.openingContests?.length??0,0);
 });
