@@ -112,16 +112,29 @@ test('phase 1: stale HQ attack is dropped if the Bastion it targeted was secured
  assert.notEqual(goal?.sector,t.id);
 });
 
-test('paid frontier guard: HQ reserve is protected, one soldier may protect an exposed Bastion',()=>{
+test('paid frontier guard: retain home reserve and post only reachable paid defenders',async()=>{
+ const {frontierGuardPosts}=await import('../dist/src/reborn/ai32-doctrine.js');
+ const {mapFrontierPosts}=await import('../dist/src/reborn/ai33-map-doctrine.js');
+ assert.equal(frontierGuardPosts(1,4),0,'one sentry must stay at the base');
+ assert.equal(frontierGuardPosts(2,4),1,'two guards may split only one frontier post');
+ assert.equal(frontierGuardPosts(4,4),2,'four guards may cover two exposed Bastions');
+ assert.equal(mapFrontierPosts(24,4,4,2),0,'8-Bastion KI 3.3 concentrates small reserves at home');
+ assert.equal(mapFrontierPosts(24,5,4,2),1,'8-Bastion KI 3.3 posts only one of five guards');
+ assert.equal(mapFrontierPosts(25,4,4,2),2,'12-Bastion version retains KI 3.2');
+ assert.equal(mapFrontierPosts(26,6,4,2),2,'16-Bastion version protects HQ with four guards');
  const source=readFileSync('src/reborn/tactical-ai.ts','utf8');
- assert.match(source,/const border=g\.territories\.filter\(t=>t\.owner===1&&/);
- assert.match(source,/const fort=i===1&&guards\.length>=2&&border\?border:null/);
+ assert.match(source,/const frontiers=g\.territories\.filter\(t=>t\.owner===1&&/);
+ assert.match(source,/const originalPosts=g\.world\.mapVersion>=24/);
+ assert.match(source,/const posted=this\.ai33Mode==='adaptive'/);
+ assert.match(source,/const fort=i>0&&i<=posted\?frontiers\[i-1\]:null/);
  assert.match(source,/const radius=fort\?68:/);
  assert.match(source,/const base=fort\?\.point\?\?protectedBases/);
+ assert.match(source,/!this\.route\(u,post\)\.length/,
+  'unreachable frontier posts must not steal an HQ guard');
  assert.match(source,/if\(u\.defendUntil>g\.time\)continue/,
   'active combat cannot be overridden by a scripted garrison order');
  assert.match(source,/ownedBastions\.some\(t=>distance\(u,t\.point\)<260\)/,
   'a visible intruder near a captured Bastion triggers local defense too');
  assert.match(source,/\.\.\.g\.territories\.filter\(t=>t\.owner===1\)\.map\(t=>t\.point\)/,
-  'defensive priority accounts for actual owned Bastion positions');
+  'defensive priority accounts for owned Bastion positions');
 });
