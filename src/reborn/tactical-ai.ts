@@ -933,7 +933,7 @@ export class TacticalAI {
   for(const t of frontier){
    const threatened=s.knownTurrets.some(tower=>distance(tower,t.point)<tower.range+140)
     ||g.memories[1].some(m=>m.owner===0&&m.hp>0&&m.territory===t.id)
-    ||g.units.some(enemy=>enemy.owner===0&&enemy.hp>0&&!enemy.carrier&&g.canSee(1,enemy)&&distance(enemy,t.point)<360);
+    ||g.units.some(enemy=>enemy.owner===0&&enemy.hp>0&&!enemy.carrier&&enemy.kind!=='drone'&&g.canSee(1,enemy)&&distance(enemy,t.point)<360);
    if(threatened)continue;
    const route=this.route(anchor,t.point);
    if(!route.length)continue;
