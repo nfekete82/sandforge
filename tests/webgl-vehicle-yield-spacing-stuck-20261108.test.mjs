@@ -10,6 +10,10 @@ import {
 const fixture=()=>{
  const g=new Simulation(2074,23);
  g.units=[];g.bases=[];g.world.blocked.fill(0);g.world.opaque.fill(0);
+ // This deliberately base-free navigation fixture must also clear the
+ // PERSISTED building history. Otherwise the post-HQ-elimination rule ends
+ // the test as defeat after one tick, before either tank can move.
+ g.hadBuildings=[false,false];
  g.aiClock=1e8;g.tactical.plan=()=>{};g.status='playing';g.paused=false;
  // Real elimination semantics end a game with zero red assets. Keep one
  // harmless distant red actor so vehicle-navigation tests stay in combat.
