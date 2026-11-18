@@ -45,7 +45,7 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   if(belief.strategy==='infantry')observed.infantry=Math.max(observed.infantry,recent.filter(v=>v.kind==='infantry'||v.kind==='heavy').length);
  }
  const airTarget=enemyAir??(observed.air?{kind:'bomber' as const}:undefined);
- const fighters=c.army.filter(u=>!['engineer','medic','scout','supply'].includes(u.kind)).length;
+ const fighters=c.army.filter(u=>!['engineer','medic','scout','supply','drone'].includes(u.kind)).length;
  const rocketQuota=rocketInfantryQuota({fighters,time:g.time,
   vehicles:observed.armor,air:observed.air,
   barracksReady:available('rocket'),underAttack:c.underAttack});
@@ -139,10 +139,10 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   infantry:12,heavy:c.income>=65?6:5,rocket:rocketQuota,
   medic:Math.min(3,Math.ceil((count('infantry')+count('heavy'))/5)),
   engineer:c.defenseNeedsWorker||c.own.length>=4&&(s.recovering?.length??0)>0?2:1,
-  supply:2,rover:2,tank:c.income>=65||observed.armor>=3?6:4,
+  supply:0,rover:2,tank:c.income>=65||observed.armor>=3?6:4,
   artillery:c.knownTurrets>1?4:c.knownEnemyHQ||c.knownTurrets?3:2,
   scout:1,bomber:Math.max(bomberQuota,c.income>=65&&!c.finishing?1:0),
-  drone:0, // Drone is a human-controlled reconnaissance option, not an AI combat unit.
+  drone:0,
  })[kind];
  const ranks=(producer:Base):UnitKind[]=>{
   const n=counts();

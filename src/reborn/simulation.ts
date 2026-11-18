@@ -30,8 +30,8 @@ import {airfieldPoint,airfieldLerp,airfieldTaxiPoint,validAirfieldService,AIRFIE
 import {factoryRepairPoint,validFactoryService,FACTORY_REPAIR_BAYS,FACTORY_REPAIR_HP_PER_CREDIT,FACTORY_REPAIR_FRACTION_PER_SECOND,type FactoryService} from './factory-maintenance.js';
 import {factoryDoorExitCandidates,infantryDoorExitCandidates} from './production-exit.js';
 import {eliminationOutcome} from './match-outcome.js';
-import {generateSupplyCaches,newSupplyJob,stepSupplyLogistics,validSupplyJob,SUPPLY_RESTOCK_INTERVAL,
- type SupplyCache,type SupplyJob} from './supply-logistics.js';
+// Only legacy save validation uses supply types; no active logistics controller.
+import {validSupplyJob,SUPPLY_RESTOCK_INTERVAL,type SupplyCache,type SupplyJob} from './legacy-supply-save.js';
 import {formationSlotPitch,vehicleSpacingGap,preservesVehicleProgress,vehicleYieldWaypoint} from './vehicle-spacing.js';
 import {UPGRADES,UPGRADE_KINDS,newResearchState,canResearchUpgrade,researchModifiers,
  validResearchState,strategicBlastDamage,validStrategicMissile,
@@ -658,10 +658,9 @@ export class Simulation {
       this.spawn(owner,p,'engineer');
     }
     for(const b of this.bases)if(b.hp>0)this.hadBuildings[b.owner]=true;
-    this.supplyCaches=generateSupplyCaches(this.world,this.territories,
-      this.startRegions.map(r=>r.center),this.seed);
-    if(this.world.mapVersion>=23&&this.territories.length===4)
-      for(const t of this.territories)t.income=5;
+    // Bastions replace finite neutral stockpiles as the income objectives.
+    // All modern maps now earn credits through bastions, not neutral depots.
+
     this.spatial.rebuild(this.units);this.updateVision();
   }
   static campaign(seed=randomMapSeed(),version:MapVersion=MAP_VERSION,profile?:TerrainProfile):Simulation {return new Simulation(seed,version,false,true,profile);}
@@ -705,32 +704,14 @@ export class Simulation {
     while(this.bases.some(b=>b.id===this.nextId))this.nextId++;
     const u:Unit={id:this.nextId++,owner,kind,xp:0,x:p.x,y:p.y,hp:this.maxUnitHp({kind,owner}),orders:[],path:[],cooldown:0,facing:1,moving:false,hit:0,repath:0,
       angle:Math.PI/4,walkDistance:0,fire:0,previousX:p.x,previousY:p.y,lastAttacker:null,defendUntil:0};
-    if(kind==='supply')u.supply=newSupplyJob();
+    // The legacy supply kind is no longer offered by any production building.
     this.units.push(u);this.unitById.set(u.id,u);
     countDeployed(this.stats,owner,kind,this.count(owner));return u;
   }
   income(owner:Faction):number {
-    const strategicLogistics=this.world.mapVersion>=23&&this.territories.length===4;
     return this.bases.filter(b=>b.owner===owner&&b.hp>0&&b.buildRemaining<=0).reduce((n,b)=>
-      n+(strategicLogistics&&b.kind==='headquarters'?20:buildingSpec(b).income),0)+
+      n+buildingSpec(b).income,0)+
       this.territories.filter(t=>t.owner===owner).reduce((n,t)=>n+t.income,0);
-  }
-  /** Re-enable logistics after a manual move/STOPP, optionally pick a marked
-   * stockpile. Uses the same orders/collisions as AI supply lines.
-   */
-  setSupplyAuto(ids:readonly number[],enabled=true,cacheId?:number):number{
-    if(this.status!=='playing')return 0;
-    let n=0;
-    for(const u of this.units)if(ids.includes(u.id)&&u.owner===0&&u.kind==='supply'&&u.hp>0){
-      const job=u.supply??(u.supply=newSupplyJob());
-      if(cacheId!==undefined&&(!this.supplyCaches.some(c=>c.id===cacheId&&c.remaining>0)))continue;
-      job.auto=enabled;job.cacheId=cacheId??null;job.preferred=cacheId??null;
-      job.phase=enabled?'seek':'idle';
-      job.clock=0;job.destination=undefined;u.orders=[];u.path=[];u.repath=0;
-      if(enabled&&job.cargo>0)job.phase='to-hq';
-      n++;
-    }
-    return n;
   }
   count(owner:Faction):number{return this.units.filter(u=>u.owner===owner&&u.hp>0).length;}
   queued(owner:Faction):number{return this.bases.filter(b=>b.owner===owner).reduce((n,b)=>n+b.queue.length,0);}
@@ -957,11 +938,7 @@ export class Simulation {
     // The return-base toolbar sets the flag only AFTER this move is issued.
     for(const u of candidates){
       u.returnToHangar=false;
-      // A human move takes precedence over autonomous supply runs. The
-      // logistics button can resume collection without any lost cargo.
-      if(!append&&u.kind==='supply'&&u.supply){
-        u.supply.auto=false;u.supply.phase='idle';u.supply.destination=undefined;
-      }
+      // No automatic supply routes can override an explicit command.
     }
     // A manual reposition always wins over workshop autopilot. Ground vehicles
     // can leave even before full repair; planes must physically take off first.
@@ -1078,7 +1055,7 @@ export class Simulation {
     if(this.bases.some(b=>b.kind==='headquarters'&&b.territory===t.id&&b.owner!==owner&&b.hp>0))return 'enemy-hq';
     return 'capturing';
   }
-  stop(ids:number[],hold=false,guardArea=false):void {for(const u of this.units)if(ids.includes(u.id)){if(u.supply){u.supply.auto=false;u.supply.phase='idle';}u.returnToHangar=false;if(u.kind==='bomber')delete u.bomberRun;this.cancelProductionDeparture(u.id);this.transports.cancel(u);u.orders=[];u.path=[];u.repath=0;u.moving=false;if(u.kind==='tank')u.driveSpeed=0;u.pursuitOrigin=null;u.combatTarget=null;u.hold=hold||u.kind==='engineer';u.guardArea=hold&&guardArea;u.supportPaused=false;u.workingTarget=null;delete u.burst;}}
+  stop(ids:number[],hold=false,guardArea=false):void {for(const u of this.units)if(ids.includes(u.id)){u.returnToHangar=false;if(u.kind==='bomber')delete u.bomberRun;this.cancelProductionDeparture(u.id);this.transports.cancel(u);u.orders=[];u.path=[];u.repath=0;u.moving=false;if(u.kind==='tank')u.driveSpeed=0;u.pursuitOrigin=null;u.combatTarget=null;u.hold=hold||u.kind==='engineer';u.guardArea=hold&&guardArea;u.supportPaused=false;u.workingTarget=null;delete u.burst;}}
   private supportEligible(u:Unit,target:Unit|Base,kind:string):boolean {
     if(target.hp<=0||('orders' in target&&target.carrier)||target.owner!==u.owner)return false;
     if(kind==='heal')return u.kind==='medic'&&'orders' in target&&unitSpec(target).group==='Infanterie'&&target.hp<this.maxUnitHp(target);
@@ -1757,8 +1734,7 @@ export class Simulation {
     }
     if(wasStorm!==this.weather.storm){this.visionCache.invalidate();this.updateVision();this.fogClock=0;}
     if(this.incomeClock+1e-8>=RULES.incomeInterval){this.incomeClock=Math.max(0,this.incomeClock-RULES.incomeInterval);for(const owner of [0,1] as const){const earned=this.income(owner);this.credits[owner]+=earned;countIncome(this.stats,owner,earned);}}
-    // Neutral supply stocks only pay upon a physical return to the HQ.
-    stepSupplyLogistics(this,dt);
+    // Only completed buildings and owned bastions provide income.
     this.blasts=this.blasts.filter(b=>this.time-b.at<.5);
     this.stepStrategy(dt);
     // Optically guided infantry rockets keep tracking the *observed* target
@@ -1862,14 +1838,13 @@ export class Simulation {
         }else this.move(u,order,dt);
         continue;
       }
-      // Unarmed supply trucks are civilians. Even when idle or explicitly
-      // attack-moved, they must not chase combat targets and abandon cargo.
-      if(u.kind==='supply'||u.kind==='drone'){
+      // Recon-only drones receive navigation orders but never seek/attack targets.
+      if(u.kind==='drone'){
         u.combatTarget=null;delete u.burst;
-        if(u.kind==='drone'&&u.orders[0]&&u.orders[0].kind!=='move'){
-          const destination=u.orders[0];
-          if(distance(u,destination)<18)u.orders.shift();
-          else this.move(u,destination,dt);
+        const nav=u.orders[0];
+        if(nav&&nav.kind!=='move'){
+          if(distance(u,nav)<18){u.orders.shift();u.path=[];u.repath=0;}
+          else this.move(u,nav,dt);
         }
         continue;
       }
@@ -2180,7 +2155,7 @@ export class Simulation {
           // short exterior arrival fade. Never fake an opening in the baked facade.
           this.productionReleases.push({unitId:u.id,baseId:b.id,kind,owner:b.owner,at:this.time,from:{x:b.x,y:b.y},to:{...spawn}});
           if(this.productionReleases.length>24)this.productionReleases.shift();
-          countProduced(this.stats,b.owner);if(b.owner===0)this.notices.push(`Einheit bereit: ${spec.name}.`);b.queue.shift();b.queueTypes.shift();b.queueCosts?.shift();b.production=0;if(b.rally)this.command([u.id],{...b.rally,kind:'attackMove'});
+           countProduced(this.stats,b.owner);if(b.owner===0)this.notices.push(`Einheit bereit: ${spec.name}.`);b.queue.shift();b.queueTypes.shift();b.queueCosts?.shift();b.production=0;if(b.rally)this.command([u.id],{...b.rally,kind:'attackMove'});
            if(footFrontExit&&u.orders[0]&&
               ['move','attackMove'].includes(u.orders[0].kind)){
              // A rally facing is known at production time. The presenter
@@ -2206,7 +2181,6 @@ export class Simulation {
     this.bases=this.bases.filter(b=>b.hp>0||b.kind==='headquarters');
     let ownershipChanged=false;
     for(const t of this.territories){
-      // Recon-only drones reveal fog but never capture or contest a Bastion.
       const nearby=this.spatial.query(t.point,RULES.captureRadius).filter(u=>u.hp>0&&!u.carrier&&u.kind!=='drone');
       const blue=nearby.some(u=>u.owner===0),red=nearby.some(u=>u.owner===1);
       if(blue&&red)continue;
@@ -2268,7 +2242,7 @@ export class Simulation {
     return structuredClone({version:2,...(this.world.generated?.battlefield?{terrainProfile:this.world.generated.battlefield.profile,generatorVersion:this.world.generated.battlefield.generatorVersion}:{}),...(this.bootstrapVersion?{bootstrapVersion:this.bootstrapVersion}:{}),weatherVersion:1,productionVersion:1,supportVersion:1,rosterVersion:2,missiles:this.missiles,seed:this.seed,mapVersion:this.world.mapVersion,time:this.time,nextId:this.nextId,credits:this.credits,incomeClock:this.incomeClock,
       units:this.units,bases:this.bases,territories:this.territories,explored:this.explored.map(a=>Array.from(a)),memories:this.memories,aiClock:this.aiClock,ai:this.tactical.state,status:this.status,stats:this.stats,
       research:this.research,strategicMissiles:this.strategicMissiles,
-      hadBuildings:this.hadBuildings,supplyCaches:this.supplyCaches});
+      hadBuildings:this.hadBuildings});
   }
   static load(raw:unknown,weatherEnabled=false):Simulation {
     const s=migrateTransportRoster(raw) as Save;
@@ -2317,7 +2291,8 @@ export class Simulation {
           b.interceptorAmmo<0||b.interceptorAmmo>INTERCEPTOR_MAX_AMMO||
           b.kind!=='interceptor'))||!finite(b.hp)||b.hp<0||b.hp>(BUILDINGS[b.kind??'headquarters']?.hp??0)||!Array.isArray(b.queue)||b.queue.length>8||b.queue.some((v,i)=>!finite(v)||v!==UNITS[b.queueTypes?.[i]??'infantry']?.buildTime)||
         (b.queueTypes!==undefined&&(!Array.isArray(b.queueTypes)||b.queueTypes.length!==b.queue.length||b.queueTypes.some(k=>!Object.hasOwn(UNITS,k))))||
-        (s.productionVersion===1&&b.queue.some((_,i)=>!UNITS[b.queueTypes?.[i]??'infantry']?.producers.includes(b.kind??'headquarters')))||
+        (s.productionVersion===1&&b.queue.some((_,i)=>b.queueTypes?.[i]!=='supply'&&
+          !UNITS[b.queueTypes?.[i]??'infantry']?.producers.includes(b.kind??'headquarters')))||
         (b.queueCosts!==undefined&&(!Array.isArray(b.queueCosts)||b.queueCosts.length!==b.queue.length||b.queueCosts.some(v=>!finite(v)||v<0)))||
         (b.buildRemaining!==undefined&&(!finite(b.buildRemaining)||b.buildRemaining<0||b.buildRemaining>(BUILDINGS[b.kind??'headquarters']?.buildTime??0)))||!finite(b.production)||b.production<0||b.production>(b.queue[0]??0))||
       s.territories.some((t,i)=>t.id!==i||![-1,0,1].includes(t.owner)||!finite(t.progress)||t.progress<0||t.progress>8))throw new Error('Dieser Spielstand ist beschädigt oder gehört zu einer anderen Version.');
@@ -2336,20 +2311,9 @@ export class Simulation {
     game.bases=structuredClone(s.bases).map(b=>({...b,kind:b.kind??'headquarters',...(b.kind==='wall'?{}:game.world.clearSite(b,buildingSpec(b).radius)),radius:buildingSpec(b).radius,...(b.queueCosts?{}:b.queue.length?{queueCosts:b.queue.map((_,i)=>{const k=b.queueTypes?.[i]??'infantry';return !s.supportVersion&&k==='engineer'?150:UNITS[k].cost;})}:{}),queueTypes:b.queueTypes??b.queue.map(()=>'infantry'),buildRemaining:b.buildRemaining??0,cooldown:b.cooldown??0,
       ...(b.kind==='silo'?{siloCharge:b.siloCharge??SILO_CHARGE_SECONDS}:{}),
       ...(b.kind==='interceptor'?{interceptorAmmo:b.interceptorAmmo??INTERCEPTOR_MAX_AMMO}:{})}));
-    // Store only finite depletion counts, never user-provided positions.
-    if(s.supplyCaches!==undefined){
-      if(s.supplyCaches.length!==game.supplyCaches.length||
-        s.supplyCaches.some((c,i)=>c.id!==i||
-         c.x!==game.supplyCaches[i].x||c.y!==game.supplyCaches[i].y||
-         c.capacity!==game.supplyCaches[i].capacity))
-        throw Error('Ungültige Nachschublager im Spielstand.');
-      for(let i=0;i<s.supplyCaches.length;i++)
-        Object.assign(game.supplyCaches[i],{
-         remaining:s.supplyCaches[i].remaining,
-         lastPickupAt:s.supplyCaches[i].lastPickupAt??0,
-         restockClock:s.supplyCaches[i].restockClock??0
-        });
-    }
+    // Legacy stockpiles are validated above, then discarded. They must never
+    // reappear in a restored battle or affect the new bastion-only economy.
+    game.supplyCaches=[];
     // Saved history is authoritative. For existing v2 saves without this
     // field infer from live/dead HQ records, observed buildings or units
     // produced by a structure. No inference based on elapsed time: doing so
@@ -2364,7 +2328,7 @@ export class Simulation {
     // Old HQs could queue the entire roster. Refund now-incompatible paid
     // orders once, while preserving valid orders and their active progress.
     let playerRefund=0;
-    if(s.productionVersion!==1)for(const b of game.bases){
+    for(const b of game.bases){
       const queue:number[]=[],types:UnitKind[]=[],costs:number[]=[];let keptActive=false;
       b.queue.forEach((duration,i)=>{const kind=b.queueTypes[i],paid=b.queueCosts?.[i]??UNITS[kind].cost;
         if(UNITS[kind].producers.includes(b.kind)){queue.push(duration);types.push(kind);costs.push(paid);if(i===0)keptActive=true;}
@@ -2373,11 +2337,18 @@ export class Simulation {
       b.queue=queue;b.queueTypes=types;b.queueCosts=costs;if(!keptActive)b.production=0;
     }
     if(playerRefund>0)game.notices.push(`Nicht mehr passende Produktionsaufträge erstattet · ${playerRefund.toLocaleString('de-DE')} Credits.`);
-    game.units=structuredClone(s.units).map(u=>{
+    // Refund already-deployed retired trucks instead of converting paid
+    // logistics vehicles into free combat assets. Both factions get the same
+    // 275-credit compensation; historic stats remain unchanged.
+    const retired=s.units.filter(u=>u.kind==='supply');
+    for(const old of retired)game.credits[old.owner]+=UNITS.supply.cost;
+    if(retired.some(u=>u.owner===0))
+      game.notices.push('Nachschubtransporter entfernt · '+(retired.filter(u=>u.owner===0).length*UNITS.supply.cost)+' Credits erstattet.');
+    game.units=structuredClone(s.units.filter(u=>u.kind!=='supply')).map(u=>{
       const p=u.carrier||unitSpec(u).flying||u.factoryService?{x:u.x,y:u.y}:game.world.nearest({x:u.x,y:u.y},[...game.obstacles(),...(unitSpec(u).group==='Infanterie'?infantryStructureColliders(game.obstacles()):vehicleStructureColliders(game.obstacles()))],[],undefined,Math.max(0,unitSpec(u).radius-10))??u;
       return {...u,xp:sanitizeXp(u.xp),kind:u.kind??'infantry',...(!s.rosterVersion&&u.kind==='heavy'?{hp:u.hp/190*UNITS.heavy.hp}:!s.rosterVersion&&u.kind==='scout'?{hp:u.hp/160*UNITS.scout.hp}:{}),...p,path:[],repath:0,hit:0,fire:0,previousX:p.x,previousY:p.y,
         angle:u.angle??(u.facing<0?Math.PI:0),walkDistance:u.walkDistance??0,lastAttacker:u.lastAttacker??null,defendUntil:u.defendUntil??0,
-        supply:u.kind==='supply'?(u.supply??newSupplyJob()):undefined,
+        supply:undefined,
         combatTarget:Number.isInteger(u.combatTarget)?u.combatTarget:null,
         pursuitOrigin:u.pursuitOrigin??null};
     });

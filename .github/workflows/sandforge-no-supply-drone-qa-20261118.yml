@@ -1,0 +1,32 @@
+name: Sandforge Bastions Economy and R-01 Recon
+on:
+  pull_request:
+    branches: ['integration/sandforge-current-20261117']
+  push:
+    branches: ['feat/sandforge-no-supply-drone-20261118']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bastion-drone-economy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc -p tsconfig.json
+      - run: node --check scripts/webgl-recon-drone.js
+      - run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+      - name: Test Bastion economy, old-save refunds, drone and global HUD
+        run: |
+          node --test \
+            tests/sandforge-bastion-economy-rollback-20261117.test.mjs \
+            tests/sandforge-recon-drone.test.mjs \
+            tests/webgl-global-production-20261111.test.mjs \
+            tests/reborn-hq-bastion-income.test.mjs \
+            tests/reborn-expanded-economy-maps.test.mjs \
+            tests/sandforge-webgl-entry.test.mjs

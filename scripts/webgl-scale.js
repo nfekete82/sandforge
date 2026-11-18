@@ -7,7 +7,7 @@
  */
 export const MODEL_HEIGHTS=Object.freeze({
  infantry:61,medic:61,engineer:61,heavy:65,rocket:61,
- rover:42,supply:49,tank:46,artillery:51,scout:48,bomber:51,drone:14,
+ rover:42,supply:49,tank:46,artillery:51,scout:48,bomber:51,drone:12,
  headquarters:158,barracks:119,factory:125,airfield:137,generator:79,turret:95
 });
 export const DIMENSIONS_VERSION=3;

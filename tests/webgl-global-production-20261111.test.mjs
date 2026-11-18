@@ -31,8 +31,7 @@ test('the global dock has exactly four production tabs; research is building-onl
  assert.match(battlefield,/const available=globalCatalogAvailability\(g\)/);
  assert.ok(battlefield.includes("const aircraftRoster=roster([['headquarters','KOMMANDOZENTRALE · AUFKLÄRUNG'],"));
  assert.match(battlefield,/\['airfield','FLUGFELD'\]\],'Luftunterstützung'\)/);
- assert.match(battlefield,/const vehicleRoster=roster\(\[\['headquarters','KOMMANDOZENTRALE · LOGISTIK'\]/);
- assert.match(battlefield,/\['factory','FAHRZEUGFABRIK'\]\],'Fahrzeuge'\)/);
+ assert.match(battlefield,/const vehicleRoster=roster\(\[\['factory','FAHRZEUGFABRIK'\]\],'Fahrzeuge'\)/);
  assert.ok(battlefield.includes('if(!ready)return'));
  assert.ok(css.includes('button[hidden]'));
 });
@@ -57,7 +56,7 @@ test('real simulation automatically chooses barracks/factory/airfield despite no
  const cases=[
   ['engineer','headquarters'],['infantry','barracks'],['medic','barracks'],
   ['heavy','barracks'],['rocket','barracks'],
-  ['supply','headquarters'],['rover','factory'],['tank','factory'],['artillery','factory'],
+  ['drone','headquarters'],['rover','factory'],['tank','factory'],['artillery','factory'],
   ['scout','airfield'],['bomber','airfield']
  ];
  for(const [kind,sourceKind] of cases){
@@ -70,8 +69,8 @@ test('real simulation automatically chooses barracks/factory/airfield despite no
  }
  assert.equal(barracks.queueTypes.length,4);
  assert.equal(factory.queueTypes.length,3);
- assert.ok(g.bases.some(b=>b.kind==='headquarters'&&b.queueTypes.includes('supply')),
-  'vehicle tab supplies are actually purchased at the HQ');
+ assert.ok(g.bases.some(b=>b.kind==='headquarters'&&b.queueTypes.includes('drone')),
+  'R-01 reconnaissance drones are queued at the HQ');
  assert.equal(airfield.queueTypes.length,2);
  assert.equal(g.count(0)+g.queued(0)<=48,true);
 });
@@ -167,15 +166,15 @@ test('only finished player-owned source buildings unlock their relevant producti
  const {g,add}=setup();
  const available=()=>globalCatalogAvailability(g);
  assert.deepEqual(available(),{
-  buildings:true,infantry:true,vehicles:true,aircraft:true,
+  buildings:true,infantry:true,vehicles:false,aircraft:true,
   territories:true
- },'HQ unlocks pioneers, logistics vehicles and recon drones');
+ },'HQ unlocks pioneers and recon drones, not retired cargo vehicles');
  const barracks=add('barracks');
  barracks.buildRemaining=4;
  assert.equal(available().infantry,true);
  const factory=add('factory');
  factory.buildRemaining=3;
- assert.equal(available().vehicles,true,'HQ logistics works during factory construction');
+ assert.equal(available().vehicles,false,'only a completed factory unlocks vehicle production');
  factory.buildRemaining=0;
  assert.equal(available().vehicles,true);
  assert.equal(available().aircraft,true);
@@ -191,10 +190,9 @@ test('only finished player-owned source buildings unlock their relevant producti
  assert.equal('research' in available(),false,'destroying lab cannot show an obsolete tab');
  airfield.owner=1;
  assert.equal(available().aircraft,true,'own HQ still permits drones after the airfield becomes enemy-owned');
- // Factory destruction hides its combat vehicles, but HQ logistics remains
- // available until the last HQ is destroyed.
+ // Factory destruction hides combat vehicle production; the HQ retains recon drones.
  factory.hp=0;
- assert.equal(available().vehicles,true);
+ assert.equal(available().vehicles,false);
  g.bases.find(b=>b.kind==='headquarters'&&b.owner===0).hp=0;
  assert.equal(available().vehicles,false);
  assert.equal(available().aircraft,false,'no surviving HQ or airfield means no aircraft production');
@@ -207,7 +205,7 @@ test('unit types are split into independent factory and aircraft menus',()=>{
  const airborne=units.filter(u=>UNITS[u].producers.includes('airfield'));
  assert.deepEqual(ground,['rover','tank','artillery']);
  assert.equal(UNITS.supply.group,'Fahrzeuge');
- assert.deepEqual(UNITS.supply.producers,['headquarters']);
+ assert.deepEqual(UNITS.supply.producers,[]);
  assert.deepEqual(airborne,['scout','bomber']);
  for(const u of airborne)assert.ok(!ground.includes(u));
  const {g,add}=setup();add('factory');add('airfield');
