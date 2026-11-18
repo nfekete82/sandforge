@@ -51,13 +51,13 @@ jobs:
       - run: npx tsc -p tsconfig.json
       - name: Compile headless simulation modules
         run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
-      - name: Compare 8 and 16 Bastions, 3 identical seeds, two AI policies
+      - name: Compare against a humanlike paid Bastion-rush opponent
         run: |
           mkdir -p reports
           for POLICY in off control; do
             node scripts/benchmark-reborn-ai.mjs \
               --maps 24,26 --seconds 270 --seeds 2026,2027,2028 \
-              --modes director --opponent contesting --ai33 adaptive \
+              --modes director --opponent bastion-rush --ai33 adaptive \
               --ai35 "$POLICY" --label "$POLICY" \
               --output "reports/$POLICY.json" > "reports/$POLICY.log"
           done
@@ -83,7 +83,7 @@ jobs:
               controlDelta:share(v)-share(d)};
            });
            const mean=a=>a.reduce((s,x)=>s+x,0)/a.length;
-           console.log('SAME-BINARY BASTION A/B',JSON.stringify({
+           console.log('SAME-BINARY BASTION-RUSH A/B',JSON.stringify({
             map:size,baseline:mean(paired.map(p=>p.baseline.control)),
             experimental:mean(paired.map(p=>p.experimental.control)),
             meanDelta:mean(paired.map(p=>p.controlDelta)),pairs:paired

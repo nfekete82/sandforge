@@ -64,3 +64,17 @@ test('3.5 does not reintroduce transport-supply or drone strategic threat',()=>{
  assert.match(t,/bastionGuardPriority\(/);
  assert.match(t,/observedDefensePriority\(/);
 });
+
+test('humanlike Bastion rush uses only legal paid recruits and leaves a HQ defender',async()=>{
+ const {blueBastionRush}=await import('../scripts/benchmark-ai-opponent.mjs');
+ const g=new Simulation(2026,24);
+ const starting=g.credits[0],startingIds=g.units.map(u=>u.id);
+ // Clear terrain for deterministic fixture, never fabricate troops or credits.
+ g.world.blocked.fill(0);g.world.opaque.fill(0);g.world.components.fill(0);
+ g.time=95;
+ blueBastionRush(g);
+ assert.ok(g.credits[0]<=starting,'all production must be paid');
+ assert.deepEqual(g.units.map(u=>u.id),startingIds,'no free soldiers are spawned by opponent controller');
+ assert.equal(g.units.filter(u=>u.owner===0&&u.hp>0&&u.kind==='engineer').length>=1,true);
+ assert.equal(parseOptions(['--opponent','bastion-rush']).opponent,'bastion-rush');
+});
