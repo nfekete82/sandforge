@@ -1,0 +1,31 @@
+name: Sandforge R-01 AI strategic neutrality
+on:
+  push:
+    branches: ['feat/sandforge-ai-ignore-r01-drone-20261118']
+  pull_request:
+    branches: ['integration/sandforge-current-20261117']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ai-drone:
+    name: R-01 AI neutrality, AA fire, tactical regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc -p tsconfig.json
+      - run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+      - run: |
+          node --test \
+            tests/reborn-ai-ignore-drone-20261118.test.mjs \
+            tests/sandforge-recon-drone.test.mjs \
+            tests/reborn-threat-response.test.mjs \
+            tests/reborn-ai-fight-instead-of-flee-20261109.test.mjs \
+            tests/reborn-ai-active-counter-20261111.test.mjs \
+            tests/reborn-ai-director.test.mjs
