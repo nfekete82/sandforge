@@ -31,10 +31,12 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
  const available=(kind:UnitKind)=>c.own.some(b=>b.buildRemaining<=0&&b.queue.length<2&&UNITS[kind].producers.includes(b.kind));
  const counts=()=>Object.fromEntries((Object.keys(UNITS) as UnitKind[]).map(k=>[k,count(k)])) as Record<UnitKind,number>;
  const ground=()=>count('rover')+count('tank')+count('artillery');
- const enemyAir=c.seen.find(u=>UNITS[u.kind].flying);
- const observed={infantry:c.seen.filter(u=>UNITS[u.kind].group==='Infanterie'&&!['engineer','medic'].includes(u.kind)).length,
-  armor:c.seen.filter(u=>UNITS[u.kind].group==='Fahrzeuge'&&!UNITS[u.kind].flying).length,
-  air:c.seen.filter(u=>UNITS[u.kind].flying).length};
+ // Unarmed recon drones must not consume AA budgets or suspend a bomber plan.
+ const seen=seen.filter(u=>u.kind!=='drone');
+ const enemyAir=seen.find(u=>UNITS[u.kind].flying);
+ const observed={infantry:seen.filter(u=>UNITS[u.kind].group==='Infanterie'&&!['engineer','medic'].includes(u.kind)).length,
+  armor:seen.filter(u=>UNITS[u.kind].group==='Fahrzeuge'&&!UNITS[u.kind].flying).length,
+  air:seen.filter(u=>UNITS[u.kind].flying).length};
  const belief=s.adaptive;
  if(belief&&belief.confidence>=.55&&g.time-belief.updatedAt<=30){
   // Briefly losing sight of a force should not immediately restart a siege

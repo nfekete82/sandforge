@@ -96,9 +96,9 @@ export function chooseEndgameVisionPost(x:{
 export function attemptEndgameStandoff(confirmedCleanup:boolean,observedObjective:boolean,directLineClear:boolean):boolean{
  return confirmedCleanup&&observedObjective&&!directLineClear;
 }
-const combat=(u:Unit)=>u.hp>0&&!u.carrier&&!['medic','engineer','scout','supply'].includes(u.kind);
+const combat=(u:Unit)=>u.hp>0&&!u.carrier&&!['medic','engineer','scout','supply','drone'].includes(u.kind);
 const frontRole=(u:Unit)=>combat(u)&&u.kind!=='artillery'&&!unitSpec(u).flying;
-export const combatStrength=(u:Unit)=>u.hp/100*Math.pow((unitSpec(u).damage/unitSpec(u).cooldown)/(17/.85),.35);
+export const combatStrength=(u:Unit)=>u.kind==='drone'?0:u.hp/100*Math.pow((unitSpec(u).damage/unitSpec(u).cooldown)/(17/.85),.35);
 /** Earlier retreats require a real living medic and confirmed enemy HQ loss. */
 export function infantryRecoveryThreshold(endgame:boolean,medicAvailable:boolean):number{
  return endgame && medicAvailable ? 0.48 : 0.30;
@@ -174,7 +174,7 @@ export class TacticalAI {
  private zones():{x:number;y:number;radius:number;cost:number}[]{
   const g=this.g,s=this.state,zones:{x:number;y:number;radius:number;cost:number}[]=s.knownTurrets.map(t=>({...t,radius:t.range+85,cost:36*clamp(1-Math.floor((g.time-t.seenAt)/30)*30/250,.25,1)}));
   for(const l of s.losses)if(g.time-l.at<60&&s.losses.filter(v=>g.time-v.at<60&&distance(v,l)<320).length>=2)zones.push({...l,radius:300,cost:22*(1-Math.floor((g.time-l.at)/15)*15/75)});
-  for(const u of g.units)if(u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u))zones.push({...u,radius:unitSpec(u).range+70,cost:Math.min(12,combatStrength(u)*3)});
+  for(const u of g.units)if(u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u))zones.push({...u,radius:unitSpec(u).range+70,cost:Math.min(12,combatStrength(u)*3)});
   return zones;
  }
  private field():Float32Array{
@@ -230,7 +230,7 @@ export class TacticalAI {
   b.withdrawals=b.withdrawals.filter(w=>g.units.some(v=>v.id===w.unit&&v.owner===1&&v.hp>0&&!v.carrier));
   if(old&&g.time-old.since<5)return;
   const army=g.units.filter(v=>v.owner===1&&v.hp>0&&!v.carrier),near=army.filter(v=>distance(v,u)<450&&!s.recovering?.includes(v.id));
-  const towers=s.knownTurrets.filter(t=>distance(t,u)<t.range+220),enemies=g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&g.canSee(1,v)&&distance(v,u)<600);
+  const towers=s.knownTurrets.filter(t=>distance(t,u)<t.range+220),enemies=g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&v.kind!=='drone'&&g.canSee(1,v)&&distance(v,u)<600);
   const assessment=assessBattle(near,enemies,towers,g.time,true);
   // A real battle group must not all turn their backs on the first hit.
   // Alone under a turret, however, a 34%-HP infantryman lacks any fighting
@@ -357,7 +357,7 @@ export class TacticalAI {
   const g=this.g,s=this.state,b=s.battle??=newBattle(),old=b.squads.find(q=>q.role==='raid');
   const safe=(id:number)=>{const t=g.territories[id];return t&&t.owner!==1&&!s.knownTurrets.some(k=>distance(k,t.point)<k.range+140)
    &&!g.memories[1].some(m=>m.owner===0&&m.hp>0&&m.territory===id)
-   &&!g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&distance(u,t.point)<350);};
+   &&!g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)&&distance(u,t.point)<350);};
   if(old&&old.target!==null&&safe(old.target)){
    const units=fighters.filter(u=>old.ids.includes(u.id));
    if(units.length){this.issue(units,g.territories[old.target].point,'assault',undefined,false,false);return new Set(units.map(u=>u.id));}
@@ -502,7 +502,7 @@ export class TacticalAI {
  private recon(army:Unit[],home:Point):Set<number>{
   if(this.mode==='director'&&this.g.world.mapVersion>=3)return this.campaignRecon(army,home);
   const g=this.g,s=this.state,frontiers=g.territories.filter(t=>t.owner!==1&&t.neighbors.some(i=>g.territories[i].owner===1));
-  const defending=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<560));
+  const defending=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)&&g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<560));
   // On the new maps, rovers are combat vehicles first, not perpetual scouts.
   const rover=g.world.mapVersion<=2&&!defending&&army.filter(combat).length>=6?army.find(u=>u.kind==='rover'&&!s.group.includes(u.id)):undefined,explorers=army.filter(u=>(u.kind==='scout'&&u.id!==s.airlift?.heli)||u===rover);
   for(const [index,u] of explorers.entries()){
@@ -544,7 +544,7 @@ export class TacticalAI {
   const g=this.g,r=450;
   const allies=g.units.filter(v=>v.owner===1&&v.hp>0&&!v.carrier&&
    distance(v,u)<=r);
-  const observed=g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&
+  const observed=g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&v.kind!=='drone'&&
    distance(v,u)<=r+110&&g.canSee(1,v));
   const guns=this.state.knownTurrets.filter(t=>distance(t,u)<=t.range+180);
   return hasDecisiveLocalAdvantage(allies,observed,guns);
@@ -661,7 +661,7 @@ export class TacticalAI {
   * the safe side of known guns; emergency withdrawals retain ownership. */
  private screenThreats(members:Unit[],goal:Point):Set<number>{
   const g=this.g,s=this.state,support=members.filter(u=>u.kind==='artillery'||u.kind==='medic');
-  const threats=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&support.some(v=>distance(u,v)<unitSpec(u).range+100))
+  const threats=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)&&support.some(v=>distance(u,v)<unitSpec(u).range+100))
    .sort((a,b)=>(unitSpec(b).damage/unitSpec(b).cooldown)-(unitSpec(a).damage/unitSpec(a).cooldown)||a.id-b.id);
   const assigned=new Set<number>(),target=threats[0];if(!target)return assigned;
   for(const u of members.filter(frontRole)){
@@ -747,7 +747,7 @@ export class TacticalAI {
    h={x:(goal.x-anchor.x)/d,y:(goal.y-anchor.y)/d};
   // Real current RED vision only. Bomber strike decisions must NEVER
   // consult unobserved units even though Simulation stores all of them.
-  const visibleArmor=g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&
+  const visibleArmor=g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&v.kind!=='drone'&&
    g.canSee(1,v)&&!unitSpec(v).flying&&unitSpec(v).group==='Fahrzeuge');
   for(const [index,u] of members.filter(u=>u.kind==='bomber'&&!u.airfieldService).entries()){
    // A bomber can make useful anti-tank bombing runs even if no ground
@@ -792,7 +792,7 @@ export class TacticalAI {
  private dispatchObservedSpecialists(army:Unit[]):void{
   const g=this.g,recovering=new Set(this.state.recovering??[]),
    withdrawals=new Set(this.state.battle?.withdrawals.map(w=>w.unit)??[]);
-  const visible=g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&
+  const visible=g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&v.kind!=='drone'&&
    g.canSee(1,v)&&(unitSpec(v).flying||unitSpec(v).group==='Fahrzeuge'));
   if(!visible.length)return;
   for(const u of army){
@@ -872,7 +872,7 @@ export class TacticalAI {
   const frontiers=g.territories.filter(t=>t.owner!==1&&t.id!==s.target&&t.neighbors.some(i=>g.territories[i].owner===1));
   const viable=frontiers.filter(t=>!s.knownTurrets.some(turret=>distance(turret,t.point)<turret.range+80)
    &&!g.memories[1].some(m=>m.owner===0&&m.hp>0&&m.territory===t.id&&['headquarters','turret'].includes(m.kind??''))
-   &&!g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&distance(u,t.point)<300));
+   &&!g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)&&distance(u,t.point)<300));
   if(!viable.length)return;
   const centroid=raiders.reduce((p,u)=>({x:p.x+u.x/raiders.length,y:p.y+u.y/raiders.length}),{x:0,y:0});
   viable.sort((a,b)=>distance(centroid,a.point)-distance(centroid,b.point)||a.id-b.id);
@@ -891,7 +891,7 @@ export class TacticalAI {
    // recovering from a failed attack. Main waves retain their own strength.
    const recentFailures=b.fronts.filter(f=>g.time-f.at<100).length;
    const recentLosses=s.losses.filter(l=>g.time-l.at<70).length;
-   const homePressure=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier
+   const homePressure=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'
     &&g.canSee(1,u)&&distance(u,home)<850);
    if(!homeDefensePlan({fighters:fighters.length,time:g.time,recentLosses,
      recentFailures,lastFailureAt:b.fronts.at(-1)?.at??-1,
@@ -910,7 +910,7 @@ export class TacticalAI {
   const emergency=b.squads.some(q=>q.role==='defense'&&q.ids.length>0);
   const selective=this.raidDetachmentMode==='selective'&&g.world.mapVersion===11;
   const currentFront=s.group.filter(id=>fighters.some(u=>u.id===id)).length;
-  const homeThreat=selective&&g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier
+  const homeThreat=selective&&g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'
     &&g.canSee(1,u)&&distance(u,home)<560);
   const permitted=selective?selectiveRaidAllowed({
     fighters:fighters.length,mainScreen:currentFront,
@@ -994,7 +994,7 @@ export class TacticalAI {
   // Fighting units can encounter a player ambush *before* reaching their
   // strategic objective. Count only currently observed opponents, but also
   // include actual nearby contacts along the moving assault column.
-  const visible=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&
+  const visible=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)&&
    (distance(u,mission)<450||(s.phase==='attack'&&fighters.some(v=>
     s.group.includes(v.id)&&distance(v,u)<450))));
   const defended=mission.kind!=='capture'||g.territories[mission.sector].owner===0||towers.length>0||visible.reduce((n,u)=>n+combatStrength(u),0)>3;
@@ -1012,7 +1012,7 @@ export class TacticalAI {
   const battleNow=s.battle??=newBattle();
   const recentFailures=battleNow.fronts.filter(f=>g.time-f.at<100);
   const recentLosses=s.losses.filter(l=>g.time-l.at<70).length;
-  const observedHomePressure=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)
+  const observedHomePressure=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)
    &&g.bases.some(base=>base.owner===1&&base.hp>0&&distance(base,u)<850));
   const policy=modernDefense?homeDefensePlan({
    fighters:mainFighters.length,time:g.time,recentLosses,
@@ -1048,7 +1048,7 @@ export class TacticalAI {
    &&g.canSee(1,intel)){
    const blockers=this.obstacles().filter(o=>!('id' in o)||o.id!==intel.id);
    for(const u of selected.filter(u=>u.kind==='artillery'&&u.hp>0)){
-    const mobileThreat=g.units.some(v=>v.owner===0&&v.hp>0&&!v.carrier&&g.canSee(1,v)
+    const mobileThreat=g.units.some(v=>v.owner===0&&v.hp>0&&!v.carrier&&v.kind!=='drone'&&g.canSee(1,v)
      &&distance(u,v)<unitSpec(v).range+90);
     if(keepEndgameBatteryFiring({confirmedEndgame:true,visibleTurret:true,
      livingGun:!u.carrier,healthyGun:u.hp>=unitSpec(u).hp*.7,
@@ -1316,7 +1316,7 @@ export class TacticalAI {
   const g=this.g,s=this.state;
   if(this.mode!=='director'||g.world.mapVersion<23||g.territories.length!==4||
      g.time>145||g.status!=='playing'){s.openingContests=[];return new Set();}
-  const seen=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u));
+  const seen=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u));
   if(seen.some(u=>g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<550))){
    s.openingContests=[];return new Set(); // real invasion: preserve home defense
   }
@@ -1403,7 +1403,7 @@ export class TacticalAI {
    this.contestOpeningBastions(); // starting infantry travels while HQ is under construction
    return;
   }
-  const g=this.g,s=this.state;this.observe();s.lastPlan=g.time;s.losses=s.losses.filter(l=>g.time-l.at<90);s.attempts=s.attempts.filter(a=>a.until>g.time||a.losses>0).slice(-30);const signature=JSON.stringify([s.knownTurrets.map(t=>[t.id,t.x,t.y,Math.floor((g.time-t.seenAt)/30)]),s.losses.map(l=>[l.id,Math.floor((g.time-l.at)/15)]),g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)).map(u=>[u.id,u.kind,u.x,u.y,u.hp]),this.obstacles().map(o=>[o.x,o.y,o.radius])]);
+  const g=this.g,s=this.state;this.observe();s.lastPlan=g.time;s.losses=s.losses.filter(l=>g.time-l.at<90);s.attempts=s.attempts.filter(a=>a.until>g.time||a.losses>0).slice(-30);const signature=JSON.stringify([s.knownTurrets.map(t=>[t.id,t.x,t.y,Math.floor((g.time-t.seenAt)/30)]),s.losses.map(l=>[l.id,Math.floor((g.time-l.at)/15)]),g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)).map(u=>[u.id,u.kind,u.x,u.y,u.hp]),this.obstacles().map(o=>[o.x,o.y,o.radius])]);
   if(signature!==this.routeSignature||this.routeCache.size>128){this.routeCache.clear();this.routeSignature=signature;}this.field();
   const army=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier),home=g.bases.filter(b=>b.owner===1&&b.hp>0).sort((a,b)=>(a.kind==='headquarters'?0:1)-(b.kind==='headquarters'?0:1)||a.id-b.id)[0]??g.territories.find(t=>t.owner===1)?.point??army[0];
   if(!home)return;
@@ -1418,7 +1418,7 @@ export class TacticalAI {
   // Protect captured Bastions as well as production. Only enemies physically
   // VISIBLE to RED can trigger it. The threat must approach the actual
   // capture circle, not merely occupy another sector behind the fog.
-  const intruders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&
+  const intruders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)&&
    (g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<(b.kind==='headquarters'?560:420))
     ||ownedBastions.some(t=>distance(u,t.point)<260)));
   if(g.world.mapVersion>=3&&this.mode==='director'){
@@ -1485,7 +1485,7 @@ export class TacticalAI {
   const ranked=targets.map(t=>{
    const loss=s.attempts.find(a=>a.sector===t.id),route=this.route(s.rally!,t.point),travel=this.sampleRoute(route,s.rally!);
    const towers=s.knownTurrets.filter(b=>distance(b,t.point)<b.range+85||route.some((p,i)=>segmentDistance(b,i?route[i-1]:s.rally!,p)<b.range+40));
-   const defenders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&distance(u,t.point)<420).reduce((n,u)=>n+combatStrength(u),0);
+   const defenders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)&&distance(u,t.point)<420).reduce((n,u)=>n+combatStrength(u),0);
    const knownHQ=g.memories[1].find(m=>m.owner===0&&m.kind==='headquarters'&&m.territory===t.id&&m.hp>0);
    const knownIndustry=g.memories[1].find(m=>m.owner===0&&['factory','airfield','barracks'].includes(m.kind??'')&&m.territory===t.id&&m.hp>0);
    // Sector ownership is already part of strategic target selection. Press

@@ -11,7 +11,7 @@ export interface FailedFront extends Point {sector:number;at:number;until:number
 export interface BattleSquad {role:'assault'|'defense'|'raid';ids:number[];target:number|null;since:number}
 export interface BattleState {version:1;withdrawals:Withdrawal[];fronts:FailedFront[];squads:BattleSquad[];assessment?:BattleAssessment;commitUntil?:number;reactions:number;retreats:number}
 export const newBattle=():BattleState=>({version:1,withdrawals:[],fronts:[],squads:[],reactions:0,retreats:0});
-const fighting=(u:Unit)=>u.hp>0&&!u.carrier&&!['engineer','medic','scout'].includes(u.kind);
+const fighting=(u:Unit)=>u.hp>0&&!u.carrier&&!['engineer','medic','scout','drone'].includes(u.kind);
 export function fightingPower(units:readonly Unit[],armored=false):number{
  return units.filter(fighting).reduce((n,u)=>{
   const s=unitSpec(u),damage=armored?weaponDamage(u,{kind:'turret',queue:[]}):s.damage;

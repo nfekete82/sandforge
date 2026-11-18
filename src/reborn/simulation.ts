@@ -1372,6 +1372,32 @@ export class Simulation {
       waypoints:bomberAttackWaypoints(u,to,this.world.size,u.id%2===0?1:-1)};
     u.path=[];u.repath=0;
   }
+  /** Free local self-defense against recon aircraft. The drone is NOT an
+   * AI opponent: no pursuit, squad reassignment, attack order, retreat, or
+   * strategic AA production is authorized by this opportunistic shot. */
+  private shootPassingDrone(u:Unit):void {
+    if(u.owner!==1||u.hp<=0||u.carrier||u.cooldown>1e-8||
+       u.burst||!['rocket','heavy','infantry','rover'].includes(u.kind))return;
+    const range=this.range(u),observed=this.spatial.query(u,range).filter(target=>
+      target.owner===0&&target.hp>0&&!target.carrier&&
+      distance(u,target)<=range&&this.canSee(1,target)&&
+      this.world.sightLine(u,target));
+    // Never waste a ready weapon on a harmless drone when a combat threat
+    // is already within reach. Existing targeting stays authoritative.
+    if(observed.some(target=>target.kind!=='drone'&&canAttack(u,target)))return;
+    const drone=observed.filter(target=>target.kind==='drone')
+      .sort((a,b)=>distance(u,a)-distance(u,b)||a.id-b.id)[0];
+    if(!drone)return;
+    const spec=unitSpec(u),damage=weaponDamage(u,drone)*getVeterancyModifiers(u).damage;
+    if(u.kind==='rocket')this.launch(u,drone);
+    else {
+      const weapon:Weapon=u.kind==='infantry'||u.kind==='rover'?'rifle':'heavy';
+      this.damage(u,drone,damage,weapon,{x:u.x,y:u.y-18});
+    }
+    u.cooldown=spec.cooldown/getVeterancyModifiers(u).fireRate;
+    u.fire=.18;
+    // Intentionally do NOT set u.angle, u.orders, u.combatTarget or u.path.
+  }
   private launch(u:Unit,target:Unit|Base):void{
     const id=this.nextId++,antiArmor=u.kind==='tank'||u.kind==='rocket';
     const miss=this.stageWebGLProduction&&unitShotMisses(this.seed,u.id,target.id,this.time,u.burst?.index??0);
@@ -1448,6 +1474,9 @@ export class Simulation {
     const visible=(e:Unit|Base)=>this.canSee(u.owner,e)||(distance(u,e)<=this.sight(u)&&(spec.flying||this.world.sightLine(u,e)));
     const eligible=(e:Unit|Base)=>{
       if(e.hp<=0||('orders' in e&&e.carrier)||e.owner===u.owner||!canAttack(u,e))return false;
+      // Strategic AI ignores unarmed drones in ordinary target acquisition.
+      // A separate in-range AA opportunity may shoot, without changing orders.
+      if(u.owner===1&&'orders' in e&&e.kind==='drone')return false;
       const d=distance(u,e);
       if(d>engageRadius||!visible(e))return false;
       return spec.flying||('orders' in e&&unitSpec(e).flying)||
@@ -1814,6 +1843,7 @@ export class Simulation {
       // defensive reaction fire or an old attack lock stall the movement.
       // Boarding/takeoff animations finish before movement resumes.
       if(transportBusy){delete u.burst;continue;}
+      this.shootPassingDrone(u);
       if(u.kind==='bomber'&&(u.orders.length>0||u.hold||u.pursuitOrigin))delete u.idleOrbit;
       // Complete a wide physical escape/turn/return route after a bomb release.
       // The waypoint array is fixed at launch: no unseen target tracking.
@@ -2071,7 +2101,10 @@ export class Simulation {
         const weapon=RULES.turret,blockers=this.obstacles().filter(o=>o.id!==b.id);
         const eligible=(u:Unit)=>u.hp>0&&u.owner!==b.owner&&distance(b,u)<=weapon.range&&
           (this.canSee(b.owner,u)||(distance(b,u)<=buildingSpec(b).sight&&this.world.sightLine(b,u)))&&this.world.line(b,u,blockers);
-        const target=this.units.find(u=>u.id===b.turretTarget&&eligible(u))??this.spatial.query(b,weapon.range).filter(eligible).sort((a,c)=>distance(b,a)-distance(b,c)||a.id-c.id)[0];
+        const options=this.spatial.query(b,weapon.range).filter(eligible).sort((a,c)=>
+          Number(a.kind==='drone')-Number(c.kind==='drone')||distance(b,a)-distance(b,c)||a.id-c.id);
+        const locked=this.units.find(u=>u.id===b.turretTarget&&eligible(u));
+        const target=locked&&(locked.kind!=='drone'||!options.some(u=>u.kind!=='drone'))?locked:options[0];
         b.previousTurretAngle=b.turretAngle??0;b.turretTarget=target?.id??null;
         const pivot=turretPivot(b),to=target?{x:target.x,y:target.y-(unitSpec(target).flying?(target.kind==='scout'?34+77*(target.flightHeight??1):111):23)}:null,desired=to?Math.atan2(to.y-pivot.y,to.x-pivot.x):b.previousTurretAngle+.14*dt;
         b.turretAngle=turnTowards(b.previousTurretAngle,desired,target?weapon.turnSpeed:.14,dt);
