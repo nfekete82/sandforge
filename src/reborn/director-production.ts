@@ -142,6 +142,7 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   supply:2,rover:2,tank:c.income>=65||observed.armor>=3?6:4,
   artillery:c.knownTurrets>1?4:c.knownEnemyHQ||c.knownTurrets?3:2,
   scout:1,bomber:Math.max(bomberQuota,c.income>=65&&!c.finishing?1:0),
+  drone:0, // Drone is a human-controlled reconnaissance option, not an AI combat unit.
  })[kind];
  const ranks=(producer:Base):UnitKind[]=>{
   const n=counts();
