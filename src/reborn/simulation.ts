@@ -1758,11 +1758,11 @@ export class Simulation {
           state.retryAt=this.time;state.since=this.time;
           const nearby=this.spatial.query(u,175).filter(v=>v!==u&&v.hp>0&&!v.carrier&&
            !unitSpec(v).flying&&unitSpec(v).group==='Fahrzeuge'&&distance(u,v)<150);
-          // Only a vehicle AHEAD of this route can physically block it.
-          // A following tank must never trigger a false backward detour.
-          const ahead=nearby.filter(v=>
-            (v.x-u.x)*(next.x-u.x)+(v.y-u.y)*(next.y-u.y)>0);
-          const blocker=ahead.sort((a,b)=>distance(u,a)-distance(u,b))[0];
+          // Preserve the proven closest-blocker fallback even when a tank
+          // needs to sidestep *past* the blocker: restricting candidates to
+          // the forward half-plane caused endless repaths after the first
+          // successful detour. The occupied-lane check below remains active.
+          const blocker=nearby.sort((a,b)=>distance(u,a)-distance(u,b))[0];
           const gap=blocker?vehicleSpacingGap(u,blocker).comfortable:0;
           const detour=blocker?vehicleYieldWaypoint(u,next,blocker,gap,p=>
            this.world.walkable(p,collisionObstacles,clearance)&&
