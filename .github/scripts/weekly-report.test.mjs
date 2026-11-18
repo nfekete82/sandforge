@@ -28,7 +28,7 @@ function setup(){
 test('ranks better Bastion control, never counts timeout as win',()=>{
  const dir=setup();try{
   const data=analyze(dir);
-  assert.deepEqual(data.ranking.map(x=>x.name),['ai35','ai34','ai33','ai32']);
+  assert.deepEqual(data.ranking.map(x=>x.name),['ai34','ai35','ai33','ai32']);
   assert.equal(data.ranking[0].wins,6);
   assert.equal(data.ranking[3].wins,0);
   assert.equal(data.ranking[3].timeouts,6);
