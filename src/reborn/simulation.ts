@@ -1502,6 +1502,21 @@ export class Simulation {
    * boarding or hangar service, and no new tactical/transport orders.
    */
   private fireScoutRocket(u:Unit,target:Unit|Base|undefined):void{
+   if(u.kind!=='scout'||u.hp<=0||u.carrier||
+      (u.rocketAmmo??SCOUT_ROCKETS.maxAmmo)<=0||
+      (u.rocketCooldown??0)>0||u.airfieldService)return;
+   // Transport orders remain authoritative; only currently visible ground
+   // threats can be targeted, without a new chase or squad assignment.
+   if(!target&&!u.hold){
+    const observed=[...this.spatial.query(u,SCOUT_ROCKETS.range),...this.bases]
+      .filter(e=>e.owner!==u.owner&&e.hp>0&&
+       !('orders' in e&&e.carrier)&&
+       scoutRocketReady(u,distance(u,e),e)&&this.canSee(u.owner,e));
+    const priority=(e:Unit|Base)=>'queue' in e?2:
+      unitSpec(e).group==='Fahrzeuge'?0:1;
+    target=observed.sort((a,b)=>priority(a)-priority(b)||
+       distance(u,a)-distance(u,b)||a.id-b.id)[0];
+   }
    if(!target||!scoutRocketReady(u,distance(u,target),target)||
       !this.canSee(u.owner,target))return;
    const from={x:u.x,y:u.y};
@@ -2037,6 +2052,9 @@ export class Simulation {
       if(this.transports.boarding(u,dt))continue;
       if(this.escort(u,dt)||this.support(u,dt)){delete u.burst;continue;}
       const order=u.orders[0];
+      // A flying transport may launch a tiny defensive missile while moving,
+      // but never interrupts its own approach, delivery or rally orders.
+      if(u.kind==='scout'&&order?.kind==='move')this.fireScoutRocket(u,undefined);
       // Idle tanks must not inherit their previous acceleration after an old
       // order has ended. A new departure should visibly aim and pivot first.
       if(u.kind==='tank'&&!order&&!u.pursuitOrigin)u.driveSpeed=0;
