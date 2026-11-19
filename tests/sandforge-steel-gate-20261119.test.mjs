@@ -12,18 +12,19 @@ const meshes=root=>{
  const found=[];root.traverse(x=>{if(x.isMesh)found.push(x);});return found;
 };
 
-test('the gate is taller than the wall, with a clear 95-unit steel vehicle portal',()=>{
+test('the double gate replaces two wall sections with a 190-unit clear steel portal',()=>{
  const wall=create('wall'),gate=create('wallGate');
  const wb=new THREE.Box3().setFromObject(wall);
  const gb=new THREE.Box3().setFromObject(gate);
  assert.ok(gb.max.y>wb.max.y+8,'gate header and towers project above the wall');
- assert.ok(gb.max.x-gb.min.x<=111,'gate still matches the 109-unit wall footprint');
- assert.equal(gate.userData.gateClearOpeningWidth,95);
- assert.equal(gate.userData.gateClearOpeningHeight,56);
+ assert.ok(gb.max.x-gb.min.x>205&&gb.max.x-gb.min.x<=220,
+  'complete gate must span two 109-unit wall sections');
+ assert.equal(gate.userData.gateClearOpeningWidth,190);
+ assert.ok(gate.userData.gateClearOpeningHeight>62);
  const [left,right]=gate.userData.gateLeaves;
  assert.ok(left?.isGroup&&right?.isGroup);
- assert.equal(left.position.x,-47.5);
- assert.equal(right.position.x,47.5);
+ assert.equal(left.position.x,-95);
+ assert.equal(right.position.x,95);
  const a=meshes(left).find(m=>m.material.name.includes('riveted steel armour'));
  const b=meshes(right).find(m=>m.material.name.includes('riveted steel armour'));
  assert.ok(a&&b,'two distinct steel swing doors');
