@@ -28,6 +28,8 @@ jobs:
         run: |
           node --test \
             tests/sandforge-battle-director-mountain-20261119.test.mjs \
+            tests/sandforge-diverse-landscapes-v4-20261119.test.mjs \
+            tests/sandforge-natural-landscape-v3-20261119.test.mjs \
             tests/sandforge-ai36-recon-bomber-support-20261119.test.mjs \
             tests/sandforge-ai-combat-ready-waves.test.mjs \
             tests/sandforge-ai36-terrain-routes-20261119.test.mjs \
