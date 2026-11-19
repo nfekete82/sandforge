@@ -20,7 +20,7 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
    Math.min(closest,Math.hypot(x-zone.point.x,z-zone.point.y)-zone.radius),Infinity);
  const point=(x,z,y=.25)=>[x-half,heightAt(x,z)+y,z-half];
  const roadShade={desert:'#aa8b61',snow:'#8e8e83',jungle:'#938061'}[biome]??'#aa8b61';
- const rockColors=({desert:['#b99c75','#8e7153','#d2b38c','#e0c29b'],
+ const rockColors=({desert:[desertStyle.mesa,desertStyle.mesaShade,desertStyle.looseStones[0],desertStyle.looseStones[2]],
    snow:['#9ca2a0','#707b7e','#c3c6bf','#e1ddd3'],
    jungle:['#9a9871','#64694e','#afa982','#c9b78f']})[biome]??['#b99c75','#8e7153','#d2b38c','#e0c29b'];
 
@@ -89,6 +89,8 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
  // Continuous terrain-following massif with irregular profile, layered
  // colors and gradually rounded ends. No sharp top teeth or squared pillars.
  const rockPositions=[],rockRgb=[],rockUv=[];
+ // Reuse the exact fractured rock geometry used by the existing loose stones.
+ const outcropMatrices=[[],[],[]];
  const rockPalette=rockColors.map(c=>new THREE.Color(c));
  // Stratified ledges and asymmetrical fractured crowns, shaped like the
  // existing Sandforge mesas. Keep a broad foot over the physical cliff cells.
@@ -148,6 +150,39 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
     return {position,color,rise:Math.max(0,height)};
    });
   });
+  // Anchor uneven PBR sandstone fragments into the blocked ridge. These are
+  // scene-only, so no extra collision, pathfinding or save data is introduced.
+  // The middle of the cliff remains occupied by the authoritative World grid.
+  const sampleStep=lowQuality?6:4;
+  for(let i=3;i<line.length-3;i+=sampleStep){
+   const p=line[i],before=line[i-1],after=line[i+1];
+   const dx=after.x-before.x,dz=after.z-before.z,len=Math.hypot(dx,dz)||1;
+   const nx=-dz/len,nz=dx/len;
+   const phase=p.along*.014+spine[0].x*.00071+spine[0].y*.00037;
+   const ridgeRoll=.73+.19*Math.sin(phase*.48+.25)+
+     .12*Math.sin(phase*1.14+1.7)+.045*Math.cos(phase*2.3);
+   const endFade=smooth(Math.min(p.along,along-p.along)/105);
+   if(endFade<.9)continue;
+   if(ridge.ramps.some(pass=>Math.abs(p.x-pass.x)<pass.width*.5+ridge.width+85))continue;
+   // Strong safety margin: no decorative outcrop near the construction pads.
+   if(distanceFromBuildPad(p.x,p.z)<ridge.width*2+100)continue;
+   const sides=[-.26,.29];
+   for(let j=0;j<sides.length;j++){
+    if(Math.sin(phase*2.18+j*3.7)<-.16)continue;
+    const x=p.x+nx*ridge.width*sides[j],z=p.z+nz*ridge.width*sides[j];
+    if(x<90||z<90||x>size-90||z>size-90)continue;
+    if(distanceFromBuildPad(x,z)<ridge.width+105)continue;
+    const width=18+13*(.5+.5*Math.sin(phase*1.71+j*2.1));
+    const tall=15+12*(.5+.5*Math.cos(phase*1.28+j*2.8));
+    const lift=ridge.height*(.48+.19*Math.sin(phase*.64+j*.8))*ridgeRoll;
+    const dummy=new THREE.Object3D();
+    dummy.position.set(x-half,heightAt(x,z)+lift,z-half);
+    dummy.rotation.set(.06*Math.sin(phase),phase*2.39+j*.78,.07*Math.cos(phase*1.4));
+    dummy.scale.set(width,tall,width*(.82+.10*Math.cos(phase*1.3)));
+    dummy.updateMatrix();
+    outcropMatrices[Math.floor((Math.sin(phase*1.83+j*2.4)+1)*1.49)].push(dummy.matrix.clone());
+   }
+  }
   for(let i=1;i<sections.length;i++){
    for(let j=1;j<offsets.length;j++){
     const a=sections[i-1][j-1],b=sections[i-1][j],
@@ -182,6 +217,28 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
   mesh.castShadow=true;mesh.receiveShadow=true;mesh.raycast=()=>{};
   mesh.userData={visualOnly:true,physicalCliffPresentation:true,erodedRidge:true};
   scene.add(mesh);meshes.push(mesh);
+ }
+ // 1–3 instanced PBR groups for the entire map; no per-rock draw calls.
+ // These are the SAME material and authored ledge geometry as Sandforge's
+ // existing weathered stones, scaled to read like natural stratified outcrops.
+ if(outcropMatrices.some(group=>group.length)){
+  const stoneGeometry=weatheredStoneGeometry(lowQuality);
+  const palette=biome==='desert'?desertStyle.looseStones:rockColors.slice(0,3);
+  for(let group=0;group<outcropMatrices.length;group++){
+   const matrices=outcropMatrices[group];
+   if(!matrices.length)continue;
+   const material=stoneMaterial(palette[group],{
+    lowQuality,normalScale:biome==='desert'?.42:.58
+   });
+   const mesh=new THREE.InstancedMesh(stoneGeometry,material,matrices.length);
+   matrices.forEach((matrix,index)=>mesh.setMatrixAt(index,matrix));
+   mesh.instanceMatrix.needsUpdate=true;
+   mesh.computeBoundingSphere();
+   mesh.name='procedural-v3-sandstone-outcrops-'+group;
+   mesh.castShadow=true;mesh.receiveShadow=true;mesh.raycast=()=>{};
+   mesh.userData={visualOnly:true,rockOutcrops:true,physicalCliffPresentation:true};
+   scene.add(mesh);meshes.push(mesh);
+  }
  }
  return meshes;
 }
