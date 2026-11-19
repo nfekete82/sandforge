@@ -16,6 +16,14 @@ export const DESERT_VILLAGE_MODELS=Object.freeze([
  '/src/assets/reborn/canyon-3d/ruin-house.gltf',
  '/src/assets/reborn/canyon-3d/ruin-depot.gltf'
 ]);
+export const OASIS_VILLAGE_MODELS=Object.freeze([
+ '/src/assets/reborn/oasis-village/oasis-main-house.glb',
+ '/src/assets/reborn/oasis-village/oasis-flat-house.glb',
+ '/src/assets/reborn/oasis-village/oasis-courtyard-house.glb',
+ '/src/assets/reborn/oasis-village/oasis-small-hut.glb',
+ '/src/assets/reborn/oasis-village/oasis-ruined-house.glb',
+ '/src/assets/reborn/oasis-village/oasis-market-house.glb'
+]);
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const rng=seed=>{
  let s=(seed^0x73c9a515)>>>0;
@@ -142,10 +150,12 @@ export async function createDesertVillages({
  const villages=planDesertVillages({world,terrain,seed,lowQuality,oases});
  if(!villages.length)return {villages:[],meshes:[],roads:null,drawCalls:0};
  if(typeof loadModel!=='function')throw Error('Desert village requires authored GLTF model loader');
- const gltfs=await Promise.all(DESERT_VILLAGE_MODELS.map(url=>loadModel(url)));
+ const oasisStyle=villages.some(v=>v.architecturalStyle==='oasis-adobe');
+ const modelUrls=oasisStyle?OASIS_VILLAGE_MODELS:DESERT_VILLAGE_MODELS;
+ const gltfs=await Promise.all(modelUrls.map(url=>loadModel(url)));
  const templates=gltfs.map((data,variant)=>{
   const source=data.scene.clone(true);
-  weatherModel?.(source);
+  if(!oasisStyle)weatherModel?.(source); // Preserve GLB baked albedo/normal/roughness
   source.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(source);
   const extent=bounds.getSize(new THREE.Vector3());
@@ -174,10 +184,10 @@ export async function createDesertVillages({
    const part=template.submeshes[index];
    const material=part.material;
    const mesh=new THREE.InstancedMesh(part.geometry,material,entries.length);
-   mesh.name='visual-authored-abandoned-'+(type===0?'house':'depot')+'-'+index;
+   mesh.name='visual-authored-'+(oasisStyle?'oasis-adobe-'+type:'abandoned-'+(type===0?'house':'depot'))+'-'+index;
    mesh.userData={
     visualOnly:true,nonPlayable:true,desertVillage:true,authoredRuin:true,
-    source:DESERT_VILLAGE_MODELS[type],revision:DESERT_VILLAGE_ART_REVISION
+    source:modelUrls[type],revision:oasisStyle?OASIS_HAMLET_REVISION:DESERT_VILLAGE_ART_REVISION
    };
    mesh.castShadow=false;mesh.receiveShadow=true;
    mesh.raycast=()=>{};mesh.frustumCulled=false;
