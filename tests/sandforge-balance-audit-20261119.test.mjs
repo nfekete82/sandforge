@@ -109,3 +109,49 @@ test('same-price side fairness: identical mirror duel has no hidden faction adva
  assert.ok(a.hpFraction.every(Number.isFinite));
  assert.ok(b.hpFraction.every(Number.isFinite));
 });
+
+
+function siege(army,distanceToTower){
+ const g=new Simulation(731942+army.length,4);
+ g.aiClock=-1e8;g.tactical.plan=()=>{};g.stageWebGLProduction=true;
+ g.units=[];g.world.blocked.fill(0);g.world.opaque.fill(0);
+ g.highGroundEnabled=false;
+ const tower={
+  id:9901,owner:1,kind:'turret',x:2150,y:2000,
+  hp:BUILDINGS.turret.hp,territory:0,queue:[],queueTypes:[],
+  production:0,buildRemaining:0,cooldown:0,rally:null,radius:BUILDINGS.turret.radius
+ };
+ g.bases.push(tower);
+ const attackers=army.map((kind,i)=>g.spawn(0,{
+  x:2150-distanceToTower-i*12,y:2000+(i-1)*24},kind));
+ g.updateVision();
+ for(const unit of attackers){
+  g.command([unit.id],{kind:'attack',target:tower.id,x:tower.x,y:tower.y});
+ }
+ let time=0;
+ for(let i=0;i<700;i++){
+  g.step(RULES.tick);time+=RULES.tick;
+  if(tower.hp<=0||!attackers.some(u=>u.hp>0))break;
+ }
+ return {
+  attackers:army,cost:army.reduce((s,k)=>s+UNITS[k].cost,0),
+  towerCost:BUILDINGS.turret.cost,
+  distance:distanceToTower,t:round(time,1),
+  towerHp:round(tower.hp),towerHpFraction:round(tower.hp/BUILDINGS.turret.hp,3),
+  attackersHp:round(attackers.reduce((s,u)=>s+u.hp,0)),
+  attackersAlive:attackers.filter(u=>u.hp>0).length,
+  winner:tower.hp<=0?'attackers':attackers.every(u=>u.hp<=0)?'tower':'unresolved'
+ };
+}
+test('actual live tower defense versus paid infantry, armor and long-range siege',()=>{
+ const cases=[
+  siege(['infantry','infantry','infantry'],320),
+  siege(['rocket','rocket'],340),
+  siege(['tank'],420),
+  siege(['artillery'],665),
+  siege(['bomber'],430)
+ ];
+ console.log('BALANCE_TURRETS '+JSON.stringify(cases));
+ assert.equal(cases.length,5);
+ assert.ok(cases.every(c=>c.towerHp>=0&&c.towerHp<=BUILDINGS.turret.hp));
+});
