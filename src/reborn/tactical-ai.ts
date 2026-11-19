@@ -957,8 +957,9 @@ export class TacticalAI {
   if(!bombers.length)return;
   const frontUnits=army.filter(u=>combat(u)&&!unitSpec(u).flying&&
    (s.group.includes(u.id)||u.defendUntil>g.time));
-  const front=frontUnits.length?centroid(frontUnits):
-   s.commander?.mission??s.rally??home;
+  const front=frontUnits.length?frontUnits.reduce((p,u)=>({
+   x:p.x+u.x/frontUnits.length,y:p.y+u.y/frontUnits.length
+  }),{x:0,y:0}):s.commander?.mission??s.rally??home;
   // Neither an unseen opponent nor an old memory is a bombing target.
   const observed=[
    ...g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
