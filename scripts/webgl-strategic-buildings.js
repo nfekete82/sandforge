@@ -142,6 +142,64 @@ const siloInnerSteelPaint=(()=>{
  return map;
 })();
 
+
+/** Shared stamped gunmetal/steel PBR maps for the animated perimeter gate.
+ * The surface has welded panel seams, brushed wear, subtle oxidation and
+ * inset rivets. One texture allocation is reused by both factions, all gates
+ * and their construction previews; no async GLB or extra texture requests.
+ */
+const gateSteelSheet=(()=>{
+ const n=256,pixels=new Uint8Array(n*n*4);
+ for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+  const u=x%64,v=y%64;
+  const hash=(Math.imul(x+79,374761393)^Math.imul(y+113,668265263))>>>0;
+  const grit=((hash^(hash>>>15))&31)-15;
+  const weld=u<2||v<2?-37:u<5||v<5?11:0;
+  const rivet=((u-11)**2+(v-11)**2<11||
+   (u-53)**2+(v-53)**2<11)?-34:0;
+  const brushed=4*Math.sin(x*.31)+2*Math.cos(x*.07+y*.06);
+  const oxidation=Math.max(0,Math.sin(x*.052+y*.096))*(grit>7?11:3);
+  const tone=weld+rivet+brushed+grit*.46-oxidation;
+  const i=(y*n+x)*4;
+  for(let k=0;k<3;k++)pixels[i+k]=Math.max(0,Math.min(255,
+   Math.round([147,151,144][k]+tone)));
+  pixels[i+3]=255;
+ }
+ const texture=new THREE.DataTexture(pixels,n,n,THREE.RGBAFormat);
+ texture.name='Sandforge perimeter gate riveted weathered steel plate';
+ texture.colorSpace=THREE.SRGBColorSpace;
+ texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
+ texture.repeat.set(1,1);
+ texture.magFilter=THREE.LinearFilter;
+ texture.minFilter=THREE.LinearMipmapLinearFilter;
+ texture.generateMipmaps=true;
+ texture.anisotropy=4;
+ texture.needsUpdate=true;
+ return texture;
+})();
+
+/** Subtle worn yellow/charcoal hazard diagonals at vehicle-level height. */
+const gateHazardSheet=(()=>{
+ const w=128,h=64,pixels=new Uint8Array(w*h*4);
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  const dark=((x+Math.floor(y*.68))%38)<19;
+  const hash=(Math.imul(x+73,2654435761)^Math.imul(y+17,1597334677))>>>0;
+  const grit=((hash^(hash>>>13))&15)-7;
+  const base=dark?[41,44,42]:[197,159,68],i=(y*w+x)*4;
+  for(let k=0;k<3;k++)pixels[i+k]=base[k]+grit;
+  pixels[i+3]=255;
+ }
+ const texture=new THREE.DataTexture(pixels,w,h,THREE.RGBAFormat);
+ texture.name='Sandforge perimeter gate diagonal yellow hazard markings';
+ texture.colorSpace=THREE.SRGBColorSpace;
+ texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
+ texture.magFilter=THREE.LinearFilter;
+ texture.minFilter=THREE.LinearMipmapLinearFilter;
+ texture.generateMipmaps=true;
+ texture.needsUpdate=true;
+ return texture;
+})();
+
 /** A few weathered, metallic razor-wire coils on solid wall segments.
  * One merged draw call: no per-barb scene nodes, update loops or animations.
  * The geometry belongs to its wall model and is safely disposed on removal.
@@ -216,6 +274,7 @@ function createDefensiveWall(owner,gate=false){
   m.position.set(x,y,z);m.name=name;m.castShadow=true;m.receiveShadow=true;
   parent.add(m);return m;
  };
+
  if(!gate){
   add(root,109,7,30,0,4,0,cap,'WallFooting');
   for(const x of [-35,0,35]){
@@ -223,27 +282,106 @@ function createDefensiveWall(owner,gate=false){
    add(root,33,5,21,x,42,0,cap,'WallCoping');
    add(root,27,2,22,x,46,0,stripe,'WallFactionBand');
   }
+  for(const x of [-52,52]){
+   add(root,8,47,25,x,26,0,cap,'WallPillar');
+   add(root,10,5,28,x,51,0,concrete,'WallPillarTop');
+  }
  }else{
-  // Open roadway: no permanent ground-height concrete blocking the passage.
-  for(const x of [-51,51])
-   add(root,8,5,29,x,3,0,cap,'GateSideFooting');
+  // Keep the 109x32 gameplay footprint. Unlike the former camouflaged
+  // wall-like leaves, this 95-wide opening uses tall, hinged steel doors.
+  // Only its OWNER may path through, exactly as before; no new collider.
+  root.userData.gateClearOpeningWidth=95;
+  root.userData.gateClearOpeningHeight=56;
+  const steel=new THREE.MeshStandardMaterial({
+   name:'Sandforge gate | riveted steel armour',
+   color:'#ffffff',map:gateSteelSheet,bumpMap:gateSteelSheet,
+   bumpScale:.085,metalness:.79,roughness:.52
+  });
+  const frame=new THREE.MeshStandardMaterial({
+   name:'Sandforge gate | heavy gunmetal frame',
+   color:'#535955',map:materialGrain,bumpMap:materialGrain,
+   bumpScale:.09,metalness:.82,roughness:.48
+  });
+  const edges=new THREE.MeshStandardMaterial({
+   name:'Sandforge gate | brushed reinforced ribs',
+   color:'#8b8b7c',metalness:.72,roughness:.55
+  });
+  const warning=new THREE.MeshStandardMaterial({
+   name:'Sandforge gate | striped warning sheet metal',
+   color:'#ffffff',map:gateHazardSheet,metalness:.38,roughness:.7
+  });
+  const vent=new THREE.MeshStandardMaterial({
+   name:'Sandforge gate | recessed vents',color:'#282e2d',
+   metalness:.72,roughness:.67
+  });
+  const light=new THREE.MeshStandardMaterial({
+   name:'Sandforge gate | recessed warm floodlights',color:'#ead5a2',
+   emissive:'#f6c16a',emissiveIntensity:.75,roughness:.38,metalness:.16
+  });
+  const brace=(parent,name,x1,y1,x2,y2,z)=>{
+   const length=Math.hypot(x2-x1,y2-y1);
+   const mesh=add(parent,length,2.9,1.5,(x1+x2)*.5,
+    (y1+y2)*.5,z,edges,name);
+   mesh.rotation.z=Math.atan2(y2-y1,x2-x1);
+  };
+  // Side-only footings; the centre roadway is completely unobstructed.
+  for(const x of [-51,51]){
+   add(root,7,5,29,x,3,0,frame,'WallGate_SideFooting');
+   add(root,7,64,30,x,32,0,frame,'WallGate_ReinforcedPylon');
+   add(root,8,5,30,x,66,0,edges,'WallGate_PylonCap');
+   for(const z of [-13,13])
+    add(root,7,46,2,x,27,z,edges,'WallGate_PylonFrontRib');
+   // Industrial kickplate at the base stays outside the opening.
+   for(const z of [-12,12])
+    add(root,7,6,3,x,6,z,steel,'WallGate_PylonBasePlate');
+  }
+  // No horizontal steel below this lintel: tanks cross at ground level.
+  add(root,99,8,30,0,60,0,frame,'WallGate_SteelHeader');
+  add(root,90,2.6,31,0,65,0,edges,'WallGate_HeaderTopPlate');
+  add(root,28,4,31,0,61,0,stripe,'WallGate_FactionInsigniaPlate');
+  for(const x of [-30,30]){
+   add(root,19,2.4,8,x,67,0,vent,'WallGate_RoofVent');
+   for(const z of [-15.3,15.3])
+    add(root,15,1.8,.3,x,55.6,z,light,'WallGate_EntryFloodlight');
+  }
   const left=new THREE.Group(),right=new THREE.Group();
   left.name='WallGate_Leaf_Left';right.name='WallGate_Leaf_Right';
-  left.position.set(-47,0,0);right.position.set(47,0,0);
+  left.position.set(-47.5,0,0);right.position.set(47.5,0,0);
   root.add(left,right);
-  add(left,45,38,9,22.5,24,0,concrete,'WallGate_Left_ArmoredLeaf');
-  add(right,45,38,9,-22.5,24,0,concrete,'WallGate_Right_ArmoredLeaf');
-  add(left,43,4,13,22.5,45,0,stripe,'WallGate_Left_TeamStripe');
-  add(right,43,4,13,-22.5,45,0,stripe,'WallGate_Right_TeamStripe');
-  for(const x of [-8,8]){
-   add(left,2.2,29,12,22.5+x,23,0,cap,'WallGate_Left_Reinforcement');
-   add(right,2.2,29,12,-22.5+x,23,0,cap,'WallGate_Right_Reinforcement');
-  }
+  const leaf=(group,sign,label)=>{
+   const cx=sign*23.75;
+   // Hinges at x=0 of each moving group; doors meet at world x=0.
+   add(group,47.5,50.5,7,cx,29.25,0,steel,
+    'WallGate_'+label+'_SteelLeaf');
+   for(const z of [-4.75,4.75]){
+    add(group,46,3.2,2,cx,51,z,edges,
+     'WallGate_'+label+'_UpperCrossbar');
+    add(group,46,3.1,2,cx,12,z,edges,
+     'WallGate_'+label+'_LowerCrossbar');
+    for(const x of [sign*3.5,sign*44]){
+     add(group,2.6,43,2,x,29.5,z,edges,
+      'WallGate_'+label+'_SideRail');
+    }
+    brace(group,'WallGate_'+label+'_DiagonalBrace',
+     sign*7,16,sign*41,46,z);
+    add(group,44,5.7,.35,cx,8,z>0?6.3:-6.3,warning,
+     'WallGate_'+label+'_CautionStripe');
+   }
+   // A locking bar, heavy hinges and an inset vent read as an actual
+   // industrial vehicle gate even at the normal isometric RTS zoom.
+   for(const y of [16,40]){
+    add(group,4.2,7.2,11,sign*1.4,y,0,frame,
+     'WallGate_'+label+'_IndustrialHinge');
+   }
+   add(group,4,19,12,sign*44.8,27.5,0,frame,
+    'WallGate_'+label+'_CentralLatch');
+   for(const z of [-5.45,5.45])
+    add(group,14,3.4,.5,cx,43,z,vent,
+     'WallGate_'+label+'_HighVent');
+  };
+  leaf(left,1,'Left');
+  leaf(right,-1,'Right');
   root.userData.gateLeaves=[left,right];
- }
- for(const x of [-52,52]){
-  add(root,8,47,25,x,26,0,cap,'WallPillar');
-  add(root,10,5,28,x,51,0,concrete,'WallPillarTop');
  }
  addWallBarbedWire(root,{half:gate});
  return root;
