@@ -3,6 +3,30 @@ import {unitRenderAltitude,MODEL_HEIGHTS} from './webgl-scale.js';
 import {disposeOwnedMeshes,disposeTaggedMaterials} from './webgl-resource-lifecycle.js';
 
 export const aircraftModelKind=kind=>kind==='scout'||kind==='bomber';
+export const crashDurationFor=kind=>kind==='scout'?CRASH_HELICOPTER_SECONDS:CRASH_BOMBER_SECONDS;
+export const CRASH_HELICOPTER_SECONDS=2.1;
+export const CRASH_BOMBER_SECONDS=1.75;
+
+/** Pure deterministic visual flight. A helicopter loses rotor stability and
+ * banks into a descending spiral; a bomber travels forward in a shallow
+ * uncontrolled arc. Position is expressed in map X/Y, not 3D scene coords.
+ */
+export function aircraftCrashPose(kind,origin,heading,age,duration){
+ const t=Math.min(1,Math.max(0,age/Math.max(.01,duration)));
+ const travel=kind==='scout'?62:133;
+ const distance=travel*(t*.83+t*t*.17);
+ const side=kind==='scout'
+  ?Math.sin(t*Math.PI*3.8)*26*t
+  :Math.sin(t*Math.PI)*14*t;
+ const x=origin.x+Math.cos(heading)*distance-Math.sin(heading)*side;
+ const y=origin.y+Math.sin(heading)*distance+Math.cos(heading)*side;
+ const lift=(1-t*t*(3-2*t))**1.18;
+ return {x,y,lift,
+  bank:kind==='scout'?-Math.sin(t*Math.PI*2.9)*(.15+.67*t):-.85*t,
+  pitch:kind==='scout'?.20*t:.69*t,
+  spin:kind==='scout'?Math.sin(t*Math.PI*2.1)*.64*t:.15*t};
+}
+
 
 export function aircraftAimOffsetY(kind,modelHeight=0){
  const height=Number.isFinite(modelHeight)&&modelHeight>0?modelHeight:(MODEL_HEIGHTS[kind]??48);
