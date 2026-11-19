@@ -687,11 +687,11 @@ export class TacticalAI {
      s.group.includes(u.id)&&g.units.some(v=>v.owner===0&&v.hp>0&&
       !v.carrier&&v.kind!=='drone'&&g.canSee(1,v)&&
       distance(u,v)<Math.max(unitSpec(u).range,unitSpec(v).range)+75);
-    if(!inContact||u.hp<unitSpec(u).hp*.10&&
-       this.retreatSafe(u,home,
-        g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&
-         v.kind!=='drone'&&g.canSee(1,v)&&distance(u,v)<750),
-        s.knownTurrets))ids.add(u.id);
+    if(inContact&&u.hp>=unitSpec(u).hp*.10)ids.delete(u.id);
+    else if(!inContact||this.retreatSafe(u,home,
+      g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&
+       v.kind!=='drone'&&g.canSee(1,v)&&distance(u,v)<750),
+      s.knownTurrets))ids.add(u.id);
    }
    // Repair only behind the front. Routine 67%-HP extraction used to cause
    // suicidal retreats while tanks were still in range of enemy guns.
