@@ -4,6 +4,7 @@ import {World} from '../dist/src/reborn/world.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {generateMap} from '../dist/src/reborn/world-generation.js';
 import {campaignLayout} from '../dist/src/reborn/config.js';
+import {battlefieldStart,TERRAIN_GRADING_V3} from '../dist/src/reborn/battlefield-terrain.js';
 import {generateLandscapeNetwork} from '../dist/src/reborn/landscape-network.js';
 
 test('v3 creates deterministic roads, physical cliffs and genuine wide passages',()=>{
@@ -61,4 +62,47 @@ test('v2 stays byte-for-byte deterministic with no additional road or ridge fiel
   assert.equal(old.generated.roads,undefined);
   assert.equal(old.generated.ridges.length,0);
  }
+});
+
+
+test('v3 reserves broad buildable, genuinely flat, cliff-free circles around HQs and Bastions',()=>{
+ // Samples use a 100-unit building footprint, not just checking the tile center.
+ // Map edges are intentionally black void and are excluded from the candidate set.
+ for(const version of [23,24,25,26])
+  for(const seed of [0,1,2026,2077])
+   for(const profile of ['open','rocky','mixed']){
+    const game=Simulation.campaign(seed,version,profile,3),world=game.world;
+    const layout=campaignLayout(version,seed);
+    const bastionCenters=world.generated.sites;
+    const homeCenters=layout.headquarters.map(i=>battlefieldStart(bastionCenters[i],world.size));
+    const protectedZones=world.generated.ridges[0].clearings;
+    assert.equal(protectedZones.length,bastionCenters.length+2);
+    const check=(center,radius,label)=>{
+     let possible=0,buildable=0;
+     for(let dx=-radius;dx<=radius;dx+=200)for(let dy=-radius;dy<=radius;dy+=200){
+      if(Math.hypot(dx,dy)>radius)continue;
+      const p={x:center.x+dx,y:center.y+dy};
+      // A full 100-unit building is impossible right along the map boundary.
+      if(p.x<115||p.y<115||p.x>world.size-115||p.y>world.size-115)continue;
+      possible++;
+      assert.ok(Math.abs(world.terrainHeight(p.x,p.y))<1e-5,
+       `${version}/${seed}/${profile} ${label}: uneven safe build pad`);
+      if(world.buildable(p,100))buildable++;
+     }
+     assert.ok(possible>=8,`${label}: too little map area for building`);
+     assert.ok(buildable>=Math.ceil(possible*.95),
+      `${version}/${seed}/${profile} ${label}: only ${buildable}/${possible} building pads`);
+    };
+    for(const [i,p] of bastionCenters.entries())check(p,400,`Bastion ${i}`);
+    for(const [i,p] of homeCenters.entries())check(p,500,`HQ ${i}`);
+    // Physical and graphical cliff cutouts are derived from these same zones.
+    for(const [i,zone] of protectedZones.entries()){
+     assert.equal(zone.radius,i<bastionCenters.length?
+      TERRAIN_GRADING_V3.bastionFlatRadius+140:TERRAIN_GRADING_V3.homeFlatRadius+150);
+     assert.ok(!world.cliffIds.slice().some((id,index)=>id>=0&&
+      Math.hypot(world.center(index).x-zone.point.x,world.center(index).y-zone.point.y)<
+       (i<bastionCenters.length?TERRAIN_GRADING_V3.bastionFlatRadius:TERRAIN_GRADING_V3.homeFlatRadius)-15),
+      `${version}/${seed}/${profile} ${i}: collision cliff inside protected pad`);
+    }
+   }
 });
