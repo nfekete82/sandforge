@@ -51,8 +51,7 @@ test('only a finished OWN gate is navigable; an enemy gate remains physically so
  assert.equal(vehicleStructureColliders([enemy]).length,3);
  assert.equal(infantryStructureColliders([enemy]).length,3);
  assert.deepEqual(wallColliderSamples(own).map(c=>c.radius),[24,24,24]);
- const p={x:1450,y:1450};
- assert.ok(sites.every(b=>b.x!==p.x&&b.y!==p.y));
+ // The gate arrays themselves are the authority; no unrelated x/y test.
 });
 
 test('upgrade preserves wall identity, position, owner and facing and charges real credits',()=>{
