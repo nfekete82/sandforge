@@ -28,6 +28,7 @@ import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
 import {preserveAI36Assault,ai36JoinActiveFront,maintainAI36FrontOnRetarget} from './ai36-assault-continuity.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
 import type {Simulation,Unit,Base,Memory} from './simulation.js';
+import {friendlyGatePostColliders} from './defensive-wall.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
 export interface Loss extends Point {id:number;at:number;strength:number}
@@ -236,7 +237,8 @@ export class TacticalAI {
   const g=this.g,known=g.memories[1].filter(m=>m.owner===0&&m.hp>0).map(m=>({...m,radius:buildingSpec(m).radius}));
   // Open only completed friendly gates. Enemy gates remain known solid
   // structures; never reveal unseen targets to the tactical director.
-  return [...g.navigationBases(1).filter(b=>b.owner===1),...known];
+  return [...g.navigationBases(1).filter(b=>b.owner===1),
+   ...friendlyGatePostColliders(g.obstacles(),1),...known];
  }
  private danger(p:Point):number{return this.risk?.[this.g.world.index(p)]??0;}
  private route(from:Point,to:Point):Point[]{
