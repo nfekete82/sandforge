@@ -8,7 +8,7 @@ import {wheelsShouldRoll} from '/webgl-wheel-motion.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
 import {UNITS,BUILDINGS,MAX_GENERATORS_PER_FACTION,unitKinds,buildingKinds,unitSpec,buildingSpec} from '/src/reborn/catalog.js';
 import {TERRAIN_LABELS} from '/src/reborn/battlefield-terrain.js';
-import {RULES} from '/src/reborn/config.js';
+import {RULES,campaignLayout} from '/src/reborn/config.js';
 import {installClassicHud} from '/webgl-classic-hud.js';
 import {globalCatalogAvailability} from '/webgl-global-catalog.js';
 import {hydrateUnitIcons,hydrateBuildingIcons,unitIcon,buildingIcon,buildingIconUrl,researchIconMarkup,hydrateResearchArtworks} from '/webgl-portraits.js';
@@ -1367,6 +1367,15 @@ export class SandforgeBattlefield {
     }
    }
    if(entry){
+    // Keep the sector's faction colour while highlighting paid tier 2.
+    if(entry.upgradeLevel!==territory.upgradeLevel){
+     entry.upgradeLevel=territory.upgradeLevel;
+     const promoted=territory.upgradeLevel===2;
+     entry.halo.scale.setScalar(promoted?1.14:1);
+     entry.halo.material.opacity=promoted?.96:.75;
+     entry.halo.material.color.set(promoted?'#e8c15d':
+      territory.owner===0?colors.blue:territory.owner===1?colors.red:colors.neutral);
+    }
     updateBastionCaptureBar(entry.captureBar,territory,this.game,this.fogEnabled);
     if(active&&entry.motion){
      if(entry.motion.mixer)entry.motion.mixer.update(dt);
@@ -1653,6 +1662,24 @@ export class SandforgeBattlefield {
      this.message(underConstruction?'Baustelle abgebrochen':'Gebäude abgerissen');
     });
     return;
+   }
+   if(button.dataset.bunkerPassengerId!==undefined){
+    const bunkerId=Number(button.dataset.bunkerId);
+    const count=this.game.unloadBunker(bunkerId,Number(button.dataset.bunkerPassengerId));
+    this.message(count?'Soldat verlässt den Bunker':'Kein freier Ausstieg am Bunker');
+    this.drawInterface();return;
+   }
+   if(action==='bunker-unload'){
+    const count=this.game.unloadBunker(this.selectedBase);
+    this.message(count?count+' Soldat(en) verlassen den Bunker':'Kein freier Ausstieg am Bunker');
+    this.drawInterface();return;
+   }
+   if(button.dataset.upgradeBastion!==undefined){
+    const id=Number(button.dataset.upgradeBastion);
+    const ok=this.game.upgradeBastion(0,id);
+    this.message(ok?'Bastion Stufe 2 · Einkommen verdoppelt!':
+      'Aufrüstung nicht möglich: 750 Credits, eigene freie Bastion erforderlich');
+    this.drawInterface();return;
    }
    if(button.dataset.passengerId!==undefined){
     this.unloadPassenger(Number(button.dataset.carrierId),Number(button.dataset.passengerId));
@@ -2008,9 +2035,11 @@ export class SandforgeBattlefield {
   // destroyed all image elements and caused new 3D portrait uploads/readbacks.
   // Use static sector cards and update their <small> labels in place instead.
   const tiles=this.game.territories.map(t=>
-   '<button class="territory-row" data-territory="'+t.id+
+   '<div class="sf-sector-controls"><button class="territory-row" data-territory="'+t.id+
    '" aria-label="Sektor '+(t.id+1)+' zentrieren">'+
-   '<i></i><strong>SEKTOR '+(t.id+1)+'</strong><small></small></button>'
+   '<i></i><strong>SEKTOR '+(t.id+1)+'</strong><small></small></button>'+
+   '<button type="button" class="sf-bastion-upgrade" data-upgrade-bastion="'+t.id+
+   '" title="750 Credits investieren und Bastionseinkommen verdoppeln">UPGRADE</button></div>'
   ).join('');
   const markup='<div class="sf-group" data-sf-group="buildings"><div class="catalog-grid">'+
    cards(buildingKinds.filter(kind=>kind!=='interceptor'||INTERCEPTOR_ENABLED),'building')+'</div></div>'+
@@ -2035,9 +2064,19 @@ export class SandforgeBattlefield {
    tile.classList.toggle('blue',owner==='blue');
    tile.classList.toggle('red',owner==='red');
    tile.classList.toggle('unknown',owner==='unknown');
-   const caption=label+capture;
+   const caption=label+' · +'+(t.income*(t.upgradeLevel===2?2:1))+'/10s'+(t.upgradeLevel===2?' · STUFE 2':'')+capture;
    if(tile.querySelector('small')?.textContent!==caption)
     tile.querySelector('small').textContent=caption;
+   const upgrade=tile.closest('.sf-sector-controls')?.querySelector('[data-upgrade-bastion]');
+   if(upgrade){
+    const level=t.upgradeLevel===2?2:1;
+    upgrade.hidden=t.owner!==0;
+    upgrade.disabled=level===2||t.progress>0||g.credits[0]<750||
+      campaignLayout(g.world.mapVersion,g.seed).headquarters.includes(t.id);
+    upgrade.textContent=level===2?'STUFE 2 ✓':'UPGRADE · 750';
+    upgrade.title='Einkommen '+t.income+' → '+(t.income*2)+
+      ' Credits je 10 Sekunden · Ausbau verfällt bei Verlust';
+   }
   }
   // Only finished sources are rendered. Selection never hides a finished
   // production source; the roster updates on every construction completion.
@@ -2225,6 +2264,8 @@ export class SandforgeBattlefield {
    ?'Sammelpunkt aktiv · Neue Einheiten marschieren automatisch zum markierten Ziel.'
    :spec?.description??'Wähle eine Einheit oder ein Gebäude. Rechtsklick: Marsch oder Zielbefehl.';
   const manifest=selectedTransportManifest(g.units,this.selected);
+  const bunkerRoster=base?.kind==='bunker'?g.units.filter(u=>u.carrier===base.id&&
+    u.owner===base.owner&&u.hp>0&&base.garrison?.includes(u.id)):[];
   const roleNames={infantry:'INF',medic:'SAN',engineer:'PIO',heavy:'MG',rocket:'RAK'};
   const passengerMarkup=manifest
    ?'<div class="sf-passenger-manifest"><div class="sf-passenger-heading"><span>PASSAGIERE '+manifest.occupied+' / '+manifest.capacity+
@@ -2241,7 +2282,19 @@ export class SandforgeBattlefield {
        '<span class="sf-passenger-slot sf-passenger-empty" title="Platz '+(i+1)+' frei" aria-label="Platz '+(i+1)+' frei">–</span>'
      ).join('')+'</div></div>'
    :'';
-  view.querySelector('#sf-selection-panel')?.classList.toggle('sf-transport-selected',Boolean(manifest));
+  const bunkerMarkup=base?.kind==='bunker'?
+   '<div class="sf-passenger-manifest"><div class="sf-passenger-heading">'+
+   '<span>BUNKER-BESATZUNG '+bunkerRoster.length+' / 5</span>'+
+   (bunkerRoster.length?'<button type="button" class="sf-passenger-unload-all" '+
+    'data-action="bunker-unload">ALLE AUSSTEIGEN</button>':'')+
+   '</div><div class="sf-passenger-slots">'+Array.from({length:5},(_,i)=>{
+    const u=bunkerRoster[i];return u?
+     '<button type="button" class="sf-passenger-slot" data-bunker-id="'+base.id+
+     '" data-bunker-passenger-id="'+u.id+'" title="'+plain(UNITS[u.kind].name)+
+     ' einzeln aussteigen lassen">'+plain(roleNames[u.kind]??'INF')+'</button>':
+     '<span class="sf-passenger-slot sf-passenger-empty">–</span>';
+   }).join('')+'</div></div>':'';
+  view.querySelector('#sf-selection-panel')?.classList.toggle('sf-transport-selected',Boolean(manifest||bunkerMarkup));
   view.querySelector('#sf-selection-panel')?.classList.toggle('sf-engineer-selected',kind==='engineer'&&chosen.length===1);
   const strategicStatus=base?.kind==='silo'
     ?'<div class="sf-strategic-meter">🚀 '+(base.buildRemaining>0?'Silo im Bau':
@@ -2308,7 +2361,7 @@ export class SandforgeBattlefield {
    '<span class="sf-health">'+hp+' / '+maxHp+'</span></div>':'')+
    '<p title="'+plain(description)+'">'+plain(kind==='engineer'&&chosen.length===1
      ?'Baut und repariert Gebäude sowie Fahrzeuge. Gebäude im Baumenü wählen, dann Bauplatz auf der Karte anklicken.'
-     :description)+'</p>'+strategicStatus+rocketStatus+serviceMarkup+passengerMarkup;
+     :description)+'</p>'+strategicStatus+rocketStatus+serviceMarkup+passengerMarkup+bunkerMarkup;
   if(this.previousSelectionMarkup!==selectedMarkup){
    el.innerHTML=selectedMarkup;this.previousSelectionMarkup=selectedMarkup;
   }
@@ -2869,6 +2922,18 @@ export class SandforgeBattlefield {
   // An RMB hit on either owned carrier boards selected infantry before terrain movement.
   // Board BEFORE the terrain ray and other click commands.
   if(event.button===2&&this.selected.size&&!this.attackMode&&this.selectedBase===null){
+   const hit=this.friendlyAtPointer(event);
+   const bunker=hit?.type==='building'&&hit.entity.kind==='bunker'?
+    hit.entity:null;
+   if(bunker){
+    const ids=this.game.units.filter(u=>this.selected.has(u.id)&&u.owner===0&&
+     !u.carrier&&u.hp>0&&UNITS[u.kind].group==='Infanterie').map(u=>u.id);
+    const accepted=this.game.boardBunker(bunker.id,ids);
+    this.message(accepted?accepted+' Soldat(en) beziehen den Bunker':
+     'Bunker voll oder kein erreichbarer Zugang');
+    if(accepted)this.sound?.command?.();
+    this.drawInterface();return;
+   }
    const carrier=this.transportAtPointer(event);
    const ids=selectedInfantryForTransport(this.game.units,this.selected,carrier);
    if(ids.length){

@@ -29,6 +29,7 @@ test('only a selected occupied Humvee exposes the disembark action',()=>{
 
 test('real 20Hz simulation boards four soldiers and returns them on unload',()=>{
  const g=new Simulation(2074,4);g.aiClock=1e8;g.units=[];g.bases=[];
+ g.hadBuildings=[false,false]; // Empty fixture must not instantly trigger base elimination.
  g.world.blocked.fill(0);g.world.opaque.fill(0);g.status='playing';g.paused=false;
  // Avoid an immediate no-enemy victory while testing real boarding ticks.
  const observer=g.spawn(1,{x:300,y:300},'infantry');g.stop([observer.id],true);
@@ -69,6 +70,7 @@ test('3D right-click route dispatches boarding before generic terrain movement',
  assert.ok(pos<js.indexOf('const groundPoint='),'boarding must precede terrain picking');
  assert.match(js,/kind:'board',target:carrier\.id,x:carrier\.x,y:carrier\.y/);
  assert.match(js,/this\.game\.transports\.unload\(carrier\.id,point\)/);
- assert.match(hud,/data-action="unload"/);
+ assert.match(js,/data-action="unload"/);
+ assert.ok(hud.includes('sf-command-buttons'),'persistent command area still exists');
  assert.match(build,/webgl-transport-controls\.js/);
 });

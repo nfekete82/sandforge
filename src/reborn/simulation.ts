@@ -21,6 +21,8 @@ import {angleDifference,turnTowards} from './sprite-animator.js';
 import {newMatchStatistics,countDeployed,countProduced,countIncome,validMatchStatistics,type MatchStatistics} from './match-statistics.js';
 import {turretPivot,turretMuzzles} from './turret.js';
 import {Transports,type TransportState} from './transports.js';
+import {BUNKER_CAPACITY,bunkerApproach,bunkerCanBoard,bunkerGarrisonedUnits,bunkerTargetRange,bunkerExitPoints,validBunkerGarrisons} from './bunker-garrison.js';
+import {BASTION_UPGRADE_COST,bastionEffectiveIncome,bastionUpgradable,validBastionUpgradeState} from './bastion-upgrades.js';
 import {TacticalAI,type TacticalState,type TacticalOrder} from './tactical-ai.js';
 import { MAP_VERSION, randomMapSeed } from './world-generation.js';
 import {beginBomberOrbit,advanceBomberOrbit,validBomberOrbit,BOMBER_ORBIT_SPEED,preservesCaptureBoundary,safeOrbitApproach,isOnBomberOrbit,bastionCaptureOrbit,approachBastionCaptureOrbit,type BomberOrbit} from './bomber-orbit.js';
@@ -44,7 +46,7 @@ import {UPGRADES,UPGRADE_KINDS,newResearchState,canResearchUpgrade,researchModif
  from './strategic-tech.js';
 
 export interface Formation {front:number[];fallback?:number[];heading:Point;origin:Point;goal:Point;lane:number;rear:number}
-export interface Order extends Point { kind:'move'|'attackMove'|'attack'|'heal'|'repair'|'build'|'board'; target?:number; approach?:Point; healOrigin?:Point; formation?:Formation; march?:number[]; rear?:number; tactical?:TacticalOrder; guardOnArrival?:boolean }
+export interface Order extends Point { kind:'move'|'attackMove'|'attack'|'heal'|'repair'|'build'|'board'|'garrison'; target?:number; approach?:Point; healOrigin?:Point; formation?:Formation; march?:number[]; rear?:number; tactical?:TacticalOrder; guardOnArrival?:boolean }
 export type Weapon='rifle'|'heavy'|'pistol'|'turret'|'cannon'|'rocket'|'machinegun'|'bomb';
 export interface Burst {target:number;remaining:number;at:number;index:number}
 export interface WorkEffect {kind:'heal'|'repair'|'build'|'board';target:number;source:number;sources:number[];at:number;amount:number}
@@ -97,6 +99,8 @@ export interface Base extends Point {
   facing?:0|1|2|3;
   /** Two ordinary 109-unit sections; missing in older saves means legacy single width. */
   gateSpan?:1|2;
+  /** Authoritative IDs of up to five living infantry inside this bunker. */
+  garrison?:number[];
   constructionActive?:boolean;
   burst?:Burst;
   queueCosts?:number[];
@@ -822,7 +826,20 @@ export class Simulation {
   income(owner:Faction):number {
     return this.bases.filter(b=>b.owner===owner&&b.hp>0&&b.buildRemaining<=0).reduce((n,b)=>
       n+buildingSpec(b).income,0)+
-      this.territories.filter(t=>t.owner===owner).reduce((n,t)=>n+t.income,0);
+      this.territories.filter(t=>t.owner===owner).reduce((n,t)=>n+bastionEffectiveIncome(t),0);
+  }
+  /** Spend real credits for exactly one extra Bastion income tier.
+   * No home-sector rush: paid upgrades apply only to captured forward sites.
+   */
+  upgradeBastion(owner:Faction,id:number):boolean{
+    const t=this.territories.find(t=>t.id===id);
+    if(this.status!=='playing'||!t||this.credits[owner]<BASTION_UPGRADE_COST||
+      !bastionUpgradable(t,owner,this.bases,
+        campaignLayout(this.world.mapVersion,this.seed).headquarters))return false;
+    this.credits[owner]-=BASTION_UPGRADE_COST;t.upgradeLevel=2;
+    this.revision++;
+    if(owner===0)this.notices.push(t.name+' auf Stufe 2: +'+bastionEffectiveIncome(t)+' Credits / 10 s');
+    return true;
   }
   count(owner:Faction):number{return this.units.filter(u=>u.owner===owner&&u.hp>0).length;}
   queued(owner:Faction):number{return this.bases.filter(b=>b.owner===owner).reduce((n,b)=>n+b.queue.length,0);}
@@ -1007,6 +1024,7 @@ export class Simulation {
       if(cancelled)this.notices.push('Baustelle abgebrochen: '+buildingSpec(b).name+'.');
       return cancelled;
     }
+    if(b.kind==='bunker')this.destroyBunkerGarrison(b);
     b.hp=0;b.queue=[];b.queueTypes=[];b.queueCosts=[];
     b.production=0;b.rally=null;
     this.bases=this.bases.filter(site=>site.id!==id);
@@ -1035,8 +1053,105 @@ export class Simulation {
     this.notices.push('Gebäude abgerissen: '+buildingSpec(b).name+'.');
     return true;
   }
+  /** Five real soldiers enter an owned bunker by normal exterior pathing.
+   * Queued seats are reserved, so simultaneous RMB orders cannot overbook.
+   */
+  boardBunker(baseId:number,ids:number[]):number {
+    const b=this.bases.find(b=>b.id===baseId&&b.kind==='bunker'&&
+      b.hp>0&&b.buildRemaining<=0);
+    if(!b||this.status!=='playing')return 0;
+    let accepted=0;
+    for(const u of this.units.filter(u=>ids.includes(u.id)&&u.hp>0&&!u.carrier)){
+      if(!bunkerCanBoard(b,u,this.units))continue;
+      const point=bunkerApproach(b,u);
+      const exterior=this.world.nearest(point,
+        [...this.obstacles(),...infantryStructureColliders(this.obstacles()),
+         ...this.bastionColliders()],[],u,Math.max(0,unitSpec(u).radius-10));
+      if(!exterior||distance(exterior,b)>b.radius+110)continue;
+      u.orders=[{kind:'garrison',target:b.id,...exterior}];
+      u.path=[];u.repath=0;u.hold=false;u.guardArea=false;
+      u.workingTarget=null;u.combatTarget=null;u.pursuitOrigin=null;
+      accepted++;
+    }
+    return accepted;
+  }
+  /** Exit selected troops or the full roster at the bunker door. Soldiers
+   * retain all paid upgrades, HP and veterancy, with normal collisions.
+   */
+  unloadBunker(baseId:number,passengerId?:number):number {
+    const b=this.bases.find(b=>b.id===baseId&&b.kind==='bunker'&&
+      b.hp>0&&b.buildRemaining<=0);
+    if(!b||this.status!=='playing')return 0;
+    const roster=bunkerGarrisonedUnits(b,this.units).filter(u=>
+      passengerId===undefined||u.id===passengerId);
+    let released=0;
+    const obstacles=[...this.obstacles(),
+      ...infantryStructureColliders(this.obstacles()),...this.bastionColliders()];
+    for(const u of roster){
+      const spot=bunkerExitPoints(b).find(p=>
+        this.world.walkable(p,obstacles,Math.max(0,unitSpec(u).radius-10))&&
+        this.units.every(v=>v.id===u.id||v.hp<=0||v.carrier||
+          unitSpec(v).flying||distance(v,p)>unitSpec(v).radius+unitSpec(u).radius+5));
+      if(!spot)continue;
+      b.garrison=b.garrison?.filter(id=>id!==u.id);
+      delete u.carrier;u.x=u.previousX=spot.x;u.y=u.previousY=spot.y;
+      u.orders=[];u.path=[];u.repath=0;u.moving=false;
+      u.hold=true;u.guardArea=true;u.combatTarget=null;
+      released++;
+    }
+    if(released){this.spatial.rebuild(this.units);this.updateVision();}
+    return released;
+  }
+  /** Destruction and intentional demolition both kill every trapped soldier.
+   * Never respawn, reimburse, or auto-evacuate a destroyed garrison.
+   */
+  private destroyBunkerGarrison(b:Base):void {
+    // The structure already has 0 HP when a projectile destroys it: select
+    // by the authoritative manifest, not a live-bunker-only helper.
+    const occupants=new Set(b.garrison??[]);
+    for(const u of this.units.filter(u=>occupants.has(u.id)&&u.carrier===b.id)){
+      u.hp=0;u.orders=[];u.path=[];delete u.carrier;
+      this.tactical.loss(u);
+    }
+    b.garrison=[];
+    for(const u of this.units)if(u.orders[0]?.kind==='garrison'&&
+      u.orders[0].target===b.id){u.orders.shift();u.path=[];u.repath=0;}
+  }
+  /** Soldiers fire only at actual visible enemies using their own weapons,
+   * current HP, research and cooldowns. No garrison-wide free turret DPS.
+   */
+  private bunkerDefensiveFire(dt:number):void {
+    for(const b of this.bases)if(b.kind==='bunker'&&b.hp>0&&
+      b.buildRemaining<=0&&b.garrison?.length){
+      const roster=bunkerGarrisonedUnits(b,this.units);
+      for(const u of roster){
+        u.cooldown=Math.max(0,u.cooldown-dt);
+        if(u.cooldown>0||unitSpec(u).damage<=0)continue;
+        const maxRange=bunkerTargetRange(u);
+        const enemy=this.spatial.query(b,maxRange).filter(v=>
+          v.owner!==b.owner&&v.hp>0&&!v.carrier&&
+          distance(b,v)<=maxRange&&canAttack(u,v)&&
+          this.canSee(b.owner,v)&&this.world.sightLine(b,v))
+          .sort((a,z)=>distance(b,a)-distance(b,z)||a.id-z.id)[0];
+        if(!enemy)continue;
+        const spec=unitSpec(u);
+        u.cooldown=spec.cooldown/getVeterancyModifiers(u).fireRate;
+        const weapon:Weapon=u.kind==='rocket'?'rocket':
+          u.kind==='heavy'?'heavy':u.kind==='infantry'?'rifle':'pistol';
+        // Keep each soldier's own source ID and ordinary hit/miss rules.
+        if(u.kind==='rocket')this.launch(u,enemy);
+        else this.damage(u,enemy,weaponDamage(u,enemy)*
+          getVeterancyModifiers(u).damage,weapon,
+          {x:b.x,y:b.y-35});
+        u.fire=.18;u.angle=Math.atan2(enemy.y-b.y,enemy.x-b.x);
+      }
+    }
+  }
   command(ids:number[],order:Order,append=false):number {
-    if(order.kind==='board')return this.transports.board(order.target??-1,ids);
+    if(order.kind==='board'){
+      const base=this.bases.find(b=>b.id===order.target&&b.kind==='bunker');
+      return base?this.boardBunker(base.id,ids):this.transports.board(order.target??-1,ids);
+    }
     if(!Number.isFinite(order.x)||!Number.isFinite(order.y))return 0;
     const candidates=this.units.filter(u=>ids.includes(u.id)&&u.hp>0&&!u.carrier);
     // Any new command cancels a queued return to a busy bomber hangar.
@@ -1493,7 +1608,9 @@ export class Simulation {
         delete target.burst;
       }
     }
-    if(target.hp<=0&&'queue' in target){this.movementCollision=undefined;target.hp=0;target.queue=[];target.queueTypes=[];target.queueCosts=[];target.production=0;this.notices.push(`${buildingSpec(target).name} ${target.owner===0?'verloren':'ausgeschaltet'}!`);}
+    if(target.hp<=0&&'queue' in target){
+      if(target.kind==='bunker')this.destroyBunkerGarrison(target);
+      this.movementCollision=undefined;target.hp=0;target.queue=[];target.queueTypes=[];target.queueCosts=[];target.production=0;this.notices.push(`${buildingSpec(target).name} ${target.owner===0?'verloren':'ausgeschaltet'}!`);}
   }
   /** Secondary roof MG has its own clock and can suppress infantry even while a rocket targets armor. */
   private tankMachinegun(u:Unit):void {
@@ -2235,6 +2352,20 @@ export class Simulation {
       if(u.factoryService){this.advanceFactoryService(u,dt);continue;}
       const transportBusy=this.transports.step(u,dt);
       if(this.transports.boarding(u,dt))continue;
+      if(u.orders[0]?.kind==='garrison'){
+        const base=this.bases.find(b=>b.id===u.orders[0]?.target&&b.kind==='bunker'&&
+          b.owner===u.owner&&b.hp>0&&b.buildRemaining<=0);
+        if(!base){u.orders.shift();u.path=[];continue;}
+        if(distance(u,base)<=base.radius+70){
+          base.garrison??=[];
+          if(base.garrison.length<BUNKER_CAPACITY&&!base.garrison.includes(u.id)){
+            base.garrison.push(u.id);u.carrier=base.id;u.x=u.previousX=base.x;
+            u.y=u.previousY=base.y;u.orders=[];u.path=[];u.repath=0;
+            u.moving=false;u.combatTarget=null;u.workingTarget=null;delete u.burst;
+          }else{u.orders.shift();u.path=[];}
+        }else this.move(u,u.orders[0],dt);
+        continue;
+      }
       if(this.escort(u,dt)||this.support(u,dt)){delete u.burst;continue;}
       const order=u.orders[0];
       // AI3.6 micro-tactics: an isolated RED Humvee must not trade its
@@ -2517,6 +2648,7 @@ export class Simulation {
       }
     if(this.profileSquadWork)this.squadCollisionMs+=performance.now()-squadCollisionAt;
     this.transports.cleanup();
+    this.bunkerDefensiveFire(dt);
     for(const u of this.units)if(u.hp<=0)this.tactical.loss(u);
     this.units=this.units.filter(u=>u.hp>0);
     for(const b of this.bases){
@@ -2674,7 +2806,7 @@ export class Simulation {
         // Sector control belongs to the Bastion ONLY. Never transfer or
         // resurrect a destroyed enemy headquarters when its sector changes
         // hands: its original owner/HP remain intact for elimination rules.
-        t.owner=owner;t.progress=0;t.capturing=-1;ownershipChanged=true;
+        t.owner=owner;t.progress=0;t.capturing=-1;t.upgradeLevel=1;ownershipChanged=true;
         if(owner===0)this.notices.push(`${t.name} gesichert · +${t.income} Credits / 10 s`);
         else if(this.canSee(0,t.point))this.notices.push(`${t.name} unter feindlicher Kontrolle.`);
         this.revision++;
@@ -2706,7 +2838,19 @@ export class Simulation {
   // performance metadata; do not change deterministic orders or save schema.
   private think():void {
     const start=performance.now();
-    try{this.tactical.plan();}
+    try{
+      this.tactical.plan();
+      // AI uses the SAME paid Bastion upgrade rules as the player.
+      // Reserve a healthy army and budget before investing in long-term income.
+      if(this.world.mapVersion>=23&&this.time>=170&&
+        this.credits[1]>=BASTION_UPGRADE_COST+1450&&this.count(1)>=8){
+        const candidate=this.territories.filter(t=>
+          bastionUpgradable(t,1,this.bases,
+          campaignLayout(this.world.mapVersion,this.seed).headquarters)).sort((a,b)=>
+          b.income-a.income||a.id-b.id)[0];
+        if(candidate)this.upgradeBastion(1,candidate.id);
+      }
+    }
     finally{
       this.aiPlanDurationMs=performance.now()-start;
       this.aiPlanCompletedAt=this.time;
@@ -2763,8 +2907,12 @@ export class Simulation {
           !['rover','tank','artillery'].includes(u.kind)))||
         (u.autoAirfieldRepair!==undefined&&typeof u.autoAirfieldRepair!=='boolean')||
         (u.airfieldService!==undefined&&(!['bomber','scout'].includes(u.kind)||!validAirfieldService(u.airfieldService,mapWorldSize(s.mapVersion??0))))||
-        (u.mgCooldown!==undefined&&(!finite(u.mgCooldown)||u.mgCooldown<0||u.mgCooldown>1))||!burst(u.burst,u.kind==='infantry'||u.kind==='heavy'||u.kind==='scout'||u.kind==='rover'||u.kind===undefined?3:1)||!point(u)||![0,1].includes(u.owner)||(u.kind!==undefined&&!Object.hasOwn(UNITS,u.kind))||(u.driveSpeed!==undefined&&(!finite(u.driveSpeed)||u.driveSpeed<0||u.driveSpeed>unitSpec(u).speed*researchFor(u).speed))||!validBomberOrbit(u.idleOrbit,u.kind??'infantry',mapWorldSize(s.mapVersion??0))||(u.bomberRun!==undefined&&((u.kind??'infantry')!=='bomber'||!u.bomberRun||!Number.isInteger(u.bomberRun.target)||!Number.isInteger(u.bomberRun.leg)||u.bomberRun.leg<0||u.bomberRun.leg>3||!Array.isArray(u.bomberRun.waypoints)||u.bomberRun.waypoints.length!==3||u.bomberRun.waypoints.some(p=>!point(p))))||(u.hullAngle!==undefined&&!finite(u.hullAngle))||(u.pursuitOrigin!==undefined&&u.pursuitOrigin!==null&&!point(u.pursuitOrigin))||!finite(u.hp)||u.hp<=0||u.hp>(UNITS[u.kind??'infantry']?.hp??0)*researchFor(u).hp+1e-5||!Array.isArray(u.orders)||u.orders.length>32||u.orders.some(o=>!point(o)||(o.guardOnArrival!==undefined&&(o.kind!=='move'||typeof o.guardOnArrival!=='boolean'))||(o.rear!==undefined&&(!finite(o.rear)||o.rear<0||o.rear>400))||(o.tactical!==undefined&&((o.tactical.goal!==undefined&&!point(o.tactical.goal))||!Number.isInteger(o.tactical.group)||!['safe','assault','defend'].includes(o.tactical.mode)))||(o.march!==undefined&&(!Array.isArray(o.march)||o.march.length>96||o.march.some(id=>!Number.isInteger(id))))||(o.approach!==undefined&&!point(o.approach))||(o.healOrigin!==undefined&&!point(o.healOrigin))||(o.formation!==undefined&&(!Array.isArray(o.formation.front)||o.formation.front.length>96||o.formation.front.some(id=>!Number.isInteger(id))||!point(o.formation.origin)||!point(o.formation.goal)||!finite(o.formation.heading?.x)||!finite(o.formation.heading?.y)||Math.hypot(o.formation.heading.x,o.formation.heading.y)>1.001||!finite(o.formation.lane)||!finite(o.formation.rear)))||!['move','attackMove','attack','heal','repair','build','board'].includes(o.kind)||(['heal','repair','build','board'].includes(o.kind)&&!Number.isInteger(o.target))))||
-      s.bases.some(b=>(b.facing!==undefined&&![0,1,2,3].includes(b.facing))||!burst(b.burst,b.kind==='turret'?4:1)||!point(b)||![0,1].includes(b.owner)||(b.kind!==undefined&&!Object.hasOwn(BUILDINGS,b.kind))||(b.turretAngle!==undefined&&!finite(b.turretAngle))||
+        (u.mgCooldown!==undefined&&(!finite(u.mgCooldown)||u.mgCooldown<0||u.mgCooldown>1))||!burst(u.burst,u.kind==='infantry'||u.kind==='heavy'||u.kind==='scout'||u.kind==='rover'||u.kind===undefined?3:1)||!point(u)||![0,1].includes(u.owner)||(u.kind!==undefined&&!Object.hasOwn(UNITS,u.kind))||(u.driveSpeed!==undefined&&(!finite(u.driveSpeed)||u.driveSpeed<0||u.driveSpeed>unitSpec(u).speed*researchFor(u).speed))||!validBomberOrbit(u.idleOrbit,u.kind??'infantry',mapWorldSize(s.mapVersion??0))||(u.bomberRun!==undefined&&((u.kind??'infantry')!=='bomber'||!u.bomberRun||!Number.isInteger(u.bomberRun.target)||!Number.isInteger(u.bomberRun.leg)||u.bomberRun.leg<0||u.bomberRun.leg>3||!Array.isArray(u.bomberRun.waypoints)||u.bomberRun.waypoints.length!==3||u.bomberRun.waypoints.some(p=>!point(p))))||(u.hullAngle!==undefined&&!finite(u.hullAngle))||(u.pursuitOrigin!==undefined&&u.pursuitOrigin!==null&&!point(u.pursuitOrigin))||!finite(u.hp)||u.hp<=0||u.hp>(UNITS[u.kind??'infantry']?.hp??0)*researchFor(u).hp+1e-5||!Array.isArray(u.orders)||u.orders.length>32||u.orders.some(o=>!point(o)||(o.guardOnArrival!==undefined&&(o.kind!=='move'||typeof o.guardOnArrival!=='boolean'))||(o.rear!==undefined&&(!finite(o.rear)||o.rear<0||o.rear>400))||(o.tactical!==undefined&&((o.tactical.goal!==undefined&&!point(o.tactical.goal))||!Number.isInteger(o.tactical.group)||!['safe','assault','defend'].includes(o.tactical.mode)))||(o.march!==undefined&&(!Array.isArray(o.march)||o.march.length>96||o.march.some(id=>!Number.isInteger(id))))||(o.approach!==undefined&&!point(o.approach))||(o.healOrigin!==undefined&&!point(o.healOrigin))||(o.formation!==undefined&&(!Array.isArray(o.formation.front)||o.formation.front.length>96||o.formation.front.some(id=>!Number.isInteger(id))||!point(o.formation.origin)||!point(o.formation.goal)||!finite(o.formation.heading?.x)||!finite(o.formation.heading?.y)||Math.hypot(o.formation.heading.x,o.formation.heading.y)>1.001||!finite(o.formation.lane)||!finite(o.formation.rear)))||!['move','attackMove','attack','heal','repair','build','board','garrison'].includes(o.kind)||(['heal','repair','build','board','garrison'].includes(o.kind)&&!Number.isInteger(o.target))))||
+      s.bases.some(b=>(b.garrison!==undefined&&
+          (b.kind!=='bunker'||!Array.isArray(b.garrison)||
+           b.garrison.length>BUNKER_CAPACITY||
+           b.garrison.some(id=>!Number.isSafeInteger(id))))||
+        (b.facing!==undefined&&![0,1,2,3].includes(b.facing))||!burst(b.burst,b.kind==='turret'?4:1)||!point(b)||![0,1].includes(b.owner)||(b.kind!==undefined&&!Object.hasOwn(BUILDINGS,b.kind))||(b.turretAngle!==undefined&&!finite(b.turretAngle))||
         (b.siloCharge!==undefined&&(!finite(b.siloCharge)||b.siloCharge<0||
           b.siloCharge>SILO_CHARGE_SECONDS||b.kind!=='silo'))||
         (b.interceptorAmmo!==undefined&&(!Number.isInteger(b.interceptorAmmo)||
@@ -2775,7 +2923,8 @@ export class Simulation {
           !UNITS[b.queueTypes?.[i]??'infantry']?.producers.includes(b.kind??'headquarters')))||
         (b.queueCosts!==undefined&&(!Array.isArray(b.queueCosts)||b.queueCosts.length!==b.queue.length||b.queueCosts.some(v=>!finite(v)||v<0)))||
         (b.buildRemaining!==undefined&&(!finite(b.buildRemaining)||b.buildRemaining<0||b.buildRemaining>(BUILDINGS[b.kind??'headquarters']?.buildTime??0)))||!finite(b.production)||b.production<0||b.production>(b.queue[0]??0))||
-      s.territories.some((t,i)=>t.id!==i||![-1,0,1].includes(t.owner)||!finite(t.progress)||t.progress<0||t.progress>8))throw new Error('Dieser Spielstand ist beschädigt oder gehört zu einer anderen Version.');
+      s.territories.some((t,i)=>t.id!==i||![-1,0,1].includes(t.owner)||
+        !validBastionUpgradeState(t)||!finite(t.progress)||t.progress<0||t.progress>8))throw new Error('Dieser Spielstand ist beschädigt oder gehört zu einer anderen Version.');
     const game=new Simulation(s.seed,s.mapVersion??0,weatherEnabled,s.bootstrapVersion===1,s.terrainProfile,s.generatorVersion??1);
     game.time=s.time;
     game.research=structuredClone(research) as [ResearchState,ResearchState];
@@ -2833,13 +2982,14 @@ export class Simulation {
         pursuitOrigin:u.pursuitOrigin??null};
     });
     // Geometry, income and neighbors are regenerated from the seed, never trusted from storage.
-    game.territories.forEach((t,i)=>{t.owner=s.territories[i].owner;t.capturing=s.territories[i].capturing;t.progress=s.territories[i].progress;});
+    game.territories.forEach((t,i)=>{t.owner=s.territories[i].owner;t.capturing=s.territories[i].capturing;t.progress=s.territories[i].progress;t.upgradeLevel=s.territories[i].upgradeLevel??1;});
     game.explored=s.explored.map(a=>{
       if(a.length===RULES.grid**2)return Uint8Array.from(a);
       const oldGrid=Math.sqrt(a.length);
       return Uint8Array.from({length:RULES.grid**2},(_,i)=>a[Math.floor(Math.floor(i/RULES.grid)*oldGrid/RULES.grid)*oldGrid+Math.floor((i%RULES.grid)*oldGrid/RULES.grid)]);
     });game.memories=structuredClone(s.memories??[[],[]]);game.aiClock=clamp(s.aiClock||0,0,RULES.aiInterval);
-    if(!Transports.valid(game))throw Error('Ungültiger Transportzustand im Spielstand.');
+    if(!Transports.valid(game)||!validBunkerGarrisons(game.bases,game.units))
+      throw Error('Ungültiger Transport- oder Bunkerbesatzungszustand im Spielstand.');
     if(s.missiles!==undefined&&(!Array.isArray(s.missiles)||s.missiles.length>96||s.missiles.some(m=>!Number.isSafeInteger(m.id)||!Number.isSafeInteger(m.source)||![0,1].includes(m.owner)||!point(m.from)||!point(m.to)||!finite(m.at)||m.at>s.time||!finite(m.impactAt)||m.impactAt<=s.time||m.impactAt>s.time+12||!finite(m.damage)||m.damage<=0||m.damage>Math.max(UNITS.artillery.damage,UNITS.tank.damage,UNITS.rocket.damage*1.24)*getVeterancyModifiers({kind:'tank',xp:500}).damage*1.151||(m.type!==undefined&&!['antiArmor','bomb','scoutRocket'].includes(m.type))||(m.target!==undefined&&(!Number.isSafeInteger(m.target)||m.target<0))||
       (m.miss!==undefined&&typeof m.miss!=='boolean')||!finite(m.angle))))throw Error('Ungültige Raketen im Spielstand.');
     game.missiles=structuredClone(s.missiles??[]);
