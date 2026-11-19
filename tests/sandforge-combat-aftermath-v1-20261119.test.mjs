@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
 import {
  WRECK_LIFETIME_SECONDS,WRECK_LIFETIMES,WRECK_CAP,WRECK_CAP_LITE,
  CRASH_CAP,CRASH_LIFETIME_SECONDS,wreckDurationFor,wreckSmokeFraction,
@@ -94,4 +95,45 @@ test('real shots add restrained muzzle haze, pooled wreck embers and ground-only
  assert.match(source,/advanceWreckRecords\(this\.wrecks,dt\)/);
  for(const forbidden of ['this.game.step(','.recruit(','.build('])
   assert.ok(!source.includes(forbidden),'visuals must not change game simulation');
+});
+
+/** Regression for the actual WebGL aircraft-crash updater, not merely a
+ * static reference check. Earlier code used an undefined 't' variable in
+ * the terminal frame and crashed the entire game after a helicopter kill. */
+test('actual helicopter and bomber death animation reaches impact and cleans up without a JS exception',()=>{
+ const source=readFileSync('scripts/webgl-combat-vfx.js','utf8');
+ const opening=' updateAircraftCrashes(dt){';
+ const start=source.indexOf(opening);
+ const end=source.indexOf('\n // The simulation already supplies',start);
+ assert.ok(start>=0&&end>start,'crash method must exist in the live WebGL VFX');
+ const method=source.slice(start,end).trim();
+ const fn=runInNewContext('({'+method+'}).updateAircraftCrashes',{
+  aircraftCrashPose,
+  clamp:(n,a,b)=>Math.max(a,Math.min(b,n))
+ });
+ for(const kind of ['scout','bomber']){
+  const duration=crashDurationFor(kind),generated=[],released=[],wrecks=[];
+  const mesh={
+   position:{x:0,y:0,z:0,copy(p){this.x=p.x;this.y=p.y;this.z=p.z;}},
+   rotation:{x:0,y:0,z:0}
+  };
+  const actor={mesh,kind,x:500,y:550,angle:.5,age:0,start:170,smokeClock:0,duration};
+  const effects={
+   world:{size:4500},crashes:[actor],smoke:{particles:[],max:260},
+   flames:{particles:[],max:120},stats:{crashes:1},
+   pos:(x,z)=>({x:x-2250,y:0,z:z-2250}),
+   rand:()=>.6,particle:(...args)=>generated.push(args),
+   releaseAircraftCrash:(r)=>released.push(r),
+   addWreck:(r)=>wrecks.push(r)
+  };
+  for(let i=0;i<Math.ceil(duration/.05)+4;i++)
+   assert.doesNotThrow(()=>fn.call(effects,.05),kind+' crash tick '+i);
+  assert.equal(effects.crashes.length,0,'crashed aircraft is removed from VFX list');
+  assert.equal(released.length,1,'GLB is released exactly once');
+  assert.equal(wrecks.length,1,'impact produces exactly one cosmetic wreck');
+  assert.equal(wrecks[0].kind,kind);
+  assert.ok(Number.isFinite(wrecks[0].x)&&Number.isFinite(wrecks[0].y),
+   'finite debris position for the final crash frame');
+  assert.ok(generated.length>=6,'smoke and sparks are rendered before impact');
+ }
 });
