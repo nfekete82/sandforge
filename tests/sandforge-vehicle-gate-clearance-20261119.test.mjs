@@ -98,3 +98,31 @@ test('unfinished owner gate and complete enemy gate never create an open breach'
  assert.ok(!g.world.line(unit,goal,g.movingColliders().byOwner[0].vehicle,
   UNITS.tank.radius-10));
 });
+
+test('selected mixed vehicle squad follows real move orders OUT through friendly gate',()=>{
+ const {g,unit:lead,center}=setup('tank',-45);
+ // Two vehicles and accompanying infantry are selected in the same command.
+ const rover=g.spawn(0,{x:center.x+55,y:center.y-225},'rover');
+ const artillery=g.spawn(0,{x:center.x+10,y:center.y-290},'artillery');
+ const infantry=g.spawn(0,{x:center.x-20,y:center.y-310},'infantry');
+ g.spatial.rebuild(g.units);
+ const members=[lead,rover,artillery,infantry];
+ const count=g.command(members.map(u=>u.id),{
+  kind:'move',x:center.x,y:center.y+280
+ });
+ assert.equal(count,4,'actual multi-selection command accepted');
+ assert.ok(members.every(u=>u.orders.length===1));
+ for(let i=0;i<540;i++){
+  g.time=i*.05;
+  for(const u of members){
+   if(!u.orders.length)continue;
+   u.repath=Math.max(0,u.repath-.05);
+   g.move(u,u.orders[0],.05);
+  }
+  g.spatial.rebuild(g.units);
+ }
+ for(const u of members)assert.ok(u.y>center.y+40,
+  u.kind+' remained behind/open gate after selected move: '+JSON.stringify({
+   kind:u.kind,x:u.x,y:u.y,orders:u.orders,path:u.path
+  }).slice(0,850));
+});
