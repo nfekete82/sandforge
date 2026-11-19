@@ -26,6 +26,7 @@ jobs:
         run: |
           node --test \
             tests/sandforge-ai36-attack-continuity-cas-20261119.test.mjs \
+            tests/sandforge-ai36-mission-retarget-20261119.test.mjs \
             tests/sandforge-ai36-grounded-offense-20261119.test.mjs \
             tests/sandforge-smart-healthbars-20261119.test.mjs \
             tests/sandforge-ai36-endgame-route-recovery-20261119.test.mjs \
@@ -46,20 +47,24 @@ jobs:
           node --input-type=module <<'NODE'
           import {readFileSync} from 'node:fs';
           const d=JSON.parse(readFileSync('ai-arena-results/ci-ai36-continuity-cas.json','utf8'));
-          let wins=0,aborts=0,hqDamage=0,losses=0;
+          let wins=0,aborts=0,retargets=0,hqDamage=0,losses=0;
           for(const r of d.details){
            wins+=r.outcome==='win';aborts+=r.abortedMissions;
+           retargets+=r.retargetedMissions;
            hqDamage+=r.enemyHQDamage;losses+=r.redUnitsLost;
            console.log('WORLD map='+r.mapVersion+' seed='+r.seed+
             ' outcome='+r.outcome+' HQdamage='+r.enemyHQDamage+
             ' captures='+r.captures+' missions='+r.missionCount+
-            ' aborted='+r.abortedMissions+' losses='+r.redUnitsLost+
+            ' realAborts='+r.abortedMissions+' retargets='+r.retargetedMissions+
+             ' losses='+r.redUnitsLost+
             ' stalled='+r.stalledMissions);
           }
           console.log('SUMMARY realWins='+wins+'/'+d.details.length+
-           ' aborted='+aborts+' HQdamage='+hqDamage+' losses='+losses+
-           ' (previous 4/4 wins, aborts 5+5+3+3, recorded on CI 44518786184)');
+           ' REAL aborted='+aborts+' retargetedInSameWave='+retargets+
+            ' HQdamage='+hqDamage+' losses='+losses+
+           ' (reference 4/4 wins, 5 actual aborts + 11 same-wave retargets, CI 44518786184)');
           if(wins<4)throw new Error('REJECT: regression from four confirmed reference wins');
+          if(aborts>5)throw new Error('REJECT: more actual frontline interruptions than baseline');
           NODE
       - name: Export arena results
         if: always()
