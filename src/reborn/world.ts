@@ -83,7 +83,7 @@ export class World {
         // and infantry can drive into the VISIBLE hillside and then stall
         // when the strict vehicle slope test rejects every further step.
         // Keep genuine passes and protected Bastion clearings unchanged.
-        const collisionRidge=this.generatorVersion===3
+        const collisionRidge=this.generatorVersion>=3
           ?{...ridge,width:ridge.width*1.9}:ridge;
         for(let i=0;i<this.blocked.length;i++){
           const p=this.center(i);
@@ -316,7 +316,7 @@ export class World {
     // entrance first instead of repeatedly returning partial paths into
     // the rock face. This applies to both factions and all ground vehicles.
     // Strategic reachability calls (allowPartial=false) are unchanged.
-    const pass=allowPartial&&!air&&this.generatorVersion===3&&
+    const pass=allowPartial&&!air&&this.generatorVersion>=3&&
       this.generated?.ridges.length
       ?canyonPassWaypoint(start,target,this.generated.ridges,clearance):undefined;
     const routingTarget=pass??target;
