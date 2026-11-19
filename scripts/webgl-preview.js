@@ -9,6 +9,7 @@ import {rollingHillHeight} from '/src/reborn/rolling-hills.js';
 import {canyonGroundSampler,rampAtX,ridgeCenterY} from '/src/reborn/canyon-height.js';
 import {SandforgeBattlefield} from '/webgl-battlefield.js';
 import {DesertOases} from '/webgl-oases.js';
+import {createLandscapeMeshes} from '/webgl-landscape-network.js';
 import {DesertArtPass} from '/webgl-environment.js';
 import {BIOME_STYLES,normalizeBiome,createBiomeGroundTexture,addBiomeVegetation} from '/webgl-biomes.js';
 import {SandforgeCombatEffects} from '/webgl-combat-vfx.js';
@@ -61,7 +62,8 @@ const session=query.get('resume')==='1'?(()=>{
  if(restored.seed!==seed||restored.territories.length!==bastions)throw Error('Spielstand passt nicht zur angeforderten Partie.');
  return restored;
 })():null;
-const game=session??(profile?Simulation.campaign(seed,sizes[bastions],profile):Simulation.campaign(seed,sizes[bastions]));
+const generatorVersion=procedural&&query.get('landscape')==='network'?3:2;
+const game=session??Simulation.campaign(seed,sizes[bastions],profile,generatorVersion);
 // Local AI laboratory: compare the same game and seed with 3.2 or 3.3 tactics.
 // Not serialized, never affects the live Uberspace release.
 if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
@@ -368,7 +370,7 @@ function buildTerrain(){
     vertexColor.copy(biomeGroundBase).lerp(biomeGroundLight,.16+vegetationNoise*.25)
      .lerp(biomeGroundRock,Math.min(.72,rocky*.58));
    }
-   if(terrain.battlefield?.generatorVersion===2){
+   if(terrain.battlefield?.generatorVersion>=2){
     // Baked, subtle cut-and-fill earth at graded bastion edges. Same terrain
     // height field, no additional draw call or changing ground mesh.
     const earth=terrainGradingEdge(x,z,terrain.sites,gradingHomes,2);
@@ -1019,6 +1021,9 @@ function resize(){
 }
 new ResizeObserver(resize).observe(stage);resize();
 const chunks=buildTerrain();
+// One-time geometry; roads and physical cliffs are never updated per frame.
+const landscapeMeshes=terrain.battlefield?.generatorVersion===3?
+ createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],ridges:terrain.ridges,biome}):[];
 boundaryCliffs=addBoundaryCliffs({scene,size,heightAt,seed,lowQuality:query.get('lite')==='1',softRim:spacious,hardVoid:spacious});
 const stones=instancedStone();
 // Desert corridors are navigation-only; no permanent tracks leading to Bastions.
