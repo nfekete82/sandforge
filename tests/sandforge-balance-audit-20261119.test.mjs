@@ -40,7 +40,7 @@ test('structure defense, generator payback, rush economy, and upgrade investment
  assert.deepEqual(incomes.map(x=>x.initial),[60,60]);
  assert.equal(BUILDINGS.generator.cost,150);
  assert.equal(INTERCEPTOR_ENABLED,false);
- assert.equal(BUILDINGS.turret.cost,175);
+ assert.equal(BUILDINGS.turret.cost,300);
  console.log('BALANCE_ECONOMY '+JSON.stringify({incomes,neutral,buildings,tech,
   timeNeededForOneAdditionalUnitFromSingleAverageBastionSeconds:pricePerIncome,
   interceptorActive:INTERCEPTOR_ENABLED}));
