@@ -5,6 +5,9 @@ import * as THREE from 'three';
  * sampler as the game's units, buildings and ground triangles. */
 export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],biome='desert'}){
  const half=size/2,added=[];
+ const clearings=ridges.flatMap(ridge=>ridge.clearings??[]);
+ const insidePad=(x,z,margin=0)=>clearings.some(zone=>
+  Math.hypot(x-zone.point.x,z-zone.point.y)<zone.radius+margin);
  const terrainPoint=(x,z,offset=.8)=>[x-half,heightAt(x,z)+offset,z-half];
  const append=(into,a,b,c)=>{into.push(...a,...b,...c);};
  const bands=[{width:87,color:biome==='snow'?'#89949c':'#8b7254',opacity:.38,offset:.52},
@@ -19,6 +22,8 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
    for(let k=0;k<steps;k++){
     const t=k/steps,u=(k+1)/steps;
     const x=a.x+dx*t,z=a.y+dz*t,xx=a.x+dx*u,zz=a.y+dz*u;
+    // No painted road across the build pads: leave a clean sand apron.
+    if(insidePad((x+xx)*.5,(z+zz)*.5,band.width*.65))continue;
     const a1=terrainPoint(x+nx,z+nz,band.offset),a2=terrainPoint(x-nx,z-nz,band.offset);
     const b1=terrainPoint(xx+nx,zz+nz,band.offset),b2=terrainPoint(xx-nx,zz-nz,band.offset);
     append(vertices,a1,a2,b1);append(vertices,b1,a2,b2);
@@ -59,6 +64,9 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
     // The exact same x-based pass predicate is used by World.blocked.
     if(ridge.ramps.some(p=>Math.abs(cx-p.x)<=p.width*.5))continue;
     const p={x:a.x+dx*t,z:a.y+dz*t},q={x:a.x+dx*u,z:a.y+dz*u};
+    // The 3D rock face must respect the exact same protected build areas
+    // as the authoritative collision grid, including the edge of the wall.
+    if(insidePad((p.x+q.x)*.5,(p.z+q.z)*.5,ridge.width*.6))continue;
     const l0=terrainPoint(p.x+nx,p.z+nz,.2),r0=terrainPoint(p.x-nx,p.z-nz,.2);
     const l1=terrainPoint(q.x+nx,q.z+nz,.2),r1=terrainPoint(q.x-nx,q.z-nz,.2);
     const rise=ridge.height*(.83+.13*Math.sin((i*steps+k)*1.91));
