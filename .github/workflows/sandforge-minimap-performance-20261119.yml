@@ -1,0 +1,92 @@
+name: Sandforge Minimap RMB and WebGL performance
+on:
+  push:
+    branches: ['feat/sandforge-minimap-rmb-unit-orders-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gameplay-and-perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install Sandforge
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript + production WebGL + complete module graph
+        run: |
+          npm run build
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Minimap commands, fast A*, terrain, game-speed and prior AI/VFX regressions
+        run: |
+          node --test \
+            tests/sandforge-minimap-rightclick-orders-20261119.test.mjs \
+            tests/sandforge-a-star-perf-stability-20261119.test.mjs \
+            tests/sandforge-vehicle-slope-heli-pbr-20261119.test.mjs \
+            tests/sandforge-scout-pods-rover-air-evasion-20261119.test.mjs \
+            tests/sandforge-webgl-simulation-speed-20261119.test.mjs \
+            tests/sandforge-ai36-attack-continuity-cas-20261119.test.mjs \
+            tests/sandforge-ai36-mission-retarget-20261119.test.mjs \
+            tests/sandforge-ai36-endgame-route-recovery-20261119.test.mjs \
+            tests/sandforge-combat-aftermath-v1-20261119.test.mjs \
+            tests/webgl-aircraft-effects-20261110.test.mjs
+      - name: Compare A* latency against unchanged baseline branch on same machine
+        run: |
+          BASE="$RUNNER_TEMP/sandforge-path-baseline"
+          git fetch origin 'refs/heads/feat/sandforge-heli-pods-cliff-drive-20261119:refs/remotes/origin/sandforge-path-base'
+          git worktree add --detach "$BASE" refs/remotes/origin/sandforge-path-base
+          (cd "$BASE" && npm ci --no-audit --no-fund && npx tsc -p tsconfig.json)
+          node scripts/benchmark-webgl-pathfinding-20261119.mjs "$BASE/dist" baseline-path-perf.json
+          node scripts/benchmark-webgl-pathfinding-20261119.mjs dist new-path-perf.json
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const old=JSON.parse(readFileSync('baseline-path-perf.json','utf8'));
+          const now=JSON.parse(readFileSync('new-path-perf.json','utf8'));
+          console.log('BENCHMARK same-host baseline total',old.totalMs,'ms p95',old.p95Ms);
+          console.log('BENCHMARK same-host optimized total',now.totalMs,'ms p95',now.p95Ms);
+          console.log('BENCHMARK improvement %',
+            ((old.totalMs-now.totalMs)/old.totalMs*100).toFixed(1));
+          if(old.routeHash!==now.routeHash||JSON.stringify(old.steps)!==JSON.stringify(now.steps))
+            throw new Error('REJECT: A* routes changed after workspace optimization');
+          if(now.totalMs>old.totalMs*1.6&&now.totalMs-old.totalMs>200)
+            throw new Error('REJECT: materially slower A* search');
+          NODE
+      - name: Install headless browser and software WebGL dependencies
+        run: |
+          npm --prefix tests/browser ci --no-audit --no-fund
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Real WebGL minimap commands and sustained 4x combat FPS / JS stability
+        env:
+          SANDFORGE_BROWSER_CHANNEL: chromium
+          SANDFORGE_TEST_DPR: '1'
+        run: |
+          cd tests/browser
+          npx playwright test --config=reborn.config.mjs \
+            webgl-minimap-orders.spec.mjs \
+            webgl-runtime-performance.spec.mjs
+      - name: 180s AI3.6 game smoke after faster pathfinding
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps 24,26 --seeds 2026 \
+            --seconds 180 --modes director --ai36 coordinated \
+            --label pathfinding-webgl-minimap-stress \
+            --output ai-arena-results/ci-minimap-perf-smoke.json
+      - name: Preserve diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-minimap-performance-diagnostics
+          path: |
+            baseline-path-perf.json
+            new-path-perf.json
+            ai-arena-results/ci-minimap-perf-smoke.*
+            tests/browser/artifacts/results.json
+            tests/browser/artifacts/report
+          if-no-files-found: warn
