@@ -1,0 +1,32 @@
+name: Sandforge AI rich Bastion production
+on:
+  push:
+    branches:
+      - fix/sandforge-ai-bastion-surplus-army-production-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ai-rich-economy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile and check all shipped WebGL imports
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+      - name: Paid vehicle reinforcements and existing AI doctrine regression
+        run: |
+          node --test \
+            tests/sandforge-ai-rich-bastion-production-20261119.test.mjs \
+            tests/sandforge-ai-offense-before-walls-20261119.test.mjs \
+            tests/sandforge-ai-base-fortifications-20261119.test.mjs \
+            tests/reborn-ai-director.test.mjs \
+            tests/sandforge-artillery-missile-vfx-20261119.test.mjs \
+            tests/sandforge-desert-shrubs-20261119.test.mjs
