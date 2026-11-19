@@ -1042,7 +1042,8 @@ new ResizeObserver(resize).observe(stage);resize();
 const chunks=buildTerrain();
 // One-time geometry; roads and physical cliffs are never updated per frame.
 const landscapeMeshes=terrain.battlefield?.generatorVersion===3?
- createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],ridges:terrain.ridges,biome,lowQuality:query.get('lite')==='1'}):[];
+ createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],ridges:terrain.ridges,biome,
+  lowQuality:query.get('lite')==='1',showOutcrops:biome!=='desert'}):[];
 boundaryCliffs=addBoundaryCliffs({scene,size,heightAt,seed,lowQuality:query.get('lite')==='1',softRim:spacious,hardVoid:spacious});
 const stones=instancedStone();
 // Desert corridors are navigation-only; no permanent tracks leading to Bastions.
