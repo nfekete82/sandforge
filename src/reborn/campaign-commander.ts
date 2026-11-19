@@ -12,7 +12,7 @@ export type CampaignPhase='opening'|'expansion'|'buildup'|'offensive'|'siege'|'e
 export interface WarMission extends Point {kind:'capture'|'structure'|'hunt';sector:number;objective:number|null;since:number;progressAt:number;distance:number;hp:number}
 export interface ReconTask extends Point {unit:number;since:number}
 export interface CampaignState {version:1;phase:CampaignPhase;phaseSince:number;mission?:WarMission;recon:ReconTask[];survey:{x:number;y:number;at:number}[];intel:{id:number;seenAt:number}[];aborted:number;observedEnemyHQ?:Point&{id:number};enemyHQEliminatedAt?:number;alternatives?:{sector:number;score:number;expectedLoss:number;budgetCost:number}[]}
-export interface MissionContext {strategy:EnemyStrategy;force:Unit[];losses:Loss[];fronts:FailedFront[];route:(p:Point)=>{length:number;risk:number}|undefined;intelligent?:boolean;bastionControl?:boolean;experience?:Experience}
+export interface MissionContext {strategy:EnemyStrategy;force:Unit[];losses:Loss[];fronts:FailedFront[];route:(p:Point)=>{length:number;risk:number}|undefined;routeFallback?:(p:Point)=>{length:number;risk:number}|undefined;intelligent?:boolean;bastionControl?:boolean;experience?:Experience}
 export const newCampaign=():CampaignState=>({version:1,phase:'opening',phaseSince:0,recon:[],survey:[],intel:[],aborted:0});
 /** Preserve a recent, observed tower objective after confirmed HQ loss,
  * unless the screen suffers substantial losses or artillery disappears. */
@@ -199,6 +199,19 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  if(context)for(const c of ordered.slice(0,context.intelligent?24:ordered.length)){
   const route=context.route(c.p);if(route)routed.push({c,route});
   if(routed.length===(context.intelligent?8:6))break;
+ }
+ // Bounded full-route searches can reject a reachable distant HQ after
+ // the R-01 reveals it early. The movement engine already supports verified
+ // partial paths. Only use this AI3.6-only alternative when ALL complete
+ // candidate routes failed; never turn a temporary path budget into victory.
+ // AI3.5 does not supply routeFallback and stays byte-for-byte unchanged.
+ if(context&&!routed.length&&context.routeFallback){
+  for(const c of ordered.slice(0,12)){
+   const route=context.routeFallback(c.p);
+   if(!route)continue;
+   routed.push({c,route});
+   if(routed.length===4)break;
+  }
  }
  routed.sort((a,b)=>a.c.score+a.route.length*.15+a.route.risk*12-b.c.score-b.route.length*.15-b.route.risk*12);
  const safeRoute=routed.filter(r=>safe(r.c)&&r.route.risk<8)[0];
