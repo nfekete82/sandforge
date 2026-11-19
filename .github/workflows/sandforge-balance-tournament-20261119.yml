@@ -1,0 +1,70 @@
+name: Sandforge 8-12-16 Bastion paired balance tournament
+on:
+  push:
+    branches:
+      - feat/sandforge-balance-tournament-tuning-20261119
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Full 3-seed 2-opponent 36-match balance tournament
+        required: false
+        default: false
+        type: boolean
+permissions:
+  contents: read
+jobs:
+  balance-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and balance tournament syntax
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/benchmark-sandforge-balance-tournament.mjs
+          node --check scripts/webgl-battlefield.js
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Economy, combat, faction parity and reporting regression tests
+        run: |
+          node --test \
+            tests/sandforge-balance-tournament-20261119.test.mjs \
+            tests/sandforge-balance-audit-20261119.test.mjs \
+            tests/reborn-combat-balance-20261117.test.mjs \
+            tests/sandforge-tank-balance.test.mjs \
+            tests/sandforge-bastion-economy-rollback-20261117.test.mjs \
+            tests/sandforge-ai-combat-ready-waves.test.mjs
+      - name: Paired smoke tourney 8 12 16 Bastions
+        if: github.event_name != 'workflow_dispatch' || inputs.full != true
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-balance-tournament.mjs \
+            --maps 24,25,26 --seeds 824836862 \
+            --opponents guarded --seconds 120 \
+            --presets baseline,tuned \
+            --output reports/sandforge-balance-smoke.json \
+            --markdown reports/sandforge-balance-smoke.md
+      - name: Full 36-match tourney on demand
+        if: github.event_name == 'workflow_dispatch' && inputs.full == true
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-balance-tournament.mjs \
+            --maps 24,25,26 \
+            --seeds 824836862,20261119,20261120 \
+            --opponents guarded,contesting --seconds 300 \
+            --presets baseline,tuned \
+            --output reports/sandforge-balance-full.json \
+            --markdown reports/sandforge-balance-full.md
+      - name: Upload reproducible result artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-balance-tournament
+          path: reports/
+          if-no-files-found: warn
+          retention-days: 30
