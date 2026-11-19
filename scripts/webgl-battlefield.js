@@ -151,9 +151,9 @@ export class SandforgeBattlefield {
   this.attachInput();this.sync(true);
  }
  entityPosition(p){return this.pos(p.x,p.y,this.heightAt(p.x,p.y)+unitRenderAltitude(p.kind,p.flightHeight??1));}
- createFallback(kind,owner,type){
+ createFallback(kind,owner,type,gateSpan=2){
   if(type==='unit'&&kind==='drone')return createReconDrone(owner);
-  if(type==='building'&&isStrategicBuilding(kind))return createStrategicBuilding(kind,owner);
+  if(type==='building'&&isStrategicBuilding(kind))return createStrategicBuilding(kind,owner,gateSpan);
   if(type==='unit'&&kind==='rocket')return createRocketInfantry(owner);
   const group=new THREE.Group(),team=FACTION_PAINT[owner],metal=new THREE.MeshStandardMaterial({color:team,metalness:.55,roughness:.53}),
    dark=new THREE.MeshStandardMaterial({color:'#444743',metalness:.45,roughness:.7});
@@ -633,7 +633,8 @@ export class SandforgeBattlefield {
   const node=new THREE.Group();
   node.name=type+'-'+entity.kind+'-'+entity.id;
   node.userData={id:entity.id,type};
-  const placeholder=this.createFallback(entity.kind,entity.owner,type);
+  const placeholder=this.createFallback(entity.kind,entity.owner,type,
+   entity.kind==='wallGate'?(entity.gateSpan===2?2:1):2);
   // Lite mode must match detailed mode: both receive the same visual scale.
   if(type==='unit')placeholder.scale.setScalar(visualUnitScale(entity.kind));
   node.add(placeholder);node.position.copy(this.entityPosition(entity));
@@ -1053,13 +1054,14 @@ export class SandforgeBattlefield {
   const ghost=this.buildPreview;if(!this.buildKind||!ghost)return;
   const raw=this.terrainPoint(event,{snapEdge:isWallLike(this.buildKind)});
   const p=isWallLike(this.buildKind)&&raw
-   ?snapWallSiteToMap(raw,this.placementFacing,this.world.size):raw;
+   ?snapWallSiteToMap(raw,this.placementFacing,this.world.size,this.buildKind):raw;
   ghost.visible=Boolean(p);
   if(!p){this.buildHint.style.display='none';return;}
   ghost.position.copy(this.pos(p.x,p.y));
   ghost.rotation.y=buildingFacingAngle(this.placementFacing);
   ghost.rotation.z=isWallLike(this.buildKind)
-   ?wallTerrainPitch(this.world,p,this.placementFacing):0;
+   ?wallTerrainPitch(this.world,p,this.placementFacing,
+    this.buildKind==='wallGate'?2:1):0;
   if(this.buildKind==='airfield'&&ghost.userData.previewService)
    conformAirfieldSurface(ghost.userData.previewService,
     {...p,facing:this.placementFacing},(x,z)=>this.heightAt(x,z));
@@ -1207,7 +1209,8 @@ export class SandforgeBattlefield {
    if(isWallLike(b.kind)){
     if(entry.wallSlopePitch===undefined||entry.wallSlopeFacing!==b.facing){
      entry.wallSlopeFacing=b.facing;
-     entry.wallSlopePitch=wallTerrainPitch(this.world,b,b.facing??0);
+     entry.wallSlopePitch=wallTerrainPitch(this.world,b,b.facing??0,
+      b.kind==='wallGate'&&b.gateSpan===2?2:1);
     }
     entry.node.rotation.z=entry.wallSlopePitch;
    }else entry.node.rotation.z=0;
@@ -1223,7 +1226,7 @@ export class SandforgeBattlefield {
       entry.gatePresenceAt=this.game.time;
       entry.gatePresence=this.game.units.some(u=>u.hp>0&&!u.carrier&&
        u.owner===b.owner&&!UNITS[u.kind].flying&&
-       Math.hypot(u.x-b.x,u.y-b.y)<153);
+       Math.hypot(u.x-b.x,u.y-b.y)<(b.gateSpan===2?225:153));
      }
      const wanted=entry.gatePresence?1:0;
      const amount=Math.min(1,Math.max(0,dt)*5.8);
@@ -1704,19 +1707,26 @@ export class SandforgeBattlefield {
    }
    if(action==='gate-upgrade'){
     const id=this.selectedBase;
-    if(id===null||!this.game.convertWallToGate(0,id)){
-     this.message('Tor-Umrüstung nicht möglich · eigene fertige Mauer und '+
-      WALL_GATE_UPGRADE_COST+' Credits benötigt');return;
+    const partner=id===null?null:this.game.findWallGatePartner(0,id);
+    if(!partner){
+     this.message('Für das breite Stahltor werden zwei fertige, direkt benachbarte eigene Mauersegmente benötigt.');
+     return;
     }
-    // Replace the old wall mesh without changing the game-side Base ID.
-    const entry=this.bases.get(id);
-    if(entry){
+    if(!this.game.convertWallToGate(0,id)){
+     this.message('Tor-Umrüstung nicht möglich · '+WALL_GATE_UPGRADE_COST+
+      ' Credits erforderlich');return;
+    }
+    // Both former wall nodes must disappear. The retained base ID is
+    // re-created at their midpoint with a real 218-unit gate model.
+    for(const wallId of [id,partner.id]){
+     const entry=this.bases.get(wallId);
+     if(!entry)continue;
      if(entry.yard)disposeBuildingYard(entry.yard);
      if(entry.placeholder)disposeOwnedMeshes(entry.placeholder);
-     this.scene.remove(entry.node);this.bases.delete(id);
+     this.scene.remove(entry.node);this.bases.delete(wallId);
     }
     this.sync(true);this.drawInterface();
-    this.message('Mauertor installiert · eigene Einheiten passieren automatisch');
+    this.message('Zwei Mauersegmente in ein doppelt breites Stahltor umgebaut · eigene Einheiten passieren automatisch');
     return;
    }
    if(action==='sectors'){
@@ -2353,14 +2363,18 @@ export class SandforgeBattlefield {
   if(commands&&!commands.querySelector('[data-action="gate-upgrade"]')){
    const button=document.createElement('button');
    button.type='button';button.dataset.action='gate-upgrade';
-   button.textContent='TOR EINBAUEN · '+WALL_GATE_UPGRADE_COST;
-   button.title='Sperrmauer zu einem automatischen Mauertor umrüsten';
+   button.textContent='DOPPELTOR EINBAUEN · '+WALL_GATE_UPGRADE_COST;
+   button.title='Zwei fertige benachbarte Sperrmauern zu einem 218 breiten Stahltor umbauen';
    button.hidden=true;commands.append(button);
   }
   const gateButton=commands?.querySelector('[data-action="gate-upgrade"]');
   if(gateButton){
    gateButton.hidden=!(base?.owner===0&&base.kind==='wall'&&base.buildRemaining<=0);
-   gateButton.disabled=g.credits[0]<WALL_GATE_UPGRADE_COST;
+   const partner=base?.kind==='wall'&&base.owner===0?
+    g.findWallGatePartner(0,base.id):null;
+   gateButton.disabled=!partner||g.credits[0]<WALL_GATE_UPGRADE_COST;
+   gateButton.title=partner?'Zwei Sperrmauern für '+WALL_GATE_UPGRADE_COST+' Credits in ein breites Stahltor umbauen':
+    'Zuerst ein zweites direkt angrenzendes Mauersegment errichten';
   }
   const demolishButton=commands?.querySelector('[data-action="demolish"]');
   if(demolishButton&&ownBuilding){
@@ -2960,7 +2974,7 @@ export class SandforgeBattlefield {
    if(this.buildKind){
     const kind=this.buildKind;
     const site=isWallLike(kind)
-     ?snapWallSiteToMap(p,this.placementFacing,this.world.size):p;
+     ?snapWallSiteToMap(p,this.placementFacing,this.world.size,kind):p;
     const blocked=this.game.buildError(0,kind,site,this.placementFacing);
     if(blocked){
      this.message(blocked+' · Bauplatz oder Ausrichtung ändern');
