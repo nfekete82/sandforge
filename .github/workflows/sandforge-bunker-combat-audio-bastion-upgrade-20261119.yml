@@ -1,0 +1,35 @@
+name: Sandforge bunker, combat audio and Bastion tier 2
+on:
+  push:
+    branches:
+      - feat/sandforge-combat-audio-garrison-bunker-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  garrison-and-economy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript, WebGL and audio module integrity
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-strategic-buildings.js
+          node --check scripts/webgl-battlefield.js
+          node --check scripts/webgl-portraits.js
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Five-seat bunker, live firing, upgrades, saves and transport regressions
+        run: |
+          node --test \
+            tests/sandforge-bunker-bastion-audio-20261119.test.mjs \
+            tests/reborn-transport-pbr.test.mjs \
+            tests/webgl-jeep-boarding.test.mjs \
+            tests/reborn-combat-balance-20261117.test.mjs \
+            tests/sandforge-balance-tournament-20261119.test.mjs
