@@ -27,6 +27,8 @@ jobs:
         run: |
           node --test \
             tests/sandforge-ai36-fight-dont-flee-20261119.test.mjs \
+            tests/sandforge-combat-aftermath-v1-20261119.test.mjs \
+            tests/webgl-aircraft-effects-20261110.test.mjs \
             tests/sandforge-ai36-recapture-20261118.test.mjs \
             tests/sandforge-ai36-combat-movement-20261119.test.mjs \
             tests/sandforge-ai36-terrain-routes-20261119.test.mjs \
