@@ -25,7 +25,7 @@ import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,t
 import {rankTerrainRecaptureSquad} from './ai36-terrain-routes.js';
 import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed} from './ai36-air-support.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
-import type {Simulation,Unit,Memory} from './simulation.js';
+import type {Simulation,Unit,Base,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
 export interface Loss extends Point {id:number;at:number;strength:number}
