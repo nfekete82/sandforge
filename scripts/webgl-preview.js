@@ -538,7 +538,8 @@ function instancedStone(){
    }
   }
  }
- if(terrain.battlefield)addBattlefieldRocks(materials[0]);
+ // Never allocate a zero-vertex rock mesh when modern maps have no mesas.
+ if(terrain.battlefield&&terrain.mesas.length)addBattlefieldRocks(materials[0]);
  for(const mesa of terrain.battlefield?[]:terrain.mesas)for(const col of mesa.columns){
   const x=col.base.reduce((n,p)=>n+p.x,0)/col.base.length;
   const z=col.base.reduce((n,p)=>n+p.y,0)/col.base.length;
@@ -551,7 +552,8 @@ function instancedStone(){
  }
  // Desert is a landscape of sand and wind, not hundreds of loose stones.
  // Keep seed determinism and all real navigation/collision rocks unchanged.
- for(let i=0;i<(spacious&&biome==='desert'?60:spacious?420:1600);i++){
+ // Modern desert needs clear sand, not an extra blanket of random pebbles.
+ for(let i=0;i<(spacious&&biome==='desert'?0:spacious?420:1600);i++){
   const x=75+r()*(size-150),z=75+r()*(size-150),index=world.index({x,y:z});
   if(index<0||world.blocked[index]||terrain.sites.some(p=>Math.hypot(x-p.x,z-p.y)<160)||
    (terrain.battlefield?.generatorVersion===3&&terrain.ridges.some(ridge=>ridge.clearings?.some(zone=>
