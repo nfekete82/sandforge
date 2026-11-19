@@ -1,0 +1,64 @@
+name: Sandforge vehicle slopes and camouflaged twin helicopter pods
+on:
+  push:
+    branches: ['feat/sandforge-heli-pods-cliff-drive-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  terrain-and-helicopter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Build TypeScript and audit WebGL module imports
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Modern terrain collision, helicopter camouflage and all prior aircraft and AI tests
+        run: |
+          node --test \
+            tests/sandforge-vehicle-slope-heli-pbr-20261119.test.mjs \
+            tests/sandforge-scout-pods-rover-air-evasion-20261119.test.mjs \
+            tests/sandforge-scout-rocket-support-20261119.test.mjs \
+            tests/sandforge-bomber-escort-heli-mg-20261119.test.mjs \
+            tests/sandforge-ai36-endgame-route-recovery-20261119.test.mjs \
+            tests/sandforge-ai36-fight-dont-flee-20261119.test.mjs \
+            tests/sandforge-webgl-simulation-speed-20261119.test.mjs \
+            tests/webgl-aircraft-effects-20261110.test.mjs
+      - name: Four 600-second AI3.6 campaigns with slope-restricted vehicle navigation
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps 24,26 --seeds 2026,2027 \
+            --seconds 600 --modes director --ai36 coordinated \
+            --label cliff-drive-camo-heli \
+            --output ai-arena-results/ci-cliff-drive-camo-heli.json
+      - name: Validate win progression and log the exact outcomes
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const file=JSON.parse(readFileSync('ai-arena-results/ci-cliff-drive-camo-heli.json','utf8'));
+          let wins=0;
+          for(const r of file.details){
+            wins+=r.outcome==='win';
+            console.log('MAP',r.mapVersion,'SEED',r.seed,
+              'OUTCOME',r.outcome,'HQ',r.enemyHQDamage,
+              'CAPTURES',r.captures,'LOSSES',r.redUnitsLost);
+          }
+          console.log('WINS',wins,'/',file.details.length);
+          if(wins<3)throw new Error('REJECT: impassable terrain caused unacceptable offensive regression');
+          NODE
+      - name: Export report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-cliff-drive-camo-heli
+          path: ai-arena-results/ci-cliff-drive-camo-heli.*
+          if-no-files-found: warn

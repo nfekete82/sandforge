@@ -130,6 +130,44 @@ export class World {
   /** New terrain authority. Old versions deliberately keep their old samplers. */
   terrainHeight(x:number,y:number):number{return this.generated?.battlefield?battlefieldHeightAt(this.generated.battlefield,x,y):0;}
   terrainSlope(x:number,y:number):number{return this.generated?.battlefield?battlefieldSlopeAt(this.generated.battlefield,x,y):0;}
+  /** Vehicle-only grade check on modern 3D battlefields. The authored
+   * canyon ramps stay open if they meet the same measured slope limit.
+   * Older seeded map navigation and all infantry/aircraft stay unchanged.
+   * Check wheel/track contact offsets, not just the vehicle center.
+   */
+  groundVehicleSlopeSafe(p:Point,maxSlope:number,footprint=0):boolean{
+    if(!this.generated?.battlefield||!Number.isFinite(maxSlope))return true;
+    const radius=Math.max(0,Math.min(footprint,26))*.72;
+    if(this.terrainSlope(p.x,p.y)>maxSlope)return false;
+    if(radius<1)return true;
+    return [[radius,0],[-radius,0],[0,radius],[0,-radius]].every(([dx,dy])=>
+      this.terrainSlope(p.x+dx,p.y+dy)<=maxSlope);
+  }
+  /** The actual world-space displacement must not tunnel up a cliff, even
+   * if a short 50-ms step ends in a neighboring walkable navigation cell.
+   * If a loaded old vehicle already sits on the slope, allow ONLY a step
+   * toward strictly gentler ground, so it can escape instead of freezing.
+   */
+  groundVehicleStepSafe(from:Point,to:Point,maxSlope:number,footprint=0):boolean{
+    if(!this.generated?.battlefield||!Number.isFinite(maxSlope))return true;
+    const dist=Math.hypot(to.x-from.x,to.y-from.y);
+    const steps=Math.max(1,Math.ceil(dist/Math.max(7,this.cell*.32)));
+    const oldSlope=this.terrainSlope(from.x,from.y);
+    let last=from,lastHeight=this.terrainHeight(from.x,from.y);
+    for(let i=1;i<=steps;i++){
+      const point={x:from.x+(to.x-from.x)*i/steps,
+        y:from.y+(to.y-from.y)*i/steps};
+      const slope=this.terrainSlope(point.x,point.y);
+      const escaping=oldSlope>maxSlope&&slope<oldSlope-.007;
+      if(!escaping&&!this.groundVehicleSlopeSafe(point,maxSlope,footprint))return false;
+      const height=this.terrainHeight(point.x,point.y);
+      const segment=Math.hypot(point.x-last.x,point.y-last.y);
+      if(!escaping&&segment>1e-6&&
+        Math.abs(height-lastHeight)/segment>maxSlope+.015)return false;
+      last=point;lastHeight=height;
+    }
+    return true;
+  }
   buildable(p:Point,radius:number):boolean{
     if(!this.walkable(p))return false;
     let min=this.terrainHeight(p.x,p.y),max=min;
@@ -156,9 +194,9 @@ export class World {
     if(clearance>0)for(const d of clearanceDirections){const j=this.indexXY(p.x+d.x*clearance,p.y+d.y*clearance);if(j<0||this.blocked[j])return false;}
     return true;
   }
-  nearest(p: Point, obstacles: {x:number;y:number;radius:number}[]=[], occupied: Point[]=[], from?:Point,clearance=0): Point | null {
+  nearest(p: Point, obstacles: {x:number;y:number;radius:number}[]=[], occupied: Point[]=[], from?:Point,clearance=0,maxSlope=Infinity): Point | null {
     const start=from?this.index(from):-1,component=start>=0?this.components[start]:-1;
-    const valid=(q:Point)=>this.walkable(q,obstacles,clearance)&&(component<0||this.components[this.index(q)]===component)&&occupied.every(u=>Math.hypot(u.x-q.x,u.y-q.y)>23+clearance);
+    const valid=(q:Point)=>this.walkable(q,obstacles,clearance)&&this.groundVehicleSlopeSafe(q,maxSlope,clearance+10)&&(component<0||this.components[this.index(q)]===component)&&occupied.every(u=>Math.hypot(u.x-q.x,u.y-q.y)>23+clearance);
     if(valid(p))return {...p};
     const origin=this.index({x:Math.max(0,Math.min(this.size-1,p.x)),y:Math.max(0,Math.min(this.size-1,p.y))});
     const search=from?RULES.grid:Math.ceil(700/this.cell);
@@ -186,10 +224,10 @@ export class World {
     }
     return null;
   }
-  line(a: Point,b: Point,obstacles: {x:number;y:number;radius:number}[]=[],clearance=0): boolean {
+  line(a: Point,b: Point,obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,maxSlope=Infinity): boolean {
     const steps=Math.max(1,Math.ceil(Math.hypot(a.x-b.x,a.y-b.y)/(this.cell*.45)));
     for(let i=1;i<=steps;i++) if(!this.walkable({x:a.x+(b.x-a.x)*i/steps,y:a.y+(b.y-a.y)*i/steps},obstacles,clearance))return false;
-    return true;
+    return this.groundVehicleStepSafe(a,b,maxSlope,clearance+10);
   }
   /** The first opaque face is visible; only terrain beyond that face is hidden. */
   sightLine(a:Point,b:Point):boolean{
@@ -206,8 +244,8 @@ export class World {
    * approach segment for moving units, or [] for strategic reachability checks.
    * Expansion counts, not wall-clock timing, keep multiplayer/replays
    * deterministic across machines. Legacy map versions remain unchanged. */
-  path(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false): Point[] {
-    if(!profiler&&!this.profilePaths)return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial);
+  path(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false,maxSlope=Infinity): Point[] {
+    if(!profiler&&!this.profilePaths)return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial,maxSlope);
     const at=performance.now();this.pathNodes=0;
     try{return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial);}
     finally{
@@ -224,13 +262,14 @@ export class World {
   // Searches are synchronous; reuse workspace, resetting traversal for every search.
   // Never cache across calls: construction, fog knowledge and test maps can change.
   private pathWorkspace?:{costs:Float64Array;prev:Int32Array;closed:Uint8Array;walkable:Int8Array};
-  private findPath(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false): Point[] {
+  private findPath(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false,maxSlope=Infinity): Point[] {
     const precise=exact&&this.mapVersion>=3&&!air;
-    const walk=(p:Point)=>air?(p.x>=10&&p.y>=10&&p.x<=this.size-10&&p.y<=this.size-10):this.walkable(p,obstacles,clearance);
+    const walk=(p:Point)=>air?(p.x>=10&&p.y>=10&&p.x<=this.size-10&&p.y<=this.size-10):this.walkable(p,obstacles,clearance)&&this.groundVehicleSlopeSafe(p,maxSlope,clearance+10);
     const line=(a:Point,b:Point)=>air?walk(a)&&walk(b):precise
-      ?walk(a)&&walk(b)&&navigationLine(a,b,this.cell,RULES.grid,this.blocked,obstacles,RULES.infantry.radius,clearance)
-      :this.line(a,b,obstacles,clearance);
-    const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(target,obstacles,[],start,clearance);
+      ?walk(a)&&walk(b)&&navigationLine(a,b,this.cell,RULES.grid,this.blocked,obstacles,RULES.infantry.radius,clearance)&&
+       (maxSlope===Infinity||this.groundVehicleStepSafe(a,b,maxSlope,clearance+10))
+      :this.line(a,b,obstacles,clearance,maxSlope);
+    const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(target,obstacles,[],start,clearance,maxSlope);
     if(!end)return [];
     const cost=(a:Point,b:Point)=>{const d=Math.hypot(b.x-a.x,b.y-a.y),steps=Math.max(1,Math.ceil(d/(this.cell*.6)));let sum=0;for(let i=0;i<=steps;i++)sum+=risk?.[this.index({x:a.x+(b.x-a.x)*i/steps,y:a.y+(b.y-a.y)*i/steps})]??0;return d/this.cell*(1+sum/(steps+1));};
     if(line(start,end)&&(!risk||cost(start,end)<=Math.hypot(end.x-start.x,end.y-start.y)/this.cell*1.01))return [end];

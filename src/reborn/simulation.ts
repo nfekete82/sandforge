@@ -1777,6 +1777,11 @@ export class Simulation {
   private move(u:Unit,target:Point,dt:number,speedLimit=Infinity,formationCatchUp=false):void {
     const spec=unitSpec(u),clearance=Math.max(0,spec.radius-10);
     const vehicle=spec.group==='Fahrzeuge'&&!spec.flying,ground=!spec.flying;
+    // Only modern high-relief generated 3D maps need the physical incline
+    // restriction. Older seeded terrain, infantry, aircraft keep their rules.
+    const slopeLimit=vehicle&&this.world.mapVersion>=23
+      ?u.kind==='tank'?.215:u.kind==='artillery'?.185:.195
+      :Infinity;
     // Support units are controlled by their explicit work order; protect them
     // from the separate battlefield-movement watchdog.
     if(ground&&!vehicle&&u.kind!=='engineer'&&u.kind!=='medic'&&
@@ -1800,12 +1805,12 @@ export class Simulation {
       const baseObstacles=tactical?this.tactical.navigationObstacles():buildings;
       const routeObstacles=ground?[...baseObstacles,...visualBuildings,...decor,...towers]:baseObstacles;
       const risk=this.tactical.costs(u);
-      u.path=spec.flying&&!risk?[target]:this.world.path(u,target,routeObstacles,clearance,risk,spec.flying,u.exactPath,true);
+      u.path=spec.flying&&!risk?[target]:this.world.path(u,target,routeObstacles,clearance,risk,spec.flying,u.exactPath,true,slopeLimit);
       // A coarse cliff route may graze blocked terrain. Retry with exact
       // cell traversal immediately, even for infantry with zero extra clearance.
       if(!u.path.length&&!spec.flying&&this.world.mapVersion>=3&&!u.exactPath){
         u.exactPath=true;
-        u.path=this.world.path(u,target,routeObstacles,clearance,risk,false,true,true);
+        u.path=this.world.path(u,target,routeObstacles,clearance,risk,false,true,true,slopeLimit);
       }
       if(ground&&!u.path.length){
         // LAST RESORT: only after normal and exact visual-clearance routes have
@@ -1823,7 +1828,7 @@ export class Simulation {
         if(trapped||(vehicle&&this.world.mapVersion<19)){
           const safeExit=trapped?this.world.nearest(u,collisionObstacles,[],undefined,clearance):null;
           const escapeTarget=safeExit??target;
-          u.path=this.world.path(u,escapeTarget,legacyObstacles,clearance,risk,false,true,true);
+          u.path=this.world.path(u,escapeTarget,legacyObstacles,clearance,risk,false,true,true,slopeLimit);
           if(u.path.length)u.vehicleEscape=safeExit?'exit':'last-resort';
         }
       }
@@ -1854,7 +1859,7 @@ export class Simulation {
           const gap=blocker?vehicleSpacingGap(u,blocker).comfortable:0;
           const detour=blocker?vehicleYieldWaypoint(u,next,blocker,gap,p=>
            this.world.walkable(p,collisionObstacles,clearance)&&
-           this.world.line(u,p,collisionObstacles,clearance)&&
+           this.world.line(u,p,collisionObstacles,clearance,slopeLimit)&&
            // The old algorithm picked a side solely by rock/building
            // clearance. A second *real* vehicle may already occupy it.
            // Check both available lanes against current physical traffic.
@@ -1963,7 +1968,8 @@ export class Simulation {
     // clip through a wall or a visible service prop between simulation ticks.
     const segmentClear=spec.flying||activeObstacles.every(o=>
       segmentDistance(o,u,p)>=o.radius+clearance+(spec.group==='Infanterie'?0:RULES.infantry.radius));
-    if(spec.flying||(segmentClear&&this.world.walkable(p,activeObstacles,clearance))){u.x=p.x;u.y=p.y;u.walkDistance+=step;if(u.kind!=='tank')u.angle=Math.atan2(dy,dx);u.facing=dx<-.05?-1:dx>.05?1:u.facing;u.moving=step>.001;}
+    if(spec.flying||(segmentClear&&this.world.walkable(p,activeObstacles,clearance)&&
+      this.world.groundVehicleStepSafe(u,p,slopeLimit,spec.radius))){u.x=p.x;u.y=p.y;u.walkDistance+=step;if(u.kind!=='tank')u.angle=Math.atan2(dy,dx);u.facing=dx<-.05?-1:dx>.05?1:u.facing;u.moving=step>.001;}
     else {u.path=[];u.repath=0;delete u.vehicleEscape;if(this.world.mapVersion>=3&&!spec.flying)u.exactPath=true;}
   }
   step(dt=RULES.tick):void {

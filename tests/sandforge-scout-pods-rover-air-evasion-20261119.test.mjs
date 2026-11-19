@@ -13,11 +13,16 @@ test('two sleek rocket tubes per side, moved outside body instead of bulky boxes
  assert.equal(entry.scoutRocketMuzzles.length,2);
  assert.ok(root.children[0].position.x<0&&root.children[1].position.x>0);
  for(const pod of root.children){
-  assert.ok(Math.abs(pod.position.x)>=35,'pods farther out on fuselage');
+  assert.ok(Math.abs(pod.position.x)>=22&&Math.abs(pod.position.x)<=27,'pods tucked tight beside the cabin, not hovering away');
+  assert.ok(pod.position.y>=16,'pods raised from underbelly to cabin hardpoints');
   const tubes=pod.children.filter(c=>c.isMesh&&c.geometry?.type==='CylinderGeometry'&&
     c.material?.color?.getHexString()==='1d2420');
   assert.equal(tubes.length,2,'two visible rocket bores, not three');
   assert.ok(pod.position.z<0,'mounted aft of the cockpit, not below the nose');
+  const fairing=pod.children.find(c=>c.isMesh&&c.geometry?.type==='CylinderGeometry'&&c.material?.map);
+  assert.ok(fairing,'pod casing must have a real camouflage albedo texture');
+  assert.equal(fairing.material.map.colorSpace,THREE.SRGBColorSpace);
+  assert.equal(fairing.material.map.image.width,128);
  }
  detachScoutRocketPods(entry);
  assert.equal(entry.node.children.length,0);
