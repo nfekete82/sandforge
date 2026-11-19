@@ -1,0 +1,29 @@
+name: Sandforge AI base fortifications
+on:
+  push:
+    branches:
+      - feat/sandforge-ai-base-fortifications-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  defensive-construction:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile whole simulation
+        run: npx tsc -p tsconfig.json
+      - name: Base fortifications and real vehicle gate traversal
+        run: |
+          node --test \
+            tests/sandforge-ai-base-fortifications-20261119.test.mjs \
+            tests/reborn-bastion-defense.test.mjs \
+            tests/reborn-ai-economy.test.mjs \
+            tests/sandforge-vehicle-gate-clearance-20261119.test.mjs \
+            tests/sandforge-heli-gates-longmatch-20261119.test.mjs
