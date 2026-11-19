@@ -23,7 +23,7 @@ export function installClassicHud(){
 <aside id="sidebar" aria-label="Radar, Einheiten und Produktion">
  <section class="radar hud frame" aria-label="Minikarte">
   <span class="compass west">W</span><span class="compass east">E</span>
-  <canvas id="sf-map" width="224" height="224" aria-label="Minikarte – Klicken verschiebt die Kamera"></canvas>
+  <canvas id="sf-map" width="224" height="224" aria-label="Minikarte – Linksklick bewegt die Kamera, Rechtsklick bewegt ausgewählte Einheiten"></canvas>
   <div class="radar-caption"><span id="sf-exploration">WÜSTENFRONT / 3D</span><button type="button" class="sf-sector-shortcut" data-action="sectors" title="Sektorenübersicht öffnen"><span id="sf-sectors">0 SEKTOREN</span></button></div>
  </section>
  <section class="catalog hud frame" aria-label="Einheiten und Gebäude">

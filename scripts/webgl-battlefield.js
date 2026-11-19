@@ -49,7 +49,7 @@ import {finishBarracksSides,finishBarracksDesertPalette,disposeBarracksSides} fr
 import {SandforgeConstructionPresentation} from '/webgl-construction.js';
 import {createBastionCaptureBar,updateBastionCaptureBar} from '/webgl-bastion-capture.js';
 import {capturePresenceRadius} from '/src/reborn/territory-warfare.js';
-import {snapToPlayableEdge,worldToMinimap} from '/webgl-map-edges.js';
+import {snapToPlayableEdge,worldToMinimap,minimapPointerToWorld} from '/webgl-map-edges.js';
 import {attackBlinkAlpha} from '/src/reborn/attack-alerts.js';
 import {UPGRADES,UPGRADE_KINDS,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
 import {createStrategicBuilding,isStrategicBuilding,trimSiloRocketForGhost} from '/webgl-strategic-buildings.js';
@@ -1769,12 +1769,64 @@ export class SandforgeBattlefield {
    // selected and a periodic producer-menu refresh is pending.
    this.drawInterface();
   });
+  // Left-click pans the camera as before. Right-click issues orders
+  // through the authoritative Simulation, never the visual mini-map.
   this.mini.addEventListener('click',e=>{
+   if(e.button!==0)return;
    const rect=this.mini.getBoundingClientRect();
    const x=(e.clientX-rect.left)/rect.width*this.world.size,z=(e.clientY-rect.top)/rect.height*this.world.size;
    const dest=this.pos(x,z);
    const delta=dest.clone().sub(this.controls.target);
    this.controls.target.add(delta);this.camera.position.add(delta);this.controls.update();
+  });
+  this.mini.addEventListener('contextmenu',e=>e.preventDefault());
+  this.mini.addEventListener('pointerdown',e=>{
+   if(e.button!==2)return;
+   e.preventDefault();e.stopPropagation();
+   if(this.strategicTargetMode){
+    this.strategicTargetMode=false;this.message('Raketenziel-Modus beendet');
+    this.drawInterface();return;
+   }
+   if(this.buildKind){
+    this.clearPlacement();this.message('Bauplatzwahl abgebrochen');
+    this.drawInterface();return;
+   }
+   const point=minimapPointerToWorld(e.clientX,e.clientY,
+    this.mini.getBoundingClientRect(),this.world.size);
+   if(!point){this.message('Marschziel außerhalb der Minikarte');return;}
+   if(this.selectedBase!==null){
+    // Same right-click rally-point behavior as the main 3D battlefield.
+    const base=this.game.bases.find(b=>b.id===this.selectedBase&&
+     b.owner===0&&b.hp>0&&b.buildRemaining<=0);
+    if(base){
+     const rally=this.world.nearest(point,this.game.obstacles());
+     if(rally){
+      base.rally=rally;this.rallyMode=false;
+      this.sound?.command?.();this.showCommandPulse(rally);
+      this.message('Sammelpunkt gesetzt: '+BUILDINGS[base.kind].name);
+     }else this.message('Sammelpunkt nicht erreichbar');
+     this.drawInterface();
+    }
+    return;
+   }
+   const ids=[...this.selected];
+   if(!ids.length)return;
+   // Shift queues as usual; an armed attack-move remains attack-move.
+   // Do not synthesize an enemy-target attack from minimap symbols or fog.
+   const kind=this.attackMode?'attackMove':'move';
+   const accepted=this.game.command(ids,{kind,...point},e.shiftKey);
+   this.message(accepted
+    ?accepted+' Einheit(en): '+(kind==='attackMove'?'Angriff':'Marsch')+' über Minikarte'
+    :'Ziel nicht erreichbar');
+   if(accepted){
+    this.showCommandPulse(point,kind!=='move');
+    this.sound?.command?.(kind!=='move');
+    const unit=this.game.units.find(u=>ids.includes(u.id)&&
+     u.owner===0&&u.hp>0);
+    if(unit)this.sound?.acknowledge?.({kind:kind!=='move'?'attack':'move',
+     unit:unit.kind,unitId:unit.id},this.game);
+   }
+   this.attackMode=false;this.drawInterface();
   });
  }
  saveGame(){
