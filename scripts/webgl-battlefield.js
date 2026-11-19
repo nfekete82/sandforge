@@ -38,7 +38,7 @@ import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
 import {selectedInfantryForTransport,selectedCarrierForPickup,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
 import {pointerGestureIntent,submitConstruction,nearestEngineer,keepPlacementAfterBuild,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
 import {validatedWallDrag,snapWallSiteToMap,WALL_CHAIN_DRAG_THRESHOLD,WALL_CHAIN_MAX} from '/webgl-wall-drag.js';
-import {wallTerrainPitch} from '/src/reborn/defensive-wall.js';
+import {wallTerrainPitch,isWallLike,WALL_GATE_UPGRADE_COST} from '/src/reborn/defensive-wall.js';
 import {sameKindVisibleUnits,visibleFriendlyUnits} from '/webgl-double-click-select.js';
 import {FIELD_UNIT_COMMANDS,orderReturnToBase} from '/webgl-unit-commands.js';
 import {tracerWindow} from '/webgl-hit-response.js';
@@ -1051,14 +1051,14 @@ export class SandforgeBattlefield {
  }
  updatePlacementPreview(event){
   const ghost=this.buildPreview;if(!this.buildKind||!ghost)return;
-  const raw=this.terrainPoint(event,{snapEdge:this.buildKind==='wall'});
-  const p=this.buildKind==='wall'&&raw
+  const raw=this.terrainPoint(event,{snapEdge:isWallLike(this.buildKind)});
+  const p=isWallLike(this.buildKind)&&raw
    ?snapWallSiteToMap(raw,this.placementFacing,this.world.size):raw;
   ghost.visible=Boolean(p);
   if(!p){this.buildHint.style.display='none';return;}
   ghost.position.copy(this.pos(p.x,p.y));
   ghost.rotation.y=buildingFacingAngle(this.placementFacing);
-  ghost.rotation.z=this.buildKind==='wall'
+  ghost.rotation.z=isWallLike(this.buildKind)
    ?wallTerrainPitch(this.world,p,this.placementFacing):0;
   if(this.buildKind==='airfield'&&ghost.userData.previewService)
    conformAirfieldSurface(ghost.userData.previewService,
@@ -1204,7 +1204,7 @@ export class SandforgeBattlefield {
    entry.node.rotation.y=buildingFacingAngle(b.facing);
    // Cache each fixed wall's 3D terrain pitch. A large perimeter must not
    // resample its heightfield hundreds of times per animation frame.
-   if(b.kind==='wall'){
+   if(isWallLike(b.kind)){
     if(entry.wallSlopePitch===undefined||entry.wallSlopeFacing!==b.facing){
      entry.wallSlopeFacing=b.facing;
      entry.wallSlopePitch=wallTerrainPitch(this.world,b,b.facing??0);
@@ -1912,7 +1912,7 @@ export class SandforgeBattlefield {
    const spec=type==='unit'?UNITS[kind]:BUILDINGS[kind];
    const image=type==='unit'
     ?'<img data-sf-unit-icon="'+kind+'" alt="" decoding="async">'
-    :'<img data-sf-building-icon="'+kind+'" src="'+buildingIconUrl(kind)+'" alt="" loading="lazy" decoding="async">';
+    :'<img data-sf-building-icon="'+kind+'" src="'+buildingIconUrl(kind==='wallGate'?'wall':kind)+'" alt="" loading="lazy" decoding="async">';
    const dataset=type==='unit'?'data-unit="'+kind+'"':'data-build="'+kind+'"';
    return '<button class="catalog-card" '+dataset+
     ' title="'+plain(spec.description)+'" aria-label="'+plain(spec.name)+' – '+spec.cost+' Credits">'+
@@ -2909,7 +2909,7 @@ export class SandforgeBattlefield {
    }
    if(this.buildKind){
     const kind=this.buildKind;
-    const site=kind==='wall'
+    const site=isWallLike(kind)
      ?snapWallSiteToMap(p,this.placementFacing,this.world.size):p;
     const blocked=this.game.buildError(0,kind,site,this.placementFacing);
     if(blocked){
@@ -2934,7 +2934,7 @@ export class SandforgeBattlefield {
      this.sync(true);
      this.message(BUILDINGS[kind].name+
       (order.append?' in Baufolge eingereiht':' beauftragt')+
-      (kind==='wall'?' · Nächstes Mauersegment platzieren · Rechtsklick beendet':
+      (isWallLike(kind)?' · Nächstes Mauersegment platzieren · Rechtsklick beendet':
        ' · Nächstes Gebäude direkt im Baumenü auswählen'));
     }else{
      this.message(order.reason+
