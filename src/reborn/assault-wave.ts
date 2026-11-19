@@ -12,6 +12,8 @@ export interface WaveReadiness {
  readyStrength?:number;
  /** Known turrets require artillery or a separately validated overrun. */
  siegeSupported?:boolean;
+ /** Battle Director urgent: shorter rally only if existing force is ready. */
+ tempoPressure?:boolean;
 }
 export interface WaveDecision {ready:boolean;required:number;reason:'open-front'|'small-force'|'assembled'|'combat-ready'|'bounded-wait'|'assembling'}
 export function assaultWaveDecision(x:WaveReadiness):WaveDecision {
@@ -32,7 +34,7 @@ export function assaultWaveDecision(x:WaveReadiness):WaveDecision {
   return {ready:true,required,reason:'combat-ready'};
  // No permanent stalemate: leave after a bounded rally if base combat
  // assessment already judges the *arrived* force sufficient.
- if(x.elapsed>=42)return {ready:true,required,reason:'bounded-wait'};
+ if(x.elapsed>=(x.tempoPressure?27:42))return {ready:true,required,reason:'bounded-wait'};
  return {ready:false,required,reason:'assembling'};
 }
 
