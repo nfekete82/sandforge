@@ -155,15 +155,36 @@ export class World {
   groundVehicleStepSafe(from:Point,to:Point,maxSlope:number,footprint=0):boolean{
     if(!this.generated?.battlefield||!Number.isFinite(maxSlope))return true;
     const dist=Math.hypot(to.x-from.x,to.y-from.y);
+    if(dist<1e-9)return true;
     const steps=Math.max(1,Math.ceil(dist/Math.max(7,this.cell*.32)));
     const oldSlope=this.terrainSlope(from.x,from.y);
+    // At a cliff LIP, a broad vehicle can have its centre on safe sand,
+    // but one wheel/track sample is still within a forbidden slope. The old
+    // method rejected movement in EVERY direction because it looked only at
+    // the centre to detect a possible escape. Permit only a short, verified
+    // outward movement that aims toward completely clear, gentler ground.
+    const radius=Math.max(0,Math.min(footprint,26))*.72;
+    const startOverhang=radius>=1&&oldSlope<=maxSlope&&
+      !this.groundVehicleSlopeSafe(from,maxSlope,footprint);
+    const forward=Math.max(32,radius*2.5);
+    const safeAhead=startOverhang&&this.groundVehicleSlopeSafe({
+      x:from.x+(to.x-from.x)/dist*forward,
+      y:from.y+(to.y-from.y)/dist*forward
+    },maxSlope,footprint);
+    const peakSlope=(p:Point)=>Math.max(this.terrainSlope(p.x,p.y),
+      this.terrainSlope(p.x+radius,p.y),this.terrainSlope(p.x-radius,p.y),
+      this.terrainSlope(p.x,p.y+radius),this.terrainSlope(p.x,p.y-radius));
+    const startPeak=safeAhead?peakSlope(from):0;
     let last=from,lastHeight=this.terrainHeight(from.x,from.y);
     for(let i=1;i<=steps;i++){
       const point={x:from.x+(to.x-from.x)*i/steps,
         y:from.y+(to.y-from.y)*i/steps};
       const slope=this.terrainSlope(point.x,point.y);
       const escaping=oldSlope>maxSlope&&slope<oldSlope-.007;
-      if(!escaping&&!this.groundVehicleSlopeSafe(point,maxSlope,footprint,slope))return false;
+      const normalSafe=this.groundVehicleSlopeSafe(point,maxSlope,footprint,slope);
+      const overhangRetreat=safeAhead&&slope<=maxSlope&&
+        peakSlope(point)<=startPeak+1e-6;
+      if(!escaping&&!normalSafe&&!overhangRetreat)return false;
       const height=this.terrainHeight(point.x,point.y);
       const segment=Math.hypot(point.x-last.x,point.y-last.y);
       if(!escaping&&segment>1e-6&&
@@ -275,7 +296,11 @@ export class World {
     const precise=exact&&this.mapVersion>=3&&!air;
     const walk=(p:Point)=>air?(p.x>=10&&p.y>=10&&p.x<=this.size-10&&p.y<=this.size-10):this.walkable(p,obstacles,clearance)&&this.groundVehicleSlopeSafe(p,maxSlope,clearance+10);
     const line=(a:Point,b:Point)=>air?walk(a)&&walk(b):precise
-      ?walk(a)&&walk(b)&&navigationLine(a,b,this.cell,RULES.grid,this.blocked,obstacles,RULES.infantry.radius,clearance)&&
+      // An existing tank may sit with one track over a slope boundary. Its
+      // first waypoint is permitted only if the centre is legally clear,
+      // and the real track-footprint step is a verified escape, not a climb.
+      ?(walk(a)||(a===start&&this.walkable(a,obstacles,clearance)))&&walk(b)&&
+       navigationLine(a,b,this.cell,RULES.grid,this.blocked,obstacles,RULES.infantry.radius,clearance)&&
        (maxSlope===Infinity||this.groundVehicleStepSafe(a,b,maxSlope,clearance+10))
       :this.line(a,b,obstacles,clearance,maxSlope);
     const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(target,obstacles,[],start,clearance,maxSlope);
