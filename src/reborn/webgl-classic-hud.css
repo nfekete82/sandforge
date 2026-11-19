@@ -7,6 +7,11 @@
 .sf-rts .top{z-index:3}
 .sf-rts .tools{z-index:4;right:12px;top:10px;min-width:312px;justify-content:flex-end}
 .sf-rts .tools button{width:35px;height:33px;font:700 15px/1 var(--display)}
+/* The 1x/2x/4x control must be visible in the REAL top gameplay bar.
+   Override inherited stacked footer label styles after reparenting. */
+.sf-rts .tools .sf-tool-speed{display:inline-flex;align-items:center;gap:4px;min-width:0;height:33px;margin:0;padding:0 3px;color:#dfc596;font:700 9px/1 var(--display);white-space:nowrap}
+.sf-rts .tools .sf-tool-speed select{display:block;flex:0 0 auto;width:51px;min-width:51px;height:27px;min-height:27px;margin:0;padding:2px 5px;border:1px solid #867550;border-radius:3px;background:#2a2d23;color:#f5ddb0;font:800 11px/1 var(--display);cursor:pointer}
+.sf-rts .tools .sf-tool-speed select:focus-visible{outline:2px solid #edc378;outline-offset:2px}
 .sf-rts .tools #simulation,.sf-rts .tools #sound{font-size:0}
 .sf-rts .tools #simulation::before{content:'Ⅱ';font:700 21px var(--display)}
 .sf-rts .tools #simulation[aria-pressed=false]::before{content:'▶';font-size:17px}

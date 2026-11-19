@@ -10,6 +10,7 @@ import {canyonGroundSampler,rampAtX,ridgeCenterY} from '/src/reborn/canyon-heigh
 import {SandforgeBattlefield} from '/webgl-battlefield.js';
 import {DesertOases} from '/webgl-oases.js';
 import {createLandscapeMeshes} from '/webgl-landscape-network.js';
+import {normalizeSimulationSpeed,simulationFrameBudget} from '/webgl-simulation-speed.js';
 import {DesertArtPass} from '/webgl-environment.js';
 import {BIOME_STYLES,normalizeBiome,createBiomeGroundTexture,addBiomeVegetation} from '/webgl-biomes.js';
 import {SandforgeCombatEffects} from '/webgl-combat-vfx.js';
@@ -184,6 +185,17 @@ const models=new Map(),ruinMeshes=[];
 // never appear accepted while an unannounced preview-level pause blocks ticks.
 game.paused=false;
 let groundMeshes=[],running=query.get('pause')!=='1',accumulator=0,elapsed=0;
+let simulationSpeed=1;
+const speedControl=$('simulation-speed');
+function setSimulationSpeed(value){
+ const next=normalizeSimulationSpeed(value);
+ if(next!==simulationSpeed)accumulator=0; // don't carry time debt across speed changes
+ simulationSpeed=next;
+ if(speedControl){speedControl.value=String(next);
+  speedControl.title='Spieltempo '+next+'× · die Simulation bleibt bei festen 50-ms-Schritten';}
+ return simulationSpeed;
+}
+if(speedControl)speedControl.addEventListener('change',()=>setSimulationSpeed(speedControl.value));
 let pauseSource=query.get('pause')==='1'?'URL-Parameter pause=1':'';
 // Distinguish a deliberate pause or an ended battle from an animation stall.
 // Previously all three looked identical: stationary soldiers on screen.
@@ -1274,9 +1286,13 @@ function animate(now){
  performanceWatch.begin(now);
  const dt=Math.min(.08,(now-lastFrame)/1000);lastFrame=now;
  const beforeSteps=performanceWatch.enabled?performance.now():0;
+ let visualDt=0;
  if(running){
-  accumulator=Math.min(accumulator+dt,.20);
-  let steps=0;while(accumulator>=.05&&steps<4){game.step(.05);constructionRecovery.tick();accumulator-=.05;steps++;}
+  // Scale authoritative time, NOT the browser's render rate: AI, weapons,
+  // production and movement all run on identical 50-ms physics steps.
+  const budget=simulationFrameBudget(accumulator,dt,simulationSpeed);
+  accumulator=budget.accumulator;visualDt=budget.visualDt;
+  for(let i=0;i<budget.steps;i++){game.step(.05);constructionRecovery.tick();}
  }
  // Losses are tracked independently of the mute state. A disembarking
  // passenger stays in Simulation.units and is never reported as killed.
@@ -1297,17 +1313,17 @@ function animate(now){
  const beforeSync=performanceWatch.enabled?performance.now():0;
  if(running){
   // Render between the last two authoritative 20-Hz snapshots.
-  battlefield.sync(false,dt,true,Math.min(1,Math.max(0,accumulator/.05)));
+  battlefield.sync(false,visualDt,true,Math.min(1,Math.max(0,accumulator/.05)));
  }else{
   battlefield.sync(false,0,false,1); // freeze clips during tactical pause
  }
  if(performanceWatch.enabled)performanceWatch.presentation(performance.now()-beforeSync);
  const beforeAux=performanceWatch.enabled?performance.now():0;
  if(running)groundTracks.capture();
- groundTracks.update(dt,running);
- battlefield.updateCommandPulse(dt);
+ groundTracks.update(visualDt,running);
+ battlefield.updateCommandPulse(visualDt);
  const beforeEffects=performanceWatch.enabled?performance.now():0;
- effects.update(dt,running,accumulator);
+ effects.update(visualDt,running,accumulator);
  strategicEffects.update(running);
  if(performanceWatch.enabled)performanceWatch.effectsCost(performance.now()-beforeEffects);
  if(running&&sound.enabled)sound.update(game,soundView);
@@ -1318,7 +1334,7 @@ function animate(now){
  // Keep the shadow-map volume centered on the active camera area.
  reusableShadowShift.copy(controls.target).sub(sun.target.position);
  sun.position.add(reusableShadowShift);sun.target.position.add(reusableShadowShift);
- atmosphere.update(dt);
+ atmosphere.update(visualDt);
  oases.update(now*.001);
  if(performanceWatch.enabled)performanceWatch.auxiliary(performance.now()-beforeAux);
  const beforeRender=performanceWatch.enabled?performance.now():0;
@@ -1354,6 +1370,8 @@ window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,ba
  get desertArtReady(){return desertArtReady;},
  get loaded(){return status.dataset.ready==='true';},
  get simulationRunning(){return running;},
+ get simulationSpeed(){return simulationSpeed;},
+ setSimulationSpeed,
  setSimulationRunning,
  sampleGround:(x,z)=>heightAt(x,z)};
 async function main(){
