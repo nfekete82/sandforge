@@ -1847,6 +1847,13 @@ export class Simulation {
     }
     return false;
   }
+  /** Per fixed 50ms simulation tick, cap synchronous modern-ground A*
+   * submissions. At 728 seconds profiling showed 10 requests taking 260ms
+   * on one JS frame. A deferred request retains the current move order,
+   * avoiding lost targets, save fields and nondeterministic wall-time budgets.
+   */
+  private routeBudgetTick=-1;
+  private routeBudgetUsed=0;
   private move(u:Unit,target:Point,dt:number,speedLimit=Infinity,formationCatchUp=false):void {
     const spec=unitSpec(u),clearance=Math.max(0,spec.radius-10);
     const vehicle=spec.group==='Fahrzeuge'&&!spec.flying,ground=!spec.flying;
@@ -1873,6 +1880,21 @@ export class Simulation {
       delete u.vehicleEscape;u.path=[];u.repath=0;
     }
     if(!u.path.length&&u.repath<=0){
+      // Route work runs on the browser's main thread. Distribute clusters
+      // of squad orders over consecutive deterministic simulation ticks.
+      // Direct new commands still execute promptly; air and old maps retain
+      // their original semantics. No route is skipped, only deferred.
+      if(ground&&this.world.mapVersion>=23){
+        const tick=Math.round(this.time*20);
+        if(tick!==this.routeBudgetTick){
+          this.routeBudgetTick=tick;this.routeBudgetUsed=0;
+        }
+        if(this.routeBudgetUsed>=2){
+          u.repath=.10+(u.id%5)*.05;
+          return;
+        }
+        this.routeBudgetUsed++;
+      }
       delete u.vehicleEscape;
       const tactical=u.owner===1&&u.orders[0]?.tactical;
       const baseObstacles=tactical?this.tactical.navigationObstacles():buildings;
@@ -1907,7 +1929,17 @@ export class Simulation {
       }
       // Failed reachability no longer hammers the same blocked goal every
       // 1.4 seconds while many units fight beside a factory/airfield.
-      u.repath=u.path.length?.7:this.world.mapVersion>=23?2.8:1.4;
+      // Avoid repeated costly PARTIAL searches at the same blocked gate,
+      // cliff or narrow pass every 0.7 seconds. Space each unit's retries
+      // deterministically so a squad never submits the same A* burst.
+      // Fresh player orders explicitly reset repath=0 and still run immediately.
+      const partial=ground&&this.world.mapVersion>=23&&u.path.length>0&&
+        distance(u.path[u.path.length-1],target)>Math.max(55,this.world.cell*1.7);
+      u.repath=u.path.length
+        ?this.world.mapVersion>=23
+          ?(partial?1.6:.85)+(u.id%7)*.13
+          :.7
+        :this.world.mapVersion>=23?2.8+(u.id%5)*.18:1.4;
     }
     let next=u.path[0];if(!next)return;
     // A vehicle wedged behind another vehicle must not wait forever.
