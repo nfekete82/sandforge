@@ -1,6 +1,6 @@
 import {UNITS,BUILDINGS,MAX_GENERATORS_PER_FACTION,unitSpec,canAttack,type UnitKind,type BuildingKind} from './catalog.js';
 import {distance,type Point} from './config.js';
-import {produceCombinedArmy} from './director-production.js';
+import {produceCombinedArmy,bastionSurplusArmyStage} from './director-production.js';
 import {rocketInfantryQuota,bomberAntiArmorQuota} from './ai-counter-doctrine.js';
 import {ai36AirDoctrineEnabled,shouldBuyReconDrone,bomberSupportQuota} from './ai36-air-support.js';
 import {buildBastionDefense,defensiveTowerLimit,rankBastionDefenses} from './bastion-defense.js';
@@ -250,6 +250,24 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
    :complete('airfield')&&count('scout')>0&&income>=65&&fighters.length>=6&&military.length
     ?22+military.filter(b=>b.kind==='factory'||b.kind==='airfield').length*3-count('bomber')*25:0,
  };
+ // Captured Bastions generate enough credits to sustain a genuine mechanized
+ // army, not just one of each vehicle. The old score decay silently set
+ // artillery/rover scores <=0 even while the AI sat on thousands of credits.
+ // Preserve legacy campaigns and the opening; activate only on majority
+ // controlled modern battlefields with strong ACTUAL periodic income.
+ const surplusStage=director&&g.world.mapVersion>=23&&!finishing
+  ?bastionSurplusArmyStage({
+    time:g.time,income,
+    ownedBastions:g.territories.filter(t=>t.owner===1).length,
+    totalBastions:g.territories.length
+   }):0;
+ if(surplusStage){
+  scores.infantry=Math.max(scores.infantry,52-count('infantry')*4);
+  scores.heavy=Math.max(scores.heavy,63-count('heavy')*7);
+  scores.rover=Math.max(scores.rover,62-count('rover')*11);
+  scores.tank=Math.max(scores.tank,110-count('tank')*11);
+  scores.artillery=Math.max(scores.artillery,84-count('artillery')*13);
+ }
  if(finishing){
   // Preserve a paid replacement builder, but put other spending into the army.
   if(!desiredBombers)scores.bomber=0;
