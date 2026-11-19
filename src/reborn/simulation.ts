@@ -95,6 +95,8 @@ export interface Base extends Point {
   /** Building façade orientation. Backward compatible: 0=0°, 1=180° (legacy),
    * 2=90°, 3=270°. Absent is the original classic facing. */
   facing?:0|1|2|3;
+  /** Two ordinary 109-unit sections; missing in older saves means legacy single width. */
+  gateSpan?:1|2;
   constructionActive?:boolean;
   burst?:Burst;
   queueCosts?:number[];
@@ -693,22 +695,54 @@ export class Simulation {
   navigationBases(owner:Faction):Base[]{
    return navigableBasesForFaction(this.obstacles(),owner);
   }
-  /** Paid upgrade of a real, finished existing wall. Avoid requiring the
-   * player to demolish a perimeter and expose an uncontrolled opening.
+  /** Find the other half of a real two-section gate retrofit. Both wall
+   * segments must be adjacent, parallel, completed, alive and owned by the
+   * same faction. No invisible extra footprint or free gap is created.
+   */
+  findWallGatePartner(owner:Faction,id:number):Base|null{
+    const a=this.bases.find(b=>b.id===id&&b.kind==='wall'&&
+      b.owner===owner&&b.hp>0&&b.buildRemaining<=0);
+    if(!a)return null;
+    const vertical=a.facing===2||a.facing===3;
+    const match=this.bases.filter(b=>b.id!==id&&b.owner===owner&&
+      b.kind==='wall'&&b.hp>0&&b.buildRemaining<=0&&
+      (b.facing===2||b.facing===3)===vertical).find(b=>{
+        const along=vertical?b.y-a.y:b.x-a.x;
+        const across=vertical?b.x-a.x:b.y-a.y;
+        return Math.abs(Math.abs(along)-109)<=2&&Math.abs(across)<=2;
+      });
+    return match??null;
+  }
+  /** Replace exactly two adjacent existing wall bases by one durable, truly
+   * double-width animated metal gate. Preserve the selected base ID so the
+   * construction UI, save identity and current selection remain stable.
    */
   convertWallToGate(owner:Faction,id:number):boolean{
-   const b=this.bases.find(b=>b.id===id&&b.kind==='wall'&&
-    b.owner===owner&&b.hp>0&&b.buildRemaining<=0);
-   if(!b||this.status!=='playing'||this.credits[owner]<WALL_GATE_UPGRADE_COST)return false;
-   const ratio=b.hp/BUILDINGS.wall.hp;
-   this.credits[owner]-=WALL_GATE_UPGRADE_COST;
-   b.kind='wallGate';b.radius=BUILDINGS.wallGate.radius;
-   b.hp=Math.min(BUILDINGS.wallGate.hp,Math.max(1,ratio*BUILDINGS.wallGate.hp));
-   this.movementCollision=undefined;
-   // An old cached wall route must not survive a gate upgrade.
-   for(const u of this.units)if(!unitSpec(u).flying){u.path=[];u.repath=0;}
-   this.notices.push('Sperrmauer für '+WALL_GATE_UPGRADE_COST+' Credits zum Mauertor umgerüstet.');
-   return true;
+    const b=this.bases.find(site=>site.id===id&&site.kind==='wall'&&
+      site.owner===owner&&site.hp>0&&site.buildRemaining<=0);
+    const mate=this.findWallGatePartner(owner,id);
+    if(!b||!mate||this.status!=='playing'||
+      this.credits[owner]<WALL_GATE_UPGRADE_COST)return false;
+    const ratio=Math.max(.01,Math.min(1,
+      (b.hp+mate.hp)/(2*BUILDINGS.wall.hp)));
+    this.credits[owner]-=WALL_GATE_UPGRADE_COST;
+    b.x=(b.x+mate.x)*.5;b.y=(b.y+mate.y)*.5;
+    b.kind='wallGate';b.gateSpan=2;
+    b.radius=BUILDINGS.wallGate.radius;
+    b.hp=Math.max(1,ratio*BUILDINGS.wallGate.hp);
+    this.bases=this.bases.filter(site=>site.id!==mate.id);
+    for(const u of this.units){
+      if(u.orders.some(order=>order.target===mate.id)){
+        u.orders=u.orders.filter(order=>order.target!==mate.id);
+      }
+      if(u.workingTarget===mate.id)u.workingTarget=null;
+      if(!unitSpec(u).flying){u.path=[];u.repath=0;}
+    }
+    this.movementCollision=undefined;
+    this.updateVision();
+    this.notices.push('Zwei Sperrmauern für '+WALL_GATE_UPGRADE_COST+
+      ' Credits in ein doppelt breites Stahltor umgerüstet.');
+    return true;
   }
   /** Static structure/facade colliders are identical for every actor during
    * the same 20 Hz tick. Reusing them cuts repeated map/filter and array
@@ -818,7 +852,8 @@ export class Simulation {
     // slopes are allowed, unlike rigid HQ/factory foundations. The entire
     // real mesh must still stay in bounds and never pass through blocked
     // rocks, cliff walls or sudden vertical precipices.
-    const terrainError=wallTerrainPlacementError(this.world,p,facing);
+    const span=kind==='wallGate'?2:1;
+    const terrainError=wallTerrainPlacementError(this.world,p,facing,span);
     if(terrainError)return terrainError;
     // Walls may TOUCH end-to-end. Overlapping foundations and all other
     // real building/repair footprints remain strictly forbidden.
@@ -827,7 +862,7 @@ export class Simulation {
       return 'Ein Gebäude oder eine vorhandene Mauer blockiert die Strecke.';
     if(this.territories.some(t=>siteNearBastion(kind,p,facing,t.point)))
       return 'Bastion oder Kontrollpunkt blockiert die Strecke.';
-    const segments=wallColliderSamples(p,facing,24);
+    const segments=wallColliderSamples({...p,kind,gateSpan:span},facing,24);
     if(this.units.some(u=>u.hp>0&&!u.carrier&&!unitSpec(u).flying&&
        segments.some(c=>distance(u,c)<c.radius+unitSpec(u).radius)))
       return 'Eine Einheit steht im Mauerverlauf.';
@@ -928,7 +963,8 @@ export class Simulation {
     const b:Base={id,owner,kind,...p,hp:instant?spec.hp:spec.hp*.25,territory:territory.id,radius:spec.radius,queue:[],queueTypes:[],production:0,buildRemaining:instant?0:spec.buildTime,cooldown:0,rally:null,
       ...(kind==='silo'?{siloCharge:SILO_CHARGE_SECONDS}:{}),
       ...(kind==='interceptor'?{interceptorAmmo:INTERCEPTOR_MAX_AMMO}:{}),
-      ...(facing!==0?{facing}:{})};
+      ...(facing!==0?{facing}:{}),
+      ...(kind==='wallGate'?{gateSpan:2 as const}:{})};
     this.bases.push(b);
     if(!instant&&!this.command(workers.map(u=>u.id),{...p,kind:'build',target:id},append)){
       this.bases.pop();this.notices.push('Kein ausgewählter Pionier kann diese Baustelle erreichen.');return null;
