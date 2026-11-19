@@ -32,7 +32,10 @@ a:hover{text-decoration:underline}
 .info #selection{color:#a6d8e2;font-size:12px}
 #error{color:#ffab9c}
 .toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid #ffffff24;border-radius:9px;padding:8px}
-.counter{font:600 12px ui-monospace,monospace;color:#e7d8ac;padding:5px 8px;white-space:nowrap}
+.speed-control{display:flex;align-items:center;gap:6px;font:700 11px system-ui;color:#e7d8ac;white-space:nowrap}
+ .speed-control select{min-width:61px;min-height:34px;padding:6px 7px;font:700 13px ui-monospace,monospace;border-color:#92744c;background:#283334;color:#f7e5ba;cursor:pointer}
+ .speed-control select:focus-visible{outline:2px solid #ecc17c;outline-offset:2px}
+ .counter{font:600 12px ui-monospace,monospace;color:#e7d8ac;padding:5px 8px;white-space:nowrap}
 .note{font-size:11px;color:#bec7bd}
 @media(max-width:900px){
  .header{left:8px;right:8px;top:8px;flex-direction:column}.footer{left:8px;right:8px;bottom:8px;flex-direction:column;align-items:start}
@@ -88,6 +91,13 @@ a:hover{text-decoration:underline}
   <button id="rotate-right" title="Kamera nach rechts drehen" aria-label="Kamera rechts">↷</button>
   <button id="home">Ansicht zurücksetzen</button>
   <button id="simulation" aria-pressed="false">Simulation starten</button>
+  <label for="simulation-speed" class="speed-control" title="Spielgeschwindigkeit für Produktion, Bewegung, Kampf und KI">Tempo
+   <select id="simulation-speed" aria-label="Spielgeschwindigkeit">
+    <option value="1" selected>1×</option>
+    <option value="2">2×</option>
+    <option value="4">4×</option>
+   </select>
+  </label>
   <button id="sound" aria-pressed="false">Sound einschalten</button>
   <span class="counter"><span id="fps">–</span> FPS · <span id="clock">0 s</span></span>
  </div>
