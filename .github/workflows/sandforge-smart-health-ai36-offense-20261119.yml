@@ -1,0 +1,81 @@
+name: Sandforge smart health and AI3.6 offensive diagnostics
+on:
+  push:
+    branches: ['feat/sandforge-smart-health-ai36-offense-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript and WebGL audit
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: HUD, bomber, Jeep, mission and combat regression tests
+        run: |
+          node --test \
+            tests/sandforge-smart-healthbars-20261119.test.mjs \
+            tests/sandforge-scout-pods-rover-air-evasion-20261119.test.mjs \
+            tests/sandforge-bomber-escort-heli-mg-20261119.test.mjs \
+            tests/sandforge-ai36-endgame-route-recovery-20261119.test.mjs \
+            tests/sandforge-ai36-recon-bomber-support-20261119.test.mjs \
+            tests/sandforge-ai36-fight-dont-flee-20261119.test.mjs
+      - name: Reference AI3.5 same worlds
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps 24,26 --seeds 2026,2027 \
+            --seconds 600 --modes director --ai36 off \
+            --label ai35-reference \
+            --output ai-arena-results/ci-health-ai35.json
+      - name: AI3.6 same worlds, before offensive changes
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps 24,26 --seeds 2026,2027 \
+            --seconds 600 --modes director --ai36 coordinated \
+            --label ai36-offensive \
+            --output ai-arena-results/ci-health-ai36.json
+      - name: Print real mission timelines and control outcomes
+        if: success()
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          for(const [name,file] of [
+           ['AI3.5','ai-arena-results/ci-health-ai35.json'],
+           ['AI3.6','ai-arena-results/ci-health-ai36.json']]){
+           const data=JSON.parse(readFileSync(file,'utf8'));
+           for(const r of data.details){
+            console.log('\n'+name+' map='+r.mapVersion+' seed='+r.seed+' outcome='+r.outcome+
+             ' wins='+r.win+' hqSeen='+r.firstEnemyHQSeen+' hqDamage='+r.enemyHQDamage+
+             ' captures='+r.captures+' redSectors='+r.redSectors+
+             ' missions='+r.missionCount+' abortions='+r.abortedMissions+
+             ' stalled='+r.stalledMissions+' organized='+r.firstOrganizedAttack);
+            console.log('Mission timeline:',JSON.stringify(r.timeline.map(t=>({
+             at:t.at,phase:t.phase,commander:t.commander,mission:t.mission,
+             group:t.group,objective:t.objective,enemyHQSeen:t.enemyHQSeen,
+             enemyHQDamage:t.enemyHQDamage,credits:t.credits}))));
+           }
+          }
+          NODE
+      - name: Compare matched worlds
+        if: success()
+        run: node scripts/ai-test-arena-compare.mjs ai-arena-results/ci-health-ai35.json ai-arena-results/ci-health-ai36.json
+      - name: Archive all diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-hud-ai36-offense-diagnostics
+          path: |
+            ai-arena-results/ci-health-ai35.*
+            ai-arena-results/ci-health-ai36.*
+          if-no-files-found: warn
