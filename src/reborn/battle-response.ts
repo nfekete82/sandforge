@@ -58,21 +58,28 @@ export function shouldCommitFirefight(x:{
  if(x.knownTowers>0&&ratio<.85)return false;
  return ratio>=.48||(x.time<x.commitUntil&&ratio>=.32);
 }
-/** Retreat is not automatically safer while already exchanging fire.
- * On KI 3.6 a paid force near parity should finish a live firefight; an
- * outmatched force may disengage only when there is a demonstrably safer
- * path. An isolated survivor or unsupported known turret cannot force a
- * heroic last stand. Uses only actually observed opponents.
+/** KI 3.6: withdrawal is an emergency measure, never a routine response
+ * to HP loss or a merely stronger observed opponent. Only a truly hopeless
+ * engagement with a genuinely safe escape justifies pulling combat troops
+ * out. The function sees only actually observed opponents and legal routes.
  */
 export function fightInsteadOfFleeing(x:{
  continuing:boolean;visible:number;inRange:number;healthy:number;
  own:number;enemy:number;knownTowers:number;escapeSafe:boolean;
 }):boolean{
- if(!x.continuing||x.visible<=0||x.inRange<=0||x.healthy<=0)return false;
+ if(!x.continuing||x.visible<=0||x.healthy<=0)return false;
  const ratio=x.own/Math.max(.1,x.enemy);
- if(x.knownTowers>0)return ratio>=1.05&&x.healthy>=3;
- if(ratio>=.63)return true;
- return x.healthy>=2&&(ratio>=.38||!x.escapeSafe&&ratio>=.26);
+ // Running under the same guns is almost never safer than returning fire.
+ if(!x.escapeSafe)return true;
+ // No in-range weapon: a real uncontested escape is permitted when the
+ // formation cannot answer an observed threat (e.g. an uncovered turret).
+ if(x.inRange<=0)return false;
+ // Single isolated survivors can pull out of a genuine overmatch.
+ if(x.healthy===1)return ratio>=.65;
+ // A known turret with almost no supporting screen is not a fair firefight.
+ if(x.knownTowers>0&&x.healthy<3)return ratio>=.9;
+ // A supported frontline only yields to more than ~4x observed strength.
+ return ratio>=.24;
 }
 
 /** Inspect a REAL path's first exposed 300 units, plus its final position.
