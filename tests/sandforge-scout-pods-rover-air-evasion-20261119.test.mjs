@@ -11,9 +11,15 @@ test('two sleek rocket tubes per side, moved outside body instead of bulky boxes
  const root=entry.scoutRocketPods;
  assert.equal(root.children.length,2,'exactly one pod on each side');
  assert.equal(entry.scoutRocketMuzzles.length,2);
+ assert.equal(root.children[0].position.x,-23,'port pod must remain unchanged');
+ assert.equal(root.children[1].position.x,17,'starboard pod must sit closer to fuselage');
+ assert.equal(root.children[0].position.z,root.children[1].position.z,
+  'both front-facing launchers share the same fore-aft mounting plane');
+ assert.equal(root.children[0].position.y,root.children[1].position.y,
+  'starboard launcher is level with port');
  assert.ok(root.children[0].position.x<0&&root.children[1].position.x>0);
  for(const pod of root.children){
-  assert.ok(Math.abs(pod.position.x)>=22&&Math.abs(pod.position.x)<=27,'pods tucked tight beside the cabin, not hovering away');
+  assert.ok(Math.abs(pod.position.x)>=16&&Math.abs(pod.position.x)<=24,'pods tucked tight beside the cabin, not hovering away');
   assert.ok(pod.position.y>=16,'pods raised from underbelly to cabin hardpoints');
   const tubes=pod.children.filter(c=>c.isMesh&&c.geometry?.type==='CylinderGeometry'&&
     c.material?.color?.getHexString()==='1d2420');
