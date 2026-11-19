@@ -95,7 +95,10 @@ export function generateMap(seed:number,version:Exclude<MapVersion,0>=MAP_VERSIO
   const mesas:Mesa[]=[];
   // Wide v19+ landscapes should have expansive empty maneuvering ground.
   // Preserve legacy mesa counts/seed streams for all old map versions.
-  const mesaTarget=modern?((landscape?{open:5,dunes:9,rocky:20,oasis:8,mixed:16}[profile]:{open:6,dunes:10,rocky:30,oasis:10,mixed:22}[profile])+Math.floor(count/4)):
+  // Modern battlefields keep hills and canyon ridges, but no isolated mesa
+  // boulders. Their old physical footprints made otherwise useful building
+  // ground impassable. Generate neither the collision nor the visual mesh.
+  const mesaTarget=modern?0:
    version>=19?Math.round(13+count*.75):
    Math.max(12,Math.round(44*(size/RULES.worldSize)**2));
   for(let attempt=0;attempt<900&&mesas.length<mesaTarget;attempt++){
