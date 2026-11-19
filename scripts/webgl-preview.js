@@ -492,6 +492,9 @@ function addBattlefieldRocks(material){
 }
 const pbr=(color,roughness=1,metalness=0)=>new THREE.MeshStandardMaterial({color,roughness,metalness,flatShading:true});
 function instancedStone(){
+ // Modern deserts keep only landmark landforms, not scattered loose 3D stones.
+ // Returning before geometry/material allocation also saves draw calls.
+ if(spacious&&biome==='desert'&&terrain.battlefield)return 0;
  // More irregular weathered sandstone, fewer identical round orange pebbles.
  const geometry=weatheredStoneGeometry(query.get('lite')==='1');
  // PBR albedo, sculpted normal and mineral roughness are shared with the
@@ -538,7 +541,8 @@ function instancedStone(){
    }
   }
  }
- if(terrain.battlefield)addBattlefieldRocks(materials[0]);
+ // Never allocate a zero-vertex rock mesh when modern maps have no mesas.
+ if(terrain.battlefield&&terrain.mesas.length)addBattlefieldRocks(materials[0]);
  for(const mesa of terrain.battlefield?[]:terrain.mesas)for(const col of mesa.columns){
   const x=col.base.reduce((n,p)=>n+p.x,0)/col.base.length;
   const z=col.base.reduce((n,p)=>n+p.y,0)/col.base.length;
@@ -551,7 +555,8 @@ function instancedStone(){
  }
  // Desert is a landscape of sand and wind, not hundreds of loose stones.
  // Keep seed determinism and all real navigation/collision rocks unchanged.
- for(let i=0;i<(spacious&&biome==='desert'?60:spacious?420:1600);i++){
+ // Modern desert needs clear sand, not an extra blanket of random pebbles.
+ for(let i=0;i<(spacious&&biome==='desert'?0:spacious?420:1600);i++){
   const x=75+r()*(size-150),z=75+r()*(size-150),index=world.index({x,y:z});
   if(index<0||world.blocked[index]||terrain.sites.some(p=>Math.hypot(x-p.x,z-p.y)<160)||
    (terrain.battlefield?.generatorVersion===3&&terrain.ridges.some(ridge=>ridge.clearings?.some(zone=>
@@ -1037,7 +1042,8 @@ new ResizeObserver(resize).observe(stage);resize();
 const chunks=buildTerrain();
 // One-time geometry; roads and physical cliffs are never updated per frame.
 const landscapeMeshes=terrain.battlefield?.generatorVersion===3?
- createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],ridges:terrain.ridges,biome,lowQuality:query.get('lite')==='1'}):[];
+ createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],ridges:terrain.ridges,biome,
+  lowQuality:query.get('lite')==='1',showOutcrops:biome!=='desert'}):[];
 boundaryCliffs=addBoundaryCliffs({scene,size,heightAt,seed,lowQuality:query.get('lite')==='1',softRim:spacious,hardVoid:spacious});
 const stones=instancedStone();
 // Desert corridors are navigation-only; no permanent tracks leading to Bastions.

@@ -116,6 +116,9 @@ export function addDesertShrubs({THREE,scene,world,terrain,game,heightAt,seed,lo
 // strategic sites, ruins and initial units. Trees are scenery, not cover.
 export function addBiomeVegetation({THREE,scene,world,terrain,game,heightAt,seed,biome,lowQuality=false}){
  const selected=normalizeBiome(biome);
+ // The three former low-poly desert shrubs look like dark boulders and cones.
+ // They add clutter without tactical value. Keep old saved battlefields intact.
+ if(selected==='desert'&&world.mapVersion>=23)return {count:0,meshes:[]};
  if(selected==='desert')return addDesertShrubs({THREE,scene,world,terrain,game,heightAt,seed,lowQuality});
  const random=seededRandom(seed^0x8ad0310f);
  const half=world.size*.5, margin=140, size=world.size;

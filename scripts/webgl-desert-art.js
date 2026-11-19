@@ -48,7 +48,9 @@ export function cinematicSandSample({x,z,size,seed,profile='mixed',slope=0,heigh
  * Entirely INSIDE the playable field and off tactical/starting pads.
  */
 export function addDesertWashStones({scene,world,size,seed,heightAt,sites=[],lowQuality=false}){
- if(!world?.generated?.battlefield)return null;
+ // On modern maps even decorative dry-wash stones should not reintroduce
+ // dark floating blobs onto otherwise clean build and maneuvering ground.
+ if(!world?.generated?.battlefield||world.mapVersion>=23)return null;
  // Sparse dry-wash mineral clusters; the earlier 480 stones made every
  // open dune look like a pebble field. Preserve only representative pockets.
  const target=lowQuality?25:60;
