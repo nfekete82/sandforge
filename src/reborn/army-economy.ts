@@ -4,13 +4,15 @@ import {produceCombinedArmy} from './director-production.js';
 import {rocketInfantryQuota,bomberAntiArmorQuota} from './ai-counter-doctrine.js';
 import {ai36AirDoctrineEnabled,shouldBuyReconDrone,bomberSupportQuota} from './ai36-air-support.js';
 import {buildBastionDefense,defensiveTowerLimit,rankBastionDefenses} from './bastion-defense.js';
+import {buildHomeFortification,HOME_DEFENSE_PULSE_SECONDS,
+ HOME_DEFENSE_RADIUS} from './ai-base-fortifications.js';
 import {aiBuildSiteScore} from './construction-spacing.js';
 import {defenseLessonsLost} from './battle-learning.js';
 import type {Simulation,Unit,Base} from './simulation.js';
 import type {TacticalState} from './tactical-ai.js';
 export type ProductionReason='produced'|'saving-unit'|'saving-building'|'insufficient-credits'|'queue-blocked'|'army-cap'|'composition-complete'|'no-producer';
 export interface ProductionDecision {reason:ProductionReason;goal:UnitKind|BuildingKind|null;missing:number}
-export interface EconomyState {goal:BuildingKind|null;since:number;attemptAt:number;produced:Partial<Record<UnitKind,number>>;built:Partial<Record<BuildingKind,number>>;towerAttemptAt?:number;production? :ProductionDecision&{at:number;facilities:Record<number,ProductionDecision>}}
+export interface EconomyState {goal:BuildingKind|null;since:number;attemptAt:number;produced:Partial<Record<UnitKind,number>>;built:Partial<Record<BuildingKind,number>>;towerAttemptAt?:number;baseFortificationAttemptAt?:number;production? :ProductionDecision&{at:number;facilities:Record<number,ProductionDecision>}}
 /** Combat capacity is a paid strategic objective, NOT free spawned troops.
  * Old income/3+10 capped ordinary red economies near 18-22 total units;
  * including engineers, medics and transports, offensive squads were tiny.
@@ -127,6 +129,29 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
    for(const p of candidates.slice(0,12)){const b=g.build(1,goal,p,[worker.id]);if(b){e.built[goal]=(e.built[goal]??0)+1;e.goal=null;break;}}
   }
  }
+ // Build REAL paid HQ defenses separately from frontier bastion sentries.
+ // One first turret, then an automatically traversable double-width gate,
+ // then two shielded flanks and further towers. One slow attempt per pulse
+ // and a protected army budget prevent the AI from becoming a passive turtle.
+ // A failed/blocked terrain site is skipped; AI builders never seal the exit.
+ if(director&&!finishing&&!unfinished&&
+   !g.bases.some(b=>b.owner===1&&b.hp>0&&b.buildRemaining>0)&&
+   complete('barracks')&&(complete('factory')||underAttack)&&
+   (goal===null||goal==='generator'||underAttack&&goal==='factory')&&
+   g.time-(e.baseFortificationAttemptAt??-HOME_DEFENSE_PULSE_SECONDS)>=HOME_DEFENSE_PULSE_SECONDS){
+  const idle=workers.filter(w=>w.defendUntil<=g.time&&!w.orders.length);
+  if(idle.length){
+   e.baseFortificationAttemptAt=g.time;
+   const site=buildHomeFortification(g,idle,{
+    underAttack,fighters:fighters.length,
+    reserve:Math.max(siegeReserve,underAttack?180:285)
+   },dangerAt);
+   if(site){
+    e.built[site.kind]=(e.built[site.kind]??0)+1;
+    if(site.kind==='turret')e.towerAttemptAt=g.time;
+   }
+  }
+ }
  // Fortify owned border bastions after core production has started. Unlike
  // a passive HQ guard, a real turret can hold a captured frontier while the
  // mobile army advances. Do not block repairs, construction or new armor.
@@ -135,7 +160,10 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   &&(!observedSiege||count('artillery')>0||urgentDefense)
   &&complete('barracks')&&(complete('factory')||learnedDefense||urgentDefense)
   &&fighters.length>=(urgentDefense?3:4)&&g.time>=(urgentDefense?60:75)&&g.credits[1]>=BUILDINGS.turret.cost+(urgentDefense?150:400)
-  &&own.filter(b=>b.kind==='turret').length<defensiveTowerLimit(g.territories.length)
+  // Keep separate caps for permanent HQ guns and forward Bastion sentries.
+  &&own.filter(b=>b.kind==='turret'&&distance(b,home)>=HOME_DEFENSE_RADIUS).length<
+    defensiveTowerLimit(g.territories.length)
+  &&own.filter(b=>b.kind==='turret').length<9
   &&g.time-(e.towerAttemptAt??-30)>=18){
   const idle=workers.filter(w=>w.defendUntil<=g.time&&!w.orders.length);
   if(idle.length){
@@ -149,7 +177,9 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  // completes construction/repairs; never cancel an existing worker order.
  const defenseNeedsWorker=director&&!finishing&&complete('barracks')&&(complete('factory')||learnedDefense||urgentDefense)
   &&g.time>=75&&fighters.length>=4&&workers.length===1
-  &&own.filter(b=>b.kind==='turret').length<defensiveTowerLimit(g.territories.length)
+  &&own.filter(b=>b.kind==='turret'&&distance(b,home)>=HOME_DEFENSE_RADIUS).length<
+    defensiveTowerLimit(g.territories.length)
+  &&own.filter(b=>b.kind==='turret').length<9
   &&rankBastionDefenses(g).length>0&&!workers.some(w=>w.defendUntil<=g.time&&!w.orders.length)
   &&g.credits[1]>=BUILDINGS.turret.cost+(urgentDefense?150:400);
  // Do not freeze recruitment for an unbuilt second or third core. Preserve
@@ -247,7 +277,8 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
 }
 const clampWait=(missing:number,income:number,secure:boolean)=>Math.min(secure?100:15,Math.max(6,missing/Math.max(1,income)*10+3));
 export function validEconomy(e:EconomyState|undefined,time:number):boolean{
- if(e===undefined)return true;return !!e&&(e.towerAttemptAt===undefined||(Number.isFinite(e.towerAttemptAt)&&e.towerAttemptAt>=0&&e.towerAttemptAt<=time+.001))&&(e.goal===null||Object.hasOwn(BUILDINGS,e.goal))&&Number.isFinite(e.since)&&e.since>=0&&e.since<=time+.001&&Number.isFinite(e.attemptAt)&&e.attemptAt>=-9&&e.attemptAt<=time+.001&&!!e.produced&&!!e.built&&Object.entries(e.produced).every(([k,v])=>Object.hasOwn(UNITS,k)&&Number.isSafeInteger(v)&&v>=0)&&Object.entries(e.built).every(([k,v])=>Object.hasOwn(BUILDINGS,k)&&Number.isSafeInteger(v)&&v>=0)&&
+ if(e===undefined)return true;return !!e&&(e.towerAttemptAt===undefined||(Number.isFinite(e.towerAttemptAt)&&e.towerAttemptAt>=0&&e.towerAttemptAt<=time+.001))&&
+  (e.baseFortificationAttemptAt===undefined||(Number.isFinite(e.baseFortificationAttemptAt)&&e.baseFortificationAttemptAt>=0&&e.baseFortificationAttemptAt<=time+.001))&&(e.goal===null||Object.hasOwn(BUILDINGS,e.goal))&&Number.isFinite(e.since)&&e.since>=0&&e.since<=time+.001&&Number.isFinite(e.attemptAt)&&e.attemptAt>=-9&&e.attemptAt<=time+.001&&!!e.produced&&!!e.built&&Object.entries(e.produced).every(([k,v])=>Object.hasOwn(UNITS,k)&&Number.isSafeInteger(v)&&v>=0)&&Object.entries(e.built).every(([k,v])=>Object.hasOwn(BUILDINGS,k)&&Number.isSafeInteger(v)&&v>=0)&&
   (e.production===undefined||(Number.isFinite(e.production.at)&&e.production.at>=0&&e.production.at<=time+.001&&validDecision(e.production)&&!!e.production.facilities&&Object.entries(e.production.facilities).length<=40&&Object.entries(e.production.facilities).every(([id,d])=>Number.isSafeInteger(Number(id))&&Number(id)>=0&&validDecision(d))));
 }
 const validDecision=(d:ProductionDecision)=>!!d&&['produced','saving-unit','saving-building','insufficient-credits','queue-blocked','army-cap','composition-complete','no-producer'].includes(d.reason)&&(d.goal===null||Object.hasOwn(UNITS,d.goal)||Object.hasOwn(BUILDINGS,d.goal))&&Number.isFinite(d.missing)&&d.missing>=0;
