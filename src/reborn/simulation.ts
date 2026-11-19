@@ -2834,7 +2834,18 @@ export class Simulation {
   // performance metadata; do not change deterministic orders or save schema.
   private think():void {
     const start=performance.now();
-    try{this.tactical.plan();}
+    try{
+      this.tactical.plan();
+      // AI uses the SAME paid Bastion upgrade rules as the player.
+      // Reserve a healthy army and budget before investing in long-term income.
+      if(this.world.mapVersion>=23&&this.time>=170&&
+        this.credits[1]>=BASTION_UPGRADE_COST+1450&&this.count(1)>=8){
+        const candidate=this.territories.filter(t=>
+          bastionUpgradable(t,1,this.bases)).sort((a,b)=>
+          b.income-a.income||a.id-b.id)[0];
+        if(candidate)this.upgradeBastion(1,candidate.id);
+      }
+    }
     finally{
       this.aiPlanDurationMs=performance.now()-start;
       this.aiPlanCompletedAt=this.time;
