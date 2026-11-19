@@ -32,6 +32,7 @@ import {factoryRepairPoint} from '/src/reborn/factory-maintenance.js';
 import {selectedMaintenanceKind,serviceFootprintContains,maintenanceClickAllowed} from '/webgl-maintenance-input.js';
 import {SCOUT_ROCKETS} from '/src/reborn/scout-rockets.js';
 import {disposeOwnedMeshes,disposeTaggedMaterials} from '/webgl-resource-lifecycle.js';
+import {limitModelShadowCasters} from '/webgl-shadow-budget.js';
 import {attachScoutRocketPods,detachScoutRocketPods} from '/webgl-scout-rocket-pods.js';
 import {releaseBastionRevision} from '/webgl-bastion-lifecycle.js';
 import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
@@ -547,6 +548,10 @@ export class SandforgeBattlefield {
     if(type==='building'&&entry.kind==='barracks')addBarracksContactShadows(model);
     if(type==='unit')
      attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
+    // Only the biggest model surfaces need shadow-map passes. Small
+    // bolts, rivets and vents keep their complete PBR visual render.
+    // Reduces shadow draw calls without disabling sun or unit shadows.
+    limitModelShadowCasters(model,type==='unit'?14:22);
     entry.visualBaseY=model.position.y;entry.visualBaseZ=model.position.z;
     if(type==='building'){
      this.attachBuildingMotion(entry,data);
@@ -1391,6 +1396,7 @@ export class SandforgeBattlefield {
    detail.scale.multiplyScalar(factor);
    detail.position.set(-center.x*factor,-box.min.y*factor,-center.z*factor);
    this.lightBuildingMeshes(detail);
+   limitModelShadowCasters(detail,18);
    // Release per-bastion materials, clips and fallback rotors after each
    // ownership change. GLB source geometries/textures remain cached.
    releaseBastionRevision(entry);
