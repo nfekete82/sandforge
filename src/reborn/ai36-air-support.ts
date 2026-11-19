@@ -100,3 +100,17 @@ export function bomberCloseAirSupportAllowed<
  return (grounded.length>=3||vehicles>=2)&&guns>=3.3&&
   (!hostileAA||(grounded.length>=4||vehicles>=2&&guns>=4));
 }
+
+
+/** AI3.6 single-Jeep air disengage. A Humvee's weak small arms cannot
+ * win a sustained duel with a helicopter. Avoid throwing away an isolated
+ * paid vehicle when there is no REAL nearby AA screen. Targets and allies
+ * must already have been filtered by the owner's own vision.
+ */
+export function loneRoverAirDisengage(input:{
+ roverKind:string;enemyKind:string;enemyVisible:boolean;distance:number;
+ aaCover:boolean;
+}):boolean{
+ return input.roverKind==='rover'&&input.enemyKind==='scout'&&
+  input.enemyVisible&&input.distance<=500&&!input.aaCover;
+}
