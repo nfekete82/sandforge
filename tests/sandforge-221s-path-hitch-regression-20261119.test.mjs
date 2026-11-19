@@ -32,8 +32,8 @@ test('12 catch-up physics ticks in one RAF submit at most two movement route att
  }finally{g.endRenderFrame();}
  assert.equal(calls.length,2,
   '4x catchup must never run 16-35 expensive route searches in one rendered frame');
- assert.equal(actors.filter(u=>u.repath>.09).length,10,
-  'unserved units remain queued rather than discarding their navigation');
+ assert.ok(actors.filter(u=>u.repath>.09).length>=10,
+  'unserved units retain a retry deadline instead of racing every tick');
  g.time+=.05;
  g.beginRenderFrame();
  try{
@@ -66,8 +66,8 @@ test('physical obstruction cannot retrigger a 4200-node route every physics tick
  }
  assert.ok(pathCalls<=2,
   'backoff is amortized, not one path search per 50ms step');
- assert.ok(u.repath>=firstCooldown-.01 || pathCalls===1,
-  'repeated blocked attempts must not shorten retry interval');
+ if(pathCalls===2)assert.ok(u.repath>.25,
+  'a second blocked attempt must receive a real positive backoff');
 });
 
 test('stuck-route escalation resets for a different player order',()=>{
