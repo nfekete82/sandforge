@@ -5,6 +5,7 @@ import {UNITS,unitSpec,buildingSpec,canAttack,type UnitKind} from './catalog.js'
 import {developArmy,validEconomy,type EconomyState} from './army-economy.js';
 import {selectObservedCounterTarget} from './ai-counter-doctrine.js';
 import {assaultDecision,abortAssault} from './ai-director.js';
+import {battleDirectorPulse,validBattleDirector,type BattleDirectorState,type BattleDirectorOrder} from './battle-director.js';
 import {selectiveRaidAllowed} from './selective-raids.js';
 import {newCampaign,campaignPhase,refreshIntelligence,chooseMission,reconGoal,validCampaign,knownBuildings,type CampaignState} from './campaign-commander.js';
 import {segmentDistance} from './world-generation.js';
@@ -47,6 +48,8 @@ const newDiagnostics=():TacticalDiagnostics=>({evaluated:0,choices:{assault:0,fl
  flankOpportunities:0,flankNoSquad:0,flankNoRoute:0,waveWaits:0,waveLaunches:0,combatReadyWaveLaunches:0,reinforcementStagingOrders:0,siegeAngles:0,secondaryRaids:0,secondaryRaidOrders:0,last:null});
 export interface TacticalState {
  adaptive?:AdaptiveState;experience?:Experience;
+ /** Persistent simulated-time Battle Director history; optional for old saves. */
+ battleDirector?:BattleDirectorState;
  battle?:BattleState;
  commander?:CampaignState;
  /** Real paid infantry contesting public Bastions; persisted with AI orders. */
@@ -152,6 +155,7 @@ export class TacticalAI {
  private recaptureMission:{sector:number;ids:number[];since:number;securedAt:number|null}|null=null;
  private recaptureRetryAt=0;
  private roverAirEscapeRetryAt=new Map<number,number>();
+ private battleDirective:BattleDirectorOrder|undefined;
  private get ai36Enabled():boolean{
   return this.mode==='director'&&this.ai36Mode==='coordinated'&&
    this.ai35Enabled;
@@ -179,7 +183,7 @@ export class TacticalAI {
   this.sectorPreference={sectorId,until:this.g.time+35};return true;
  }
  restore(state:TacticalState|undefined):void{
-  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;
+  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
   if(!state)for(const m of this.g.memories[1])if(m.owner===0&&m.kind==='turret'&&m.hp>0)this.remember(m,Math.max(0,this.g.time-45));
  }
@@ -1425,7 +1429,8 @@ export class TacticalAI {
    recentFailures:recentFailures.length,
    lastFailureAt:recentFailures.reduce((at,f)=>Math.max(at,f.at),-1),
    observedHomePressure,defendedTarget:defended,
-   confirmedEndgame:c.enemyHQEliminatedAt!==undefined}):null;
+   confirmedEndgame:c.enemyHQEliminatedAt!==undefined,
+   tempoPressure:this.battleDirective?.accelerateRally??false}):null;
   // 3.5 retains one *real, paid* frontier sentry after controlling multiple
   // Bastions, while preserving >=2/3 fighters at HQ. This reduces the
   // repeated win-by-capture exploit without granting free defenders.
@@ -1627,7 +1632,8 @@ export class TacticalAI {
         selectedStrength:selected.filter(u=>!unitSpec(u).flying).reduce((n,u)=>n+combatStrength(u),0),
         readyStrength:ready.filter(u=>!unitSpec(u).flying).reduce((n,u)=>n+combatStrength(u),0),
         // A known gun requires a real artillery escort or proved overmatch.
-        siegeSupported:!towers.length||ready.some(u=>u.kind==='artillery')||overrun})
+        siegeSupported:!towers.length||ready.some(u=>u.kind==='artillery')||overrun,
+        tempoPressure:this.battleDirective?.accelerateRally??false})
      :{ready:true,required:0,reason:'legacy'};
    if(enough&&!wave.ready)this.diagnostics.waveWaits++;
    const groundReady=ready.filter(u=>!unitSpec(u).flying).length;
@@ -2028,6 +2034,28 @@ export class TacticalAI {
   if(!home)return;
   if(g.world.mapVersion>=3&&this.mode==='director')observeOwnedLosses(s.experience??=newExperience(),g.territories.filter(t=>t.owner===1).map(t=>t.id),army.filter(combat).length);
   if(g.world.mapVersion>=3&&this.mode==='director')updateAdaptive(g,s.adaptive??=newAdaptive(),home,s.losses,s.battle);
+  // Battle Director reads only PUBLIC Bastion ownership and enemies in
+  // actual AI vision. It changes attack tempo, not fog, units or credits.
+  if(this.ai36Enabled&&g.world.mapVersion>=23){
+   const ownBastions=g.territories.filter(t=>t.owner===1).length;
+   const enemyBastions=g.territories.filter(t=>t.owner===0).length;
+   const soldiers=army.filter(combat);
+   const contact=g.units.some(enemy=>enemy.owner===0&&enemy.hp>0&&
+    !enemy.carrier&&enemy.kind!=='drone'&&g.canSee(1,enemy)&&
+    (soldiers.some(u=>distance(u,enemy)<520)||
+     g.territories.some(t=>t.owner===1&&distance(t.point,enemy)<280)));
+   const homeThreat=g.units.some(enemy=>enemy.owner===0&&enemy.hp>0&&
+    !enemy.carrier&&g.canSee(1,enemy)&&distance(enemy,home)<560);
+   this.battleDirective=battleDirectorPulse({
+    time:g.time,owns:ownBastions,enemyOwns:enemyBastions,
+    bastions:g.territories.length,frontContact:contact,
+    lastLaunchAt:s.launchedAt,
+    readyFighters:soldiers.filter(u=>u.hp>=unitSpec(u).hp*.4).length,
+    recentLosses:s.losses.filter(l=>g.time-l.at<35).length,
+    homeThreat
+   },s.battleDirector);
+   s.battleDirector=this.battleDirective.state;
+  }else this.battleDirective=undefined;
   const recovering=this.recovery(army,home);if(g.world.mapVersion>=3&&this.mode==='director')for(const id of this.withdrawals(army))recovering.add(id);
   this.airlift(army,home);const explorers=this.recon(army.filter(u=>!recovering.has(u.id)),home),boarding=new Set([...army.filter(u=>u.orders[0]?.kind==='board').map(u=>u.id),...(s.airlift?.phase==='pickup'?s.airlift.passengers??[]:[])]),fighters=army.filter(u=>combat(u)&&!recovering.has(u.id)&&!explorers.has(u.id)&&!boarding.has(u.id)),medics=army.filter(u=>u.kind==='medic'&&!recovering.has(u.id)&&!boarding.has(u.id)).slice(0,2);
   developArmy(g,s,army,p=>this.danger(p));
@@ -2047,7 +2075,8 @@ export class TacticalAI {
    // defenders; expansionRaid independently checks actual safe sectors.
    const recapture=this.coordinatedRecapture(fighters.filter(u=>
     !defense.has(u.id)&&!earlyContesters.has(u.id)),home);
-   const raiders=g.world.mapVersion>=19&&g.time<125
+   const raiders=g.world.mapVersion>=19&&g.time<125&&
+    !this.battleDirective?.allowEarlyRaid
     ?new Set<number>():this.expansionRaid(fighters.filter(u=>
      !defense.has(u.id)&&!earlyContesters.has(u.id)&&!recapture.has(u.id)),home);
    const main=fighters.filter(u=>!defense.has(u.id)&&!raiders.has(u.id)&&
@@ -2168,6 +2197,7 @@ export class TacticalAI {
  static valid(raw:unknown,time:number,point:(p:Point)=>boolean,sectors:number):raw is TacticalState{
   if(raw===undefined)return true;const s=raw as TacticalState,finite=(v:unknown)=>typeof v==='number'&&Number.isFinite(v),ids=(v:unknown)=>Array.isArray(v)&&v.length<=96&&v.every(Number.isInteger);
   if(!validCampaign(s?.commander,time,point,sectors))return false;
+  if(!validBattleDirector(s?.battleDirector,time,sectors))return false;
   if(!validBattle(s?.battle,time,point,sectors))return false;
   if(!validAdaptive(s?.adaptive,time))return false;
   if(!validExperience(s?.experience,time,sectors,point))return false;
