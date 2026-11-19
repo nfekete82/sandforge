@@ -74,7 +74,7 @@ jobs:
           SANDFORGE_TEST_DPR: '1'
         run: |
           cd tests/browser
-          npx playwright test --config=reborn.config.mjs \
+          npx playwright test --config=playwright.config.mjs \
             webgl-minimap-orders.spec.mjs \
             webgl-runtime-performance.spec.mjs
       - name: 180s AI3.6 game smoke after faster pathfinding
