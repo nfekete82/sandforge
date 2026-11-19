@@ -247,7 +247,7 @@ export class World {
   path(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false,maxSlope=Infinity): Point[] {
     if(!profiler&&!this.profilePaths)return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial,maxSlope);
     const at=performance.now();this.pathNodes=0;
-    try{return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial);}
+    try{return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial,maxSlope);}
     finally{
       const ms=performance.now()-at;
       if(this.profilePaths){
@@ -261,7 +261,12 @@ export class World {
   private pathNodes=0;
   // Searches are synchronous; reuse workspace, resetting traversal for every search.
   // Never cache across calls: construction, fog knowledge and test maps can change.
-  private pathWorkspace?:{costs:Float64Array;prev:Int32Array;closed:Uint8Array;walkable:Int8Array};
+  // Sparse per-search generation tags avoid clearing the entire 240×240
+  // field for every A* query. Especially valuable with many moving tanks,
+  // high terrain variation and 4× gameplay speed.
+  private pathWorkspace?:{costs:Float64Array;prev:Int32Array;closed:Uint32Array;
+    walkable:Int8Array;seen:Uint32Array;walkEpoch:Uint32Array};
+  private pathEpoch=0;
   private findPath(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false,maxSlope=Infinity): Point[] {
     const precise=exact&&this.mapVersion>=3&&!air;
     const walk=(p:Point)=>air?(p.x>=10&&p.y>=10&&p.x<=this.size-10&&p.y<=this.size-10):this.walkable(p,obstacles,clearance)&&this.groundVehicleSlopeSafe(p,maxSlope,clearance+10);
@@ -275,9 +280,19 @@ export class World {
     if(line(start,end)&&(!risk||cost(start,end)<=Math.hypot(end.x-start.x,end.y-start.y)/this.cell*1.01))return [end];
     const s=this.index(start), goal=this.index(end), n=this.blocked.length;
     if(s<0||goal<0)return [];
-    const workspace=this.pathWorkspace??={costs:new Float64Array(n),prev:new Int32Array(n),closed:new Uint8Array(n),walkable:new Int8Array(n)};
-    const {costs,prev,closed,walkable}=workspace;costs.fill(Infinity);prev.fill(-1);closed.fill(0);walkable.fill(0);
-    const cellWalkable=(i:number)=>{if(!walkable[i])walkable[i]=walk(this.center(i))?1:-1;return walkable[i]===1;};
+    const workspace=this.pathWorkspace??={costs:new Float64Array(n),prev:new Int32Array(n),
+      closed:new Uint32Array(n),walkable:new Int8Array(n),
+      seen:new Uint32Array(n),walkEpoch:new Uint32Array(n)};
+    const {costs,prev,closed,walkable,seen,walkEpoch}=workspace;
+    let epoch=(this.pathEpoch+1)>>>0;
+    if(!epoch){seen.fill(0);closed.fill(0);walkEpoch.fill(0);epoch=1;}
+    this.pathEpoch=epoch;
+    const cellCost=(i:number)=>seen[i]===epoch?costs[i]:Infinity;
+    const setCost=(i:number,c:number)=>{seen[i]=epoch;costs[i]=c;};
+    const cellWalkable=(i:number)=>{
+      if(walkEpoch[i]!==epoch){walkEpoch[i]=epoch;walkable[i]=walk(this.center(i))?1:-1;}
+      return walkable[i]===1;
+    };
     const heap: {i:number;f:number}[]=[];
     const h=(i:number)=>Math.hypot(i%RULES.grid-goal%RULES.grid,Math.floor(i/RULES.grid)-Math.floor(goal/RULES.grid));
     const push=(v:{i:number;f:number})=>{heap.push(v);let k=heap.length-1;while(k>0){const p=(k-1)>>1;if(heap[p].f<=v.f)break;heap[k]=heap[p];k=p;}heap[k]=v;};
@@ -313,9 +328,9 @@ export class World {
       }
       return smooth;
     };
-    costs[s]=0;push({i:s,f:startH});
+    setCost(s,0);push({i:s,f:startH});
     while(heap.length) {
-      const i=pop();if(closed[i])continue;closed[i]=1;
+      const i=pop();if(closed[i]===epoch)continue;closed[i]=epoch;
       if(profiler||this.profilePaths)this.pathNodes++;
       if(i===goal)return reconstruct(i,true);
       const distToGoal=h(i);
@@ -331,14 +346,14 @@ export class World {
       for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
         if(!dx&&!dy)continue;const x=ix+dx,y=iy+dy;
         if(x<0||y<0||x>=RULES.grid||y>=RULES.grid)continue;
-        const j=y*RULES.grid+x;if(closed[j]||!cellWalkable(j))continue;
+        const j=y*RULES.grid+x;if(closed[j]===epoch||!cellWalkable(j))continue;
         if(dx&&dy&&(!cellWalkable(iy*RULES.grid+x)||!cellWalkable(y*RULES.grid+ix)))continue;
-        const g=costs[i]+(dx&&dy?Math.SQRT2:1)*(1+Math.max(0,risk?.[j]??0));if(g<costs[j]){
+        const g=cellCost(i)+(dx&&dy?Math.SQRT2:1)*(1+Math.max(0,risk?.[j]??0));if(g<cellCost(j)){
           // Endpoint clearance alone cannot prove that an edge is traversable.
           // Only a cheaper candidate can change the route, so avoid repeating
           // the pure geometric check for candidates already ruled out by cost.
           if(precise&&!line(i===s?start:this.center(i),j===goal?end:this.center(j)))continue;
-          costs[j]=g;prev[j]=i;push({i:j,f:g+h(j)});
+          setCost(j,g);prev[j]=i;push({i:j,f:g+h(j)});
         }
       }
     }
