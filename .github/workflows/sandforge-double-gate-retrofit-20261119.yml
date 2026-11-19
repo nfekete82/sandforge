@@ -1,0 +1,32 @@
+name: Sandforge double-width retrofit gates
+on:
+  push:
+    branches:
+      - feat/sandforge-double-width-retrofit-gates-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  double-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript + source syntax
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-strategic-buildings.js
+          node --check scripts/webgl-battlefield.js
+          node --check scripts/webgl-wall-drag.js
+      - name: Real double gate, retrofit and existing wall gameplay regression
+        run: |
+          node --test \
+            tests/sandforge-double-gate-retrofit-20261119.test.mjs \
+            tests/sandforge-steel-gate-20261119.test.mjs \
+            tests/sandforge-heli-gates-longmatch-20261119.test.mjs \
+            tests/sandforge-wall-terrain-border-20261119.test.mjs
