@@ -40,6 +40,7 @@ jobs:
             tests/sandforge-ai36-attack-continuity-cas-20261119.test.mjs \
             tests/sandforge-ai36-mission-retarget-20261119.test.mjs \
             tests/sandforge-ai36-endgame-route-recovery-20261119.test.mjs \
+            tests/reborn-control-retreat.test.mjs \
             tests/sandforge-combat-aftermath-v1-20261119.test.mjs \
             tests/webgl-aircraft-effects-20261110.test.mjs
       - name: Compare A* latency against unchanged baseline branch on same machine
