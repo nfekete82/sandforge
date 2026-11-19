@@ -1057,12 +1057,17 @@ export class TacticalAI {
   // Ground units sometimes halt or die AFTER an initial coordinated launch.
   // Revoke pending unsafe strike queues before the bomber crosses hostile AA.
   // Do not interrupt a bomb that has already been physically dropped.
+  const recalled=new Set<number>();
   for(const u of bombers){
    const pending=u.orders.find(o=>o.kind==='attack'&&o.target!==undefined);
    if(!pending)continue;
    const victim=g.units.find(v=>v.id===pending.target&&v.hp>0)??g.bases.find(b=>b.id===pending.target&&b.hp>0);
    if(!victim||!this.bomberStrikeSafe(victim)){
+    // Do not replace a just-cancelled strike with a different flank in this
+    // same planning tick. A bomber must actually turn away from the lost
+    // screen instead of zigzagging between defended targets.
     g.command([u.id],{kind:'move',x:home.x,y:home.y});
+    recalled.add(u.id);
    }
   }
   const frontUnits=army.filter(u=>combat(u)&&!unitSpec(u).flying&&
@@ -1084,6 +1089,7 @@ export class TacticalAI {
    candidate=>this.bomberStrikeSafe(candidate));
   if(!target)return;
   for(const [index,u] of bombers.entries()){
+   if(recalled.has(u.id))continue;
    if(u.orders.some(o=>o.kind==='attack'&&
     observed.some(v=>v.id===o.target)))continue;
    const dx=target.x-front.x,dy=target.y-front.y,
