@@ -37,6 +37,12 @@ test('terrain recapture stays deterministic, neutral on same side, and never rea
   dist({x:300,y:200},target),'same side needs no mountain penalty');
  assert.equal(terrainAwareTravelEstimate(allies[2],target,[]),
   dist(allies[2],target),'old map without ridges is unchanged');
+ const openPassA={x:0,y:-600},openPassB={x:0,y:550};
+ assert.equal(terrainAwareTravelEstimate(openPassA,openPassB,[ridge]),
+  dist(openPassA,openPassB),'true crossing at a mountain pass needs no detour');
+ const outsideA={x:1800,y:-220},outsideB={x:1800,y:350};
+ assert.equal(terrainAwareTravelEstimate(outsideA,outsideB,[ridge]),
+  dist(outsideA,outsideB),'walking around the ridge tip needs no pass detour');
  const previous=rankTerrainRecaptureSquad(allies,target,[ridge],3).map(u=>u.id);
  assert.deepEqual(previous,rankTerrainRecaptureSquad(
   allies.slice().reverse(),target,[ridge],3).map(u=>u.id));
