@@ -1593,7 +1593,7 @@ export class TacticalAI {
    // a mountain wall. Prefer paid units with a shorter pass-aware approach.
    // World.path below still validates every selected unit's real route.
    const squad=g.world.generatorVersion===3
-    ?rankTerrainRecaptureSquad(available,t.point,g.world.generated.ridges,readiness)
+    ?rankTerrainRecaptureSquad(available,t.point,g.world.generated?.ridges??[],readiness)
     :near.slice(0,readiness);
    if(squad.length!==readiness)continue;
    const seen=visible.filter(u=>distance(u,t.point)<380);
