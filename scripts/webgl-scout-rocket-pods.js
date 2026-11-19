@@ -51,13 +51,19 @@ export function scoutPodCamouflageTexture(owner=0){
  return texture;
 }
 
-/** Side-specific mounting compensation for the helicopter's asymmetric
- * sliding door and cockpit. One mirrored local pod shape, no independent
- * left/right geometry drift or separately generated paint.
+/** The pilot's front view is the authority for the launcher mounts.
+ * Port is already aligned with its cabin hardpoint: never move that pod
+ * while fixing the starboard one. Previously starboard x=19/y=18.5/z=-6
+ * made its nose appear farther outside/behind the airframe from the front.
+ * Move only the starboard pod 2 units toward the centre, 1 unit forward,
+ * and level its mounting height with port; keep both animated muzzles
+ * attached to their own pod so missiles still originate at the launcher.
  */
 export function scoutRocketPodMount(side){
- const right=side===1;
- return {x:right?19:-23,y:right?18.5:18,z:right?-6:-5};
+ const starboard=side===1;
+ return starboard
+  ?{x:17,y:18,z:-5}
+  :{x:-23,y:18,z:-5};
 }
 
 /** Visual-only twin pods flush with the side of the real heli cabin.
@@ -83,9 +89,8 @@ export function attachScoutRocketPods(entry){
  for(const [index,side] of [-1,1].entries()){
   const pod=new THREE.Group();
   pod.name='Scout_RocketPod_'+index;
-  // The authored cockpit/door is not perfectly symmetrical. Starboard's
-  // outer pod previously floated off its mounting hardpoint; nudge it
-  // inward and aft while constructing the SAME mirrored local assembly.
+  // Each pod has identical mirrored geometry. Only the starboard mount
+  // needs a small inward/forward correction to match the front silhouette.
   const mount=scoutRocketPodMount(side);
   pod.position.set(mount.x,mount.y,mount.z);
   pod.scale.x=side;
