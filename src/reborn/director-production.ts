@@ -6,6 +6,20 @@ import type {Simulation,Unit,Base} from './simulation.js';
 import type {TacticalState} from './tactical-ai.js';
 import type {ProductionDecision} from './army-economy.js';
 
+/** Bastion control funds larger mechanized armies, not piles of unused credits.
+ * In particular, do not mistake `rover:2` or `artillery:2` for a permanent
+ * ceiling once the AI owns the majority of income-producing Bastions.
+ * Use ONLY public ownership and earned periodic income; no fog information.
+ * Stage is derived each macro tick, no persistent save migration needed.
+ */
+export function bastionSurplusArmyStage(input:{
+ time:number;income:number;ownedBastions:number;totalBastions:number;
+}):0|1|2{
+ const {time,income,ownedBastions,totalBastions}=input;
+ if(time<140||income<60||totalBastions<2||
+    ownedBastions<Math.max(2,Math.ceil(totalBastions*.6)))return 0;
+ return income>=90?2:1;
+}
 interface ProductionContext {
  own:Base[]; army:Unit[]; seen:Unit[]; income:number; underAttack:boolean;
  knownTurrets:number; knownEnemyHQ:boolean; reserve:number; siegeReserve?:number; maxArmy:number;
@@ -64,6 +78,11 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   finishing:c.finishing
  });
  const bomberQuota=Math.max(antiArmorQuota,supportQuota);
+ const armyStage=g.world.mapVersion>=23&&!c.finishing?bastionSurplusArmyStage({
+  time:g.time,income:c.income,
+  ownedBastions:g.territories.filter(t=>t.owner===1).length,
+  totalBastions:g.territories.length
+ }):0;
  // A visible force, rather than an unseen technology assumption, creates a
  // counter deficit. Queue counts make this stable across successive pulses.
  const counter=():UnitKind|null=>{
@@ -147,11 +166,16 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
  // before the global army cap. Keep anti-air and airstrike quotas driven
  // by OBSERVED enemies, rather than manufacturing invisible-threat counters.
  const ceiling=(kind:UnitKind):number=>({
-  infantry:12,heavy:c.income>=65?6:5,rocket:rocketQuota,
+  infantry:12,heavy:armyStage===2?8:armyStage===1?7:c.income>=65?6:5,
+  rocket:rocketQuota,
   medic:Math.min(3,Math.ceil((count('infantry')+count('heavy'))/5)),
   engineer:c.defenseNeedsWorker||c.own.length>=4&&(s.recovering?.length??0)>0?2:1,
-  supply:0,rover:2,tank:c.income>=65||observed.armor>=3?6:4,
-  artillery:c.knownTurrets>1?4:c.knownEnemyHQ||c.knownTurrets?3:2,
+  supply:0,
+  rover:armyStage===2?5:armyStage===1?4:2,
+  tank:armyStage===2?9:armyStage===1?7:
+   c.income>=65||observed.armor>=3?6:4,
+  artillery:armyStage===2?6:armyStage===1?4:
+   c.knownTurrets>1?4:c.knownEnemyHQ||c.knownTurrets?3:2,
   scout:1,bomber:Math.max(bomberQuota,c.income>=65&&!c.finishing?1:0),
   drone:0,
  })[kind];
@@ -169,6 +193,15 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
    result=['rocket',...result.filter(k=>k!=='rocket')];
   if(producer.kind==='airfield'&&n.bomber<bomberQuota)
    result=['bomber',...result.filter(k=>k!=='bomber')];
+  if(armyStage&&producer.kind==='factory'&&!observed.air){
+   // Ratio-to-ceiling spreads surplus orders across ALL three real vehicles,
+   // rather than queuing tanks forever and then leaving artillery unused.
+   // True counter/siege orders still win through planned() above.
+   const order:['tank','rover','artillery']=['tank','rover','artillery'];
+   result=order.sort((a,b)=>
+    n[a]/ceiling(a)-n[b]/ceiling(b)||
+    order.indexOf(a)-order.indexOf(b));
+  }
   return result.filter(k=>n[k]<ceiling(k));
  };
  const producers=c.own.filter(b=>b.buildRemaining<=0&&b.queue.length<2);
