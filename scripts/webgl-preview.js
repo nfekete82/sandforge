@@ -63,7 +63,10 @@ const session=query.get('resume')==='1'?(()=>{
  if(restored.seed!==seed||restored.territories.length!==bastions)throw Error('Spielstand passt nicht zur angeforderten Partie.');
  return restored;
 })():null;
-const generatorVersion=procedural&&query.get('landscape')==='network'?3:2;
+// Fresh battles use diverse, versioned v4 landscapes by default.
+// A resumed v2/v3 save keeps its original geometry; opt into classic=2 or network-v3=3.
+const generatorVersion=procedural?(query.get('landscape')==='classic'?2:
+ query.get('landscape')==='network-v3'?3:4):2;
 const game=session??Simulation.campaign(seed,sizes[bastions],profile,generatorVersion);
 // Local AI laboratory: compare the same game and seed with 3.2 or 3.3 tactics.
 // Not serialized, never affects the live Uberspace release.
@@ -95,7 +98,11 @@ const world=game.world,terrain=world.generated,size=world.size,half=size/2;
 const gradingHomes=terrain.battlefield?.generatorVersion>=2
  ?campaignLayout(world.mapVersion,seed).headquarters.map(i=>battlefieldStart(terrain.sites[i],size))
  :[];
-if(terrain.battlefield)document.title='Sandforge · '+biomeStyle.label+' · '+TERRAIN_LABELS[terrain.battlefield.profile]+' · '+seed;
+if(terrain.battlefield)document.title='Sandforge · '+biomeStyle.label+' · '+
+ (terrain.landscapeKind?({
+  'open-basin':'Weites Dünenmeer','broken-escarpment':'Felsdurchbruch',
+  'diagonal-ridge':'Diagonalkamm','serpentine-canyon':'Schlangenpass'
+ })[terrain.landscapeKind]+' · ':'')+TERRAIN_LABELS[terrain.battlefield.profile]+' · '+seed;
 const spacious=world.mapVersion>=19;
 const status=$('status'),errorNode=$('error'),stage=$('stage');
 $('simulation').textContent=query.get('pause')==='1'?'Simulation starten':'Simulation pausieren';
@@ -559,7 +566,7 @@ function instancedStone(){
  for(let i=0;i<(spacious&&biome==='desert'?0:spacious?420:1600);i++){
   const x=75+r()*(size-150),z=75+r()*(size-150),index=world.index({x,y:z});
   if(index<0||world.blocked[index]||terrain.sites.some(p=>Math.hypot(x-p.x,z-p.y)<160)||
-   (terrain.battlefield?.generatorVersion===3&&terrain.ridges.some(ridge=>ridge.clearings?.some(zone=>
+   (terrain.battlefield?.generatorVersion>=3&&terrain.ridges.some(ridge=>ridge.clearings?.some(zone=>
     Math.hypot(x-zone.point.x,z-zone.point.y)<zone.radius+24))))continue;
   put(x,z,spacious?1.4+r()*3.6:2+r()*5,
    spacious?.8+r()*2.7:1+r()*4,
@@ -881,7 +888,8 @@ $('home').onclick=()=>{
 };
 $('load').onclick=()=>{
  const text=$('seed').value.trim();
- const q=new URLSearchParams({bastions:$('bastions').value,seed:String(text===''?randomMapSeed():Number(text)>>>0),terrain:terrain.battlefield?.profile??'random',biome});
+ const q=new URLSearchParams({bastions:$('bastions').value,seed:String(text===''?randomMapSeed():Number(text)>>>0),terrain:terrain.battlefield?.profile??'random',biome,
+  landscape:world.generatorVersion===2?'classic':world.generatorVersion===3?'network-v3':'network'});
  location.href=(window.Sandforge3DMenu?.gameRoute?.()??'/webgl-preview.html')+'?'+q;
 };
 // Camera navigation is independent of the simulation. WASD and cursor keys
@@ -1041,7 +1049,7 @@ function resize(){
 new ResizeObserver(resize).observe(stage);resize();
 const chunks=buildTerrain();
 // One-time geometry; roads and physical cliffs are never updated per frame.
-const landscapeMeshes=terrain.battlefield?.generatorVersion===3?
+const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
  createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],ridges:terrain.ridges,biome,
   lowQuality:query.get('lite')==='1',showOutcrops:biome!=='desert'}):[];
 boundaryCliffs=addBoundaryCliffs({scene,size,heightAt,seed,lowQuality:query.get('lite')==='1',softRim:spacious,hardVoid:spacious});
@@ -1398,7 +1406,9 @@ async function main(){
   // The 3D battlefield is live immediately; heavyweight PBR assets stream in.
   battlefield.sync(true);
   status.dataset.ready='true';
-  setStatus((terrain.battlefield?TERRAIN_LABELS[terrain.battlefield.profile]+' · Seed '+seed+' · ':'')+'WebGL2 aktiv · '+chunks+' Terrain-Chunks · '+stones+' Felsen · '+ruins+' 3D-Ruinen · 3D-Spielmechanik aktiv.');
+  setStatus((terrain.battlefield?(terrain.landscapeKind?document.title.split(' · ')[2]+' · ':'')+
+  TERRAIN_LABELS[terrain.battlefield.profile]+' · Seed '+seed+' · ':'')+
+  'WebGL2 aktiv · '+chunks+' Terrain-Chunks · '+stones+' Felsen · '+ruins+' 3D-Ruinen · 3D-Spielmechanik aktiv.');
  }catch(error){
   console.error(error);errorNode.textContent='3D-Assets konnten nicht geladen werden: '+String(error);
   status.dataset.ready='false';setStatus('WebGL-Szene verfügbar; Asset-Ladevorgang fehlgeschlagen');

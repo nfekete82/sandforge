@@ -15,7 +15,7 @@ import {hydrateUnitIcons,hydrateBuildingIcons,unitIcon,buildingIcon,buildingIcon
 import {createSandforgeResearchDeck} from '/webgl-research-deck.js';
 import {createSandforgeConfirmDialog} from '/webgl-confirm-dialog.js';
 import {SandforgeActorPresentation} from '/webgl-actor-presentation.js';
-import {calibratedScale,visualUnitScale,visualBuildingScale,unitVisualYaw,unitRenderAltitude,buildingFacingAngle,nextBuildingFacing,buildingFacingDegrees,turretAimLocalYaw,selectionRingRadius} from '/webgl-scale.js';
+import {calibratedScale,visualUnitScale,visualBuildingScale,unitVisualYaw,unitRenderAltitude,buildingFacingAngle,nextBuildingFacing,buildingFacingDegrees,turretAimLocalYaw,selectionRingRadius,BOMBER_VISUAL_STRETCH} from '/webgl-scale.js';
 import {SandforgeGroundingPass} from '/webgl-grounding.js';
 import {createBuildingYard,disposeBuildingYard} from '/webgl-building-yard.js';
 import {createBuildingFoundation,disposeBuildingFoundation} from '/webgl-foundation-slabs.js';
@@ -503,6 +503,9 @@ export class SandforgeBattlefield {
      const scale=calibratedScale(entry.kind,type,dims,desired)*
        (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
      model.scale.multiplyScalar(scale);
+     if(type==='unit'&&entry.kind==='bomber')model.scale.multiply(
+      new THREE.Vector3(BOMBER_VISUAL_STRETCH.horizontal,BOMBER_VISUAL_STRETCH.vertical,
+       BOMBER_VISUAL_STRETCH.horizontal));
      model.position.set(-box0.getCenter(new THREE.Vector3()).x*scale,
       -box0.min.y*scale,-box0.getCenter(new THREE.Vector3()).z*scale);
     }
@@ -534,8 +537,8 @@ export class SandforgeBattlefield {
     entry.node.add(model);entry.detail=model;
     const visualScale=calibratedScale(entry.kind,type,dims,desired)*
       (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
-    entry.modelHeight=dims.y*visualScale;
-    entry.modelFootprint=Math.max(dims.x,dims.z)*visualScale;
+    entry.modelHeight=dims.y*visualScale*(type==='unit'&&entry.kind==='bomber'?BOMBER_VISUAL_STRETCH.vertical:1);
+    entry.modelFootprint=Math.max(dims.x,dims.z)*visualScale*(type==='unit'&&entry.kind==='bomber'?BOMBER_VISUAL_STRETCH.horizontal:1);
     if(type==='building'&&model.userData.sandforgeOriginalPBR&&entry.kind==='factory')
      finishDesertBuildingMaterials(model,'factory');
     if(!model.userData.sandforgeOriginalPBR){
@@ -641,13 +644,19 @@ export class SandforgeBattlefield {
   const placeholder=this.createFallback(entity.kind,entity.owner,type,
    entity.kind==='wallGate'?(entity.gateSpan===2?2:1):2);
   // Lite mode must match detailed mode: both receive the same visual scale.
-  if(type==='unit')placeholder.scale.setScalar(visualUnitScale(entity.kind));
+  if(type==='unit'){
+   placeholder.scale.setScalar(visualUnitScale(entity.kind));
+   if(entity.kind==='bomber')placeholder.scale.multiply(new THREE.Vector3(
+    BOMBER_VISUAL_STRETCH.horizontal,BOMBER_VISUAL_STRETCH.vertical,
+    BOMBER_VISUAL_STRETCH.horizontal));
+  }
   node.add(placeholder);node.position.copy(this.entityPosition(entity));
   this.scene.add(node);
   const entry={node,placeholder,kind:entity.kind,owner:entity.owner,requested:false,
    ...(type==='unit'&&entity.kind==='engineer'?{engineerTools:equipEngineerTools(placeholder,{fallback:true})}:{})};
   const unit=type==='unit';
-  const footprint=unit?(UNITS[entity.kind]?.width??44)*visualUnitScale(entity.kind):
+  const footprint=unit?(UNITS[entity.kind]?.width??44)*visualUnitScale(entity.kind)*
+   (entity.kind==='bomber'?BOMBER_VISUAL_STRETCH.horizontal:1):
    BUILDINGS[entity.kind]?.width??130;
   const height=unit?(['infantry','medic','engineer','heavy','rocket'].includes(entity.kind)?43:55)*visualUnitScale(entity.kind):
    Math.max(65,footprint*.55);

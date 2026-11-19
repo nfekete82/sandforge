@@ -11,6 +11,9 @@ export const MODEL_HEIGHTS=Object.freeze({
  headquarters:158,barracks:119,factory:125,airfield:137,generator:79,turret:95
 });
 export const DIMENSIONS_VERSION=3;
+// Authored bomber geometry is stretched only in the WebGL presentation:
+// +12% span/length, +5% height. Targeting, hitboxes and flight remain the same.
+export const BOMBER_VISUAL_STRETCH=Object.freeze({horizontal:1.12,vertical:1.05});
 
 // Visual-only: the defensive tower was about 12% too massive next to infantry.
 // The authored model, streaming fallback and construction ghost share this.

@@ -32,9 +32,14 @@ export function bomberSupportQuota(x:{
  income:number;time:number;underAttack:boolean;enemyAir:number;
  contestedBastions:boolean;finishing:boolean;
 }):number{
- return x.enabled&&x.airfieldReady&&x.fighters>=6&&x.groundVehicles>=2&&
-  x.income>=45&&x.time>=120&&!x.underAttack&&x.enemyAir<2&&
-  !x.finishing&&x.contestedBastions?1:0;
+ if(!(x.enabled&&x.airfieldReady&&x.fighters>=6&&x.groundVehicles>=2&&
+   x.income>=45&&x.time>=120&&!x.underAttack&&x.enemyAir<2&&
+   !x.finishing&&x.contestedBastions))return 0;
+ // Real, earned late-game air superiority: two paid bombers can service
+ // different observed armor clusters while a substantial ground screen moves.
+ // Never add free aircraft, and never use unseen opponent unit counts.
+ return x.time>=285&&x.income>=85&&x.fighters>=11&&
+   x.groundVehicles>=4?2:1;
 }
 
 /** The R-01 surveys the area directly ahead of its *public/memorized*

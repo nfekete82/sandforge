@@ -4,7 +4,7 @@ import type {CanyonRidge} from './canyon-front.js';
 /** Revision 2: roomier buildable pads around bastions / headquarters.
  * Revision 1 remains reproducible for existing saves. */
 export const BATTLEFIELD_GENERATOR = 2;
-export type BattlefieldGeneratorVersion=1|2|3;
+export type BattlefieldGeneratorVersion=1|2|3|4;
 export const TERRAIN_GRADING_V2={
  bastionFlatRadius:540,bastionShoulder:360,
  homeFlatRadius:775,homeShoulder:460,
@@ -84,7 +84,7 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
   const mixed=open*(1-smooth((zone-.18)/.25))+dunes*smooth((zone-.18)/.25)*(1-smooth((zone-.52)/.25))+
    rocky*smooth((zone-.52)/.25);
   let h=profile==='open'?open:profile==='dunes'?dunes:profile==='rocky'?rocky:profile==='oasis'?oasis:mixed;
-  if(generatorVersion===3){
+  if(generatorVersion>=3){
    // True continuous mountain relief follows the same physical canyon spine.
    // The navigation grid blocks the cliff itself; only real ramps cross it.
    for(const mountain of ridges){
@@ -108,7 +108,7 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
    for(const home of homes)mask=Math.min(mask,smooth((Math.hypot(x-home.x,y-home.y)-650)/480));
    for(const site of sites)mask=Math.min(mask,smooth((Math.hypot(x-site.x,y-site.y)-230)/360));
   }else{
-   const grading=generatorVersion===3?TERRAIN_GRADING_V3:TERRAIN_GRADING_V2;
+   const grading=generatorVersion>=3?TERRAIN_GRADING_V3:TERRAIN_GRADING_V2;
    for(const home of homes)mask=Math.min(mask,smooth(
     (Math.hypot(x-home.x,y-home.y)-grading.homeFlatRadius)/
      grading.homeShoulder));
@@ -144,8 +144,8 @@ export function terrainGradingEdge(x:number,y:number,sites:readonly Point[],
  if(version<2)return 0;
  let strongest=0;
  for(const [positions,flat] of [
-  [sites,version===3?TERRAIN_GRADING_V3.bastionFlatRadius:TERRAIN_GRADING_V2.bastionFlatRadius] as const,
-  [homes,version===3?TERRAIN_GRADING_V3.homeFlatRadius:TERRAIN_GRADING_V2.homeFlatRadius] as const
+  [sites,version>=3?TERRAIN_GRADING_V3.bastionFlatRadius:TERRAIN_GRADING_V2.bastionFlatRadius] as const,
+  [homes,version>=3?TERRAIN_GRADING_V3.homeFlatRadius:TERRAIN_GRADING_V2.homeFlatRadius] as const
  ]){
   for(const p of positions){
    const offset=Math.hypot(x-p.x,y-p.y)-flat;
