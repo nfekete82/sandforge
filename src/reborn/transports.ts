@@ -139,7 +139,17 @@ export class Transports {
   return true;
  }
  cleanup():void{
-  for(const u of this.g.units)if(u.carrier){const h=this.g.units.find(h=>h.id===u.carrier&&h.hp>0);if(!h)u.hp=0;else {u.x=u.previousX=h.x;u.y=u.previousY=h.y;u.moving=false;}}
+  for(const u of this.g.units)if(u.carrier){
+    // A bunker is a stationary, valid carrier of five live infantry.
+    // Do not kill its occupants via the vehicle-cleanup path.
+    const bunker=this.g.bases.find(b=>b.id===u.carrier&&b.kind==='bunker'&&b.hp>0);
+    if(bunker&&bunker.garrison?.includes(u.id)){
+      u.x=u.previousX=bunker.x;u.y=u.previousY=bunker.y;u.moving=false;continue;
+    }
+    const h=this.g.units.find(h=>h.id===u.carrier&&h.hp>0);
+    if(!h)u.hp=0;
+    else {u.x=u.previousX=h.x;u.y=u.previousY=h.y;u.moving=false;}
+   }
  }
  static valid(g:Simulation):boolean{
   const unique=(ids:number[])=>new Set(ids).size===ids.length;
@@ -148,7 +158,9 @@ export class Transports {
     if(t.cargo.some(id=>!g.units.some(u=>u.id===id&&u.carrier===h.id&&u.owner===h.owner&&unitSpec(u).group==='Infanterie'))||t.pickup.some(id=>!g.units.some(u=>u.id===id&&u.owner===h.owner&&!u.carrier&&unitSpec(u).group==='Infanterie')))return false;
    if(t.release!==undefined&&(!Array.isArray(t.release)||!unique(t.release)||t.release.some(id=>!t.cargo.includes(id))))return false;
    }
-   if(h.carrier!==undefined&&!g.units.some(c=>c.id===h.carrier&&isCarrier(c)&&c.owner===h.owner&&c.transport?.cargo.includes(h.id)))return false;
+   if(h.carrier!==undefined&&
+      !g.units.some(c=>c.id===h.carrier&&isCarrier(c)&&c.owner===h.owner&&c.transport?.cargo.includes(h.id))&&
+      !g.bases.some(b=>b.id===h.carrier&&b.kind==='bunker'&&b.owner===h.owner&&b.hp>0&&b.garrison?.includes(h.id)))return false;
   }return true;
  }
 }
