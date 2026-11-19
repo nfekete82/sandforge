@@ -106,7 +106,9 @@ export class DesertArtPass {
   this.details=createGroundDetails(world,terrain.sites);
   this.items=[];this.animations=[];this.windPalms=[];
   this.addCraters();
-  this.addDebris();
+  // The modern desert is intentionally rock-free between landmarks.
+  // This purely visual scatter is separate from the physical mesa layout.
+  if(!(biome==='desert'&&world.mapVersion>=23))this.addDebris();
   this.addRuinRubble();
  }
  // GLB palms have their model root anchored at ground level, so subtle
