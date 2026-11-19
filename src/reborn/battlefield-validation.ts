@@ -48,6 +48,26 @@ export function validateBattlefield(world:World):BattlefieldValidation{
  if(tankReachableSites!==g.sites.length)errors.push('tank-clearance');
  if(buildAreaSamples.some(n=>n<65)||Math.abs(buildAreaSamples[0]-buildAreaSamples[1])>8)errors.push('start-building-area');
  if(expansionDirections.some(n=>n<2))errors.push('expansion-directions');
+ if(g.battlefield?.generatorVersion===3){
+  // A connected battlefield is not sufficient if the player cannot expand.
+  // Check actual 100-unit construction footprints; trim candidate circles
+  // at the real map border, which is intentionally black and impassable.
+  const padPasses=(p:{x:number;y:number},radius:number):boolean=>{
+   let possible=0,usable=0;
+   for(let dx=-radius;dx<=radius;dx+=200)for(let dy=-radius;dy<=radius;dy+=200){
+    if(Math.hypot(dx,dy)>radius)continue;
+    const q={x:p.x+dx,y:p.y+dy};
+    if(q.x<115||q.y<115||q.x>world.size-115||q.y>world.size-115)continue;
+    possible++;
+    if(world.buildable(q,100))usable++;
+   }
+   return possible>=8&&usable>=Math.ceil(possible*.9);
+  };
+  if(homes.some(id=>!padPasses(battlefieldStart(g.sites[id],world.size),500)))
+   errors.push('protected-hq-build-pad');
+  if(g.sites.some(p=>!padPasses(p,400)))
+   errors.push('protected-bastion-build-pad');
+ }
  for(const id of homes){
   const p=battlefieldStart(g.sites[id],world.size);
   if(!world.buildable(p,RULES.headquarters.radius)||!visited[world.index(p)])errors.push('unsafe-hq');
