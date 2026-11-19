@@ -24,12 +24,12 @@ node scripts/benchmark-sandforge-balance-tournament.mjs \
   --markdown reports/balance-smoke.md
 ```
 
-Für das vollständige 36-Match-Turnier:
+Für das vollständige **48-Match-Turnier** (alle vier v4-Landschaftstypen):
 
 ```bash
 node scripts/benchmark-sandforge-balance-tournament.mjs \
   --maps 24,25,26 \
-  --seeds 824836862,20261119,20261120 \
+  --seeds 824836862,20261119,20261120,9999 \
   --opponents guarded,contesting --seconds 300 \
   --presets baseline,tuned \
   --output reports/balance-full.json \
@@ -40,7 +40,7 @@ Die JSON-Zwischenergebnisse werden nach jedem vollständigen Match persistiert. 
 
 ## GitHub Actions
 
-Workflow `Sandforge 8-12-16 Bastion paired balance tournament`: Push erzeugt 6 Vergleichsläufe und legt JSON/Markdown als Artifacts ab. Über **Run workflow → full = true** wird die 36-Match-Variante ausgeführt.
+Workflow `Sandforge 8-12-16 Bastion paired balance tournament`: Push erzeugt das vollständige 48-Match-Turnier mit JSON/Markdown als Artifacts. Über **Run workflow → full = false** kann ein schneller 6-Match-Smoketest gestartet werden.
 
 ## Auswertung
 
