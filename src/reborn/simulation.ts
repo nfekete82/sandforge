@@ -35,6 +35,7 @@ import {validSupplyJob,SUPPLY_RESTOCK_INTERVAL,type SupplyCache,type SupplyJob} 
 import {formationSlotPitch,vehicleSpacingGap,preservesVehicleProgress,vehicleYieldWaypoint} from './vehicle-spacing.js';
 import {rocketStandoffPoint,shouldRocketReposition} from './combat-movement.js';
 import {SCOUT_ROCKETS,scoutRocketDamage,scoutRocketReady} from './scout-rockets.js';
+import {ai36AirDoctrineEnabled} from './ai36-air-support.js';
 import {UPGRADES,UPGRADE_KINDS,newResearchState,canResearchUpgrade,researchModifiers,
  validResearchState,strategicBlastDamage,validStrategicMissile,
  SILO_CHARGE_SECONDS,STRATEGIC_WARNING_SECONDS,STRATEGIC_BLAST_RADIUS,
@@ -1496,6 +1497,29 @@ export class Simulation {
     this.missiles.push({id,source:u.id,owner:u.owner,from,to,angle:u.angle,at:this.time,impactAt:this.time+duration,damage:(u.kind==='rocket'?weaponDamage(u,target):unitSpec(u).damage)*getVeterancyModifiers(u).damage,miss,...(antiArmor?{type:'antiArmor' as const}:{}),...(u.kind==='rocket'&&!miss?{target:target.id}:{})});
     this.shots.push({from:{x:u.x,y:u.y-18},to:{x:target.x,y:target.y-23},owner:u.owner,life:.65,hit:false,weapon:'rocket',source:u.id,kind:u.kind,barrel:antiArmor?0:id%6,angle:u.angle,at:this.time,groundFrom:from,groundTo:to});
   }
+  /** Defensible troop transport: its MG opportunistically engages
+   * visible nearby infantry without reassigning an escort/landing mission.
+   * No chasing: when the transport flies away, the gun simply stops.
+   * Rockets remain a separately timed, finite secondary weapon.
+   */
+  private helicopterMachinegun(u:Unit):void{
+   if(u.kind!=='scout'||u.hp<=0||u.carrier||u.cooldown>1e-8||
+      u.airfieldService||u.transport&&u.transport.phase!=='cruise')return;
+   const spec=unitSpec(u),range=spec.range;
+   const infantry=this.spatial.query(u,range).filter(v=>v.owner!==u.owner&&
+      v.hp>0&&!v.carrier&&unitSpec(v).group==='Infanterie'&&
+      distance(u,v)<=range&&this.canSee(u.owner,v));
+   const order=u.orders[0];
+   const target=u.hold&&!u.guardArea
+      ?infantry.find(v=>v.id===u.lastAttacker&&u.defendUntil>this.time)
+      :infantry.find(v=>order?.kind==='attack'&&order.target===v.id)??
+       infantry.sort((a,b)=>distance(u,a)-distance(u,b)||a.id-b.id)[0];
+   if(!target)return;
+   u.cooldown=spec.cooldown/getVeterancyModifiers(u).fireRate;
+   u.fire=.18;
+   this.damage(u,target,weaponDamage(u,target)*getVeterancyModifiers(u).damage,
+      'machinegun',{x:u.x,y:u.y-32});
+  }
   /** One light, unguided helicopter rocket. Unlike the MG it has a
    * persistent six-round magazine and its own 9-second weapon clock.
    * A real observed ground target is required; no rockets during landing,
@@ -2062,6 +2086,7 @@ export class Simulation {
       // defensive reaction fire or an old attack lock stall the movement.
       // Boarding/takeoff animations finish before movement resumes.
       if(transportBusy){delete u.burst;continue;}
+      if(u.kind==='scout')this.helicopterMachinegun(u);
       this.shootPassingDrone(u);
       if(u.kind==='bomber'&&(u.orders.length>0||u.hold||u.pursuitOrigin))delete u.idleOrbit;
       // Complete a wide physical escape/turn/return route after a bomb release.
@@ -2106,6 +2131,21 @@ export class Simulation {
         this.canSee(u.owner,returning)?returning:undefined);
       const spec=unitSpec(u);
       if(u.kind==='bomber'&&enemy&&!u.hold){
+        // Final real-time authority: no RED KI3.6 solo strike on defended
+        // groups even when an earlier queued/automatic attack survives an
+        // AI planning pulse. This never changes player or KI3.5 bombers.
+        if(u.owner===1&&ai36AirDoctrineEnabled(this)&&
+           !this.tactical.bomberStrikeSafe(enemy)){
+          if(u.orders.some(o=>o.kind==='attack'||o.tactical?.mode==='assault')){
+            const home=this.bases.find(b=>b.owner===1&&b.kind==='headquarters'&&
+              b.hp>0&&b.buildRemaining<=0);
+            if(home)this.command([u.id],{kind:'move',x:home.x,y:home.y});
+            else this.stop([u.id]);
+          }
+          // Keep the physical flight and existing navigation next tick;
+          // never release a bomb into an unsupported defensive cluster.
+          continue;
+        }
         // A bomber never hangs motionless in attack range firing a cannon.
         // It must fly across the actual target, drop one bomb, make a wide
         // physical loop and return for the next pass.

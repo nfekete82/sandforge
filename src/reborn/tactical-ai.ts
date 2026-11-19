@@ -23,9 +23,9 @@ import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad} from './ai36-terrain-routes.js';
-import {droneFrontierPoint,observedBomberSupportTarget} from './ai36-air-support.js';
+import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed} from './ai36-air-support.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
-import type {Simulation,Unit,Memory} from './simulation.js';
+import type {Simulation,Unit,Base,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
 export interface Loss extends Point {id:number;at:number;strength:number}
@@ -877,6 +877,28 @@ export class TacticalAI {
   }
   return true;
  }
+ /** Public gate also used by the 20-Hz simulation just before the REAL
+  * bomb release. AI3.5 and player bombers remain completely unchanged.
+  * Eligibility is grounded in currently visible threats and actual red
+  * ground units at the objective, never enemies behind Fog of War. */
+ bomberStrikeSafe(target:Unit|Base):boolean{
+  if(!this.ai36Enabled)return true;
+  const g=this.g;
+  if(!g.canSee(1,target)||target.hp<=0)return false;
+  const observed=[
+   ...g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
+    u.kind!=='drone'&&!unitSpec(u).flying&&g.canSee(1,u)),
+   ...g.bases.filter(b=>b.owner===0&&b.hp>0&&b.buildRemaining<=0&&
+    g.canSee(1,b))
+  ];
+  const ground=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier&&
+   combat(u)&&!unitSpec(u).flying&&
+   !u.factoryService&&!u.airfieldService&&
+   (u.orders.some(o=>o.kind==='attack'||o.kind==='attackMove'||
+      o.tactical?.mode==='assault')||u.defendUntil>g.time||
+    this.state.phase==='attack'&&this.state.group.includes(u.id)));
+  return bomberCloseAirSupportAllowed(target,observed,ground);
+ }
  private airSupport(members:Unit[],goal:Point,targetId:number|null):void{
   const g=this.g,s=this.state,front=members.filter(frontRole),
    anchor=s.rally??members[0],d=distance(anchor,goal)||1,
@@ -897,8 +919,13 @@ export class TacticalAI {
     if(!u.orders.length)this.issue([u],anchor,'safe');
     continue;
    }
-   // Finish an ongoing genuine bomb/turn/return loop before reassignment.
+   // Finish an already released bomb/turn/return, but never START an
+   // unsupported solo dive into a fortified tank/infantry cluster.
    if(u.bomberRun)continue;
+   if(this.ai36Enabled){
+    const actual=g.units.find(v=>v.id===target.id&&v.hp>0)??g.bases.find(b=>b.id===target.id&&b.hp>0);
+    if(!actual||!this.bomberStrikeSafe(actual))continue;
+   }
    const selectedTarget=target.id;
    if(u.orders.some(o=>o.kind==='attack'&&o.target===selectedTarget))continue;
    // An obsolete two-leg queue may be replaced for freshly observed armor,
@@ -942,6 +969,10 @@ export class TacticalAI {
    // every macro pulse would prevent him from ever reaching the tank.
    if(!target||u.orders.some(o=>o.kind==='attack'&&o.target===target.id))
     continue;
+   if(u.kind==='bomber'&&this.ai36Enabled){
+    const actual=g.units.find(v=>v.id===target.id&&v.hp>0);
+    if(!actual||!this.bomberStrikeSafe(actual))continue;
+   }
    g.command([u.id],{kind:'attack',x:target.x,y:target.y,target:target.id});
   }
  }
@@ -955,6 +986,17 @@ export class TacticalAI {
   const bombers=army.filter(u=>u.kind==='bomber'&&u.hp>0&&!u.carrier&&
    !u.airfieldService&&!u.returnToHangar&&!u.bomberRun&&!u.hold);
   if(!bombers.length)return;
+  // Ground units sometimes halt or die AFTER an initial coordinated launch.
+  // Revoke pending unsafe strike queues before the bomber crosses hostile AA.
+  // Do not interrupt a bomb that has already been physically dropped.
+  for(const u of bombers){
+   const pending=u.orders.find(o=>o.kind==='attack'&&o.target!==undefined);
+   if(!pending)continue;
+   const victim=g.units.find(v=>v.id===pending.target&&v.hp>0)??g.bases.find(b=>b.id===pending.target&&b.hp>0);
+   if(!victim||!this.bomberStrikeSafe(victim)){
+    g.command([u.id],{kind:'move',x:home.x,y:home.y});
+   }
+  }
   const frontUnits=army.filter(u=>combat(u)&&!unitSpec(u).flying&&
    (s.group.includes(u.id)||u.defendUntil>g.time));
   const front=frontUnits.length?frontUnits.reduce((p,u)=>({
@@ -968,7 +1010,7 @@ export class TacticalAI {
     g.canSee(1,b))
   ];
   const target=observedBomberSupportTarget(observed,front,1400);
-  if(!target)return;
+  if(!target||!this.bomberStrikeSafe(target))return;
   for(const [index,u] of bombers.entries()){
    if(u.orders.some(o=>o.kind==='attack'&&
     observed.some(v=>v.id===o.target)))continue;
