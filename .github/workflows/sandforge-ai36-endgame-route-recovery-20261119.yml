@@ -1,0 +1,77 @@
+name: Sandforge KI 3.6 endgame route recovery
+on:
+  push:
+    branches: ['feat/sandforge-ai36-endgame-route-recovery-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mission-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Compile and check WebGL graph
+        run: |
+          npm run build
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Verify mission recovery, AI3.6 air and battle aftermath
+        run: |
+          node --test \
+            tests/sandforge-ai36-endgame-route-recovery-20261119.test.mjs \
+            tests/sandforge-ai36-recon-bomber-support-20261119.test.mjs \
+            tests/sandforge-ai36-fight-dont-flee-20261119.test.mjs \
+            tests/sandforge-combat-aftermath-v1-20261119.test.mjs \
+            tests/webgl-aircraft-effects-20261110.test.mjs
+      - name: Reference AI3.5 8 battles, original 600s setup
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps 24,26 --seeds 2026,2027,2028,2029 \
+            --seconds 600 --modes director --ai36 off \
+            --label ai35-reference \
+            --output ai-arena-results/ci-ai35-reference.json
+      - name: Recovery AI3.6 same 8 battles, original 600s setup
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps 24,26 --seeds 2026,2027,2028,2029 \
+            --seconds 600 --modes director --ai36 coordinated \
+            --label ai36-route-recovery \
+            --output ai-arena-results/ci-ai36-route-recovery.json
+      - name: Compare paired worlds and enforce no performance regression
+        run: |
+          node scripts/ai-test-arena-compare.mjs \
+            ai-arena-results/ci-ai35-reference.json \
+            ai-arena-results/ci-ai36-route-recovery.json \
+            ai-arena-results/ci-ai36-route-comparison.md
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const read=p=>JSON.parse(readFileSync(p,'utf8'));
+          const old=read('ai-arena-results/ci-ai35-reference.json');
+          const now=read('ai-arena-results/ci-ai36-route-recovery.json');
+          const oldWins=old.details.filter(x=>x.outcome==='win').length;
+          const newWins=now.details.filter(x=>x.outcome==='win').length;
+          const missionless=now.details.filter(x=>
+            x.enemyHQSeen&&!x.enemyHQDestroyed&&
+            (x.commanderSeconds?.endgame??0)>=300&&
+            (x.firstOrganizedAttack===null));
+          console.log('AI3.5 wins: '+oldWins+'/8 | AI3.6 route recovery wins: '+newWins+'/8');
+          console.log('AI3.6 missionless endgame samples: '+missionless.map(x=>x.mapVersion+':'+x.seed).join(', '));
+          if(newWins<oldWins)throw Error('KI3.6 regressed: '+newWins+' vs '+oldWins+' wins');
+          if(missionless.length)throw Error('Missionless endgame persisted for '+missionless.length+' battles');
+          NODE
+      - name: Archive full A/B diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai36-route-recovery-arena
+          path: |
+            ai-arena-results/ci-ai35-reference.*
+            ai-arena-results/ci-ai36-route-recovery.*
+            ai-arena-results/ci-ai36-route-comparison.md
+          if-no-files-found: warn
