@@ -26,13 +26,13 @@ test('a real paid gate is a separately buildable/destructible wall-footprint typ
  assert.ok(buildingKinds.includes('wallGate'));
  assert.ok(isStrategicBuilding('wallGate'));
  assert.ok(isWallLike('wallGate')&&isWallLike('wall'));
- assert.equal(BUILDINGS.wallGate.cost,135);
+ assert.equal(BUILDINGS.wallGate.cost,210);
  assert.equal(WALL_GATE_UPGRADE_COST,60);
- assert.ok(BUILDINGS.wallGate.hp<BUILDINGS.wall.hp);
+ assert.ok(BUILDINGS.wallGate.hp<BUILDINGS.wall.hp*2);
  assert.ok(weaponDamage({kind:'rocket'},{kind:'wallGate',queue:[]})>
   weaponDamage({kind:'infantry'},{kind:'wallGate',queue:[]})*4);
  assert.equal(sitesVisuallyOverlap('wallGate',{x:1000,y:1000},0,
-  'wall',{x:1109,y:1000},0),false,'gate can join existing wall ends');
+  'wall',{x:1164,y:1000},0),false,'double gate joins existing wall ends');
  assert.equal(sitesVisuallyOverlap('wallGate',{x:1000,y:1000},0,
   'wall',{x:1060,y:1000},0),true);
 });
@@ -51,16 +51,21 @@ test('only a finished OWN gate is navigable; an enemy gate remains physically so
  assert.equal(vehicleStructureColliders([enemy]).length,3);
  assert.equal(infantryStructureColliders([enemy]).length,3);
  assert.deepEqual(wallColliderSamples(own).map(c=>c.radius),[24,24,24]);
+ own.gateSpan=2;
+ assert.equal(wallColliderSamples(own).length,5,'new gates block two full wall widths');
  // The gate arrays themselves are the authority; no unrelated x/y test.
 });
 
 test('upgrade preserves wall identity, position, owner and facing and charges real credits',()=>{
  const g=new Simulation(2026,24);
  const wall=wallSite(0);wall.facing=2;
- g.bases.push(wall);g.credits[0]=120;
+ const mate=wallSite(0);mate.id=90004;mate.y=1109;mate.facing=2;
+ g.bases.push(wall,mate);g.credits[0]=120;
  assert.equal(g.convertWallToGate(0,wall.id),true);
  assert.equal(wall.kind,'wallGate');assert.equal(wall.facing,2);
- assert.equal(wall.x,1000);assert.equal(wall.y,1000);
+ assert.equal(wall.x,1000);assert.equal(wall.y,1054.5);
+ assert.equal(wall.gateSpan,2);
+ assert.ok(!g.bases.includes(mate),'neighbor wall is physically replaced');
  assert.equal(g.credits[0],60);
  assert.ok(wall.hp<BUILDINGS.wallGate.hp&&wall.hp>0);
  assert.ok(!g.navigationBases(0).includes(wall));
