@@ -135,13 +135,17 @@ export class World {
    * Older seeded map navigation and all infantry/aircraft stay unchanged.
    * Check wheel/track contact offsets, not just the vehicle center.
    */
-  groundVehicleSlopeSafe(p:Point,maxSlope:number,footprint=0):boolean{
+  groundVehicleSlopeSafe(p:Point,maxSlope:number,footprint=0,measuredSlope?:number):boolean{
     if(!this.generated?.battlefield||!Number.isFinite(maxSlope))return true;
-    const radius=Math.max(0,Math.min(footprint,26))*.72;
-    if(this.terrainSlope(p.x,p.y)>maxSlope)return false;
+    const x=p.x,y=p.y,radius=Math.max(0,Math.min(footprint,26))*.72;
+    if((measuredSlope??this.terrainSlope(x,y))>maxSlope)return false;
     if(radius<1)return true;
-    return [[radius,0],[-radius,0],[0,radius],[0,-radius]].every(([dx,dy])=>
-      this.terrainSlope(p.x+dx,p.y+dy)<=maxSlope);
+    // Hot path for every wheel/track contact and A* edge. Four numeric
+    // checks avoid a fresh array, tuple objects and callback per sample.
+    return this.terrainSlope(x+radius,y)<=maxSlope&&
+      this.terrainSlope(x-radius,y)<=maxSlope&&
+      this.terrainSlope(x,y+radius)<=maxSlope&&
+      this.terrainSlope(x,y-radius)<=maxSlope;
   }
   /** The actual world-space displacement must not tunnel up a cliff, even
    * if a short 50-ms step ends in a neighboring walkable navigation cell.
@@ -159,7 +163,7 @@ export class World {
         y:from.y+(to.y-from.y)*i/steps};
       const slope=this.terrainSlope(point.x,point.y);
       const escaping=oldSlope>maxSlope&&slope<oldSlope-.007;
-      if(!escaping&&!this.groundVehicleSlopeSafe(point,maxSlope,footprint))return false;
+      if(!escaping&&!this.groundVehicleSlopeSafe(point,maxSlope,footprint,slope))return false;
       const height=this.terrainHeight(point.x,point.y);
       const segment=Math.hypot(point.x-last.x,point.y-last.y);
       if(!escaping&&segment>1e-6&&
