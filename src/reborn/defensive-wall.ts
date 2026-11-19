@@ -25,6 +25,32 @@ export function navigableBasesForFaction<T extends {
  return bases.filter(b=>!isPassableFriendlyGate(b,faction));
 }
 
+/** Real gate posts remain solid even for the owner when the doors open.
+ * The previous navigation code deleted the entire friendly gate collision,
+ * including both steel pylons. Tanks then planned straight lines through
+ * the visible frame and appeared trapped where the ordinary wall joined it.
+ * Only the two narrow external posts obstruct traffic, leaving a generous
+ * centre lane for tanks, rovers and artillery. Does not close the gateway.
+ */
+export function friendlyGatePostColliders<T extends {
+ kind?:string;owner:number;hp:number;buildRemaining?:number;
+ x:number;y:number;facing?:WallFacing;gateSpan?:number;
+}>(sites:readonly T[],owner:number):{x:number;y:number;radius:number}[]{
+ const result:{x:number;y:number;radius:number}[]=[];
+ for(const b of sites){
+  if(!isPassableFriendlyGate(b,owner))continue;
+  const yaw=[0,Math.PI,Math.PI/2,Math.PI*1.5][b.facing??0];
+  const c=Math.cos(yaw),s=Math.sin(yaw);
+  const span=b.gateSpan===2?2:1;
+  // Physical steel column centres in the 3D geometry: 51 * span.
+  for(const sign of [-1,1]){
+   const x=sign*51*span;
+   result.push({x:b.x+c*x,y:b.y-s*x,radius:9});
+  }
+ }
+ return result;
+}
+
 export const WALL_GATE_UPGRADE_COST=60;
 
 export function wallColliderSamples(p:{x:number;y:number;facing?:WallFacing;kind?:string;gateSpan?:number},
