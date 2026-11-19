@@ -23,9 +23,12 @@ jobs:
           npx tsc -p tsconfig.json
           SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
           node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Generate six local textured oasis GLBs
+        run: node scripts/generate-oasis-adobe-glbs.mjs dist/src/assets/reborn/oasis-village
       - name: Validate new geography and old saves
         run: |
           node --test \
+            tests/sandforge-oasis-hamlets-v3-20261119.test.mjs \
             tests/sandforge-natural-landscape-v3-20261119.test.mjs \
             tests/sandforge-natural-landscape-renderer-20261119.test.mjs \
             tests/reborn-spacious-map-versions.test.mjs \
