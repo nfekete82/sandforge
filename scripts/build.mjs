@@ -43,6 +43,8 @@ for(const module of ['webgl-oases','webgl-oasis-generation','webgl-oasis-materia
 cpSync('scripts/webgl-map-edges.js','dist/webgl-map-edges.js');
 cpSync('scripts/webgl-title-menu.js','dist/webgl-title-menu.js');
 cpSync('scripts/webgl-battlefield.js','dist/webgl-battlefield.js');
+// Required by webgl-battlefield.js; without this the entire 3D entry graph fails.
+cpSync('scripts/webgl-shadow-budget.js','dist/webgl-shadow-budget.js');
 cpSync('scripts/webgl-scout-rocket-pods.js','dist/webgl-scout-rocket-pods.js');
 cpSync('scripts/webgl-recon-drone.js','dist/webgl-recon-drone.js');
 cpSync('scripts/webgl-builder-input.js','dist/webgl-builder-input.js');
@@ -133,9 +135,11 @@ cpSync('src/reborn/style.css', 'dist/style.css');
 cpSync('src/reborn/retro-desert.css', 'dist/retro-desert.css');
 cpSync('src/reborn/qwen-general.worker.js', 'dist/src/reborn/qwen-general.worker.js');
 cpSync('legacy', 'dist/legacy', {recursive:true});
-// Headless module audit validates browser imports without requiring the
-// large, untracked Mac-local FINAL PBR building models. Runtime and default
-// production builds still execute the complete authored-asset pipeline.
+// Fail before expensive local PBR generation if ANY 3D startup module is
+// absent or invalid. This same check also runs in headless CI audit mode.
+execFileSync(process.execPath,['--no-warnings','--experimental-vm-modules',
+ 'scripts/check-webgl-module-graph.mjs'],{stdio:'inherit'});
+// Headless module audit skips local-only PBR production, not startup checks.
 if(process.env.SANDFORGE_MODULE_AUDIT==='1'){
  console.log('WebGL module audit: browser JS and Three vendor modules packaged.');
  process.exit(0);
@@ -177,9 +181,4 @@ for(const kind of ['headquarters','factory','barracks','airfield','generator','t
  const bytes=readFileSync(path);art.files[kind]=createHash('sha256').update(bytes).digest('hex');
 }
 writeFileSync('dist/building-art-version.json',JSON.stringify(art,null,2)+'\n');
-// TypeScript and simulation tests cannot detect missing Three/browser JS assets.
-// Refuse to report a successful build until the complete startup import graph
-// has been verified. This runs after copying all compiled + vendor modules.
-execFileSync(process.execPath,['--no-warnings','--experimental-vm-modules',
- 'scripts/check-webgl-module-graph.mjs'],{stdio:'inherit'});
 console.log('Built SANDFORGE: BASTION WARS in dist/');
