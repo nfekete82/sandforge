@@ -49,7 +49,13 @@ test('navigation: artillery escapes the observed cliff edge and resumes identica
  const original=g.save(),restored=loaded.save();
  // Loading deliberately resets the transient repath timer; positions, orders,
  // paths, resources and all persisted gameplay state must still agree.
- for(const saved of [original,restored])for(const unit of saved.units)unit.repath=0;
+ for(const saved of [original,restored]){
+  for(const unit of saved.units)unit.repath=0;
+  // Modern save migration materializes optional empty production-cost arrays.
+  // This fixture tests NAVIGATION determinism, not queue migration defaults.
+  for(const base of saved.bases)if(base.queueCosts?.length===0)
+   delete base.queueCosts;
+ }
  assert.deepEqual(restored,original);
  const invalid=g.save();invalid.units[0].exactPath='yes';assert.throws(()=>Simulation.load(invalid));
 });
