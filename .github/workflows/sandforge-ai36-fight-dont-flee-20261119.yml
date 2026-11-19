@@ -1,0 +1,33 @@
+name: Sandforge KI 3.6 decisive combat QA
+on:
+  push:
+    branches: ['feat/sandforge-ai36-fight-dont-flee-20261119']
+  pull_request:
+    branches: ['feat/sandforge-combat-aftermath-v1-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  decisive-combat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile and check browser modules
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Retreat policy and combat regressions
+        run: |
+          node --test \
+            tests/sandforge-ai36-fight-dont-flee-20261119.test.mjs \
+            tests/sandforge-ai36-recapture-20261118.test.mjs \
+            tests/sandforge-ai36-combat-movement-20261119.test.mjs \
+            tests/sandforge-ai36-terrain-routes-20261119.test.mjs \
+            tests/webgl-pathfinding-budget-20261111.test.mjs
