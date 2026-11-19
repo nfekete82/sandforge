@@ -137,7 +137,7 @@ test('the real AI economy executes a paid HQ turret project without sacrificing 
    radius:spec.radius,x:150+i*170,y:130,buildRemaining:0,
    queue:[],queueTypes:[],production:0});
  }
- for(let i=0;i<7;i++){
+ for(let i=0;i<18;i++){
   const u=g.spawn(1,{x:hq.x-80+(i%4)*35,
    y:hq.y-200+Math.floor(i/4)*36},i<3?'heavy':'infantry');
   u.orders=[];
