@@ -14,7 +14,7 @@ function openWorld(version=3){
  return w;
 }
 const cell=(w,x,y)=>({x:(x+.5)*w.cell,y:(y+.5)*w.cell});
-const route=(w,from,to,limit=Infinity)=>w.path(from,to,[],6,undefined,false,true,false,false,limit);
+const route=(w,from,to,limit=Infinity)=>w.path(from,to,[],6,undefined,false,true,false,limit);
 
 test('A* returns identical routes during repeated path requests and after profiler toggles',()=>{
  const w=openWorld();
