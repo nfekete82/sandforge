@@ -78,9 +78,16 @@ export class World {
       for(const [n,ridge] of this.generated.ridges.entries()){
         const id=this.generated.mesas.length+n;
         this.cliffCells[id]=[];
+        // The v3 renderer's stratified cliff occupies a wider footprint
+        // than the old .5-width collision spine. Without this skirt tanks
+        // and infantry can drive into the VISIBLE hillside and then stall
+        // when the strict vehicle slope test rejects every further step.
+        // Keep genuine passes and protected Bastion clearings unchanged.
+        const collisionRidge=this.generatorVersion===3
+          ?{...ridge,width:ridge.width*1.9}:ridge;
         for(let i=0;i<this.blocked.length;i++){
           const p=this.center(i);
-          if(!canyonCliffBlocked(p,ridge))continue;
+          if(!canyonCliffBlocked(p,collisionRidge))continue;
           this.blocked[i]=1;this.opaque[i]=1;this.cliffIds[i]=id;
           this.cliffCells[id].push(i);
         }
