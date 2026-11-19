@@ -172,8 +172,17 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   return result.filter(k=>n[k]<ceiling(k));
  };
  const producers=c.own.filter(b=>b.buildRemaining<=0&&b.queue.length<2);
+ // A long-running offensive with fewer than fourteen living fighters needs
+ // paid infantry NOW, not an idle barracks while one factory saves for an
+ // aircraft or a second heavy vehicle. Barracks take a limited first turn;
+ // observed AA and anti-armor counter quotas are still handled in ranks().
+ const offensiveShortfall=g.world.mapVersion>=23&&g.time>=100&&!c.finishing&&
+  !c.underAttack&&fighters<14&&
+  g.territories.some(t=>t.owner!==1)&&available('infantry');
  const initial=planned();
- const priority=(b:Base)=>(initial&&UNITS[initial].producers.includes(b.kind)?-1:({factory:0,airfield:1,barracks:2,headquarters:3} as Record<string,number>)[b.kind]??4);
+ const priority=(b:Base)=>offensiveShortfall&&b.kind==='barracks'?-2:
+  (initial&&UNITS[initial].producers.includes(b.kind)?-1:
+   ({factory:0,airfield:1,barracks:2,headquarters:3} as Record<string,number>)[b.kind]??4);
  producers.sort((a,b)=>priority(a)-priority(b)||a.id-b.id);
  const facilities:Record<number,ProductionDecision>={};
  for(const b of c.own.filter(b=>b.buildRemaining<=0&&b.queue.length>=2))facilities[b.id]={reason:'queue-blocked',goal:null,missing:0};
@@ -182,10 +191,14 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   const workerLost=count('engineer')===0&&producer.kind==='headquarters';
   if(g.count(1)+g.queued(1)>=c.maxArmy&&!workerLost){facilities[producer.id]={reason:'army-cap',goal:null,missing:0};continue;}
   const need=planned(),isPlanned=need!==null&&UNITS[need].producers.includes(producer.kind);
-  const protection=need&&!isPlanned?UNITS[need].cost:0;
-  // The reservation is not a tax on the rocket it protects. Release only
-  // that portion for a real paid artillery purchase, never for other units.
-  const committedReserve=isPlanned&&need==='artillery'
+  const urgentBarracks=offensiveShortfall&&producer.kind==='barracks'&&
+   (c.siegeReserve??0)===0;
+  const protection=need&&!isPlanned&&!urgentBarracks?UNITS[need].cost:0;
+  // On the offensive, an idle barracks may spend real earned credits on
+  // infantry instead of protecting an entire *optional* expensive queue.
+  // The first siege artillery reserve is never waived.
+  const committedReserve=urgentBarracks?Math.min(125,c.reserve):
+   isPlanned&&need==='artillery'
    ?Math.max(0,c.reserve-(c.siegeReserve??0)):c.reserve;
   const budget=g.credits[1]-(workerLost?0:committedReserve)-protection;
   let choices=isPlanned?[need!,...ranks(producer).filter(k=>k!==need)]:ranks(producer);
