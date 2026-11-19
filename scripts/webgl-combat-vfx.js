@@ -298,6 +298,24 @@ export class SandforgeCombatEffects {
   pool.particles.push({x,z,y,size,life,ttl:life,vx,vz,vy,
    floor:pool.mode==='debris'?y-7:undefined,angle:(this.rand()-.5)*.45});
  }
+ /** Small barrel haze tied only to real visible shots; not an additional
+  * blast event. Shared capped smoke pool, no lights, traces or AI work. */
+ muzzleAt(shot){
+  if(!['rifle','machinegun','heavy','pistol','cannon','turret'].includes(shot.weapon))return;
+  const p=shot.groundFrom??shot.from;
+  if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y)||
+   !this.game.canSee(0,p))return;
+  // No cartoon gunfire: MG/rifles emit a small wisp, cannon a short
+  // dusty pressure pulse. Authoritative flashes remain on the GLB muzzle.
+  const heavy=shot.weapon==='cannon'||shot.weapon==='turret';
+  const originY=this.heightAt(p.x,p.y)+(heavy?34:24);
+  this.particle(this.smoke,p.x,p.y,originY,
+   heavy?11:5.6,heavy?.35:.18,
+   (this.rand()-.5)*7,(this.rand()-.5)*7,heavy?9:4);
+  if(heavy)this.particle(this.dust,p.x,p.y,this.heightAt(p.x,p.y)+5,
+   12,.30,(this.rand()-.5)*15,(this.rand()-.5)*15,8);
+  this.stats.muzzlePuffs++;
+ }
  impactAt(shot){
   const p=shot.groundTo??shot.to;
   if(!this.game.canSee(0,{x:p.x,y:p.y}))return;
@@ -777,6 +795,7 @@ export class SandforgeCombatEffects {
   for(const shot of this.game.shots){
    if(this.seenShots.has(shot))continue;
    this.seenShots.add(shot);
+   this.muzzleAt(shot);
    if(shot.miss){
     this.sandMissAt(shot);
     continue;
