@@ -13,7 +13,7 @@ const clamp01=v=>Math.min(1,Math.max(0,v));
 const smooth=v=>{const t=clamp01(v);return t*t*(3-2*t);};
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 
-export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],biome='desert',lowQuality=false}){
+export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],biome='desert',lowQuality=false,showOutcrops=true}){
  const half=size/2,meshes=[];
  const protectedZones=ridges.flatMap(r=>r.clearings??[]);
  const distanceFromBuildPad=(x,z)=>protectedZones.reduce((closest,zone)=>
@@ -153,8 +153,10 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
   // Anchor uneven PBR sandstone fragments into the blocked ridge. These are
   // scene-only, so no extra collision, pathfinding or save data is introduced.
   // The middle of the cliff remains occupied by the authoritative World grid.
+  // Only paint cliffs in the modern desert: individual ridge boulders
+  // read as dark obstacles and spoil the otherwise open tactical map.
   const sampleStep=lowQuality?6:4;
-  for(let i=3;i<line.length-3;i+=sampleStep){
+  if(showOutcrops)for(let i=3;i<line.length-3;i+=sampleStep){
    const p=line[i],before=line[i-1],after=line[i+1];
    const dx=after.x-before.x,dz=after.z-before.z,len=Math.hypot(dx,dz)||1;
    const nx=-dz/len,nz=dx/len;
