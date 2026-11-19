@@ -124,10 +124,11 @@ test('Paid tier-2 doubles only captured Bastion earnings; save/load and capture 
  const enemy=loaded.territories[t.id];
  enemy.owner=1;enemy.upgradeLevel=1;
  assert.equal(bastionEffectiveIncome(enemy),enemy.income);
- const home=g.territories.find(t=>g.bases.some(b=>
+ const original=new Simulation(41204,24,false,false,'mixed',4);
+ const home=original.territories.find(t=>original.bases.some(b=>
   b.kind==='headquarters'&&b.territory===t.id));
  assert.ok(home);
- assert.equal(g.upgradeBastion(home.owner,home.id),false,'home cannot be doubled');
+ assert.equal(original.upgradeBastion(home.owner,home.id),false,'home cannot be doubled');
 });
 test('Combat sounds contain distinct rocket ignition, MG and impact/explosion layers',()=>{
  assert.ok(WEAPON_SOUNDS.rocket.duration>WEAPON_SOUNDS.machinegun.duration*3);
