@@ -1,9 +1,10 @@
 import {campaignLayout, type MapVersion, type Point} from './config.js';
+import type {CanyonRidge} from './canyon-front.js';
 
 /** Revision 2: roomier buildable pads around bastions / headquarters.
  * Revision 1 remains reproducible for existing saves. */
 export const BATTLEFIELD_GENERATOR = 2;
-export type BattlefieldGeneratorVersion=1|2;
+export type BattlefieldGeneratorVersion=1|2|3;
 export const TERRAIN_GRADING_V2={
  bastionFlatRadius:540,bastionShoulder:360,
  homeFlatRadius:775,homeShoulder:460,
@@ -50,7 +51,7 @@ export interface BattlefieldTerrain {
  * All expensive noise work runs once. Movement, art and combat sample these
  * same triangles, with an explicit conservative maximum walkable gradient. */
 export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:number,sites:readonly Point[],
- profile:TerrainProfile,candidate=0,basins:Point[]=[],generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR):BattlefieldTerrain{
+ profile:TerrainProfile,candidate=0,basins:Point[]=[],generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR,ridges:readonly CanyonRidge[]=[]):BattlefieldTerrain{
  const segments=TERRAIN_SEGMENTS,n=segments+1,step=size/segments,heights=new Float32Array(n*n);
  const s=streamSeed(seed,'terrain',candidate),angle=hash(s,7,s)*Math.PI*2,c=Math.cos(angle),d=Math.sin(angle);
  const homes=campaignLayout(version,seed).headquarters.map(i=>battlefieldStart(sites[i],size));
@@ -77,6 +78,21 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
   const mixed=open*(1-smooth((zone-.18)/.25))+dunes*smooth((zone-.18)/.25)*(1-smooth((zone-.52)/.25))+
    rocky*smooth((zone-.52)/.25);
   let h=profile==='open'?open:profile==='dunes'?dunes:profile==='rocky'?rocky:profile==='oasis'?oasis:mixed;
+  if(generatorVersion===3){
+   // True continuous mountain relief follows the same physical canyon spine.
+   // The navigation grid blocks the cliff itself; only real ramps cross it.
+   for(const mountain of ridges){
+    if(mountain.ramps.some(r=>Math.abs(x-r.x)<=r.width*.55))continue;
+    let nearest=Infinity;
+    for(let k=1;k<mountain.spine.length;k++){
+     const a=mountain.spine[k-1],b=mountain.spine[k],dx=b.x-a.x,dy=b.y-a.y;
+     const t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1)));
+     nearest=Math.min(nearest,Math.hypot(x-a.x-t*dx,y-a.y-t*dy));
+    }
+    const shoulder=smooth((710-nearest)/710);
+    h+=shoulder*shoulder*(profile==='rocky'?165:profile==='open'?93:132);
+   }
+  }
   // Grade the actual authoritative terrain used by rendering, navigation
   // and placement – no floating decorative mesh and no run-time deformation.
   // Wider pads preserve the same profile on all v2 maps; in-between dunes
