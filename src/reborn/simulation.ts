@@ -1831,9 +1831,7 @@ export class Simulation {
     if(!u.path.length&&u.repath<=0){
       delete u.vehicleEscape;
       const tactical=u.owner===1&&u.orders[0]?.tactical;
-      const baseObstacles=tactical?this.tactical.navigationObstacles().filter(o=>
-        !('kind' in o&&o.kind==='wallGate'&&'owner' in o&&o.owner===u.owner&&
-          this.bases.some(b=>b.id===o.id&&b.buildRemaining<=0&&b.hp>0))):buildings;
+      const baseObstacles=tactical?this.tactical.navigationObstacles():buildings;
       const routeObstacles=ground?[...baseObstacles,...visualBuildings,...decor,...towers]:baseObstacles;
       const risk=this.tactical.costs(u);
       u.path=spec.flying&&!risk?[target]:this.world.path(u,target,routeObstacles,clearance,risk,spec.flying,u.exactPath,true,slopeLimit);
