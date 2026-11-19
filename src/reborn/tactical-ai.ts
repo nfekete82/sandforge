@@ -280,9 +280,11 @@ export class TacticalAI {
   const home=g.bases.find(v=>v.owner===1&&v.kind==='headquarters'&&v.hp>0)??g.territories.find(t=>t.owner===1)?.point;
   if(!home)return;
   const goal=this.withdrawPoint(u,home,towers);
-  // One wounded soldier must not turn an entire KI 3.6 assault column away.
-  // Also avoid handing the enemy free shots on an exposed escape corridor.
-  if(this.ai36Enabled&&supported&&!this.retreatSafe(u,goal,enemies,towers))return;
+  // One wounded soldier cannot drag a whole assault line out of combat.
+  // Only a critically damaged isolated fighter (or a near-dead survivor)
+  // may disengage, and only with a truly safe escape route.
+  if(this.ai36Enabled&&(supported&&u.hp>=unitSpec(u).hp*.12||
+   !this.retreatSafe(u,goal,enemies,towers)))return;
   const squad=this.ai36Enabled?[u]:
    near.filter(v=>v===u||(s.group.includes(u.id)&&s.group.includes(v.id)&&v.kind!=='artillery'&&towers.some(t=>distance(v,t)<t.range+85)));
   for(const v of squad){
@@ -314,7 +316,21 @@ export class TacticalAI {
  }
  private withdrawals(army:Unit[]):Set<number>{
   const g=this.g,s=this.state,b=s.battle??=newBattle();
-  b.withdrawals=b.withdrawals.filter(w=>{const u=army.find(u=>u.id===w.unit);return !!u&&(g.time<w.until||s.knownTurrets.some(t=>distance(t,u)<t.range+70));});
+  b.withdrawals=b.withdrawals.filter(w=>{
+   const u=army.find(u=>u.id===w.unit);if(!u)return false;
+   if(this.ai36Enabled&&s.group.includes(u.id)&&u.defendUntil>g.time){
+    const observed=g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&
+     v.kind!=='drone'&&g.canSee(1,v)&&distance(v,u)<650);
+    if(observed.length&&u.hp>=unitSpec(u).hp*.12){
+     const target=observed.filter(v=>canAttack(u,v))
+      .sort((a,b)=>distance(a,u)-distance(b,u)||a.id-b.id)[0];
+     if(target)this.issue([u],target,'assault',target.id,false,false);
+     else if(s.target!==null)this.issue([u],g.territories[s.target].point,'assault',undefined,false,false);
+     return false;
+    }
+   }
+   return g.time<w.until||s.knownTurrets.some(t=>distance(t,u)<t.range+70);
+  });
   for(const w of b.withdrawals){const u=army.find(u=>u.id===w.unit)!;
    if(s.recovering?.includes(u.id))continue;
    if(distance(u,w)>60)this.issue([u],w,'safe',undefined,false,false);else if(u.orders.length)g.stop([u.id]);
@@ -663,7 +679,20 @@ export class TacticalAI {
   const availableRepairer=army.some(v=>v.kind==='engineer'&&
     v.hp>0&&!v.carrier&&!v.orders.some(o=>o.kind==='build'));
   for(const u of army){
-   if(['infantry','heavy','rocket'].includes(u.kind)&&u.hp<unitSpec(u).hp*threshold)ids.add(u.id);
+   if(['infantry','heavy','rocket'].includes(u.kind)&&u.hp<unitSpec(u).hp*threshold){
+    // Low HP alone is not permission to turn away mid-gunfight.
+    // KI 3.6 only evacuates isolated, critically wounded infantry when
+    // an actually safe retreat exists.
+    const inContact=this.ai36Enabled&&u.defendUntil>g.time&&
+     s.group.includes(u.id)&&g.units.some(v=>v.owner===0&&v.hp>0&&
+      !v.carrier&&v.kind!=='drone'&&g.canSee(1,v)&&
+      distance(u,v)<Math.max(unitSpec(u).range,unitSpec(v).range)+75);
+    if(!inContact||u.hp<unitSpec(u).hp*.10&&
+       this.retreatSafe(u,home,
+        g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&
+         v.kind!=='drone'&&g.canSee(1,v)&&distance(u,v)<750),
+        s.knownTurrets))ids.add(u.id);
+   }
    // Repair only behind the front. Routine 67%-HP extraction used to cause
    // suicidal retreats while tanks were still in range of enemy guns.
    if(g.world.mapVersion>=3&&this.mode==='director'
