@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {renderGroundHeightSampler} from './webgl-environment.js';
 import {DESERT_SCENIC_STYLE as desertStyle} from './webgl-desert-style.js';
+import {planOasisVillages,OASIS_HAMLET_REVISION} from './webgl-oasis-village-layout.js';
 
 /** Scenic hamlets made entirely from the EXISTING authored canyon ruin GLTFs.
  * Never build houses from boxes and never use dark road plates. Both ruin GLTFs
@@ -14,6 +15,14 @@ export const BASTION_VILLAGE_CLEARANCE=1150;
 export const DESERT_VILLAGE_MODELS=Object.freeze([
  '/src/assets/reborn/canyon-3d/ruin-house.gltf',
  '/src/assets/reborn/canyon-3d/ruin-depot.gltf'
+]);
+export const OASIS_VILLAGE_MODELS=Object.freeze([
+ '/src/assets/reborn/oasis-village/oasis-main-house.glb',
+ '/src/assets/reborn/oasis-village/oasis-flat-house.glb',
+ '/src/assets/reborn/oasis-village/oasis-courtyard-house.glb',
+ '/src/assets/reborn/oasis-village/oasis-small-hut.glb',
+ '/src/assets/reborn/oasis-village/oasis-ruined-house.glb',
+ '/src/assets/reborn/oasis-village/oasis-market-house.glb'
 ]);
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const rng=seed=>{
@@ -32,8 +41,11 @@ const allowed=(world,p)=>{
 /** Spread just three authored ruins across a believable, sparse hamlet.
  * Keep native base/territory clearance and preserve the authoritative map.
  */
-export function planDesertVillages({world,terrain,seed=world?.seed??0,lowQuality=false}){
+export function planDesertVillages({world,terrain,seed=world?.seed??0,lowQuality=false,oases=[]}){
  if(!world?.size||!world?.index||!terrain?.sites)return [];
+ // V3 villages follow the actual oasis layout. V1/V2 hamlets and saves stay unchanged.
+ if(world.generatorVersion===3&&oases.length)
+  return planOasisVillages({world,terrain,seed,lowQuality,oases});
  const random=rng(seed),target=lowQuality?1:2,chosen=[];
  const fixed=[...terrain.sites,...(terrain.ruins??[])];
  const margin=360,plots=[
@@ -132,16 +144,18 @@ function makeTracks(villages,world,pos,heightAt){
  * World.bases, blocked cells and traffic paths are NOT modified.
  */
 export async function createDesertVillages({
- scene,world,terrain,pos,heightAt,seed=world?.seed??0,lowQuality=false,
+ scene,world,terrain,pos,heightAt,seed=world?.seed??0,lowQuality=false,oases=[],
  loadModel,weatherModel
 }){
- const villages=planDesertVillages({world,terrain,seed,lowQuality});
+ const villages=planDesertVillages({world,terrain,seed,lowQuality,oases});
  if(!villages.length)return {villages:[],meshes:[],roads:null,drawCalls:0};
  if(typeof loadModel!=='function')throw Error('Desert village requires authored GLTF model loader');
- const gltfs=await Promise.all(DESERT_VILLAGE_MODELS.map(url=>loadModel(url)));
+ const oasisStyle=villages.some(v=>v.architecturalStyle==='oasis-adobe');
+ const modelUrls=oasisStyle?OASIS_VILLAGE_MODELS:DESERT_VILLAGE_MODELS;
+ const gltfs=await Promise.all(modelUrls.map(url=>loadModel(url)));
  const templates=gltfs.map((data,variant)=>{
   const source=data.scene.clone(true);
-  weatherModel?.(source);
+  if(!oasisStyle)weatherModel?.(source); // Preserve GLB baked albedo/normal/roughness
   source.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(source);
   const extent=bounds.getSize(new THREE.Vector3());
@@ -170,10 +184,10 @@ export async function createDesertVillages({
    const part=template.submeshes[index];
    const material=part.material;
    const mesh=new THREE.InstancedMesh(part.geometry,material,entries.length);
-   mesh.name='visual-authored-abandoned-'+(type===0?'house':'depot')+'-'+index;
+   mesh.name='visual-authored-'+(oasisStyle?'oasis-adobe-'+type:'abandoned-'+(type===0?'house':'depot'))+'-'+index;
    mesh.userData={
     visualOnly:true,nonPlayable:true,desertVillage:true,authoredRuin:true,
-    source:DESERT_VILLAGE_MODELS[type],revision:DESERT_VILLAGE_ART_REVISION
+    source:modelUrls[type],revision:oasisStyle?OASIS_HAMLET_REVISION:DESERT_VILLAGE_ART_REVISION
    };
    mesh.castShadow=false;mesh.receiveShadow=true;
    mesh.raycast=()=>{};mesh.frustumCulled=false;
@@ -182,10 +196,17 @@ export async function createDesertVillages({
     const house=entries[j],base=pos(house.x,house.y,heightAt(house.x,house.y)-1.3);
     origin.copy(base);
     quaternion.setFromAxisAngle(THREE.Object3D.DEFAULT_UP,house.angle);
-    // Scale the ORIGINAL irregular roof+stonework proportionally. Do not
-    // substitute flat boxes or crush doors/roofs into different proportions.
+    // V3: realistic width/height variation while preserving believable doors
+    // and the authored GLTF roof and masonry detail. Legacy remains identical.
     const factor=Math.min(house.width/template.width,house.height/Math.max(1,template.height));
-    scale.setScalar(factor);
+    if(house.kind){
+     const horizontal=house.width/template.width;
+     const vertical=Math.max(horizontal*.76,Math.min(horizontal*1.16,
+      house.height/Math.max(1,template.height)));
+     const depth=(house.depth??house.width)/template.width;
+     scale.set(horizontal,vertical,depth);
+    }else scale.setScalar(factor);
+    if(house.kind)mesh.setColorAt(j,new THREE.Color().setRGB(house.tint,house.tint*.992,house.tint*.979));
     worldMatrix.compose(origin,quaternion,scale);
     transformed.multiplyMatrices(worldMatrix,part.local);
     mesh.setMatrixAt(j,transformed);

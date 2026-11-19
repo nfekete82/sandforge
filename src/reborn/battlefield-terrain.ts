@@ -1,13 +1,20 @@
 import {campaignLayout, type MapVersion, type Point} from './config.js';
+import type {CanyonRidge} from './canyon-front.js';
 
 /** Revision 2: roomier buildable pads around bastions / headquarters.
  * Revision 1 remains reproducible for existing saves. */
 export const BATTLEFIELD_GENERATOR = 2;
-export type BattlefieldGeneratorVersion=1|2;
+export type BattlefieldGeneratorVersion=1|2|3;
 export const TERRAIN_GRADING_V2={
  bastionFlatRadius:540,bastionShoulder:360,
  homeFlatRadius:775,homeShoulder:460,
  rockSafetyMargin:110
+} as const;
+/** Generator v3 only: wide build pads with a smooth transition into the cliffs. */
+export const TERRAIN_GRADING_V3={
+ bastionFlatRadius:680,bastionShoulder:350,
+ homeFlatRadius:890,homeShoulder:430,
+ rockSafetyMargin:180
 } as const;
 export const TERRAIN_PROFILES = ['open','dunes','rocky','oasis','mixed'] as const;
 export type TerrainProfile = typeof TERRAIN_PROFILES[number];
@@ -50,7 +57,7 @@ export interface BattlefieldTerrain {
  * All expensive noise work runs once. Movement, art and combat sample these
  * same triangles, with an explicit conservative maximum walkable gradient. */
 export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:number,sites:readonly Point[],
- profile:TerrainProfile,candidate=0,basins:Point[]=[],generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR):BattlefieldTerrain{
+ profile:TerrainProfile,candidate=0,basins:Point[]=[],generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR,ridges:readonly CanyonRidge[]=[]):BattlefieldTerrain{
  const segments=TERRAIN_SEGMENTS,n=segments+1,step=size/segments,heights=new Float32Array(n*n);
  const s=streamSeed(seed,'terrain',candidate),angle=hash(s,7,s)*Math.PI*2,c=Math.cos(angle),d=Math.sin(angle);
  const homes=campaignLayout(version,seed).headquarters.map(i=>battlefieldStart(sites[i],size));
@@ -77,6 +84,21 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
   const mixed=open*(1-smooth((zone-.18)/.25))+dunes*smooth((zone-.18)/.25)*(1-smooth((zone-.52)/.25))+
    rocky*smooth((zone-.52)/.25);
   let h=profile==='open'?open:profile==='dunes'?dunes:profile==='rocky'?rocky:profile==='oasis'?oasis:mixed;
+  if(generatorVersion===3){
+   // True continuous mountain relief follows the same physical canyon spine.
+   // The navigation grid blocks the cliff itself; only real ramps cross it.
+   for(const mountain of ridges){
+    if(mountain.ramps.some(r=>Math.abs(x-r.x)<=r.width*.55))continue;
+    let nearest=Infinity;
+    for(let k=1;k<mountain.spine.length;k++){
+     const a=mountain.spine[k-1],b=mountain.spine[k],dx=b.x-a.x,dy=b.y-a.y;
+     const t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1)));
+     nearest=Math.min(nearest,Math.hypot(x-a.x-t*dx,y-a.y-t*dy));
+    }
+    const shoulder=smooth((710-nearest)/710);
+    h+=shoulder*shoulder*(profile==='rocky'?165:profile==='open'?93:132);
+   }
+  }
   // Grade the actual authoritative terrain used by rendering, navigation
   // and placement – no floating decorative mesh and no run-time deformation.
   // Wider pads preserve the same profile on all v2 maps; in-between dunes
@@ -86,12 +108,13 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
    for(const home of homes)mask=Math.min(mask,smooth((Math.hypot(x-home.x,y-home.y)-650)/480));
    for(const site of sites)mask=Math.min(mask,smooth((Math.hypot(x-site.x,y-site.y)-230)/360));
   }else{
+   const grading=generatorVersion===3?TERRAIN_GRADING_V3:TERRAIN_GRADING_V2;
    for(const home of homes)mask=Math.min(mask,smooth(
-    (Math.hypot(x-home.x,y-home.y)-TERRAIN_GRADING_V2.homeFlatRadius)/
-     TERRAIN_GRADING_V2.homeShoulder));
+    (Math.hypot(x-home.x,y-home.y)-grading.homeFlatRadius)/
+     grading.homeShoulder));
    for(const site of sites)mask=Math.min(mask,smooth(
-    (Math.hypot(x-site.x,y-site.y)-TERRAIN_GRADING_V2.bastionFlatRadius)/
-     TERRAIN_GRADING_V2.bastionShoulder));
+    (Math.hypot(x-site.x,y-site.y)-grading.bastionFlatRadius)/
+     grading.bastionShoulder));
   }
   h*=mask;
   for(const basin of basins){
@@ -121,8 +144,8 @@ export function terrainGradingEdge(x:number,y:number,sites:readonly Point[],
  if(version<2)return 0;
  let strongest=0;
  for(const [positions,flat] of [
-  [sites,TERRAIN_GRADING_V2.bastionFlatRadius] as const,
-  [homes,TERRAIN_GRADING_V2.homeFlatRadius] as const
+  [sites,version===3?TERRAIN_GRADING_V3.bastionFlatRadius:TERRAIN_GRADING_V2.bastionFlatRadius] as const,
+  [homes,version===3?TERRAIN_GRADING_V3.homeFlatRadius:TERRAIN_GRADING_V2.homeFlatRadius] as const
  ]){
   for(const p of positions){
    const offset=Math.hypot(x-p.x,y-p.y)-flat;

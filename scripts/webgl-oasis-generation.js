@@ -14,6 +14,7 @@ export function safeOasis(p,{world,startRegions=[],heightAt},placed=[]){
  if(g.sites.some(s=>Math.hypot(p.x-s.x,p.y-s.y)<r+340))return false;
  if(startRegions.some(s=>Math.hypot(p.x-s.center.x,p.y-s.center.y)<r+s.radius+180))return false;
  if(g.corridors.some(([a,b])=>segmentDistance(p,a,b)<r+150))return false;
+ if(g.roads?.some(road=>road.slice(1).some((b,i)=>segmentDistance(p,road[i],b)<r+120)))return false;
  if(g.ruins.some(s=>Math.hypot(p.x-s.x,p.y-s.y)<r+Math.hypot(s.width,s.depth)*.5+100))return false;
  if(placed.some(s=>Math.hypot(p.x-s.x,p.y-s.y)<r+s.radius*1.35+400))return false;
  // Sample the entire footprint, not only its centre: reject cliffs and

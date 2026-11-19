@@ -1,0 +1,37 @@
+name: Sandforge procedural landscape v3 QA
+on:
+  push:
+    branches: ['feat/sandforge-procedural-landscape-v3-20261119']
+  pull_request:
+    branches: ['feat/sandforge-ai36-combat-movement-lab-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  natural-landscape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile and check WebGL module imports
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Generate six local textured oasis GLBs
+        run: node scripts/generate-oasis-adobe-glbs.mjs dist/src/assets/reborn/oasis-village
+      - name: Validate new geography and old saves
+        run: |
+          node --test \
+            tests/sandforge-oasis-hamlets-v3-20261119.test.mjs \
+            tests/sandforge-natural-landscape-v3-20261119.test.mjs \
+            tests/sandforge-natural-landscape-renderer-20261119.test.mjs \
+            tests/reborn-spacious-map-versions.test.mjs \
+            tests/webgl-pathfinding-budget-20261111.test.mjs \
+            tests/sandforge-ai36-combat-movement-20261119.test.mjs \
+            tests/webgl-vehicle-yield-spacing-stuck-20261108.test.mjs

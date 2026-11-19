@@ -106,7 +106,10 @@ a:hover{text-decoration:underline}
 </dialog>
 <dialog id="sf3d-new-dialog" aria-label="Neue 3D-Kampagne">
  <small>SANDFORGE / NEUE KAMPAGNE</small><h1>Schlachtfeld wählen</h1>
- <p>Neue Landschaft, neue Wege. Ein gleicher Seed und ein gleiches Geländeprofil erzeugen dasselbe Schlachtfeld.</p>
+ <p>Neue Landschaft, neue Wege. Derselbe Seed, derselbe Kartentyp und dasselbe Geländeprofil erzeugen wieder dasselbe Schlachtfeld.</p>
+ <label class="sf3d-field" for="sf3d-landscape">Kartengenerator
+  <select id="sf3d-landscape"><option value="network" selected>Natürliche Karte · Gebirge, Pässe und Straßen</option><option value="classic">Klassische Zufallskarte · offene Wüste</option></select>
+ </label>
  <label class="sf3d-field" for="sf3d-map-size">Kartengröße / Bastionen
   <select id="sf3d-map-size"><option value="8" selected>Standard · 8 Bastionen</option><option value="12">Groß · 12 Bastionen</option><option value="16">Sehr groß · 16 Bastionen</option></select>
  </label>

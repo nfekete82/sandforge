@@ -67,7 +67,7 @@
  let pauseCheatProgress=0;
  let suppressSpaceRelease=false;
  const saved=readSave();
- const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert'}={})=>{
+ const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert',landscape='network'}={})=>{
   const params=new URLSearchParams({bastions:String(count),seed:String(seed>>>0),play:'1'});
   // Keep local A/B policy selection while navigating from the main menu.
   if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
@@ -81,7 +81,7 @@
   const options=readOptions();
   if(options.quality==='lite')params.set('lite','1');
   if(options.fog===false)params.set('fog','0');
-  if(!resume&&!legacy)params.set('terrain',terrain);
+  if(!resume&&!legacy){params.set('terrain',terrain);params.set('landscape',landscape==='classic'?'classic':'network');}
   if(!legacy)params.set('biome',validBiome(biome));
   location.assign(gameRoute()+'?'+params);
  };
@@ -169,6 +169,7 @@
   $('sf3d-map-size').value=source?.value??'8';
   $('sf3d-seed').value='';
   $('sf3d-terrain').value='random';
+  $('sf3d-landscape').value='network';
   $('sf3d-biome').value='desert';
   newDialog.showModal();
  });
@@ -213,7 +214,7 @@
   if(!Number.isSafeInteger(n)||n<0||n>4294967295){
    $('sf3d-new-status').textContent='Seed muss zwischen 0 und 4294967295 liegen.';return;
   }
-  play(count,n,{terrain:$('sf3d-terrain').value,biome:$('sf3d-biome').value});
+  play(count,n,{terrain:$('sf3d-terrain').value,biome:$('sf3d-biome').value,landscape:$('sf3d-landscape').value});
  });
  $('sf3d-pause-resume').addEventListener('click',resumeGame);
  $('sf3d-pause-save').addEventListener('click',()=>{

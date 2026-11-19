@@ -4,7 +4,7 @@ import type {Point} from './config.js';
  * 2.5D Canvas terrain renderer. It uses genuine extruded (x,y,z) faces without
  * introducing a second scene graph or changing old map/save versions. */
 export interface CanyonRamp {x:number; width:number}
-export interface CanyonRidge {spine:Point[]; width:number; height:number; ramps:CanyonRamp[]}
+export interface CanyonRidge {spine:Point[]; width:number; height:number; ramps:CanyonRamp[]; clearings?:{point:Point;radius:number}[]}
 export interface CanyonRuin {x:number;y:number;width:number;depth:number;height:number;rotation:number;variant:number}
 export interface CanyonFeatures {ridges:CanyonRidge[];ruins:CanyonRuin[]}
 
@@ -18,7 +18,8 @@ const segmentDistance=(p:Point,a:Point,b:Point):number=>{
 };
 const nearRidge=(p:Point,r:CanyonRidge)=>r.spine.slice(1).some((b,i)=>segmentDistance(p,r.spine[i],b)<r.width*.5);
 export const isCanyonRamp=(p:Point,r:CanyonRidge):boolean=>r.ramps.some(g=>Math.abs(p.x-g.x)<g.width*.5);
-export const canyonCliffBlocked=(p:Point,r:CanyonRidge):boolean=>!isCanyonRamp(p,r)&&nearRidge(p,r);
+export const canyonCliffBlocked=(p:Point,r:CanyonRidge):boolean=>
+  !(r.clearings?.some(zone=>dist(p,zone.point)<zone.radius)??false)&&!isCanyonRamp(p,r)&&nearRidge(p,r);
 export function canyonRuinBlocked(p:Point,r:CanyonRuin,pad=0):boolean{
  const dx=p.x-r.x,dy=p.y-r.y,c=Math.cos(r.rotation),s=Math.sin(r.rotation);
  return Math.abs(dx*c+dy*s)<r.width*.5+pad&&Math.abs(-dx*s+dy*c)<r.depth*.5+pad;

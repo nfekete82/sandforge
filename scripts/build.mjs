@@ -39,7 +39,7 @@ cpSync('scripts/webgl-desert-village.js','dist/webgl-desert-village.js');
 cpSync('scripts/webgl-rock-materials.js','dist/webgl-rock-materials.js');
 cpSync('scripts/webgl-ruin-fragments.js','dist/webgl-ruin-fragments.js');
 cpSync('scripts/webgl-scenic-desert-houses.js','dist/webgl-scenic-desert-houses.js');
-for(const module of ['webgl-oases','webgl-oasis-generation','webgl-oasis-materials'])cpSync(`scripts/${module}.js`,`dist/${module}.js`);
+for(const module of ['webgl-oases','webgl-oasis-generation','webgl-oasis-materials','webgl-oasis-village-layout'])cpSync(`scripts/${module}.js`,`dist/${module}.js`);
 cpSync('scripts/webgl-map-edges.js','dist/webgl-map-edges.js');
 cpSync('scripts/webgl-title-menu.js','dist/webgl-title-menu.js');
 cpSync('scripts/webgl-battlefield.js','dist/webgl-battlefield.js');
@@ -66,6 +66,7 @@ cpSync('scripts/webgl-building-shading.js','dist/webgl-building-shading.js');
 cpSync('scripts/webgl-building-pbr.js','dist/webgl-building-pbr.js');
 cpSync('scripts/webgl-barracks-shell.js','dist/webgl-barracks-shell.js');
 cpSync('scripts/webgl-environment.js','dist/webgl-environment.js');
+cpSync('scripts/webgl-landscape-network.js','dist/webgl-landscape-network.js');
 cpSync('scripts/webgl-atmosphere-3d.js','dist/webgl-atmosphere-3d.js');
 cpSync('scripts/webgl-combat-vfx.js','dist/webgl-combat-vfx.js');
 cpSync('scripts/webgl-ordnance-profile.js','dist/webgl-ordnance-profile.js');
@@ -153,6 +154,10 @@ execFileSync(process.execPath,['scripts/generate-energy-core-pbr.mjs'],{stdio:'i
 // Real flightline service still animates doors and controls aircraft docking.
 execFileSync(process.execPath,['scripts/generate-airfield-pbr.mjs'],{stdio:'inherit'});
 cpSync('src/assets', 'dist/src/assets', {recursive:true});
+// Distinct UV-textured, render-only oasis adobe models are generated locally.
+// Source generator is tracked, binary GLBs are deterministic build outputs.
+execFileSync(process.execPath,['scripts/generate-oasis-adobe-glbs.mjs',
+ 'dist/src/assets/reborn/oasis-village'],{stdio:'inherit'});
  // Retired supply assets may survive a previous incremental build/worktree.
  // Never ship their old GLBs or WebGL handlers in a new bastion-only build.
  for(const obsolete of [

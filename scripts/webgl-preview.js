@@ -9,6 +9,7 @@ import {rollingHillHeight} from '/src/reborn/rolling-hills.js';
 import {canyonGroundSampler,rampAtX,ridgeCenterY} from '/src/reborn/canyon-height.js';
 import {SandforgeBattlefield} from '/webgl-battlefield.js';
 import {DesertOases} from '/webgl-oases.js';
+import {createLandscapeMeshes} from '/webgl-landscape-network.js';
 import {DesertArtPass} from '/webgl-environment.js';
 import {BIOME_STYLES,normalizeBiome,createBiomeGroundTexture,addBiomeVegetation} from '/webgl-biomes.js';
 import {SandforgeCombatEffects} from '/webgl-combat-vfx.js';
@@ -61,7 +62,8 @@ const session=query.get('resume')==='1'?(()=>{
  if(restored.seed!==seed||restored.territories.length!==bastions)throw Error('Spielstand passt nicht zur angeforderten Partie.');
  return restored;
 })():null;
-const game=session??(profile?Simulation.campaign(seed,sizes[bastions],profile):Simulation.campaign(seed,sizes[bastions]));
+const generatorVersion=procedural&&query.get('landscape')==='network'?3:2;
+const game=session??Simulation.campaign(seed,sizes[bastions],profile,generatorVersion);
 // Local AI laboratory: compare the same game and seed with 3.2 or 3.3 tactics.
 // Not serialized, never affects the live Uberspace release.
 if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
@@ -89,7 +91,7 @@ game.infantryVisionBonus=1.15; // modest +15% infantry sight in 3D only
 game.highGroundEnabled=true; // tactical +20% outgoing / -10% incoming only in 3D
 game.updateVision();
 const world=game.world,terrain=world.generated,size=world.size,half=size/2;
-const gradingHomes=terrain.battlefield?.generatorVersion===2
+const gradingHomes=terrain.battlefield?.generatorVersion>=2
  ?campaignLayout(world.mapVersion,seed).headquarters.map(i=>battlefieldStart(terrain.sites[i],size))
  :[];
 if(terrain.battlefield)document.title='Sandforge · '+biomeStyle.label+' · '+TERRAIN_LABELS[terrain.battlefield.profile]+' · '+seed;
@@ -368,10 +370,10 @@ function buildTerrain(){
     vertexColor.copy(biomeGroundBase).lerp(biomeGroundLight,.16+vegetationNoise*.25)
      .lerp(biomeGroundRock,Math.min(.72,rocky*.58));
    }
-   if(terrain.battlefield?.generatorVersion===2){
+   if(terrain.battlefield?.generatorVersion>=2){
     // Baked, subtle cut-and-fill earth at graded bastion edges. Same terrain
     // height field, no additional draw call or changing ground mesh.
-    const earth=terrainGradingEdge(x,z,terrain.sites,gradingHomes,2);
+    const earth=terrainGradingEdge(x,z,terrain.sites,gradingHomes,terrain.battlefield.generatorVersion);
     vertexColor.lerp(sandstone,earth*.16);
    }
    // Warm pale dune sand only. Building GLBs and everything else
@@ -539,7 +541,9 @@ function instancedStone(){
  // Keep seed determinism and all real navigation/collision rocks unchanged.
  for(let i=0;i<(spacious&&biome==='desert'?60:spacious?420:1600);i++){
   const x=75+r()*(size-150),z=75+r()*(size-150),index=world.index({x,y:z});
-  if(index<0||world.blocked[index]||terrain.sites.some(p=>Math.hypot(x-p.x,z-p.y)<160))continue;
+  if(index<0||world.blocked[index]||terrain.sites.some(p=>Math.hypot(x-p.x,z-p.y)<160)||
+   (terrain.battlefield?.generatorVersion===3&&terrain.ridges.some(ridge=>ridge.clearings?.some(zone=>
+    Math.hypot(x-zone.point.x,z-zone.point.y)<zone.radius+24))))continue;
   put(x,z,spacious?1.4+r()*3.6:2+r()*5,
    spacious?.8+r()*2.7:1+r()*4,
    spacious?1.5+r()*4.2:2+r()*6);
@@ -1019,6 +1023,9 @@ function resize(){
 }
 new ResizeObserver(resize).observe(stage);resize();
 const chunks=buildTerrain();
+// One-time geometry; roads and physical cliffs are never updated per frame.
+const landscapeMeshes=terrain.battlefield?.generatorVersion===3?
+ createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],ridges:terrain.ridges,biome,lowQuality:query.get('lite')==='1'}):[];
 boundaryCliffs=addBoundaryCliffs({scene,size,heightAt,seed,lowQuality:query.get('lite')==='1',softRim:spacious,hardVoid:spacious});
 const stones=instancedStone();
 // Desert corridors are navigation-only; no permanent tracks leading to Bastions.
@@ -1028,14 +1035,8 @@ const biomeVegetation=addBiomeVegetation({THREE,scene,world,terrain,game,heightA
 // One visual-only instanced draw call; no gameplay pathing or collision edits.
 const washStones=spacious&&biome==='desert'?addDesertWashStones({scene,world,size,seed,heightAt,
  sites:terrain.sites,lowQuality:query.get('lite')==='1'}):null;
-// Desert hamlets now share the SAME two textured authored canyon ruin GLTFs
-// as the original Sandforge ruins. No procedural box houses or opaque roads.
-// Load asynchronously so terrain and units remain responsive at game start.
-const villageArt=spacious&&biome==='desert'?createDesertVillages({scene,world,terrain,
- pos,heightAt,seed,lowQuality:query.get('lite')==='1',
- loadModel:async url=>{await ruinStrataLoad;return tryModel(url);},
- weatherModel:weatherRuinMeshes
-}).catch(error=>{console.warn('Scenic abandoned hamlet unavailable:',error);return null;}):null;
+// Oases are initialized before v3 village placement, so decorative houses
+// are positioned around the actual oasis pool rather than random empty sand.
 const battlefield=new SandforgeBattlefield({
  game,world,terrain,scene,renderer,camera,controls,loader,groundMeshes,heightAt,pos,biome,
  lite:query.get('lite')==='1'
@@ -1137,6 +1138,15 @@ if(query.get('showcase')==='1')setShowcase(true);
 const desertArt=new DesertArtPass({scene,world,terrain,heightAt,pos,loader,biome,lowQuality:query.get('lite')==='1'});
 const oases=new DesertOases({scene,game,heightAt,groundMeshes,lowQuality:query.get('lite')==='1',enabled:biome==='desert'&&query.get('oases')!=='off'});
 battlefield.oases=oases;
+// Generator v3: six unique, locally generated UV-textured adobe house GLBs.
+// Older maps keep their established sparse two-GLTF hamlets, unchanged.
+// Render-only scenery; never creates terrain obstacles or changes saved games.
+const villageArt=spacious&&biome==='desert'?createDesertVillages({
+ scene,world,terrain,pos,heightAt,seed,lowQuality:query.get('lite')==='1',
+ oases:oases.layout,
+ loadModel:async url=>{await ruinStrataLoad;return tryModel(url);},
+ weatherModel:weatherRuinMeshes
+}).catch(error=>{console.warn('Oasis adobe hamlet unavailable:',error);return null;}):null;
 const oasisFocus=oases.layout.find(o=>o.type===query.get('oasis'));
 if(oasisFocus){
  const target=pos(oasisFocus.x,oasisFocus.y);target.y+=24;
