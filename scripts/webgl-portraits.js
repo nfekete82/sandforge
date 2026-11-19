@@ -41,6 +41,20 @@ export const strategicBuildingIcon=kind=>{
    '</svg>';
   return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
  }
+ if(kind==='bunker'){
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" width="192" height="190" viewBox="0 0 192 190">'+
+   '<rect width="192" height="190" rx="12" fill="#26302a"/>'+
+   '<ellipse cx="96" cy="151" rx="80" ry="18" fill="#66594a"/>'+
+   '<path d="M29 107 L57 69 L134 69 L165 107 L160 144 L33 144Z" fill="#b6a58b" stroke="#776d59" stroke-width="5"/>'+
+   '<path d="M57 69 L74 54 L122 54 L134 69 L160 99 L35 99Z" fill="#6b6d60" stroke="#c9b594" stroke-width="4"/>'+
+   '<rect x="43" y="109" width="29" height="10" rx="2" fill="#202b29"/>'+
+   '<rect x="82" y="109" width="29" height="10" rx="2" fill="#202b29"/>'+
+   '<rect x="121" y="109" width="29" height="10" rx="2" fill="#202b29"/>'+
+   '<path d="M37 132H153" stroke="#cbba94" stroke-width="7"/>'+
+   '<rect x="79" y="139" width="35" height="5" rx="2" fill="#3c819e"/>'+
+   '</svg>';
+  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
+ }
  if(!['research','silo','interceptor'].includes(kind))return null;
  const pict=kind==='research'?
   '<rect x="40" y="65" width="112" height="86" rx="6" fill="#a9997c"/>'+
