@@ -661,13 +661,14 @@ export class TacticalAI {
   const edge={x:clamp(hq.x+(hq.x>=g.world.size/2?165:-165),85,g.world.size-85),
     y:clamp(hq.y+(hq.y>=g.world.size/2?135:-135),85,g.world.size-85)};
   const dock=g.world.nearest(edge,this.obstacles(),[],u,Math.max(0,unitSpec(u).radius-10));
+  if(!dock)return;
   if(this.ai36Enabled&&u.defendUntil>g.time){
    const observed=g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&
     v.kind!=='drone'&&g.canSee(1,v)&&distance(v,u)<unitSpec(v).range+160);
    const guns=s.knownTurrets.filter(t=>distance(t,u)<t.range+200);
    if((observed.length||guns.length)&&!this.retreatSafe(u,dock,observed,guns))return;
   }
-  if(!dock||!g.command([u.id],{...dock,kind:'move'}))return;
+  if(!g.command([u.id],{...dock,kind:'move'}))return;
   u.orders[0].tactical={group:s.groupId,mode:'safe'};
   s.recovering??=[];s.recovering.push(u.id);
  }
