@@ -14,13 +14,14 @@ export const WALL_EDGE_SHORT=17; // real footing is 32 deep; half-depth 16
  * the authoritative Simulation.buildError(). This only solves clicks near
  * the map edge where the mouse is closer than half a panel to the border.
  */
-export function snapWallSiteToMap(point,facing,mapSize){
+export function snapWallSiteToMap(point,facing,mapSize,kind='wall'){
+ const long=kind==='wallGate'?110:WALL_EDGE_LONG;
  if(!point||![point.x,point.y,mapSize].every(Number.isFinite)||
-  mapSize<=WALL_EDGE_LONG*2)return null;
+  mapSize<=long*2)return null;
  const clamp=(n,low,high)=>Math.max(low,Math.min(high,n));
  const horizontal=facing===0||facing===1;
- const xMargin=horizontal?WALL_EDGE_LONG:WALL_EDGE_SHORT;
- const yMargin=horizontal?WALL_EDGE_SHORT:WALL_EDGE_LONG;
+ const xMargin=horizontal?long:WALL_EDGE_SHORT;
+ const yMargin=horizontal?WALL_EDGE_SHORT:long;
  return {x:clamp(point.x,xMargin,mapSize-xMargin),
   y:clamp(point.y,yMargin,mapSize-yMargin)};
 }
