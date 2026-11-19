@@ -37,7 +37,7 @@ export function homeDefensePlan(x:HomeDefenseInput):HomeDefensePlan {
  return {
   guards,minimumReady,
   notBefore:Math.max(early?(x.tempoPressure?37:50):0,cooldown),
-  allowSecondaryRaids:(!early||x.tempoPressure)&&!setback&&!x.observedHomePressure&&fighters>=10,
+  allowSecondaryRaids:(!early||!!x.tempoPressure)&&!setback&&!x.observedHomePressure&&fighters>=10,
   mode:x.observedHomePressure?'defense':setback?'recover':early?'buildup':'probe'
  };
 }
