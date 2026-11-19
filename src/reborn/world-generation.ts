@@ -1,5 +1,5 @@
 import { RULES, mapLayout, campaignLayout, mapWorldSize, type MapVersion, type Point } from './config.js';
-import {BATTLEFIELD_GENERATOR,TERRAIN_GRADING_V2,terrainProfile,streamSeed,battlefieldStart,generateBattlefieldTerrain,type TerrainProfile,type BattlefieldTerrain,type BattlefieldGeneratorVersion} from './battlefield-terrain.js';
+import {BATTLEFIELD_GENERATOR,TERRAIN_GRADING_V2,TERRAIN_GRADING_V3,terrainProfile,streamSeed,battlefieldStart,generateBattlefieldTerrain,type TerrainProfile,type BattlefieldTerrain,type BattlefieldGeneratorVersion} from './battlefield-terrain.js';
 import {generateCanyonFeatures,canyonRuinBlocked,type CanyonRidge,type CanyonRuin} from './canyon-front.js';
 import {generateLandscapeNetwork} from './landscape-network.js';
 
@@ -35,6 +35,7 @@ function hull(points:Point[]):Point[] {
 export function generateMap(seed:number,version:Exclude<MapVersion,0>=MAP_VERSION,requestedProfile?:TerrainProfile,candidate=0,generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR):GeneratedMap {
   const layout=campaignLayout(version,seed),cols=layout.columns,rows=layout.rows,count=cols*rows;
   const modern=version>=23,profile=terrainProfile(seed,requestedProfile);
+  const grading=generatorVersion===3?TERRAIN_GRADING_V3:TERRAIN_GRADING_V2;
   let rand=seededRandom(modern?streamSeed(seed,'sites'):seed);
   const size=mapWorldSize(version),grid=RULES.grid,cell=size/grid,w=size/cols,h=size/rows;
   // Stratified rejection sampling avoids clumps and preserves adjacent capture sectors.
@@ -58,12 +59,13 @@ export function generateMap(seed:number,version:Exclude<MapVersion,0>=MAP_VERSIO
   sites.forEach((p,i)=>{if(i%cols<cols-1)corridors.push([p,sites[i+1]]);if(i<count-cols)corridors.push([p,sites[i+cols]]);});
   // New canyon-only geometry. Previous map versions keep identical world tiles.
   const canyon:{ridges:CanyonRidge[];ruins:CanyonRuin[]}=!modern&&version>=15?generateCanyonFeatures(seed,size,cols,rows,sites,corridors):{ridges:[],ruins:[]};
-  const landscape=modern&&generatorVersion===3?generateLandscapeNetwork(seed,size,sites,cols,rows,candidate):null;
+  const homes=layout.headquarters.map(id=>battlefieldStart(sites[id],size));
+  const landscape=modern&&generatorVersion===3?generateLandscapeNetwork(seed,size,sites,cols,rows,candidate,homes):null;
   if(landscape)canyon.ridges=landscape.ridges;
   if(modern){
     // Ruins keep their own stream and inherit the established road/site exclusions.
     canyon.ruins=generateCanyonFeatures(streamSeed(seed,'ruins',candidate),size,cols,rows,sites,corridors,true).ruins
-      .filter(r=>layout.headquarters.every(id=>Math.hypot(r.x-battlefieldStart(sites[id],size).x,r.y-battlefieldStart(sites[id],size).y)>870)&&
+      .filter(r=>layout.headquarters.every(id=>Math.hypot(r.x-battlefieldStart(sites[id],size).x,r.y-battlefieldStart(sites[id],size).y)>(landscape?grading.homeFlatRadius+300:870))&&
        sites.every(s=>Math.hypot(r.x-s.x,r.y-s.y)>BASTION_RUIN_CLEARANCE)&&
        (!landscape||landscape.roads.every(road=>road.slice(1).every((b,i)=>segmentDistance(r,road[i],b)>Math.max(r.width,r.depth)+155)))&&
        canyon.ridges.every(ridge=>ridge.spine.slice(1).every((b,i)=>segmentDistance(r,ridge.spine[i],b)>ridge.width+150)));
@@ -75,10 +77,10 @@ export function generateMap(seed:number,version:Exclude<MapVersion,0>=MAP_VERSIO
     const target={open:1,dunes:2,rocky:1,oasis:5,mixed:3}[profile];
     for(let trial=0;trial<2400&&basins.length<target;trial++){
       const p={x:650+oasisRandom()*(size-1300),y:650+oasisRandom()*(size-1300)};
-      if(sites.some(s=>Math.hypot(p.x-s.x,p.y-s.y)<(generatorVersion===1?650:TERRAIN_GRADING_V2.bastionFlatRadius+585))||
+      if(sites.some(s=>Math.hypot(p.x-s.x,p.y-s.y)<(generatorVersion===1?650:grading.bastionFlatRadius+585))||
          corridors.some(([a,b])=>segmentDistance(p,a,b)<410)||
          (landscape&&landscape.roads.some(road=>road.slice(1).some((b,i)=>segmentDistance(p,road[i],b)<460)))||
-         layout.headquarters.some(id=>Math.hypot(p.x-battlefieldStart(sites[id],size).x,p.y-battlefieldStart(sites[id],size).y)<(generatorVersion===1?1250:TERRAIN_GRADING_V2.homeFlatRadius+650))||
+         layout.headquarters.some(id=>Math.hypot(p.x-battlefieldStart(sites[id],size).x,p.y-battlefieldStart(sites[id],size).y)<(generatorVersion===1?1250:grading.homeFlatRadius+650))||
          canyon.ruins.some(r=>Math.hypot(p.x-r.x,p.y-r.y)<450)||
          canyon.ridges.some(ridge=>ridge.spine.slice(1).some((b,i)=>segmentDistance(p,ridge.spine[i],b)<550))||
          basins.some(b=>Math.hypot(p.x-b.x,p.y-b.y)<1050))continue;
@@ -88,7 +90,7 @@ export function generateMap(seed:number,version:Exclude<MapVersion,0>=MAP_VERSIO
   const reserved=new Uint8Array(grid*grid),occupied=new Uint8Array(grid*grid);
   for(let i=0;i<reserved.length;i++){
     const p={x:(i%grid+.5)*cell,y:(Math.floor(i/grid)+.5)*cell};
-    if(basins.some(b=>Math.hypot(p.x-b.x,p.y-b.y)<330)||(modern&&layout.headquarters.some(id=>Math.hypot(p.x-battlefieldStart(sites[id],size).x,p.y-battlefieldStart(sites[id],size).y)<(generatorVersion===1?780:TERRAIN_GRADING_V2.homeFlatRadius+TERRAIN_GRADING_V2.rockSafetyMargin)))||sites.some((s,j)=>Math.hypot(p.x-s.x,p.y-s.y)<(modern&&generatorVersion>=2?TERRAIN_GRADING_V2.bastionFlatRadius+TERRAIN_GRADING_V2.rockSafetyMargin:layout.headquarters.some(id=>id===j)?version>=2?Math.min(520,w*.7):335:version>=2?Math.min(230,w*.38):155))||corridors.some(([a,b])=>segmentDistance(p,a,b)<CORRIDOR_RADIUS+cell)||(landscape&&landscape.roads.some(road=>road.slice(1).some((b,j)=>segmentDistance(p,road[j],b)<CORRIDOR_RADIUS+cell)))||canyon.ridges.some(r=>r.spine.slice(1).some((b,j)=>segmentDistance(p,r.spine[j],b)<r.width+125))||canyon.ruins.some(r=>canyonRuinBlocked(p,r,95)))reserved[i]=1;
+    if(basins.some(b=>Math.hypot(p.x-b.x,p.y-b.y)<330)||(modern&&layout.headquarters.some(id=>Math.hypot(p.x-battlefieldStart(sites[id],size).x,p.y-battlefieldStart(sites[id],size).y)<(generatorVersion===1?780:grading.homeFlatRadius+grading.rockSafetyMargin)))||sites.some((s,j)=>Math.hypot(p.x-s.x,p.y-s.y)<(modern&&generatorVersion>=2?grading.bastionFlatRadius+grading.rockSafetyMargin:layout.headquarters.some(id=>id===j)?version>=2?Math.min(520,w*.7):335:version>=2?Math.min(230,w*.38):155))||corridors.some(([a,b])=>segmentDistance(p,a,b)<CORRIDOR_RADIUS+cell)||(landscape&&landscape.roads.some(road=>road.slice(1).some((b,j)=>segmentDistance(p,road[j],b)<CORRIDOR_RADIUS+cell)))||canyon.ridges.some(r=>r.spine.slice(1).some((b,j)=>segmentDistance(p,r.spine[j],b)<r.width+125))||canyon.ruins.some(r=>canyonRuinBlocked(p,r,95)))reserved[i]=1;
   }
   const mesas:Mesa[]=[];
   // Wide v19+ landscapes should have expansive empty maneuvering ground.
