@@ -1,0 +1,33 @@
+name: Sandforge clear buildable desert boulders regression
+on:
+  push:
+    branches:
+      - fix/sandforge-clear-blocking-desert-boulders-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  boulder-clearance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and WebGL module integrity
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-preview.js
+          node --check scripts/webgl-environment.js
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Historical maps, collision-free modern terrain and buildability
+        run: |
+          node --test \
+            tests/sandforge-clear-blocking-boulders-20261119.test.mjs \
+            tests/sandforge-procedural-battlefields.test.mjs \
+            tests/sandforge-natural-landscape-v3-20261119.test.mjs \
+            tests/webgl-desert-defilade-rock-density-20261115.test.mjs
