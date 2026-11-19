@@ -1674,7 +1674,7 @@ export class SandforgeBattlefield {
     this.message(count?count+' Soldat(en) verlassen den Bunker':'Kein freier Ausstieg am Bunker');
     this.drawInterface();return;
    }
-   if(action==='upgrade-bastion'){
+   if(button.dataset.upgradeBastion!==undefined){
     const id=Number(button.dataset.upgradeBastion);
     const ok=this.game.upgradeBastion(0,id);
     this.message(ok?'Bastion Stufe 2 · Einkommen verdoppelt!':
