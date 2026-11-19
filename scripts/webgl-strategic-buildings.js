@@ -142,47 +142,117 @@ const siloInnerSteelPaint=(()=>{
  return map;
 })();
 
-/** Static destructible base wall, rendered once and shared by preview and game. */
-function createDefensiveWall(owner){
- const root=new THREE.Group();root.name='Strategic_wall';
- root.userData={visualOnly:true,defensiveWall:true};
- // Textured sand/khaki/olive camouflage on the actual concrete faces, not
- // a flat overlay. Reuse the existing deterministic Sandforge PBR albedo;
- // the very same model is drawn in-game, for the ghost and the HUD tile.
+/** A few weathered, metallic razor-wire coils on solid wall segments.
+ * One merged draw call: no per-barb scene nodes, update loops or animations.
+ * The geometry belongs to its wall model and is safely disposed on removal.
+ */
+function addWallBarbedWire(root,{half=false}={}){
+ const steel=new THREE.MeshStandardMaterial({
+  name:'Sandforge weathered galvanized barbed wire',
+  color:'#70716b',roughness:.64,metalness:.76,
+  side:THREE.DoubleSide
+ });
+ const pieces=[];
+ const coil=(a,b,z)=>{
+  const points=[];
+  const turns=Math.max(2,Math.round((b-a)/11));
+  for(let i=0;i<=turns*12;i++){
+   const t=i/(turns*12),ang=t*turns*Math.PI*2;
+   points.push(new THREE.Vector3(
+    a+(b-a)*t,56.1+2.5*Math.cos(ang),z+2.5*Math.sin(ang)));
+  }
+  pieces.push(new THREE.TubeGeometry(
+   new THREE.CatmullRomCurve3(points),turns*12,.23,4,false));
+  // Small twisted barbs are formed in the geometry, not independent meshes.
+  for(let i=1;i<turns*2;i++){
+   const x=a+(b-a)*i/(turns*2);
+   const barb=new THREE.CylinderGeometry(.13,.13,4.2,4);
+   barb.rotateZ(i%2?Math.PI*.23:-Math.PI*.23);
+   barb.translate(x,56.1,z+1.8*(i%2?1:-1));
+   pieces.push(barb);
+  }
+ };
+ if(half){
+  // Keep the central gate opening completely free of overhead wire.
+  coil(-53,-43,-5);coil(43,53,5);
+ }else{
+  coil(-51,51,-6);coil(-51,51,6);
+ }
+ for(const x of half?[-51,51]:[-49,-16,16,49]){
+  const post=new THREE.CylinderGeometry(.37,.47,8,6);
+  post.translate(x,54.3,half?(x>0?6:-6):0);
+  pieces.push(post);
+ }
+ const combined=mergeGeometries(pieces,false);
+ for(const part of pieces)part.dispose();
+ if(!combined){steel.dispose();return;}
+ const mesh=new THREE.Mesh(combined,steel);
+ mesh.name='Wall_3D_BarbedWire_Coils';
+ mesh.castShadow=false;mesh.receiveShadow=true;
+ mesh.userData={visualOnly:true,barbedWire:true};
+ root.add(mesh);
+}
+
+/** Destructible concrete wall/gate models share camouflage, true footprint
+ * and rotating terrain pose. Gate leaves open visually only to its owner's
+ * approaching troops; physics uses separate per-faction navigation masks.
+ */
+function createDefensiveWall(owner,gate=false){
+ const root=new THREE.Group();
+ root.name=gate?'Strategic_wallGate':'Strategic_wall';
+ root.userData={visualOnly:true,defensiveWall:true,gate};
  const concrete=new THREE.MeshStandardMaterial({
   name:'Sandforge defensive wall | desert camouflage',
   color:'#fff7e7',roughness:.9,metalness:.04,
   map:siloDesertCamo,bumpMap:materialGrain,bumpScale:.24
  });
- // The albedo is already camouflage: do not cover it with the generic
- // world-position shader (it would slide across a moving build preview).
  concrete.userData={sandforgeWallCamouflage:true,sandforgeColorMapCamo:true};
  const cap=new THREE.MeshStandardMaterial({color:'#817960',roughness:.84,metalness:.19,
   map:materialGrain,bumpMap:materialGrain,bumpScale:.1});
  const stripe=new THREE.MeshStandardMaterial({color:FACTION_PAINT[owner],
   roughness:.6,metalness:.25});
- const add=(w,h,d,x,y,z,mat,name)=>{
+ const add=(parent,w,h,d,x,y,z,mat,name)=>{
   const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
   m.position.set(x,y,z);m.name=name;m.castShadow=true;m.receiveShadow=true;
-  root.add(m);
+  parent.add(m);return m;
  };
- add(109,7,30,0,4,0,cap,'WallFooting');
- for(const x of [-35,0,35]){
-  add(33,32,18,x,24,0,concrete,'WallArmoredPanel');
-  add(33,5,21,x,42,0,cap,'WallCoping');
-  add(27,2,22,x,46,0,stripe,'WallFactionBand');
+ if(!gate){
+  add(root,109,7,30,0,4,0,cap,'WallFooting');
+  for(const x of [-35,0,35]){
+   add(root,33,32,18,x,24,0,concrete,'WallArmoredPanel');
+   add(root,33,5,21,x,42,0,cap,'WallCoping');
+   add(root,27,2,22,x,46,0,stripe,'WallFactionBand');
+  }
+ }else{
+  // Open roadway: no permanent ground-height concrete blocking the passage.
+  for(const x of [-51,51])
+   add(root,8,5,29,x,3,0,cap,'GateSideFooting');
+  const left=new THREE.Group(),right=new THREE.Group();
+  left.name='WallGate_Leaf_Left';right.name='WallGate_Leaf_Right';
+  left.position.set(-47,0,0);right.position.set(47,0,0);
+  root.add(left,right);
+  add(left,45,38,9,22.5,24,0,concrete,'WallGate_Left_ArmoredLeaf');
+  add(right,45,38,9,-22.5,24,0,concrete,'WallGate_Right_ArmoredLeaf');
+  add(left,43,4,13,22.5,45,0,stripe,'WallGate_Left_TeamStripe');
+  add(right,43,4,13,-22.5,45,0,stripe,'WallGate_Right_TeamStripe');
+  for(const x of [-8,8]){
+   add(left,2.2,29,12,22.5+x,23,0,cap,'WallGate_Left_Reinforcement');
+   add(right,2.2,29,12,-22.5+x,23,0,cap,'WallGate_Right_Reinforcement');
+  }
+  root.userData.gateLeaves=[left,right];
  }
  for(const x of [-52,52]){
-  add(8,47,25,x,26,0,cap,'WallPillar');
-  add(10,5,28,x,51,0,concrete,'WallPillarTop');
+  add(root,8,47,25,x,26,0,cap,'WallPillar');
+  add(root,10,5,28,x,51,0,concrete,'WallPillarTop');
  }
+ addWallBarbedWire(root,{half:gate});
  return root;
 }
-export const STRATEGIC_BUILDING_KINDS=Object.freeze(['research','silo','interceptor','wall']);
+export const STRATEGIC_BUILDING_KINDS=Object.freeze(['research','silo','interceptor','wall','wallGate']);
 export const isStrategicBuilding=kind=>STRATEGIC_BUILDING_KINDS.includes(kind);
 export function createStrategicBuilding(kind,owner=0){
  if(!isStrategicBuilding(kind))return null;
- if(kind==='wall')return createDefensiveWall(owner);
+ if(kind==='wall'||kind==='wallGate')return createDefensiveWall(owner,kind==='wallGate');
  const root=new THREE.Group();
  root.name='Strategic_'+kind;
  root.userData.visualOnly=true;

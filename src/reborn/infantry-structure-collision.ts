@@ -7,7 +7,7 @@ import {airfieldGroundStructureColliders} from './airfield-maintenance.js';
 
 /** The same facade footprint is used by navigation and construction placement. */
 export function infantryStructureCollider(kind:BuildingKind,point:{x:number;y:number},radius=BUILDINGS[kind].radius):{x:number;y:number;radius:number}{
- if(kind==='wall')return {x:point.x,y:point.y,radius:24};
+ if((kind==='wall'||kind==='wallGate'))return {x:point.x,y:point.y,radius:24};
  const spec=BUILDINGS[kind],width=buildingArtWidth(kind,spec.width);
  return {x:point.x,y:point.y-Math.min(26,width*.10),radius:Math.max(radius,width*.43)};
 }
@@ -17,7 +17,7 @@ export function infantryStructureCollider(kind:BuildingKind,point:{x:number;y:nu
  * Shapes are slightly narrower than vehicle clearance so workers can still
  * reach the repair/construction interaction ring, including large airfields. */
 export function infantryStructureColliders(bases:readonly Base[]):{x:number;y:number;radius:number}[]{
- return bases.filter(b=>b.hp>0).flatMap(b=>b.kind==='wall'?
+ return bases.filter(b=>b.hp>0).flatMap(b=>(b.kind==='wall'||b.kind==='wallGate')?
   wallColliderSamples(b):b.kind==='airfield'?
   airfieldGroundStructureColliders(b):[infantryStructureCollider(b.kind,b,b.radius)]);
 }

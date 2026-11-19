@@ -11,7 +11,7 @@ import { World, inside, type Territory } from './world.js';
 import {visibleBasePropColliders} from './vehicle-decor-collision.js';
 import {vehicleStructureCollider,vehicleStructureColliders} from './vehicle-structure-collision.js';
 import {infantryStructureCollider,infantryStructureColliders} from './infantry-structure-collision.js';
-import {wallColliderSamples,wallTerrainPlacementError} from './defensive-wall.js';
+import {wallColliderSamples,wallTerrainPlacementError,isWallLike,navigableBasesForFaction,WALL_GATE_UPGRADE_COST} from './defensive-wall.js';
 import {bastionStructureColliders} from './bastion-structure-collision.js';
 import {constructionVisualClearance,sitesVisuallyOverlap,siteNearBastion,siteExceedsMap,siteTerrainCompatible,type SiteFacing} from './construction-spacing.js';
 import {segmentDistance} from './world-generation.js';
@@ -687,6 +687,29 @@ export class Simulation {
   }
   static campaign(seed=randomMapSeed(),version:MapVersion=MAP_VERSION,profile?:TerrainProfile,generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR):Simulation {return new Simulation(seed,version,false,true,profile,generatorVersion);}
   obstacles():Base[]{return this.bases.filter(b=>b.hp>0);}
+  /** The owner may drive through a completed gate. Enemies see exactly
+   * the same full wall collision even while the gate animates open.
+   */
+  navigationBases(owner:Faction):Base[]{
+   return navigableBasesForFaction(this.obstacles(),owner);
+  }
+  /** Paid upgrade of a real, finished existing wall. Avoid requiring the
+   * player to demolish a perimeter and expose an uncontrolled opening.
+   */
+  convertWallToGate(owner:Faction,id:number):boolean{
+   const b=this.bases.find(b=>b.id===id&&b.kind==='wall'&&
+    b.owner===owner&&b.hp>0&&b.buildRemaining<=0);
+   if(!b||this.status!=='playing'||this.credits[owner]<WALL_GATE_UPGRADE_COST)return false;
+   const ratio=b.hp/BUILDINGS.wall.hp;
+   this.credits[owner]-=WALL_GATE_UPGRADE_COST;
+   b.kind='wallGate';b.radius=BUILDINGS.wallGate.radius;
+   b.hp=Math.min(BUILDINGS.wallGate.hp,Math.max(1,ratio*BUILDINGS.wallGate.hp));
+   this.movementCollision=undefined;
+   // An old cached wall route must not survive a gate upgrade.
+   for(const u of this.units)if(!unitSpec(u).flying){u.path=[];u.repath=0;}
+   this.notices.push('Sperrmauer für '+WALL_GATE_UPGRADE_COST+' Credits zum Mauertor umgerüstet.');
+   return true;
+  }
   /** Static structure/facade colliders are identical for every actor during
    * the same 20 Hz tick. Reusing them cuts repeated map/filter and array
    * allocations in large vehicle battles without changing pathfinding.
@@ -712,6 +735,13 @@ export class Simulation {
     vehicleFacades:{x:number;y:number;radius:number}[];
     infantry:{x:number;y:number;radius:number}[];
     vehicle:{x:number;y:number;radius:number}[];
+    byOwner:{
+      buildings:Base[];
+      infantryFacades:{x:number;y:number;radius:number}[];
+      vehicleFacades:{x:number;y:number;radius:number}[];
+      infantry:{x:number;y:number;radius:number}[];
+      vehicle:{x:number;y:number;radius:number}[];
+    }[];
   };
   private movingColliders(){
     const current=this.movementCollision;
@@ -720,9 +750,16 @@ export class Simulation {
       decor=this.vehicleDecorObstacles();
     const infantryFacades=infantryStructureColliders(buildings),
       vehicleFacades=vehicleStructureColliders(buildings);
+    const byOwner=([0,1] as const).map(owner=>{
+      const physical=navigableBasesForFaction(buildings,owner);
+      const feet=infantryStructureColliders(physical),wheels=vehicleStructureColliders(physical);
+      return {buildings:physical,infantryFacades:feet,vehicleFacades:wheels,
+        infantry:[...physical,...feet,...towers],
+        vehicle:[...physical,...wheels,...decor,...towers]};
+    });
     const result={at:this.time,buildings,towers,decor,infantryFacades,
       vehicleFacades,infantry:[...buildings,...infantryFacades,...towers],
-      vehicle:[...buildings,...vehicleFacades,...decor,...towers]};
+      vehicle:[...buildings,...vehicleFacades,...decor,...towers],byOwner};
     this.movementCollision=result;
     return result;
   }
@@ -776,7 +813,7 @@ export class Simulation {
    * and never let a mesh pass over a blocked cliff/rock or an existing site.
    * Exploration and artificial sector polygon edges do not clip a perimeter.
    */
-  private wallPlacementError(p:Point,facing:SiteFacing):string|null{
+  private wallPlacementError(p:Point,facing:SiteFacing,kind:BuildingKind='wall'):string|null{
     // Wall-exclusive collision validation: gentle and substantial rolling
     // slopes are allowed, unlike rigid HQ/factory foundations. The entire
     // real mesh must still stay in bounds and never pass through blocked
@@ -786,9 +823,9 @@ export class Simulation {
     // Walls may TOUCH end-to-end. Overlapping foundations and all other
     // real building/repair footprints remain strictly forbidden.
     if(this.obstacles().some(b=>sitesVisuallyOverlap(
-        'wall',p,facing,b.kind,b,b.facing??0)))
+        kind,p,facing,b.kind,b,b.facing??0)))
       return 'Ein Gebäude oder eine vorhandene Mauer blockiert die Strecke.';
-    if(this.territories.some(t=>siteNearBastion('wall',p,facing,t.point)))
+    if(this.territories.some(t=>siteNearBastion(kind,p,facing,t.point)))
       return 'Bastion oder Kontrollpunkt blockiert die Strecke.';
     const segments=wallColliderSamples(p,facing,24);
     if(this.units.some(u=>u.hp>0&&!u.carrier&&!unitSpec(u).flying&&
@@ -804,8 +841,8 @@ export class Simulation {
     // Walls are individual inexpensive, destructible segments. The old
     // global 40-building cap prevented drawing even half a long map border.
     // Bound the separate wall budget to protect saves and rendering instead.
-    if(kind==='wall'?this.bases.filter(b=>b.kind==='wall'&&b.hp>0).length>=200:
-      this.bases.filter(b=>b.kind!=='wall'&&b.hp>0).length>=40)
+    if(isWallLike(kind)?this.bases.filter(b=>isWallLike(b.kind)&&b.hp>0).length>=220:
+      this.bases.filter(b=>!isWallLike(b.kind)&&b.hp>0).length>=40)
       return 'Gebäudelimit erreicht.';
     if(kind==='generator'&&this.bases.filter(b=>b.owner===owner&&b.kind==='generator'&&b.hp>0).length>=MAX_GENERATORS_PER_FACTION)
       return `Maximal ${MAX_GENERATORS_PER_FACTION} Energiekerne pro Fraktion.`;
@@ -822,7 +859,7 @@ export class Simulation {
     // A dragged perimeter is allowed in any navigable part of the map,
     // including non-sector border bands. The individual wall footprint is
     // still tested against actual rocks, buildings, units and terrain.
-    if(kind==='wall')return this.wallPlacementError(p,facing);
+    if(isWallLike(kind))return this.wallPlacementError(p,facing,kind);
     if(kind!=='headquarters'&&!this.hasExplored(owner,p))return 'Dieser Bauplatz ist noch nicht erforscht.';
     if(!this.world.walkable(p))return 'Felsen blockieren die Baustelle.';
     // build() later resolves the containing territory. A valid-looking
@@ -883,7 +920,7 @@ export class Simulation {
     const workers=this.units.filter(u=>u.owner===owner&&u.kind==='engineer'&&u.hp>0&&!u.carrier&&(!workerIds||workerIds.includes(u.id)));
     if(!workers.length)return null;
     const spec=BUILDINGS[kind],territory=this.territories.find(t=>inside(p,t.polygon))??
-      (kind==='wall'?[...this.territories].sort((a,b)=>
+      (isWallLike(kind)?[...this.territories].sort((a,b)=>
        distance(a.point,p)-distance(b.point,p))[0]:undefined);
     if(!territory){this.notices.push('Bauplatz liegt außerhalb eines Sektors.');return null;}
     let id=1000;while(this.bases.some(b=>b.id===id)||this.units.some(u=>u.id===id))id++;
@@ -1064,7 +1101,7 @@ export class Simulation {
       if(captureSite){const length=Math.hypot(offset.x,offset.y),limit=RULES.captureRadius-30;
         if(length>limit){offset={x:offset.x*limit/length,y:offset.y*limit/length};}}
       const spec=unitSpec(u),p={x:order.x+offset.x,y:order.y+offset.y};
-      const buildings=this.obstacles(),towers=this.bastionColliders();
+      const buildings=this.navigationBases(u.owner),towers=this.bastionColliders();
       const obstacles=spec.flying?buildings:spec.group==='Infanterie'
          ?[...buildings,...infantryStructureColliders(buildings),...towers]
          :[...buildings,...vehicleStructureColliders(buildings),...this.vehicleDecorObstacles(),...towers];
@@ -1100,7 +1137,7 @@ export class Simulation {
   }
   private supportApproach(u:Unit,target:Unit|Base,requireReachable=false,startSide=0):Point|null {
     const radius='queue' in target?target.radius+32:35,angle=Math.atan2(u.y-target.y,u.x-target.x),range='queue' in target?target.radius+55:u.kind==='engineer'?REPAIR_RADIUS:this.healRadius(u);
-    const buildings=this.obstacles(),routeObstacles=[...buildings,...infantryStructureColliders(buildings)],
+    const buildings=this.navigationBases(u.owner),routeObstacles=[...buildings,...infantryStructureColliders(buildings)],
       obstacles=[...routeObstacles,...this.bastionColliders()];
     if('queue' in target){
       const gap=distance(u,target);
@@ -1723,7 +1760,7 @@ export class Simulation {
     let state=previous;
     if(!state||state.targetId!==enemy.id||state.expires<=this.time||
       distance(u,state.point)<24){
-      const collision=this.movingColliders().infantry;
+      const collision=this.movingColliders().byOwner[u.owner].infantry;
       const clearance=Math.max(0,unitSpec(u).radius-10);
       const point=rocketStandoffPoint({
         soldier:u,enemy,range:unitSpec(u).range,
@@ -1778,14 +1815,14 @@ export class Simulation {
     // from the separate battlefield-movement watchdog.
     if(ground&&!vehicle&&u.kind!=='engineer'&&u.kind!=='medic'&&
        this.recoverStalledAiRoute(u,target))return;
-    const cached=this.movingColliders();
-    const {buildings}=cached;
+    const cached=this.movingColliders(),open=cached.byOwner[u.owner];
+    const {buildings}=open;
     const towers=ground?cached.towers:[];
     const decor=vehicle?cached.decor:[];
-    const visualBuildings=vehicle?cached.vehicleFacades:
-      ground?cached.infantryFacades:[];
+    const visualBuildings=vehicle?open.vehicleFacades:
+      ground?open.infantryFacades:[];
     const collisionObstacles=ground?
-      (vehicle?cached.vehicle:cached.infantry):buildings;
+      (vehicle?open.vehicle:open.infantry):buildings;
     // Older savegames can contain vehicles standing within the newly enlarged
     // visual clearance. Allow only a proven escape route out, then route normally.
     if(ground&&u.vehicleEscape==='exit'&&this.world.walkable(u,collisionObstacles,clearance)){
@@ -2306,13 +2343,8 @@ export class Simulation {
     this.spatial.rebuild(this.units);
     // Comfort separation yields to a legitimate drive route in tight spots.
     // Only the original physical radius constitutes a hard collision.
-    const separationBuildings=this.obstacles(),separationVisual=vehicleStructureColliders(separationBuildings);
-    const separationDecor=this.vehicleDecorObstacles(),separationTowers=this.bastionColliders();
-    // Avoid rebuilding infantry facades and four concatenated obstacle arrays
-    // for every close-contact pair in the separation pass.
-    const separationInfantryFacade=infantryStructureColliders(separationBuildings);
-    const separationInfantry=[...separationBuildings,...separationInfantryFacade,...separationTowers];
-    const separationVehicles=[...separationBuildings,...separationVisual,...separationDecor,...separationTowers];
+    // Separation uses the same faction-specific blockers as movement.
+    const separation=this.movingColliders().byOwner;
     for(const u of this.units)if(u.hp>0&&!u.carrier)
       for(const v of this.spatial.query(u,unitSpec(u).radius+105)){
         if(v.id<=u.id||v.hp<=0||u.airfieldService||v.airfieldService||u.factoryService||v.factoryService||unitSpec(u).flying!==unitSpec(v).flying)continue;
@@ -2341,8 +2373,9 @@ export class Simulation {
               if(Math.hypot(p.x-a.previousX!,p.y-a.previousY!)>pace*dt+1e-8)continue;
             }
           }
-          const colliders=unitSpec(a).group==='Fahrzeuge'?separationVehicles:
-           unitSpec(a).flying?separationBuildings:separationInfantry;
+          const faction=separation[a.owner];
+          const colliders=unitSpec(a).group==='Fahrzeuge'?faction.vehicle:
+           unitSpec(a).flying?faction.buildings:faction.infantry;
           if(unitSpec(a).flying||
            this.world.walkable(p,colliders,Math.max(0,unitSpec(a).radius-10))){
             a.x=p.x;a.y=p.y;
@@ -2622,7 +2655,7 @@ export class Simulation {
     }
     if(!s.stats){game.stats.partial=true;for(const u of s.units){if(u.hp>0){const f=game.stats.factions[u.owner];f.deployedUnits[u.kind??'infantry']++;f.peakArmy+=0;}}for(const owner of [0,1] as const)game.stats.factions[owner].peakArmy=s.units.filter(u=>u.owner===owner&&u.hp>0).length;}
     game.nextId=Math.max(1,Number.isSafeInteger(s.nextId)?s.nextId:1,...s.units.map(u=>u.id+1),...(s.ai?.losses??[]).map(l=>l.id+1));game.credits=[...s.credits];game.incomeClock=s.incomeClock;
-    game.bases=structuredClone(s.bases).map(b=>({...b,kind:b.kind??'headquarters',...(b.kind==='wall'?{}:game.world.clearSite(b,buildingSpec(b).radius)),radius:buildingSpec(b).radius,...(b.queueCosts?{}:b.queue.length?{queueCosts:b.queue.map((_,i)=>{const k=b.queueTypes?.[i]??'infantry';return !s.supportVersion&&k==='engineer'?150:UNITS[k].cost;})}:{}),queueTypes:b.queueTypes??b.queue.map(()=>'infantry'),buildRemaining:b.buildRemaining??0,cooldown:b.cooldown??0,
+    game.bases=structuredClone(s.bases).map(b=>({...b,kind:b.kind??'headquarters',...(isWallLike(b.kind)?{}:game.world.clearSite(b,buildingSpec(b).radius)),radius:buildingSpec(b).radius,...(b.queueCosts?{}:b.queue.length?{queueCosts:b.queue.map((_,i)=>{const k=b.queueTypes?.[i]??'infantry';return !s.supportVersion&&k==='engineer'?150:UNITS[k].cost;})}:{}),queueTypes:b.queueTypes??b.queue.map(()=>'infantry'),buildRemaining:b.buildRemaining??0,cooldown:b.cooldown??0,
       ...(b.kind==='silo'?{siloCharge:b.siloCharge??SILO_CHARGE_SECONDS}:{}),
       ...(b.kind==='interceptor'?{interceptorAmmo:b.interceptorAmmo??INTERCEPTOR_MAX_AMMO}:{})}));
     // Legacy stockpiles are validated above, then discarded. They must never

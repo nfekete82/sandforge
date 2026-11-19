@@ -38,7 +38,7 @@ import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
 import {selectedInfantryForTransport,selectedCarrierForPickup,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
 import {pointerGestureIntent,submitConstruction,nearestEngineer,keepPlacementAfterBuild,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
 import {validatedWallDrag,snapWallSiteToMap,WALL_CHAIN_DRAG_THRESHOLD,WALL_CHAIN_MAX} from '/webgl-wall-drag.js';
-import {wallTerrainPitch} from '/src/reborn/defensive-wall.js';
+import {wallTerrainPitch,isWallLike,WALL_GATE_UPGRADE_COST} from '/src/reborn/defensive-wall.js';
 import {sameKindVisibleUnits,visibleFriendlyUnits} from '/webgl-double-click-select.js';
 import {FIELD_UNIT_COMMANDS,orderReturnToBase} from '/webgl-unit-commands.js';
 import {tracerWindow} from '/webgl-hit-response.js';
@@ -552,6 +552,15 @@ export class SandforgeBattlefield {
      this.attachBuildingMotion(entry,data);
      if(['factory','barracks','headquarters'].includes(entry.kind))this.productionGates.prepare(entry);
     }
+    if(type==='unit'&&entry.kind==='scout'){
+     // Some player's cached authored GLBs still place the tail pivot beyond
+     // the tail fin. Correct old assets at runtime, with no dependence on
+     // replacing uncommitted Mac GLB files. New exports use this pivot already.
+     const rotor=model.getObjectByName('TailRotor_Spin');
+     if(rotor&&rotor.position.z< -7.85){
+      rotor.position.z=-7.62;rotor.position.y=5.42;
+     }
+    }
     if(type==='unit'&&['tank','artillery'].includes(entry.kind))this.installTankRig(entry,model);
     entry.modelLoadError=null;entry.modelLoadRetries=0;
     if(type==='unit'&&data.animations.length){
@@ -1042,14 +1051,14 @@ export class SandforgeBattlefield {
  }
  updatePlacementPreview(event){
   const ghost=this.buildPreview;if(!this.buildKind||!ghost)return;
-  const raw=this.terrainPoint(event,{snapEdge:this.buildKind==='wall'});
-  const p=this.buildKind==='wall'&&raw
+  const raw=this.terrainPoint(event,{snapEdge:isWallLike(this.buildKind)});
+  const p=isWallLike(this.buildKind)&&raw
    ?snapWallSiteToMap(raw,this.placementFacing,this.world.size):raw;
   ghost.visible=Boolean(p);
   if(!p){this.buildHint.style.display='none';return;}
   ghost.position.copy(this.pos(p.x,p.y));
   ghost.rotation.y=buildingFacingAngle(this.placementFacing);
-  ghost.rotation.z=this.buildKind==='wall'
+  ghost.rotation.z=isWallLike(this.buildKind)
    ?wallTerrainPitch(this.world,p,this.placementFacing):0;
   if(this.buildKind==='airfield'&&ghost.userData.previewService)
    conformAirfieldSurface(ghost.userData.previewService,
@@ -1195,7 +1204,7 @@ export class SandforgeBattlefield {
    entry.node.rotation.y=buildingFacingAngle(b.facing);
    // Cache each fixed wall's 3D terrain pitch. A large perimeter must not
    // resample its heightfield hundreds of times per animation frame.
-   if(b.kind==='wall'){
+   if(isWallLike(b.kind)){
     if(entry.wallSlopePitch===undefined||entry.wallSlopeFacing!==b.facing){
      entry.wallSlopeFacing=b.facing;
      entry.wallSlopePitch=wallTerrainPitch(this.world,b,b.facing??0);
@@ -1203,6 +1212,26 @@ export class SandforgeBattlefield {
     entry.node.rotation.z=entry.wallSlopePitch;
    }else entry.node.rotation.z=0;
    this.construction.update(entry,b);
+   if(b.kind==='wallGate'){
+    // Cosmetic twin-door animation. Every owner can drive through their
+    // finished gate in the SIMULATION; the hostile faction always collides.
+    // Refresh proximity only at the fixed-tick boundary, never every RAF.
+    const gate=entry.placeholder??entry.detail;
+    const leaves=gate?.userData?.gateLeaves;
+    if(leaves&&b.buildRemaining<=0){
+     if(entry.gatePresenceAt!==this.game.time){
+      entry.gatePresenceAt=this.game.time;
+      entry.gatePresence=this.game.units.some(u=>u.hp>0&&!u.carrier&&
+       u.owner===b.owner&&!UNITS[u.kind].flying&&
+       Math.hypot(u.x-b.x,u.y-b.y)<153);
+     }
+     const wanted=entry.gatePresence?1:0;
+     const amount=Math.min(1,Math.max(0,dt)*5.8);
+     entry.gateOpen=(entry.gateOpen??0)+(wanted-(entry.gateOpen??0))*amount;
+     leaves[0].rotation.y=-entry.gateOpen*1.48;
+     leaves[1].rotation.y=entry.gateOpen*1.48;
+    }
+   }
    // Site dressing and the FULL facility footprint are present from the
    // first construction tick. Construction scaffolding overlays them, rather
    // than making an incomplete hangar suddenly pop in on completion.
@@ -1673,6 +1702,23 @@ export class SandforgeBattlefield {
    if(action==='select-engineer'){
     this.selectEngineer();return;
    }
+   if(action==='gate-upgrade'){
+    const id=this.selectedBase;
+    if(id===null||!this.game.convertWallToGate(0,id)){
+     this.message('Tor-Umrüstung nicht möglich · eigene fertige Mauer und '+
+      WALL_GATE_UPGRADE_COST+' Credits benötigt');return;
+    }
+    // Replace the old wall mesh without changing the game-side Base ID.
+    const entry=this.bases.get(id);
+    if(entry){
+     if(entry.yard)disposeBuildingYard(entry.yard);
+     if(entry.placeholder)disposeOwnedMeshes(entry.placeholder);
+     this.scene.remove(entry.node);this.bases.delete(id);
+    }
+    this.sync(true);this.drawInterface();
+    this.message('Mauertor installiert · eigene Einheiten passieren automatisch');
+    return;
+   }
    if(action==='sectors'){
     // Sectors remain available from the radar caption, without taking
     // space from the four production tabs.
@@ -1903,7 +1949,7 @@ export class SandforgeBattlefield {
    const spec=type==='unit'?UNITS[kind]:BUILDINGS[kind];
    const image=type==='unit'
     ?'<img data-sf-unit-icon="'+kind+'" alt="" decoding="async">'
-    :'<img data-sf-building-icon="'+kind+'" src="'+buildingIconUrl(kind)+'" alt="" loading="lazy" decoding="async">';
+    :'<img data-sf-building-icon="'+kind+'" src="'+buildingIconUrl(kind==='wallGate'?'wall':kind)+'" alt="" loading="lazy" decoding="async">';
    const dataset=type==='unit'?'data-unit="'+kind+'"':'data-build="'+kind+'"';
    return '<button class="catalog-card" '+dataset+
     ' title="'+plain(spec.description)+'" aria-label="'+plain(spec.name)+' – '+spec.cost+' Credits">'+
@@ -2299,9 +2345,22 @@ export class SandforgeBattlefield {
    if(buildingSelected){
     button.hidden=!ownBuilding||
      (a!=='demolish'&&!(a==='missile-target'&&base.kind==='silo')&&
-      !(a==='interceptor-rearm'&&base.kind==='interceptor'));
+      !(a==='interceptor-rearm'&&base.kind==='interceptor')&&
+      !(a==='gate-upgrade'&&base.kind==='wall'&&base.buildRemaining<=0));
    }else if(chosen.length)button.hidden=!FIELD_UNIT_COMMANDS.includes(a);
    else button.hidden=a!=='select-all';
+  }
+  if(commands&&!commands.querySelector('[data-action="gate-upgrade"]')){
+   const button=document.createElement('button');
+   button.type='button';button.dataset.action='gate-upgrade';
+   button.textContent='TOR EINBAUEN · '+WALL_GATE_UPGRADE_COST;
+   button.title='Sperrmauer zu einem automatischen Mauertor umrüsten';
+   button.hidden=true;commands.append(button);
+  }
+  const gateButton=commands?.querySelector('[data-action="gate-upgrade"]');
+  if(gateButton){
+   gateButton.hidden=!(base?.owner===0&&base.kind==='wall'&&base.buildRemaining<=0);
+   gateButton.disabled=g.credits[0]<WALL_GATE_UPGRADE_COST;
   }
   const demolishButton=commands?.querySelector('[data-action="demolish"]');
   if(demolishButton&&ownBuilding){
@@ -2900,7 +2959,7 @@ export class SandforgeBattlefield {
    }
    if(this.buildKind){
     const kind=this.buildKind;
-    const site=kind==='wall'
+    const site=isWallLike(kind)
      ?snapWallSiteToMap(p,this.placementFacing,this.world.size):p;
     const blocked=this.game.buildError(0,kind,site,this.placementFacing);
     if(blocked){
@@ -2925,7 +2984,7 @@ export class SandforgeBattlefield {
      this.sync(true);
      this.message(BUILDINGS[kind].name+
       (order.append?' in Baufolge eingereiht':' beauftragt')+
-      (kind==='wall'?' · Nächstes Mauersegment platzieren · Rechtsklick beendet':
+      (isWallLike(kind)?' · Nächstes Mauersegment platzieren · Rechtsklick beendet':
        ' · Nächstes Gebäude direkt im Baumenü auswählen'));
     }else{
      this.message(order.reason+

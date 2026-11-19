@@ -96,7 +96,7 @@ test('wall/building collisions and walls themselves still block the actual gamep
  const src=readFileSync('src/reborn/simulation.ts','utf8');
  assert.match(src,/wallTerrainPlacementError\(this\.world,p,facing\)/);
  assert.match(src,/sitesVisuallyOverlap\(/);
- assert.match(src,/siteNearBastion\('wall',p,facing,t\.point\)/);
+ assert.match(src,/siteNearBastion\(kind,p,facing,t\.point\)/);
  assert.match(src,/segments\.some\(c=>distance\(u,c\)/);
  assert.match(src,/if\(this\.credits\[owner\]<spec\.cost\)/);
 });
