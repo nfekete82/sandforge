@@ -60,3 +60,26 @@ test('3D direct-link bootstrap ships ALL required JS modules and reports missing
   expect(responses.find(x=>x.name===name)?.code,name+' not shipped').toBe(200);
  await expect(page.locator('#sf3d-fatal')).toBeHidden();
 });
+
+test('WebGL RTS top HUD exposes 1×, 2×, 4× beside Pause and retains speed while paused',async({page})=>{
+ test.setTimeout(120000);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/webgl-preview.html?bastions=4&seed=2074&lite=1&pause=1',{waitUntil:'domcontentloaded'});
+ await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded===true,{timeout:100000});
+ const control=page.locator('#sf-tools #simulation-speed');
+ await expect(control).toBeVisible();
+ await expect(control).toHaveValue('1');
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationRunning)).toBe(false);
+ await control.selectOption('2');
+ await expect(control).toHaveValue('2');
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationSpeed)).toBe(2);
+ await control.selectOption('4');
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationSpeed)).toBe(4);
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationRunning)).toBe(false);
+ await page.locator('#sf-tools #simulation').click();
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationRunning)).toBe(true);
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationSpeed)).toBe(4);
+ await control.selectOption('1');
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationSpeed)).toBe(1);
+ expect(errors).toEqual([]);
+});
