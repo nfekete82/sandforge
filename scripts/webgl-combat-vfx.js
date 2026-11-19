@@ -609,7 +609,10 @@ export class SandforgeCombatEffects {
      this.particle(this.flames,x,z,c.mesh.position.y+2,
       10+this.rand()*8,.17,0,0,12);
    }
-   if(t>=1){
+   // End the crash from its OWN animation clock. The former if(t>=1)
+   // referenced an undefined variable and crashed the entire WebGL loop
+   // whenever a helicopter or bomber was destroyed.
+   if(c.age>=c.duration){
     this.crashes.splice(i,1);
     this.releaseAircraftCrash(c);
     this.addWreck({...c,x,y:z});
