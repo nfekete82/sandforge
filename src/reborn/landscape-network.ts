@@ -1,6 +1,6 @@
 import type {Point} from './config.js';
 import type {CanyonRidge} from './canyon-front.js';
-import {streamSeed} from './battlefield-terrain.js';
+import {streamSeed,TERRAIN_GRADING_V3} from './battlefield-terrain.js';
 
 /** Seeded road topology and physical mountain passes for generator v3.
  * Roads are visual guides on the *real* navigation surface; ridge gaps are
@@ -31,7 +31,7 @@ function distance(a:Point,b:Point):number{return Math.hypot(a.x-b.x,a.y-b.y);}
  * The mountains deliberately interrupt direct lanes, so some paths bend to
  * a visible pass instead of painting roads across an impassable cliff. */
 export function generateLandscapeNetwork(seed:number,size:number,sites:readonly Point[],
-  columns:number,rows:number,candidate=0):LandscapeNetwork{
+  columns:number,rows:number,candidate=0,homes:readonly Point[]=[]):LandscapeNetwork{
   const r=random(streamSeed(seed,'landscape-network',candidate));
   const seamRow=Math.max(1,Math.floor(rows/2));
   const seam=size*seamRow/rows;
@@ -47,6 +47,11 @@ export function generateLandscapeNetwork(seed:number,size:number,sites:readonly 
   const width=Math.max(340,Math.min(620,size/columns*.37));
   const ridge:CanyonRidge={
     spine,width:118,height:122,
+    // The exact same protected circles are respected by collision and WebGL.
+    clearings:[
+      ...sites.map(point=>({point,radius:TERRAIN_GRADING_V3.bastionFlatRadius+140})),
+      ...homes.map(point=>({point,radius:TERRAIN_GRADING_V3.homeFlatRadius+150}))
+    ],
     ramps:passes.map(col=>{
       const x=(sites[upper*columns+col].x+sites[lower*columns+col].x)*.5;
       return {x:Math.max(size*.12,Math.min(size*.88,x)),width};
