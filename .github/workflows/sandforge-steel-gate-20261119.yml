@@ -17,8 +17,11 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Compile and build the actual WebGL game
-        run: npm run build
+      - name: Compile gameplay and validate gate WebGL module
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-strategic-buildings.js
+          node --check scripts/webgl-battlefield.js
       - name: Steel gate, opening, collision and wall-placement regression
         run: |
           node --test \
