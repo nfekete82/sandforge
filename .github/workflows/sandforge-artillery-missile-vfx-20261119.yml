@@ -28,6 +28,8 @@ jobs:
           node --test \
             tests/sandforge-artillery-missile-vfx-20261119.test.mjs \
             tests/sandforge-desert-shrubs-20261119.test.mjs \
+            tests/sandforge-ai-offense-before-walls-20261119.test.mjs \
+            tests/sandforge-ai-base-fortifications-20261119.test.mjs \
             tests/reborn-rocket-pbr.test.mjs \
             tests/sandforge-728s-performance-regression-20261119.test.mjs \
             tests/sandforge-webgl-combat-vfx.test.mjs \
