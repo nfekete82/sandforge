@@ -77,5 +77,5 @@ test('combat balance: tank MG, artillery standoff and turret remain distinct cou
  // Building mortar/turret balance and all prices remain the same for both teams.
  assert.equal(UNITS.bomber.cost,1000);
  assert.equal(UNITS.rover.cost,350);
- assert.equal(UNITS.heavy.cost,250);
+ assert.equal(UNITS.heavy.cost,300);
 });
