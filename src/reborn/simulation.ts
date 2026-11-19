@@ -1105,7 +1105,10 @@ export class Simulation {
    * Never respawn, reimburse, or auto-evacuate a destroyed garrison.
    */
   private destroyBunkerGarrison(b:Base):void {
-    for(const u of bunkerGarrisonedUnits(b,this.units)){
+    // The structure already has 0 HP when a projectile destroys it: select
+    // by the authoritative manifest, not a live-bunker-only helper.
+    const occupants=new Set(b.garrison??[]);
+    for(const u of this.units.filter(u=>occupants.has(u.id)&&u.carrier===b.id)){
       u.hp=0;u.orders=[];u.path=[];delete u.carrier;
       this.tactical.loss(u);
     }
