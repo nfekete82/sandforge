@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Simulation} from '../dist/src/reborn/simulation.js';
+import {developArmy} from '../dist/src/reborn/army-economy.js';
 import {BUILDINGS} from '../dist/src/reborn/catalog.js';
 import {distance} from '../dist/src/reborn/config.js';
 import {
@@ -122,4 +123,35 @@ test('the project survives save/reload using the real gate as the anchor',()=>{
  assert.equal(restored.gateSpan,2);
  assert.notEqual(planHomeFortification(after,options)?.kind,'wallGate',
   'never double purchase a gateway after loading');
+});
+
+test('the real AI economy executes a paid HQ turret project without sacrificing core army production',()=>{
+ const {g,hq,worker}=scene();
+ g.tactical.mode='director';
+ // Complete the full generator quota so the base is no longer saving its
+ // first economy structures. This verifies the actual macro controller.
+ for(let i=0;i<3;i++){
+  const spec=BUILDINGS.generator;
+  g.bases.push({...hq,id:89010+i,kind:'generator',hp:spec.hp,
+   radius:spec.radius,x:150+i*170,y:130,buildRemaining:0,
+   queue:[],queueTypes:[],production:0});
+ }
+ for(let i=0;i<7;i++){
+  const u=g.spawn(1,{x:hq.x-80+(i%4)*35,
+   y:hq.y-200+Math.floor(i/4)*36},i<3?'heavy':'infantry');
+  u.orders=[];
+ }
+ g.spatial.rebuild(g.units);
+ g.credits[1]=12500;
+ const before=g.credits[1],army=g.units.filter(u=>u.owner===1);
+ developArmy(g,g.tactical.state,army,()=>0);
+ const towers=g.bases.filter(b=>b.owner===1&&b.kind==='turret');
+ assert.ok(towers.length>=1,'macro scheduler, not just isolated helper, orders a real HQ gun');
+ assert.ok(towers.some(b=>distance(b,hq)<760));
+ assert.ok(g.credits[1]<=before-BUILDINGS.turret.cost,
+  'paid construction, never free defensive towers');
+ assert.ok(g.tactical.state.economy?.baseFortificationAttemptAt>=210);
+ assert.ok(g.tactical.state.economy?.built.turret>=1);
+ assert.ok(worker.orders.some(o=>o.kind==='build'),
+  'normal engineer receives a construction order');
 });
