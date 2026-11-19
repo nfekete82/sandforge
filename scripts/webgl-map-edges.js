@@ -24,3 +24,22 @@ export function snapToPlayableEdge(point,size,overscan=edgeOverscan(size)){
 export function worldToMinimap(x,z,size,width,height){
  return {x:(x+size/2)*width/size,y:(z+size/2)*height/size};
 }
+
+
+/** Convert a pointer on the *CSS-sized* minimap to authoritative world XY.
+ * The canvas can be stretched by the bottom tactical HUD. Using its CSS
+ * bounds, not the backing bitmap size, keeps orders pixel-perfect.
+ * Null outside the actual minimap; clamp edge pixels into the playable
+ * 12-unit margin (same safety as right-clicking a terrain border).
+ */
+export function minimapPointerToWorld(clientX,clientY,rect,size){
+ if(!Number.isFinite(clientX)||!Number.isFinite(clientY)||
+    !Number.isFinite(size)||size<=24||!rect||
+    !Number.isFinite(rect.left)||!Number.isFinite(rect.top)||
+    !Number.isFinite(rect.width)||!Number.isFinite(rect.height)||
+    rect.width<=0||rect.height<=0)return null;
+ const nx=(clientX-rect.left)/rect.width;
+ const ny=(clientY-rect.top)/rect.height;
+ if(nx<0||ny<0||nx>1||ny>1)return null;
+ return snapToPlayableEdge({x:nx*size,y:ny*size},size,0);
+}
