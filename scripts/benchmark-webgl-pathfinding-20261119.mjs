@@ -25,11 +25,11 @@ const cases=Array.from({length:18},(_,i)=>({
  from:{x:(37+(i%6)+.5)*cell,y:(106+(i%11)+.5)*cell},
  to:{x:(188-(i%5)+.5)*cell,y:(118+(i%9)+.5)*cell}
 }));
-for(let i=0;i<2;i++)world.path(cases[i].from,cases[i].to,[],6,undefined,false,true,false,false);
+for(let i=0;i<2;i++)world.path(cases[i].from,cases[i].to,[],6,undefined,false,true,false);
 const samples=[],results=[];
 for(const sample of cases){
  const start=performance.now();
- const path=world.path(sample.from,sample.to,[],6,undefined,false,true,false,false);
+ const path=world.path(sample.from,sample.to,[],6,undefined,false,true,false);
  samples.push(performance.now()-start);
  results.push(path.map(p=>[Math.round(p.x*1e3)/1e3,Math.round(p.y*1e3)/1e3]));
  if(!path.length)throw Error('Unexpected missing path in scripted steep-rock routing fixture');
