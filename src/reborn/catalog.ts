@@ -1,7 +1,7 @@
 import { RULES } from './config.js';
 
 export type UnitKind='infantry'|'medic'|'engineer'|'heavy'|'rocket'|'rover'|'supply'|'tank'|'artillery'|'scout'|'bomber'|'drone';
-export type BuildingKind='headquarters'|'barracks'|'factory'|'airfield'|'generator'|'turret'|'research'|'silo'|'interceptor'|'wall'|'wallGate';
+export type BuildingKind='headquarters'|'barracks'|'factory'|'airfield'|'generator'|'turret'|'research'|'silo'|'interceptor'|'wall'|'wallGate'|'bunker';
 /** Both factions may operate the same maximum number of recurring-income generators. */
 export const MAX_GENERATORS_PER_FACTION=3;
 export interface UnitSpec {
@@ -34,6 +34,7 @@ export const BUILDINGS:Record<BuildingKind,BuildingSpec>={
  generator:{name:'Energiekern',cost:150,buildTime:9,hp:500,sight:230,radius:38,width:112,income:10,description:'Versorgt die Basis und liefert zusätzliche 10 Credits alle 10 Sekunden.'},
  wall:{name:'Sperrmauer',cost:75,buildTime:8,hp:750,sight:80,radius:24,width:108,income:0,description:'Massive, drehbare Betonsperre. Blockiert Infanterie und Fahrzeuge. Gegen Raketen und Panzerbeschuss zerstörbar.'},
  wallGate:{name:'Doppelt breites Stahltor',cost:210,buildTime:12,hp:900,sight:80,radius:24,width:218,income:0,description:'Stahl-Doppeltor in der Breite von zwei normalen Mauersegmenten. Eigene Einheiten passieren automatisch; Feinde werden blockiert. Alternativ zwei fertige eigene Sperrmauern für 60 Credits nachträglich umrüsten.'},
+ bunker:{name:'Verteidigungsbunker',cost:650,buildTime:27,hp:1500,sight:470,radius:54,width:155,income:0,description:'Massiver PBR-Bunker mit fünf geschützten Infanterieplätzen. Eigene Soldaten per Rechtsklick einquartieren; sie feuern aus Schießscharten. Bei Zerstörung stirbt die gesamte Besatzung. Zum Verlassen Bunker anklicken und AUSSTEIGEN wählen.'},
  turret:{name:'Geschützturm',cost:300,buildTime:10,hp:650,sight:RULES.turret.sight,radius:30,width:72,income:0,description:`Automatische Fernverteidigung. ${RULES.turret.range} M Reichweite, ${RULES.turret.sight} M Sicht, ${RULES.turret.damage} Schaden.`},
  research:{name:'Forschungszentrum',cost:700,buildTime:48,hp:950,sight:350,radius:54,width:170,income:0,description:'Größeres Forschungszentrum mit Sand-Oliv-Tarnung, Radar, Sensoranlage und Dachtechnik. Erforscht neun Technologien in 35–90 Sekunden.'},
  silo:{name:'Langstrecken-Raketensilo',cost:5000,buildTime:100,hp:1900,sight:360,radius:91,width:265,income:0,description:'Strategische Rakete: 10 Minuten Ladezeit, 25 Sekunden Angriffswarnung und großer Einschlag. Maximal ein Silo pro Fraktion.'},
