@@ -154,6 +154,10 @@ execFileSync(process.execPath,['scripts/generate-energy-core-pbr.mjs'],{stdio:'i
 // Real flightline service still animates doors and controls aircraft docking.
 execFileSync(process.execPath,['scripts/generate-airfield-pbr.mjs'],{stdio:'inherit'});
 cpSync('src/assets', 'dist/src/assets', {recursive:true});
+// Distinct UV-textured, render-only oasis adobe models are generated locally.
+// Source generator is tracked, binary GLBs are deterministic build outputs.
+execFileSync(process.execPath,['scripts/generate-oasis-adobe-glbs.mjs',
+ 'dist/src/assets/reborn/oasis-village'],{stdio:'inherit'});
  // Retired supply assets may survive a previous incremental build/worktree.
  // Never ship their old GLBs or WebGL handlers in a new bastion-only build.
  for(const obsolete of [
