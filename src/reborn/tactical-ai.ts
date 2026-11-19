@@ -25,6 +25,7 @@ import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,t
 import {rankTerrainRecaptureSquad} from './ai36-terrain-routes.js';
 import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage} from './ai36-air-support.js';
 import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
+import {preserveAI36Assault,ai36JoinActiveFront} from './ai36-assault-continuity.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
 import type {Simulation,Unit,Base,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -1076,8 +1077,12 @@ export class TacticalAI {
    ...g.bases.filter(b=>b.owner===0&&b.hp>0&&b.buildRemaining<=0&&
     g.canSee(1,b))
   ];
-  const target=observedBomberSupportTarget(observed,front,1400);
-  if(!target||!this.bomberStrikeSafe(target))return;
+  // Select the highest-value SAFE candidate, not just the highest-value
+  // candidate. Previously one defended tank could block an isolated target
+  // alongside it, making an already paid bomber wait indefinitely.
+  const target=observedBomberSupportTarget(observed,front,1400,
+   candidate=>this.bomberStrikeSafe(candidate));
+  if(!target)return;
   for(const [index,u] of bombers.entries()){
    if(u.orders.some(o=>o.kind==='attack'&&
     observed.some(v=>v.id===o.target)))continue;
@@ -1396,7 +1401,32 @@ export class TacticalAI {
   if(policy)this.stationHomeGuards(mainFighters.filter(u=>guards.has(u.id)),home);
   const selected=mainFighters.filter(u=>!guards.has(u.id)).sort((a,b)=>Number(s.group.includes(b.id))-Number(s.group.includes(a.id))||distance(a,s.rally!)-distance(b,s.rally!)||a.id-b.id).slice(0,18);
   let members=selected.filter(u=>s.group.includes(u.id));
-  if(s.phase==='attack'&&members.length<Math.max(1,Math.ceil(s.launchSize*.4))){g.stop(s.group.filter(id=>fighters.some(u=>u.id===id)));s.group=[];members=[];s.launchSize=0;this.setPhase('regroup');c.aborted++;}
+  if(s.phase==='attack'&&members.length<Math.max(1,Math.ceil(s.launchSize*.4))){
+   // KI3.6: launchSize grows after EACH reinforcement, so it is not the
+   // current screen's strength. Don't recall three healthy fighters just
+   // because earlier reinforcements were spent in a successful firefight.
+   // Only real visible contact and real nearby paid allies count.
+   const observedContact=this.ai36Enabled&&g.units.some(v=>v.owner===0&&
+    v.hp>0&&!v.carrier&&v.kind!=='drone'&&g.canSee(1,v)&&
+    members.some(u=>distance(u,v)<Math.max(440,unitSpec(v).range+90)));
+   const knownGun=this.ai36Enabled&&s.knownTurrets.some(v=>
+    distance(v,mission)<v.range+190&&g.time-v.seenAt<100);
+   const preserve=this.ai36Enabled&&preserveAI36Assault({
+    survivingGround:members.filter(u=>combat(u)&&!unitSpec(u).flying).length,
+    healthyGround:members.filter(u=>combat(u)&&!unitSpec(u).flying&&
+     u.hp>=unitSpec(u).hp*.35).length,
+    armedGround:members.filter(u=>['tank','artillery','rover','rocket'].includes(u.kind)).length,
+    currentlyFighting:observedContact,
+    visibleGunPosition:knownGun,
+    availableSiege:members.filter(u=>u.kind==='artillery'&&u.hp>0).length,
+    nearbyPaidReinforcements:selected.filter(u=>!s.group.includes(u.id)&&
+     u.hp>=unitSpec(u).hp*.5&&members.some(v=>distance(u,v)<500)).length
+   });
+   if(!preserve){
+    g.stop(s.group.filter(id=>fighters.some(u=>u.id===id)));
+    s.group=[];members=[];s.launchSize=0;this.setPhase('regroup');c.aborted++;
+   }
+  }
   const continuing=s.phase==='attack'&&members.length>0;
   const battle=s.battle??=newBattle(),readyForce=continuing?members:selected.filter(u=>distance(u,s.rally!)<330);
   // Keep safe, in-range rockets firing while the screen reforms. The existing
@@ -1565,12 +1595,21 @@ export class TacticalAI {
    s.groupId++;s.group=ready.map(u=>u.id);s.launchSize=ready.length;s.launchedAt=g.time;members=ready;this.setPhase('attack');
   }
   const anchor=centroid(members),joining=selected.filter(u=>!s.group.includes(u.id));
+  const frontlineContact=this.ai36Enabled&&visible.some(enemy=>
+   members.some(u=>distance(u,enemy)<Math.max(410,unitSpec(enemy).range+80)));
   const staged=this.waveMode==='coordinated'
    ?reinforcementStagingPoint(anchor,mission,home):anchor;
   const rendezvous=this.waveMode==='coordinated'
    ?g.world.nearest(staged,this.obstacles(),[],undefined,12)??anchor:anchor;
   for(const u of joining){
-   if(distance(u,anchor)<330){s.group.push(u.id);s.launchSize++;members.push(u);}
+   const nearFront=distance(u,anchor)<330||
+    this.ai36Enabled&&ai36JoinActiveFront({
+     distance:distance(u,anchor),hpFraction:u.hp/Math.max(1,unitSpec(u).hp),
+     isGroundCombatant:combat(u)&&!unitSpec(u).flying,
+     frontInContact:frontlineContact,frontSize:members.length,
+     knownGunPresent:towers.length>0
+    });
+   if(nearFront){s.group.push(u.id);s.launchSize++;members.push(u);}
    else if(!u.orders.length||u.orders[0].tactical?.mode!=='assault'||distance(u.orders[0],rendezvous)>180){
     if(this.issue([u],rendezvous,'assault',undefined,false,false)&&this.waveMode==='coordinated')
       this.diagnostics.reinforcementStagingOrders++;
