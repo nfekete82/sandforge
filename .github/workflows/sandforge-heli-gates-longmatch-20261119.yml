@@ -1,0 +1,51 @@
+name: Sandforge helicopter, gates, barbed wire and long-match performance
+on:
+  push:
+    branches: ['feat/sandforge-heli-gates-longmatch-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  game-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript and complete WebGL module graph
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Helicopter pods, gate passability, razor wire, AI and existing building collision
+        run: |
+          node --test \
+            tests/sandforge-heli-gates-longmatch-20261119.test.mjs \
+            tests/sandforge-wall-terrain-border-20261119.test.mjs \
+            tests/sandforge-defensive-walls-20261111.test.mjs \
+            tests/sandforge-ai36-fight-dont-flee-20261119.test.mjs \
+            tests/sandforge-ai36-recon-bomber-support-20261119.test.mjs \
+            tests/sandforge-minimap-rightclick-orders-20261119.test.mjs \
+            tests/sandforge-a-star-perf-stability-20261119.test.mjs \
+            tests/sandforge-combat-aftermath-v1-20261119.test.mjs \
+            tests/webgl-aircraft-effects-20261110.test.mjs \
+            tests/reborn-control-retreat.test.mjs
+      - name: '660-second AI 3.6 endurance smoke on a mountain map'
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps 24 --seeds 2026 \
+            --seconds 660 --modes director --ai36 coordinated \
+            --label heli-gates-endurance \
+            --output ai-arena-results/ci-heli-gates-endurance.json
+      - name: Archive endurance and battle diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-heli-gates-endurance
+          path: ai-arena-results/ci-heli-gates-endurance.*
+          if-no-files-found: warn
