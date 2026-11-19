@@ -6,6 +6,7 @@ import { TERRAIN_BLOCKED, TERRAIN_CLIFFS } from './terrain-art.js';
 import { generateMap, polygonContains, segmentDistance, type GeneratedMap } from './world-generation.js';
 import { navigationLine } from './navigation-line.js';
 import {canyonCliffBlocked,canyonRuinBlocked} from './canyon-front.js';
+import {canyonPassWaypoint} from './ai36-terrain-routes.js';
 
 export interface Territory {
   id: number; name: string; polygon: Point[]; point: Point; neighbors: number[];
@@ -303,7 +304,16 @@ export class World {
        navigationLine(a,b,this.cell,RULES.grid,this.blocked,obstacles,RULES.infantry.radius,clearance)&&
        (maxSlope===Infinity||this.groundVehicleStepSafe(a,b,maxSlope,clearance+10))
       :this.line(a,b,obstacles,clearance,maxSlope);
-    const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(target,obstacles,[],start,clearance,maxSlope);
+    // A* is intentionally capped on 6200-unit WebGL maps. When its goal is
+    // directly behind a long canyon wall, aim at the nearest real pass
+    // entrance first instead of repeatedly returning partial paths into
+    // the rock face. This applies to both factions and all ground vehicles.
+    // Strategic reachability calls (allowPartial=false) are unchanged.
+    const pass=allowPartial&&!air&&this.generatorVersion===3&&
+      this.generated?.ridges.length
+      ?canyonPassWaypoint(start,target,this.generated.ridges,clearance):undefined;
+    const routingTarget=pass??target;
+    const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(routingTarget,obstacles,[],start,clearance,maxSlope);
     if(!end)return [];
     const cost=(a:Point,b:Point)=>{const d=Math.hypot(b.x-a.x,b.y-a.y),steps=Math.max(1,Math.ceil(d/(this.cell*.6)));let sum=0;for(let i=0;i<=steps;i++)sum+=risk?.[this.index({x:a.x+(b.x-a.x)*i/steps,y:a.y+(b.y-a.y)*i/steps})]??0;return d/this.cell*(1+sum/(steps+1));};
     if(line(start,end)&&(!risk||cost(start,end)<=Math.hypot(end.x-start.x,end.y-start.y)/this.cell*1.01))return [end];
