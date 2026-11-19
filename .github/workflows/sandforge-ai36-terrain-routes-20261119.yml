@@ -22,7 +22,7 @@ jobs:
         run: |
           npx tsc -p tsconfig.json
           SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
-          node scripts/check-webgl-module-graph.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
       - name: AI 3.6, realistic mountain passes and save regressions
         run: |
           node --test \
