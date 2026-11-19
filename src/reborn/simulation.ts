@@ -11,7 +11,7 @@ import { World, inside, type Territory } from './world.js';
 import {visibleBasePropColliders} from './vehicle-decor-collision.js';
 import {vehicleStructureCollider,vehicleStructureColliders} from './vehicle-structure-collision.js';
 import {infantryStructureCollider,infantryStructureColliders} from './infantry-structure-collision.js';
-import {wallColliderSamples,wallTerrainPlacementError,isWallLike,navigableBasesForFaction,WALL_GATE_UPGRADE_COST} from './defensive-wall.js';
+import {wallColliderSamples,wallTerrainPlacementError,isWallLike,navigableBasesForFaction,friendlyGatePostColliders,WALL_GATE_UPGRADE_COST} from './defensive-wall.js';
 import {bastionStructureColliders} from './bastion-structure-collision.js';
 import {constructionVisualClearance,sitesVisuallyOverlap,siteNearBastion,siteExceedsMap,siteTerrainCompatible,type SiteFacing} from './construction-spacing.js';
 import {segmentDistance} from './world-generation.js';
@@ -786,7 +786,11 @@ export class Simulation {
       vehicleFacades=vehicleStructureColliders(buildings);
     const byOwner=([0,1] as const).map(owner=>{
       const physical=navigableBasesForFaction(buildings,owner);
-      const feet=infantryStructureColliders(physical),wheels=vehicleStructureColliders(physical);
+      // Retain only two thin posts for the friendly gate. The full doorway
+      // stays clear, while wide vehicle routes no longer clip steel pylons.
+      const gatePosts=friendlyGatePostColliders(buildings,owner);
+      const feet=[...infantryStructureColliders(physical),...gatePosts];
+      const wheels=[...vehicleStructureColliders(physical),...gatePosts];
       return {buildings:physical,infantryFacades:feet,vehicleFacades:wheels,
         infantry:[...physical,...feet,...towers],
         vehicle:[...physical,...wheels,...decor,...towers]};
@@ -1138,9 +1142,11 @@ export class Simulation {
         if(length>limit){offset={x:offset.x*limit/length,y:offset.y*limit/length};}}
       const spec=unitSpec(u),p={x:order.x+offset.x,y:order.y+offset.y};
       const buildings=this.navigationBases(u.owner),towers=this.bastionColliders();
+      const gatePosts=friendlyGatePostColliders(this.obstacles(),u.owner);
       const obstacles=spec.flying?buildings:spec.group==='Infanterie'
-         ?[...buildings,...infantryStructureColliders(buildings),...towers]
-         :[...buildings,...vehicleStructureColliders(buildings),...this.vehicleDecorObstacles(),...towers];
+         ?[...buildings,...infantryStructureColliders(buildings),...gatePosts,...towers]
+         :[...buildings,...vehicleStructureColliders(buildings),...gatePosts,
+           ...this.vehicleDecorObstacles(),...towers];
        const target=spec.flying?{x:clamp(p.x,8,this.world.size-8),y:clamp(p.y,8,this.world.size-8)}:this.world.nearest(p,obstacles,[],u,Math.max(0,spec.radius-10));if(!target)return;
       const next:Order={...order,...target,...(playerMarch&&u.owner===0&&!spec.flying?{march:playerMarch}:mixed&&front.includes(u)?{march:(armoredFront.length?members.filter(v=>!unitSpec(v).flying):front).map(v=>v.id)}:{}),...(formation?{formation,...(support.includes(u)?{kind:order.kind==='attack'?'attackMove':order.kind,target:undefined}:{})}:{})};u.hold=false;u.guardArea=false;u.supportPaused=false;u.workingTarget=null;
       if(append){if(u.orders.length<32)u.orders.push(next);else return;}
@@ -1173,7 +1179,9 @@ export class Simulation {
   }
   private supportApproach(u:Unit,target:Unit|Base,requireReachable=false,startSide=0):Point|null {
     const radius='queue' in target?target.radius+32:35,angle=Math.atan2(u.y-target.y,u.x-target.x),range='queue' in target?target.radius+55:u.kind==='engineer'?REPAIR_RADIUS:this.healRadius(u);
-    const buildings=this.navigationBases(u.owner),routeObstacles=[...buildings,...infantryStructureColliders(buildings)],
+    const buildings=this.navigationBases(u.owner),routeObstacles=[
+      ...buildings,...infantryStructureColliders(buildings),
+      ...friendlyGatePostColliders(this.obstacles(),u.owner)],
       obstacles=[...routeObstacles,...this.bastionColliders()];
     if('queue' in target){
       const gap=distance(u,target);
