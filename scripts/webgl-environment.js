@@ -104,10 +104,23 @@ export class DesertArtPass {
  constructor({scene,world,terrain,heightAt,pos,loader,lowQuality=false,biome='desert'}){
   Object.assign(this,{scene,world,terrain,heightAt,pos,loader,lowQuality,biome});
   this.details=createGroundDetails(world,terrain.sites);
-  this.items=[];this.animations=[];
+  this.items=[];this.animations=[];this.windPalms=[];
   this.addCraters();
   this.addDebris();
   this.addRuinRubble();
+ }
+ // GLB palms have their model root anchored at ground level, so subtle
+ // procedural bending is cheap and preserves every original PBR texture.
+ // No per-frame mesh creation or modification to collision data.
+ addWindPalm(group,phase){
+  this.windPalms.push({group,phase,baseX:group.rotation.x,baseZ:group.rotation.z});
+ }
+ update(time,storm=0){
+  const gain=.013+Math.max(0,Math.min(1,storm))*.043;
+  for(const p of this.windPalms){
+   p.group.rotation.x=p.baseX+Math.sin(time*.85+p.phase)*gain;
+   p.group.rotation.z=p.baseZ+Math.cos(time*.64+p.phase*1.73)*gain*.75;
+  }
  }
  makeCraterTexture(){
   // Procedural, biome-aware excavation with an eroded rim and granular
@@ -266,7 +279,7 @@ export class DesertArtPass {
    const group=new THREE.Group();group.position.copy(this.pos(d.x,d.y));
    group.rotation.y=d.rotation;
    if(spacious)group.scale.setScalar(1.12);
-   group.add(palm);
+   group.add(palm);this.addWindPalm(group,d.rotation+d.x*.001);
    this.scene.add(group);this.items.push(group);
   }
   // Small natural palm clusters enhance the original desert art without
@@ -300,6 +313,7 @@ export class DesertArtPass {
      group.userData={visualOnly:true,nonPlayable:true,inlandGrove:true};
      group.position.copy(this.pos(x,y));group.rotation.y=rand()*Math.PI*2;
      group.scale.setScalar(.80+rand()*.32);group.add(tree);
+     this.addWindPalm(group,x*.007+y*.003);
      this.scene.add(group);this.items.push(group);
     }
    }
@@ -332,7 +346,7 @@ export class DesertArtPass {
     group.position.copy(this.pos(p.x,p.y));
     group.rotation.y=rand()*Math.PI*2;
     group.scale.setScalar((.83+rand()*.38)*(spacious?1.12:1));
-    group.add(palm);
+    group.add(palm);this.addWindPalm(group,p.x*.005+p.y*.013);
     this.scene.add(group);this.items.push(group);borderPalms++;
    }
   }
