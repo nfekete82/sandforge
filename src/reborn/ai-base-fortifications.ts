@@ -14,6 +14,9 @@ export const HOME_TOWER_LIMIT=3;
 export const HOME_WALL_LIMIT=4;
 export const HOME_DEFENSE_RADIUS=760;
 export const HOME_DEFENSE_PULSE_SECONDS=18;
+export const HOME_FORTIFICATION_MIN_TIME=540;
+export const HOME_FORTIFICATION_MIN_FIGHTERS=16;
+export const HOME_FORTIFICATION_SURPLUS=2500;
 
 type DefensiveBuild='turret'|'wallGate'|'wall';
 export interface HomeDefensePlan {
@@ -119,12 +122,18 @@ export function planHomeFortification(g:Simulation,options:{
  const home=finishedHome(g);if(!home||g.status!=='playing')return null;
  const own=owned(g);
  if(!own.some(b=>b.kind==='barracks'&&b.buildRemaining<=0))return null;
- if(options.fighters<(options.underAttack?2:4))return null;
- if(g.time<(options.underAttack?65:105))return null;
+ // A player-approved OFFENSIVE-first economy: perimeter walls and gate
+ // are luxury purchases, not replacements for a functioning assault force.
+ // Never spend early income on half-built compound defenses. Existing towers
+ // guarding already captured frontier bastions remain independent.
+ if(g.time<HOME_FORTIFICATION_MIN_TIME||
+   options.fighters<HOME_FORTIFICATION_MIN_FIGHTERS||
+   g.credits[1]<HOME_FORTIFICATION_SURPLUS||
+   g.territories.filter(t=>t.owner===1).length<2)return null;
  const axis=homeDefenseAxis(g,home),towers=homeDefenseTowerCount(g,home);
  const gate=homeDefenseGate(g,home);
  const affordable=(kind:DefensiveBuild)=>{
-  const reserve=options.underAttack?Math.max(100,options.reserve*.5):options.reserve;
+  const reserve=Math.max(HOME_FORTIFICATION_SURPLUS,options.reserve);
   return g.credits[1]>=BUILDINGS[kind].cost+reserve;
  };
  const allTowers=own.filter(b=>b.kind==='turret').length;
