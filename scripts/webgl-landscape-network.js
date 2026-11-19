@@ -1,95 +1,168 @@
 import * as THREE from 'three';
 
-/** Procedural v3 presentation. The Simulation owns all passability: these
- * meshes are raycast-inert and conform to the exact same authoritative height
- * sampler as the game's units, buildings and ground triangles. */
+/** Render-only v3 geography. The authoritative terrain and World.blocked
+ * remain responsible for heights, navigation, combat, and buildability.
+ *
+ * Roads: one mesh with per-vertex RGBA falloff (no stacked opaque ribbons).
+ * Mountains: a continuous, eroded cross-section mesh (no repeated vertical
+ * slabs). Both fade out before real passes and protected building clearings.
+ */
+const clamp01=v=>Math.min(1,Math.max(0,v));
+const smooth=v=>{const t=clamp01(v);return t*t*(3-2*t);};
+const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
+
 export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],biome='desert'}){
- const half=size/2,added=[];
- const clearings=ridges.flatMap(ridge=>ridge.clearings??[]);
- const insidePad=(x,z,margin=0)=>clearings.some(zone=>
-  Math.hypot(x-zone.point.x,z-zone.point.y)<zone.radius+margin);
- const terrainPoint=(x,z,offset=.8)=>[x-half,heightAt(x,z)+offset,z-half];
- const append=(into,a,b,c)=>{into.push(...a,...b,...c);};
- const bands=[{width:87,color:biome==='snow'?'#89949c':'#8b7254',opacity:.38,offset:.52},
-              {width:49,color:biome==='snow'?'#c5bdaf':'#ae966c',opacity:.82,offset:.78}];
- for(const band of bands){
-  const vertices=[];
-  for(const road of roads)for(let i=1;i<road.length;i++){
-   const a=road[i-1],b=road[i],dx=b.x-a.x,dz=b.y-a.y,len=Math.hypot(dx,dz);
-   if(len<1)continue;
-   const nx=-dz/len*band.width*.5,nz=dx/len*band.width*.5;
-   const steps=Math.ceil(len/32);
-   for(let k=0;k<steps;k++){
-    const t=k/steps,u=(k+1)/steps;
-    const x=a.x+dx*t,z=a.y+dz*t,xx=a.x+dx*u,zz=a.y+dz*u;
-    // No painted road across the build pads: leave a clean sand apron.
-    if(insidePad((x+xx)*.5,(z+zz)*.5,band.width*.65))continue;
-    const a1=terrainPoint(x+nx,z+nz,band.offset),a2=terrainPoint(x-nx,z-nz,band.offset);
-    const b1=terrainPoint(xx+nx,zz+nz,band.offset),b2=terrainPoint(xx-nx,zz-nz,band.offset);
-    append(vertices,a1,a2,b1);append(vertices,b1,a2,b2);
+ const half=size/2,meshes=[];
+ const protectedZones=ridges.flatMap(r=>r.clearings??[]);
+ const distanceFromBuildPad=(x,z)=>protectedZones.reduce((closest,zone)=>
+   Math.min(closest,Math.hypot(x-zone.point.x,z-zone.point.y)-zone.radius),Infinity);
+ const point=(x,z,y=.25)=>[x-half,heightAt(x,z)+y,z-half];
+ const roadShade={desert:'#aa8b61',snow:'#8e8e83',jungle:'#938061'}[biome]??'#aa8b61';
+ const rockColors=({desert:['#b99c75','#8e7153','#d2b38c','#e0c29b'],
+   snow:['#9ca2a0','#707b7e','#c3c6bf','#e1ddd3'],
+   jungle:['#9a9871','#64694e','#afa982','#c9b78f']})[biome]??['#b99c75','#8e7153','#d2b38c','#e0c29b'];
+
+ // Use a single ribbon with feathered shoulders and subtle twin wheel ruts.
+ // The road may cross another road, but never doubles its own opaque geometry.
+ const roadPositions=[],roadColors=[],tireOffsets=[-1,-.83,-.56,-.25,0,.25,.56,.83,1];
+ const ruts=[0,.045,.17,.26,.135,.26,.17,.045,0];
+ const roadColor=new THREE.Color(roadShade);
+ for(const route of roads){
+  if(route.length<2)continue;
+  const curve=new THREE.CatmullRomCurve3(
+    route.map(p=>new THREE.Vector3(p.x,0,p.y)),false,'centripetal');
+  const routeDistance=route.slice(1).reduce((sum,p,i)=>sum+
+    Math.hypot(p.x-route[i].x,p.y-route[i].y),0);
+  const count=Math.max(5,Math.ceil(routeDistance/24));
+  const centers=curve.getPoints(count);
+  const crossSections=centers.map((center,i)=>{
+   const before=centers[Math.max(0,i-1)],after=centers[Math.min(count,i+1)];
+   const dx=after.x-before.x,dz=after.z-before.z,len=Math.hypot(dx,dz)||1;
+   const nx=-dz/len,nz=dx/len;
+   // Keep road width in visual units; slight natural wear variation only.
+   const width=51*(.95+.045*Math.sin(center.x*.013+center.z*.021));
+   const padFade=smooth((distanceFromBuildPad(center.x,center.z)-15)/118);
+   const endFade=smooth(Math.min(i,count-i)/3.5);
+   return tireOffsets.map((offset,j)=>{
+    const x=center.x+nx*width*.5*offset,z=center.z+nz*width*.5*offset;
+    const elevation=point(x,z,.27);
+    const alpha=ruts[j]*padFade*endFade*
+      (.9+.08*Math.sin(i*.54+offset*3.4));
+    const tint=roadColor.clone().multiplyScalar(
+      1+.045*Math.sin(center.x*.021+center.z*.017+offset*5));
+    return {position:elevation,color:[tint.r,tint.g,tint.b,alpha]};
+   });
+  });
+  for(let i=1;i<crossSections.length;i++){
+   for(let j=1;j<tireOffsets.length;j++){
+    const a=crossSections[i-1][j-1],b=crossSections[i-1][j],
+      c=crossSections[i][j-1],d=crossSections[i][j];
+    // Fully omit invisible pads; avoid a subtle dark line over build zones.
+    if(Math.max(a.color[3],b.color[3],c.color[3],d.color[3])<.005)continue;
+    for(const vertex of [a,c,b,b,c,d]){
+     roadPositions.push(...vertex.position);
+     roadColors.push(...vertex.color);
+    }
    }
   }
-  if(!vertices.length)continue;
+ }
+ if(roadPositions.length){
   const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(roadPositions,3));
+  // The fourth channel is per-vertex opacity; no stacked dark road bands.
+  geometry.setAttribute('color',new THREE.Float32BufferAttribute(roadColors,4));
   geometry.computeVertexNormals();
-  const material=new THREE.MeshStandardMaterial({color:band.color,roughness:1,metalness:0,
-    side:THREE.DoubleSide,transparent:true,opacity:band.opacity,depthWrite:false,
-    polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
+  const material=new THREE.MeshStandardMaterial({
+   color:'#ffffff',vertexColors:true,transparent:true,opacity:1,
+   roughness:1,metalness:0,depthWrite:false,side:THREE.DoubleSide,
+   polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1
+  });
   const mesh=new THREE.Mesh(geometry,material);
-  mesh.name='procedural-v3-sand-roads';mesh.renderOrder=2;
-  mesh.receiveShadow=true;mesh.raycast=()=>{};
-  mesh.userData={visualOnly:true,roadNetwork:true};
-  scene.add(mesh);added.push(mesh);
+  mesh.name='procedural-v3-soft-sand-roads';mesh.renderOrder=2;
+  mesh.userData={visualOnly:true,roadNetwork:true,featheredRoads:true};
+  mesh.receiveShadow=false;mesh.castShadow=false;mesh.raycast=()=>{};
+  scene.add(mesh);meshes.push(mesh);
  }
- const vertices=[],colors=[];
- const palette={
-  desert:['#cbb18a','#9a7755','#e2c59c'],
-  snow:['#a8a8a6','#7c878c','#d7d4c9'],
-  jungle:['#99916e','#646d4c','#b5aa7d']
- }[biome]??['#cbb18a','#9a7755','#e2c59c'];
- const hues=palette.map(color=>new THREE.Color(color));
- const face=(a,b,c,color)=>{
-  append(vertices,a,b,c);
-  for(let i=0;i<3;i++)colors.push(color.r,color.g,color.b);
- };
+
+ // Continuous terrain-following massif with irregular profile, layered
+ // colors and gradually rounded ends. No sharp top teeth or squared pillars.
+ const rockPositions=[],rockRgb=[];
+ const rockPalette=rockColors.map(c=>new THREE.Color(c));
+ const offsets=[-1.55,-1.30,-1.06,-.82,-.58,-.31,0,.31,.58,.82,1.06,1.30,1.55];
+ const silhouette=[0,.035,.14,.34,.60,.83,1,.83,.60,.34,.14,.035,0];
  for(const ridge of ridges){
-  for(let i=1;i<ridge.spine.length;i++){
-   const a=ridge.spine[i-1],b=ridge.spine[i],dx=b.x-a.x,dz=b.y-a.y;
-   const len=Math.hypot(dx,dz);if(len<1)continue;
-   const nx=-dz/len*ridge.width*.48,nz=dx/len*ridge.width*.48;
-   const steps=Math.ceil(len/23);
+  const spine=ridge.spine;
+  if(spine.length<2)continue;
+  const line=[];
+  let along=0;
+  for(let i=1;i<spine.length;i++){
+   const a=spine[i-1],b=spine[i],dx=b.x-a.x,dz=b.y-a.y;
+   const length=Math.hypot(dx,dz);
+   if(length<.01)continue;
+   const steps=Math.ceil(length/21);
    for(let k=0;k<steps;k++){
-    const t=k/steps,u=(k+1)/steps,cx=a.x+dx*(t+u)*.5;
-    // The exact same x-based pass predicate is used by World.blocked.
-    if(ridge.ramps.some(p=>Math.abs(cx-p.x)<=p.width*.5))continue;
-    const p={x:a.x+dx*t,z:a.y+dz*t},q={x:a.x+dx*u,z:a.y+dz*u};
-    // The 3D rock face must respect the exact same protected build areas
-    // as the authoritative collision grid, including the edge of the wall.
-    if(insidePad((p.x+q.x)*.5,(p.z+q.z)*.5,ridge.width*.6))continue;
-    const l0=terrainPoint(p.x+nx,p.z+nz,.2),r0=terrainPoint(p.x-nx,p.z-nz,.2);
-    const l1=terrainPoint(q.x+nx,q.z+nz,.2),r1=terrainPoint(q.x-nx,q.z-nz,.2);
-    const rise=ridge.height*(.83+.13*Math.sin((i*steps+k)*1.91));
-    const lt0=[l0[0],l0[1]+rise,l0[2]],rt0=[r0[0],r0[1]+rise*.83,r0[2]];
-    const lt1=[l1[0],l1[1]+rise,l1[2]],rt1=[r1[0],r1[1]+rise*.83,r1[2]];
-    face(l0,l1,lt0,hues[1]);face(l1,lt1,lt0,hues[1]);
-    face(rt0,rt1,r0,hues[0]);face(rt1,r1,r0,hues[0]);
-    face(lt0,lt1,rt0,hues[2]);face(lt1,rt1,rt0,hues[2]);
+    const t=k/steps;
+    line.push({x:a.x+dx*t,z:a.y+dz*t,along:along+length*t});
+   }
+   along+=length;
+  }
+  const last=spine.at(-1);
+  line.push({x:last.x,z:last.y,along});
+  const sections=line.map((center,i)=>{
+   const prev=line[Math.max(0,i-1)],next=line[Math.min(line.length-1,i+1)];
+   const dx=next.x-prev.x,dz=next.z-prev.z,len=Math.hypot(dx,dz)||1;
+   const nx=-dz/len,nz=dx/len;
+   const phase=center.along*.014+spine[0].x*.00071+spine[0].y*.00037;
+   const ridgeRoll=.89+.10*Math.sin(phase*.7)+.06*Math.sin(phase*1.49+1.6);
+   const edgeTaper=smooth(Math.min(center.along,along-center.along)/105);
+   const nearestPass=ridge.ramps.reduce((d,ramp)=>
+     Math.min(d,Math.abs(center.x-ramp.x)-ramp.width*.5),Infinity);
+   const passTaper=smooth((nearestPass-ridge.width*.55)/105);
+   return offsets.map((offset,j)=>{
+    const jitter=1+.055*Math.sin(phase*1.38+offset*5.7)+
+      .028*Math.cos(phase*2.17-offset*8);
+    const x=center.x+nx*ridge.width*offset*jitter,
+      z=center.z+nz*ridge.width*offset*jitter;
+    // Fade for every vertex, not just the centerline; ensures cliffs never
+    // visually invade the physically protected HQ/Bastion construction pads.
+    const padTaper=smooth((distanceFromBuildPad(x,z)-ridge.width*.58)/135);
+    const height=ridge.height*silhouette[j]*ridgeRoll*
+      (.95+.075*Math.sin(phase*.9+offset*6))*edgeTaper*passTaper*padTaper;
+    const position=point(x,z,.16+Math.max(0,height));
+    const grains=.13*Math.sin(center.along*.02+offset*7)+
+      .055*Math.sin(center.along*.066+offset*13);
+    const color=rockPalette[0].clone()
+      .lerp(rockPalette[1],clamp01(.25+Math.abs(offset)*.34+grains))
+      .lerp(rockPalette[2],clamp01(.15+silhouette[j]*.24))
+      .lerp(rockPalette[3],clamp01(.035+Math.max(0,grains)*.25));
+    return {position,color};
+   });
+  });
+  for(let i=1;i<sections.length;i++){
+   for(let j=1;j<offsets.length;j++){
+    const a=sections[i-1][j-1],b=sections[i-1][j],
+      c=sections[i][j-1],d=sections[i][j];
+    for(const vertex of [a,c,b,b,c,d]){
+     rockPositions.push(...vertex.position);
+     rockRgb.push(vertex.color.r,vertex.color.g,vertex.color.b);
+    }
    }
   }
  }
- if(vertices.length){
+ if(rockPositions.length){
   const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
-  geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(rockPositions,3));
+  geometry.setAttribute('color',new THREE.Float32BufferAttribute(rockRgb,3));
   geometry.computeVertexNormals();
-  const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({
-    color:'#ffffff',roughness:.98,metalness:0,vertexColors:true,side:THREE.DoubleSide,
-    flatShading:true}));
-  mesh.name='procedural-v3-physical-mountain-passes';
+  const material=new THREE.MeshStandardMaterial({
+   color:'#ffffff',roughness:1,metalness:0,vertexColors:true,
+   side:THREE.DoubleSide,flatShading:false
+  });
+  const mesh=new THREE.Mesh(geometry,material);
+  mesh.name='procedural-v3-eroded-sandstone';
   mesh.castShadow=true;mesh.receiveShadow=true;mesh.raycast=()=>{};
-  mesh.userData={visualOnly:true,physicalCliffPresentation:true};
-  scene.add(mesh);added.push(mesh);
+  mesh.userData={visualOnly:true,physicalCliffPresentation:true,erodedRidge:true};
+  scene.add(mesh);meshes.push(mesh);
  }
- return added;
+ return meshes;
 }
