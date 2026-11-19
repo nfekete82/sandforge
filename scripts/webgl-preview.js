@@ -492,6 +492,9 @@ function addBattlefieldRocks(material){
 }
 const pbr=(color,roughness=1,metalness=0)=>new THREE.MeshStandardMaterial({color,roughness,metalness,flatShading:true});
 function instancedStone(){
+ // Modern deserts keep only landmark landforms, not scattered loose 3D stones.
+ // Returning before geometry/material allocation also saves draw calls.
+ if(spacious&&biome==='desert'&&terrain.battlefield)return 0;
  // More irregular weathered sandstone, fewer identical round orange pebbles.
  const geometry=weatheredStoneGeometry(query.get('lite')==='1');
  // PBR albedo, sculpted normal and mineral roughness are shared with the
