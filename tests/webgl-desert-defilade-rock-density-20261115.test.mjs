@@ -30,42 +30,43 @@ test('modern 4-bastion desert: no scattered boulders and uncluttered build space
  }
 });
 
-test('one 3-material PBR sand surface built from periodic, low-contrast 256px image maps',()=>{
+test('modern PBR sand surface: four 512px seamless silt, grit, zoning and ripple maps',()=>{
  const maps=createDesertSurfaceDetail(renderStub);
- assert.deepEqual(Object.keys(maps),['silt','grit','mask']);
+ assert.deepEqual(Object.keys(maps),['silt','grit','mask','ripples']);
  for(const [name,tex] of Object.entries(maps)){
-  assert.equal(tex.image.width,256,name);
-  assert.equal(tex.image.height,256,name);
+  assert.equal(tex.image.width,DESERT_SURFACE_DETAIL.size,name);
+  assert.equal(tex.image.height,DESERT_SURFACE_DETAIL.size,name);
   assert.equal(tex.wrapS,THREE.RepeatWrapping);
   assert.equal(tex.wrapT,THREE.RepeatWrapping);
   assert.equal(tex.minFilter,THREE.LinearMipmapLinearFilter);
   assert.equal(tex.anisotropy,8);
-  assert.equal(tex.colorSpace,name==='mask'?THREE.NoColorSpace:THREE.SRGBColorSpace);
+  assert.equal(tex.colorSpace,['mask','ripples'].includes(name)?THREE.NoColorSpace:THREE.SRGBColorSpace);
   const arr=tex.image.data;
   for(let i=3;i<arr.length;i+=4*283)assert.equal(arr[i],255);
   let mean=0,min=255,max=0;
   for(let i=0;i<arr.length;i+=4){
    mean+=arr[i];min=Math.min(min,arr[i]);max=Math.max(max,arr[i]);
-   if(name!=='mask')assert.ok(arr[i]>arr[i+2]&&arr[i+1]>arr[i+2],'warm, not icy white');
+   if(name==='silt'||name==='grit')assert.ok(arr[i]>arr[i+2]&&arr[i+1]>arr[i+2],'warm, not icy white');
   }
   mean/=arr.length/4;
-  if(name==='mask'){assert.ok(max-min>30,'mask genuinely produces distinct sediment pockets');}
+  if(name==='mask'||name==='ripples'){assert.ok(max-min>15,'distinct coverage and wind ripples');}
   else{
    assert.ok(mean>170&&mean<225);
    assert.ok(max<240,'never reintroduce white blotches');
   }
   // Finite wrap derivatives: edge-to-edge continuity is near exact.
-  const pix=(x,y,c=0)=>arr[(y*256+x)*4+c];
+  const size=DESERT_SURFACE_DETAIL.size;
+  const pix=(x,y,c=0)=>arr[(y*size+x)*4+c];
   let seamSum=0;
-  for(let i=0;i<256;i++){
-   seamSum+=Math.abs(pix(0,i)-pix(255,i));
-   seamSum+=Math.abs(pix(i,0)-pix(i,255));
+  for(let i=0;i<size;i++){
+   seamSum+=Math.abs(pix(0,i)-pix(size-1,i));
+   seamSum+=Math.abs(pix(i,0)-pix(i,size-1));
   }
-  assert.ok(seamSum/512<7,'seamless horizontal and vertical tiling: '+name);
+  assert.ok(seamSum/(size*2)<7,'seamless horizontal and vertical tiling: '+name);
   tex.dispose();
  }
- assert.equal(DESERT_SURFACE_DETAIL.windTileMetres,900);
- assert.equal(DESERT_SURFACE_DETAIL.gritTileMetres,82);
+ assert.equal(DESERT_SURFACE_DETAIL.windTileMetres,540);
+ assert.equal(DESERT_SURFACE_DETAIL.gritTileMetres,48);
  assert.equal(style.authoredSandVertexBlend,.83);
 });
 
@@ -79,7 +80,7 @@ test('photographic albedo + silt + grit inside one terrain shader: no extra scen
  assert.equal(a,again,'one-time map bake, no per-frame allocation');
  assert.equal(mat.map,originalMap,'authored base albedo retained');
  assert.equal(mat.metalness,0);
- assert.ok(mat.userData.sandforgeSurfaceDetailRevision.includes('v2'));
+ assert.equal(mat.userData.sandforgeSurfaceDetailRevision,DESERT_SURFACE_DETAIL.revision);
  const shader={
   vertexShader:'#include <common>\n#include <begin_vertex>',
   fragmentShader:'#include <common>\n#include <map_fragment>\n#include <roughnessmap_fragment>',
@@ -90,12 +91,13 @@ test('photographic albedo + silt + grit inside one terrain shader: no extra scen
  assert.match(shader.fragmentShader,/texture2D\(sfDesertSilt/);
  assert.match(shader.fragmentShader,/texture2D\(sfDesertGrain/);
  assert.match(shader.fragmentShader,/texture2D\(sfDesertMask/);
- assert.match(shader.fragmentShader,/roughnessFactor=mix\(roughnessFactor/);
+ assert.match(shader.fragmentShader,/roughnessFactor=clamp\(mix\(roughnessFactor/);
  assert.equal(shader.uniforms.sfDesertSilt.value,a.silt);
  assert.equal(shader.uniforms.sfDesertGrain.value,a.grit);
  assert.equal(shader.uniforms.sfDesertMask.value,a.mask);
+ assert.equal(shader.uniforms.sfDesertRipples.value,a.ripples);
  assert.equal(mat.customProgramCacheKey(),DESERT_SURFACE_DETAIL.revision);
- assert.ok(SANDFORGE_SAND_PBR.revision.includes('grit-v2'));
+ assert.ok(SANDFORGE_SAND_PBR.revision.includes('v5'));
  for(const tex of Object.values(a))tex.dispose();
  mat.dispose();
 });
