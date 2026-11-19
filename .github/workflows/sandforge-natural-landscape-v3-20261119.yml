@@ -27,6 +27,7 @@ jobs:
         run: |
           node --test \
             tests/sandforge-natural-landscape-v3-20261119.test.mjs \
-            tests/sandforge-procedural-battlefields.test.mjs \
+            tests/reborn-spacious-map-versions.test.mjs \
+            tests/webgl-pathfinding-budget-20261111.test.mjs \
             tests/sandforge-ai36-combat-movement-20261119.test.mjs \
             tests/webgl-vehicle-yield-spacing-stuck-20261108.test.mjs
