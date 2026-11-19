@@ -1,0 +1,69 @@
+name: Sandforge KI3.6 grounded offensive routing and smart health
+on:
+  push:
+    branches: ['feat/sandforge-ai36-frontline-route-anchor-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript and deployable WebGL module audit
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Targeted AI, HUD, helicopter and bomber regressions
+        run: |
+          node --test \
+            tests/sandforge-smart-healthbars-20261119.test.mjs \
+            tests/sandforge-ai36-grounded-offense-20261119.test.mjs \
+            tests/sandforge-ai36-endgame-route-recovery-20261119.test.mjs \
+            tests/sandforge-ai36-recon-bomber-support-20261119.test.mjs \
+            tests/sandforge-ai36-fight-dont-flee-20261119.test.mjs \
+            tests/sandforge-scout-pods-rover-air-evasion-20261119.test.mjs \
+            tests/sandforge-bomber-escort-heli-mg-20261119.test.mjs \
+            tests/sandforge-combat-aftermath-v1-20261119.test.mjs
+      - name: Matched KI3.6 600-second offensive benchmark
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps 24,26 --seeds 2026,2027 \
+            --seconds 600 --modes director --ai36 coordinated \
+            --label ai36-grounded-routing \
+            --output ai-arena-results/ci-ai36-grounded-routing.json
+      - name: Inspect wins, real HQ pressure and mission continuity
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const file=JSON.parse(readFileSync('ai-arena-results/ci-ai36-grounded-routing.json','utf8'));
+          const rows=file.details;
+          let wins=0;
+          for(const r of rows){
+           if(r.outcome==='win')wins++;
+           console.log('map='+r.mapVersion+' seed='+r.seed+' result='+r.outcome+
+            ' HQseen='+r.enemyHQSeen+' HQdamage='+r.enemyHQDamage+
+            ' captures='+r.captures+' redSectors='+r.redSectors+
+            ' missions='+r.missionCount+' attacks='+r.firstOrganizedAttack+
+            ' aborted='+r.abortedMissions+' credits='+r.timeline.at(-1)?.credits);
+           console.log('Timeline',JSON.stringify(r.timeline.map(t=>({
+            at:t.at,mission:t.mission,phase:t.phase,commander:t.commander,
+            group:t.group,enemyHQSeen:t.enemyHQSeen,enemyHQDamage:t.enemyHQDamage}))));
+          }
+          console.log('REAL WINS '+wins+'/'+rows.length);
+          NODE
+      - name: Archive full outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-grounded-offensive-qa
+          path: ai-arena-results/ci-ai36-grounded-routing.*
+          if-no-files-found: warn
