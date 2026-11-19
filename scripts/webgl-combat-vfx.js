@@ -145,7 +145,8 @@ export class SandforgeCombatEffects {
   this.trailDust.mesh.userData.vehicleDust=true;
   this.sparks=makePool(scene,'spark',lowQuality?90:300,.96);
   this.debris=makePool(scene,'debris',lowQuality?42:120,.84);
-  for(const pool of [this.smoke,this.flash,this.flames,this.dust,this.trailDust,this.sparks,this.debris])clearInstances(pool);
+  this.pools=[this.smoke,this.flash,this.flames,this.dust,this.trailDust,this.sparks,this.debris];
+  for(const pool of this.pools)clearInstances(pool);
   this.scorch=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),materialFor('scorch',.93),lowQuality?70:210);
   this.scorch.geometry.rotateX(-Math.PI*.5);
   this.scorch.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -836,10 +837,13 @@ export class SandforgeCombatEffects {
  }
  damagedVehicleSmoke(units){
   let emitted=0;
-  const live=new Set();
+  const sweeping=this.game.time-this.lastDamageSmokeSweep>=1.5;
+  const live=sweeping?new Set():null;
   for(const u of units){
    if(!u.hp||u.carrier)continue;
-   live.add(u.id);
+   if(live)live.add(u.id);
+   // Track the entire roster for cleanup, without emitting past the cap.
+   if(emitted>=6)continue;
    const intensity=damagedVehicleIntensity(u,UNITS[u.kind]?.hp);
    if(intensity<=0||!this.game.canSee(0,u))continue;
    const last=this.lastDamageSmoke.get(u.id)??-Infinity;
@@ -851,14 +855,14 @@ export class SandforgeCombatEffects {
    if(intensity>.91&&this.rand()>.75)
     this.particle(this.flames,u.x,u.y,this.heightAt(u.x,u.y)+27,
      8+this.rand()*8,.18+this.rand()*.22,0,0,16);
-   if(++emitted>=6)break;
+   emitted++;
   }
   // Remove dead vehicles from the small cooldown table every ~1.5 s;
   // rebuilding once per frame would create more work than these effects.
-  if(this.game.time-this.lastDamageSmokeSweep>=1.5){
+  if(sweeping){
    this.lastDamageSmokeSweep=this.game.time;
    for(const id of this.lastDamageSmoke.keys())
-    if(!units.some(u=>u.id===id&&u.hp>0&&!u.carrier))this.lastDamageSmoke.delete(id);
+    if(!live.has(id))this.lastDamageSmoke.delete(id);
   }
  }
  update(dt,active=true,subTick=0){
@@ -903,8 +907,17 @@ export class SandforgeCombatEffects {
     if(this.rand()>.90)this.particle(this.flames,x,z,this.heightAt(x,z)+7,9+this.rand()*12,.2+this.rand()*.28,0,0,15);
    }
   }
-  this.emitters=this.emitters.filter(e=>e.life>0);
-  this.shocks=this.shocks.filter(s=>(s.life-=dt)>0);
+  // Reuse arrays through long firefights instead of allocating per frame.
+  let kept=0;
+  for(let i=0;i<this.emitters.length;i++)
+   if(this.emitters[i].life>0)this.emitters[kept++]=this.emitters[i];
+  this.emitters.length=kept;
+  kept=0;
+  for(let i=0;i<this.shocks.length;i++){
+   const item=this.shocks[i];item.life-=dt;
+   if(item.life>0)this.shocks[kept++]=item;
+  }
+  this.shocks.length=kept;
   let shockIndex=0;
   for(const shock of this.shocks){
    const progress=1-shock.life/shock.ttl;
@@ -917,9 +930,11 @@ export class SandforgeCombatEffects {
   }
   this.shockwave.count=shockIndex;
   if(shockIndex)this.shockwave.instanceMatrix.needsUpdate=true;
-  for(const pool of [this.smoke,this.flash,this.flames,this.dust,this.trailDust,this.sparks,this.debris]){
-   const alive=[];let k=0;
-   for(const p of pool.particles){
+  for(const pool of this.pools){
+   let k=0;
+   const particles=pool.particles;
+   for(let i=0;i<particles.length;i++){
+    const p=particles[i];
     p.life-=dt;
     if(p.life<=0)continue;
     p.x+=p.vx*dt;p.z+=p.vz*dt;
@@ -940,9 +955,10 @@ export class SandforgeCombatEffects {
     const width=scale*(pool.mode==='spark'?.45:pool.mode==='smoke'?1.13:1);
     const height=scale*(pool.mode==='dust'?.57:pool.mode==='flame'?1.27:pool.mode==='debris'?.66:1);
     dummy.scale.set(width,height,1);dummy.updateMatrix();
-    pool.mesh.setMatrixAt(k++,dummy.matrix);alive.push(p);
+    pool.mesh.setMatrixAt(k,dummy.matrix);
+    particles[k++]=p;
    }
-   pool.particles=alive;
+   particles.length=k;
    pool.mesh.count=k;
    // Avoid uploading a large instance matrix when nothing is left to draw.
    if(k||pool.mesh.instanceMatrix.needsUpdate)pool.mesh.instanceMatrix.needsUpdate=true;
