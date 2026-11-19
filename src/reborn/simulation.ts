@@ -1854,6 +1854,18 @@ export class Simulation {
    */
   private routeBudgetTick=-1;
   private routeBudgetUsed=0;
+  // A physics frame may contain 8-12 fixed steps at 4x speed. The earlier
+  // per-tick limit still allowed 16-35 synchronous A* calls in ONE RAF.
+  // This transient budget spans the full visual frame, not each game tick.
+  // CLI/AI simulations retain the original deterministic per-tick limit.
+  private routeFrameActive=false;
+  private routeFrameUsed=0;
+  beginRenderFrame():void {this.routeFrameActive=true;this.routeFrameUsed=0;}
+  endRenderFrame():void {this.routeFrameActive=false;}
+  // A blocked step used to set repath=0, causing a new full 4200-node
+  // search on every catch-up tick. Back off only while the unit stays at
+  // the same stuck location. Fresh commands continue to reset u.repath.
+  private blockedRouteRetries=new WeakMap<Unit,{x:number;y:number;count:number}>();
   private move(u:Unit,target:Point,dt:number,speedLimit=Infinity,formationCatchUp=false):void {
     const spec=unitSpec(u),clearance=Math.max(0,spec.radius-10);
     const vehicle=spec.group==='Fahrzeuge'&&!spec.flying,ground=!spec.flying;
@@ -1889,11 +1901,15 @@ export class Simulation {
         if(tick!==this.routeBudgetTick){
           this.routeBudgetTick=tick;this.routeBudgetUsed=0;
         }
-        if(this.routeBudgetUsed>=2){
+        if(this.routeBudgetUsed>=2||
+          (this.routeFrameActive&&this.routeFrameUsed>=2)){
+          // Do not lose orders or route endpoints; retry fairly in future
+          // simulation steps/render frames without flooding one frame.
           u.repath=.10+(u.id%5)*.05;
           return;
         }
         this.routeBudgetUsed++;
+        if(this.routeFrameActive)this.routeFrameUsed++;
       }
       delete u.vehicleEscape;
       const tactical=u.owner===1&&u.orders[0]?.tactical;
@@ -2074,8 +2090,28 @@ export class Simulation {
     const segmentClear=spec.flying||activeObstacles.every(o=>
       segmentDistance(o,u,p)>=o.radius+clearance+(spec.group==='Infanterie'?0:RULES.infantry.radius));
     if(spec.flying||(segmentClear&&this.world.walkable(p,activeObstacles,clearance)&&
-      this.world.groundVehicleStepSafe(u,p,slopeLimit,spec.radius))){u.x=p.x;u.y=p.y;u.walkDistance+=step;if(u.kind!=='tank')u.angle=Math.atan2(dy,dx);u.facing=dx<-.05?-1:dx>.05?1:u.facing;u.moving=step>.001;}
-    else {u.path=[];u.repath=0;delete u.vehicleEscape;if(this.world.mapVersion>=3&&!spec.flying)u.exactPath=true;}
+      this.world.groundVehicleStepSafe(u,p,slopeLimit,spec.radius))){
+      u.x=p.x;u.y=p.y;u.walkDistance+=step;
+      if(u.kind!=='tank')u.angle=Math.atan2(dy,dx);
+      u.facing=dx<-.05?-1:dx>.05?1:u.facing;u.moving=step>.001;
+      const blocked=this.blockedRouteRetries.get(u);
+      if(blocked&&distance(u,blocked)>12)this.blockedRouteRetries.delete(u);
+    }
+    else {
+      u.path=[];delete u.vehicleEscape;
+      if(this.world.mapVersion>=3&&!spec.flying)u.exactPath=true;
+      if(!spec.flying&&this.world.mapVersion>=23){
+        const blocked=this.blockedRouteRetries.get(u);
+        const same=blocked&&distance(u,blocked)<12;
+        const count=same?Math.min(7,blocked.count+1):1;
+        this.blockedRouteRetries.set(u,{
+          x:same?blocked.x:u.x,y:same?blocked.y:u.y,count});
+        // Immediate zero-retry here was the trigger for the 221s report:
+        // 16-35 4200-node A* calls per rendered frame at 4x speed.
+        // Retry in simulated time; a new explicit order still resets path.
+        u.repath=Math.min(4,0.55+count*.5)+(u.id%5)*.12;
+      }else u.repath=0;
+    }
   }
   step(dt=RULES.tick):void {
     if(!profiler)return this.stepMeasured(dt);const at=performance.now();try{this.stepMeasured(dt);}finally{profiler.record('simulation',performance.now()-at);}
