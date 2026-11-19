@@ -834,7 +834,8 @@ export class Simulation {
   upgradeBastion(owner:Faction,id:number):boolean{
     const t=this.territories.find(t=>t.id===id);
     if(this.status!=='playing'||!t||this.credits[owner]<BASTION_UPGRADE_COST||
-      !bastionUpgradable(t,owner,this.bases))return false;
+      !bastionUpgradable(t,owner,this.bases,
+        campaignLayout(this.world.mapVersion,this.seed).headquarters))return false;
     this.credits[owner]-=BASTION_UPGRADE_COST;t.upgradeLevel=2;
     this.revision++;
     if(owner===0)this.notices.push(t.name+' auf Stufe 2: +'+bastionEffectiveIncome(t)+' Credits / 10 s');
@@ -2844,7 +2845,8 @@ export class Simulation {
       if(this.world.mapVersion>=23&&this.time>=170&&
         this.credits[1]>=BASTION_UPGRADE_COST+1450&&this.count(1)>=8){
         const candidate=this.territories.filter(t=>
-          bastionUpgradable(t,1,this.bases)).sort((a,b)=>
+          bastionUpgradable(t,1,this.bases,
+          campaignLayout(this.world.mapVersion,this.seed).headquarters)).sort((a,b)=>
           b.income-a.income||a.id-b.id)[0];
         if(candidate)this.upgradeBastion(1,candidate.id);
       }
