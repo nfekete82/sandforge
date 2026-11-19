@@ -67,7 +67,7 @@ test('modern PBR sand surface: four 512px seamless silt, grit, zoning and ripple
  }
  assert.equal(DESERT_SURFACE_DETAIL.windTileMetres,540);
  assert.equal(DESERT_SURFACE_DETAIL.gritTileMetres,48);
- assert.equal(style.authoredSandVertexBlend,.83);
+ assert.equal(style.authoredSandVertexBlend,.76);
 });
 
 test('photographic albedo + silt + grit inside one terrain shader: no extra scene geometry',()=>{
