@@ -552,6 +552,15 @@ export class SandforgeBattlefield {
      this.attachBuildingMotion(entry,data);
      if(['factory','barracks','headquarters'].includes(entry.kind))this.productionGates.prepare(entry);
     }
+    if(type==='unit'&&entry.kind==='scout'){
+     // Some player's cached authored GLBs still place the tail pivot beyond
+     // the tail fin. Correct old assets at runtime, with no dependence on
+     // replacing uncommitted Mac GLB files. New exports use this pivot already.
+     const rotor=model.getObjectByName('TailRotor_Spin');
+     if(rotor&&rotor.position.z< -7.85){
+      rotor.position.z=-7.62;rotor.position.y=5.42;
+     }
+    }
     if(type==='unit'&&['tank','artillery'].includes(entry.kind))this.installTankRig(entry,model);
     entry.modelLoadError=null;entry.modelLoadRetries=0;
     if(type==='unit'&&data.animations.length){
