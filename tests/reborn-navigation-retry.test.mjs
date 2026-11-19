@@ -4,6 +4,10 @@ import {Simulation} from '../dist/src/reborn/simulation.js';
 
 function fixture(){
  const g=new Simulation(2026,4);g.units=[];g.bases=[];g.aiClock=-1e8;
+ // Intentionally base-free movement test: no faction has built a base yet.
+ // Otherwise the normal last-building-eliminated victory ends the game
+ // before the replacement move command can execute.
+ g.hadBuildings=[false,false];
  g.world.blocked.fill(0);g.world.opaque.fill(0);g.world.components.fill(0);
  const unit=g.spawn(0,{x:1200,y:1200});g.updateVision();return {g,unit};
 }
