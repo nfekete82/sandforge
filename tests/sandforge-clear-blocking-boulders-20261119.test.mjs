@@ -34,8 +34,8 @@ test('modern desert does not recreate rock meshes or visual boulder scatter',()=
  const preview=readFileSync('scripts/webgl-preview.js','utf8');
  const environment=readFileSync('scripts/webgl-environment.js','utf8');
  const generation=readFileSync('src/reborn/world-generation.ts','utf8');
- assert.match(generation,/const mesaTarget=modern\\?0:/);
- assert.match(preview,/if\\(terrain\\.battlefield&&terrain\\.mesas\\.length\\)addBattlefieldRocks/);
- assert.match(preview,/spacious&&biome==='desert'\\?0:spacious\\?420:1600/);
- assert.match(environment,/if\\(!\\(biome==='desert'&&world\\.mapVersion>=23\\)\\)this\\.addDebris\\(\\)/);
+ assert.ok(generation.includes('const mesaTarget=modern?0:'));
+ assert.ok(preview.includes('if(terrain.battlefield&&terrain.mesas.length)addBattlefieldRocks'));
+ assert.ok(preview.includes("spacious&&biome==='desert'?0:spacious?420:1600"));
+ assert.ok(environment.includes("if(!(biome==='desert'&&world.mapVersion>=23))this.addDebris()"));
 });
