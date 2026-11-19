@@ -147,6 +147,7 @@ export class TacticalAI {
  ai36Mode:AI36Mode='coordinated';
  private recaptureMission:{sector:number;ids:number[];since:number;securedAt:number|null}|null=null;
  private recaptureRetryAt=0;
+ private roverAirEscapeRetryAt=new Map<number,number>();
  private get ai36Enabled():boolean{
   return this.mode==='director'&&this.ai36Mode==='coordinated'&&
    this.ai35Enabled;
@@ -309,6 +310,7 @@ export class TacticalAI {
   const active=battle.withdrawals.find(w=>w.unit===u.id&&g.time<w.until);
   if(active&&u.orders[0]?.kind==='move'&&
      u.orders[0]?.tactical?.mode==='safe')return true;
+  if((this.roverAirEscapeRetryAt.get(u.id)??0)>g.time)return false;
   const helis=g.units.filter(v=>v.owner===0&&v.kind==='scout'&&
     v.hp>0&&!v.carrier&&g.canSee(1,v)&&distance(u,v)<=500)
    .sort((a,b)=>distance(u,a)-distance(u,b)||a.id-b.id);
@@ -320,6 +322,9 @@ export class TacticalAI {
     v.buildRemaining<=0&&distance(v,heli)<=RULES.turret.range+30);
   if(!loneRoverAirDisengage({roverKind:u.kind,enemyKind:heli.kind,
      enemyVisible:true,distance:distance(u,heli),aaCover}))return false;
+  // A blocked, winding desert map must not run eight A* queries every
+  // 50-ms physics frame; the retry gate is transient, not save data.
+  this.roverAirEscapeRetryAt.set(u.id,g.time+1.5);
   // Head toward a live friendly rocket/turret, or retreat out of the
   // observed helicopter's range. Never move through blocked geometry.
   const aa=[...g.units.filter(v=>v.owner===1&&v.kind==='rocket'&&
