@@ -11,7 +11,7 @@ import { World, inside, type Territory } from './world.js';
 import {visibleBasePropColliders} from './vehicle-decor-collision.js';
 import {vehicleStructureCollider,vehicleStructureColliders} from './vehicle-structure-collision.js';
 import {infantryStructureCollider,infantryStructureColliders} from './infantry-structure-collision.js';
-import {wallColliderSamples} from './defensive-wall.js';
+import {wallColliderSamples,wallTerrainPlacementError} from './defensive-wall.js';
 import {bastionStructureColliders} from './bastion-structure-collision.js';
 import {constructionVisualClearance,sitesVisuallyOverlap,siteNearBastion,siteExceedsMap,siteTerrainCompatible,type SiteFacing} from './construction-spacing.js';
 import {segmentDistance} from './world-generation.js';
@@ -777,20 +777,12 @@ export class Simulation {
    * Exploration and artificial sector polygon edges do not clip a perimeter.
    */
   private wallPlacementError(p:Point,facing:SiteFacing):string|null{
-    const yaw=[0,Math.PI,Math.PI/2,Math.PI*1.5][facing];
-    const c=Math.cos(yaw),s=Math.sin(yaw);
-    const ground=this.world;
-    let minHeight=Infinity,maxHeight=-Infinity;
-    for(let x=-53;x<=53;x+=10.6)for(const z of [-14,0,14]){
-      const q={x:p.x+x*c+z*s,y:p.y-x*s+z*c};
-      if(!ground.walkable(q))return 'Felsen oder Kartenrand blockieren dieses Mauerstück.';
-      if(ground.generated?.battlefield){
-        const h=ground.terrainHeight(q.x,q.y);
-        minHeight=Math.min(minHeight,h);maxHeight=Math.max(maxHeight,h);
-        if(!Number.isFinite(h)||ground.terrainSlope(q.x,q.y)>.24||
-           maxHeight-minHeight>24)return 'Mauerstück liegt auf zu steilem Gelände.';
-      }
-    }
+    // Wall-exclusive collision validation: gentle and substantial rolling
+    // slopes are allowed, unlike rigid HQ/factory foundations. The entire
+    // real mesh must still stay in bounds and never pass through blocked
+    // rocks, cliff walls or sudden vertical precipices.
+    const terrainError=wallTerrainPlacementError(this.world,p,facing);
+    if(terrainError)return terrainError;
     // Walls may TOUCH end-to-end. Overlapping foundations and all other
     // real building/repair footprints remain strictly forbidden.
     if(this.obstacles().some(b=>sitesVisuallyOverlap(
