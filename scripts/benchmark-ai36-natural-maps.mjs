@@ -6,12 +6,13 @@
  */
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
+import {blueBastionRush} from './benchmark-ai-opponent.mjs';
 
 const rounds=[
  {version:24,seed:2077,profile:'mixed'},
  {version:26,seed:42102026,profile:'rocky'}
 ];
-const simSeconds=Number(process.env.SANDFORGE_BENCH_SECONDS??140);
+const simSeconds=Number(process.env.SANDFORGE_BENCH_SECONDS??260);
 if(!Number.isFinite(simSeconds)||simSeconds<90||simSeconds>600)
  throw Error('SANDFORGE_BENCH_SECONDS must be 90-600');
 const step=.05;
@@ -32,7 +33,11 @@ for(const item of rounds){
   let redControl=0,blueControl=0,captured=0,previous=new Set();
   const frames=Math.ceil(simSeconds/step);
   for(let k=0;k<frames;k++){
-   if(game.status==='playing')game.step(step);
+   if(game.status==='playing'){
+    // Paid BLUE opponent contests public Bastions rather than idling at HQ.
+    if(k%20===0)blueBastionRush(game);
+    game.step(step);
+   }
    const red=game.territories.filter(t=>t.owner===1);
    const blue=game.territories.filter(t=>t.owner===0);
    redControl+=red.length*step;blueControl+=blue.length*step;
@@ -41,7 +46,7 @@ for(const item of rounds){
    previous=newOwners;
   }
   const row={...item,generatorVersion:game.world.generatorVersion,
-   ai36Mode:mode,seconds:simSeconds,gameSeconds:Number(game.time.toFixed(1)),
+   ai36Mode:mode,opponent:'paid-blue-bastion-rush',seconds:simSeconds,gameSeconds:Number(game.time.toFixed(1)),
    status:game.status,redControlSeconds:Math.round(redControl),
    blueControlSeconds:Math.round(blueControl),redCaptureEvents:captured,
    redFinalSectors:game.territories.filter(t=>t.owner===1).length,
@@ -61,7 +66,7 @@ const pairs=rounds.map(item=>{
   deltaRedFinalSectors:current.redFinalSectors-old.redFinalSectors,
   deltaRedUnits:current.redUnits-old.redUnits};
 });
-const report={scope:'Paired 140s-class real paid AI smoke test on generator v3; not a statistically significant win rate',step,seconds:simSeconds,pairs,rows};
+const report={scope:'Paired 260s-class matches versus the same paid BLUE Bastion-rush opponent on generator v3; not a statistically significant win rate',step,seconds:simSeconds,pairs,rows};
 mkdirSync('docs/qa/ai36-terrain',{recursive:true});
 writeFileSync('docs/qa/ai36-terrain/paired-smoke.json',JSON.stringify(report,null,2)+'\n');
 console.log('Summary '+JSON.stringify(pairs));
