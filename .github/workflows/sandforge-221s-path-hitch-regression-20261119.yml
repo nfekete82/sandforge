@@ -1,0 +1,32 @@
+name: Sandforge 221s path hitch recovery
+on:
+  push:
+    branches:
+      - fix/sandforge-221s-path-retry-hitches-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  route-spike:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile and verify complete browser startup import graph
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --check scripts/webgl-preview.js
+      - name: Diagnose 4x catchup, vehicle gates and AI defenses
+        run: |
+          node --test \
+            tests/sandforge-221s-path-hitch-regression-20261119.test.mjs \
+            tests/sandforge-728s-performance-regression-20261119.test.mjs \
+            tests/sandforge-webgl-shadow-module-packaging-20261119.test.mjs \
+            tests/sandforge-vehicle-gate-clearance-20261119.test.mjs \
+            tests/sandforge-ai-base-fortifications-20261119.test.mjs
