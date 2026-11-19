@@ -28,6 +28,9 @@ jobs:
         run: |
           node --test \
             tests/sandforge-clear-blocking-boulders-20261119.test.mjs \
+            tests/sandforge-desert-clear-scenery-network-20261119.test.mjs \
+            tests/sandforge-natural-landscape-renderer-20261119.test.mjs \
+            tests/sandforge-desert-shrubs-20261119.test.mjs \
             tests/sandforge-procedural-battlefields.test.mjs \
             tests/sandforge-natural-landscape-v3-20261119.test.mjs \
             tests/webgl-desert-defilade-rock-density-20261115.test.mjs
