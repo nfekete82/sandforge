@@ -5,7 +5,7 @@
  * Usage:
  *   npx tsc -p tsconfig.json
  *   node scripts/benchmark-sandforge-balance-tournament.mjs \
- *     --maps 24,25,26 --seeds 824836862,20261119,20261120 \
+ *     --maps 24,25,26 --seeds 824836862,20261119,20261120,9999 \
  *     --opponents guarded,contesting --seconds 300 \
  *     --presets baseline,tuned --output /tmp/sandforge-balance.json
  *
@@ -35,7 +35,7 @@ const tally=(rows,key)=>Object.fromEntries([...new Set(rows.flatMap(r=>Object.ke
  .map(k=>[k,rows.reduce((n,r)=>n+(r[key]?.[k]??0),0)]));
 
 export function parseTournamentArgs(args){
- const options={maps:[24,25,26],seeds:[824836862,20261119,20261120],
+ const options={maps:[24,25,26],seeds:[824836862,20261119,20261120,9999],
   opponents:['guarded','contesting'],seconds:300,presets:['baseline','tuned'],
   output:null,markdown:null};
  for(let i=0;i<args.length;i+=2){
