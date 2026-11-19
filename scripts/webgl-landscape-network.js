@@ -59,7 +59,7 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
       c=crossSections[i][j-1],d=crossSections[i][j];
     // Fully omit invisible pads; avoid a subtle dark line over build zones.
     if(Math.max(a.color[3],b.color[3],c.color[3],d.color[3])<.005)continue;
-    for(const vertex of [a,c,b,b,c,d]){
+    for(const vertex of [a,b,c,b,d,c]){
      roadPositions.push(...vertex.position);
      roadColors.push(...vertex.color);
     }
@@ -144,7 +144,7 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
       c=sections[i][j-1],d=sections[i][j];
     // No flat rock-colored carpet across openings or the safe build zones.
     if(Math.max(a.rise,b.rise,c.rise,d.rise)<1)continue;
-    for(const vertex of [a,c,b,b,c,d]){
+    for(const vertex of [a,b,c,b,d,c]){
      rockPositions.push(...vertex.position);
      rockRgb.push(vertex.color.r,vertex.color.g,vertex.color.b);
     }
