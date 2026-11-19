@@ -1189,7 +1189,30 @@ export class TacticalAI {
    const objectiveGone=a.objective!=null&&a.target!==undefined&&g.canSee(1,a.target)
     &&!g.bases.some(b=>b.id===a.objective&&b.hp>0);
    if(won||objectiveGone||g.time-a.at>120)finishExperience(experience,!!(won||objectiveGone),fighters.reduce((n,u)=>n+u.hp,0));}
-  const mission=chooseMission(g,c,origin,{strategy:s.adaptive?.strategy??'unknown',force:fighters,losses:s.losses,fronts:s.battle?.fronts??[],intelligent:this.missionPlannerMode==='legacy'?false:this.doctrineMode==='intelligent',bastionControl:this.ai35Enabled,experience,route:p=>{const route=this.route(origin,p);return route.length?this.sampleRoute(route,origin):undefined;}});
+  // The tactical route search is intentionally bounded for frame latency.
+  // When an early R-01 has revealed a distant HQ, its full risk-aware path
+  // can fail within that bound, while the real unit navigator can still
+  // advance safely in partial segments. Offer this fallback ONLY for AI3.6
+  // and only after chooseMission found no complete strategic route.
+  const routeFallback=this.ai36Enabled?(p:Point)=>{
+   const obstacles=this.obstacles();
+   const clear=g.world.path(origin,p,obstacles,5);
+   if(clear.length)return this.sampleRoute(clear,origin);
+   const partial=g.world.path(origin,p,obstacles,5,undefined,false,false,true);
+   if(!partial.length)return undefined;
+   const remaining=distance(partial[partial.length-1],p);
+   if(distance(origin,p)-remaining<Math.max(80,g.world.cell*2))return undefined;
+   const measured=this.sampleRoute(partial,origin);
+   // The untraversed suffix is a cost, NOT an invented reachable path.
+   // Unit movement remains subject to the normal collision/path validator.
+   return {length:measured.length+remaining*1.5,risk:measured.risk+1};
+  }:undefined;
+  const mission=chooseMission(g,c,origin,{strategy:s.adaptive?.strategy??'unknown',
+   force:fighters,losses:s.losses,fronts:s.battle?.fronts??[],
+   intelligent:this.missionPlannerMode==='legacy'?false:this.doctrineMode==='intelligent',
+   bastionControl:this.ai35Enabled,experience,
+   route:p=>{const route=this.route(origin,p);return route.length?this.sampleRoute(route,origin):undefined;},
+   routeFallback});
   if(!mission){
    campaignPhase(c,'endgame',g.time);this.setPhase('regroup');s.group=[];s.objective=null;s.target=null;
    // Once the map is captured, ground patrols also search fog for survivors.
