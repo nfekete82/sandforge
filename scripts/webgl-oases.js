@@ -55,12 +55,39 @@ function tuftGeometry(reed=false){
  }
  return join(parts);
 }
+/** Shared GPU wind for instanced oasis palms; trunk and foliage use
+ * identical root bending while leaf tips flutter independently.
+ * Does not mutate CPU matrices, simulation, save data or pathfinding. */
+function palmWindMaterial(source,wind,fronds){
+ const material=source.clone();
+ material.onBeforeCompile=shader=>{
+  shader.uniforms.sfPalmTime=wind.time;
+  shader.uniforms.sfPalmStrength=wind.strength;
+  shader.uniforms.sfPalmCrown={value:fronds?1:0};
+  shader.vertexShader='uniform float sfPalmTime;\nuniform float sfPalmStrength;\nuniform float sfPalmCrown;\n'+shader.vertexShader;
+  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',[
+   '#include <begin_vertex>',
+   'float sfPhase=0.0;',
+   '#ifdef USE_INSTANCING',
+   'sfPhase=instanceMatrix[3].x*0.013+instanceMatrix[3].z*0.019;',
+   '#endif',
+   'float sfStem=pow(clamp(position.y/112.0,0.0,1.0),2.2);',
+   'float sfTip=clamp(length(position.xz)/52.0,0.0,1.0);',
+   'float sfBreeze=sin(sfPalmTime*0.91+sfPhase)+0.24*sin(sfPalmTime*1.87+sfPhase*1.4+position.z*0.057);',
+   'transformed.x+=sfPalmStrength*sfBreeze*(1.35*sfStem+4.0*sfPalmCrown*sfTip);',
+   'transformed.z+=sfPalmStrength*sin(sfPalmTime*0.76+sfPhase+0.9)*(0.95*sfStem+2.8*sfPalmCrown*sfTip);'
+  ].join('\n'));
+ };
+ material.customProgramCacheKey=()=>fronds?'sf-oasis-fronds-wind-v1':'sf-oasis-trunk-wind-v1';
+ return material;
+}
 export class DesertOases {
  constructor({scene,game,heightAt,groundMeshes,lowQuality=false,enabled=true}){
   Object.assign(this,{scene,game,heightAt,groundMeshes});
   this.root=new THREE.Group();this.root.name='premium-desert-oases';
   this.root.userData={visualOnly:true,nonPlayable:true,shallowPassable:true};
   this.resources=new Set();this.water=[];this.batches=[];this.hidden=new Set();this.occupancyTime=-Infinity;this.disposed=false;
+  this.wind={time:{value:0},strength:{value:1}};
   this.layout=enabled?generateOases({world:game.world,seed:game.seed,startRegions:game.startRegions,heightAt}):[];
   this.half=game.world.size/2;
   this.restoreTerrain=this.layout.length?blendOasisTerrain(groundMeshes[0].material,this.layout,this.half):()=>{};
@@ -107,8 +134,10 @@ export class DesertOases {
   mesh.userData={shallowPassable:true,oasisId:o.id,maximumDepth:.20};this.root.add(mesh);this.water.push(mesh);
  }
  build(lite){
-  const trunks=this.own(new THREE.MeshStandardMaterial({color:'#8d7353',roughness:.95}));
+  const trunkBase=this.own(new THREE.MeshStandardMaterial({color:'#8d7353',roughness:.95}));
+  const trunks=this.own(palmWindMaterial(trunkBase,this.wind,false));
   const foliage=this.own(new THREE.MeshStandardMaterial({color:'#727c43',roughness:.85,side:THREE.DoubleSide}));
+  const palmLeaves=this.own(palmWindMaterial(foliage,this.wind,true));
   
   const palms=[[],[],[]],grasses=[],reeds=[],shrubs=[],stones=[];
   for(const o of this.layout){
@@ -134,7 +163,7 @@ export class DesertOases {
   }
   for(let i=0;i<3;i++){
    const g=palmGeometry(i);this.batch('oasis-palm-trunks-'+i,g.trunk,trunks,palms[i]);
-   this.batch('oasis-palm-fronds-'+i,g.leaves,foliage,palms[i]);
+   this.batch('oasis-palm-fronds-'+i,g.leaves,palmLeaves,palms[i]);
   }
   this.batch('oasis-dry-grasses',tuftGeometry(),this.own(new THREE.MeshStandardMaterial({color:'#9d925e',roughness:1,side:THREE.DoubleSide})),grasses);
   this.batch('oasis-shore-reeds',tuftGeometry(true),foliage,reeds);
@@ -147,6 +176,9 @@ export class DesertOases {
  }
  update(time){
   if(this.disposed)return;
+  // Uniform-only animation: constant CPU cost and no geometry uploads.
+  this.wind.time.value=time;
+  this.wind.strength.value=.62+1.85*(this.game.weather?.intensity??0);
   for(const mesh of this.water)mesh.material.userData.time.value=time;
   if(time-this.occupancyTime<.75)return;this.occupancyTime=time;
   // Construction remains unrestricted. Reclaim decoration underneath newly

@@ -749,7 +749,10 @@ export class Simulation {
    * allocations in large vehicle battles without changing pathfinding.
    * Invalidate on any structure destruction or new simulation tick. */
   /** Short-lived drive watchdog. New saves and the fixed-step logic are unchanged. */
-  private readonly vehicleProgress=new WeakMap<Unit,{x:number;y:number;since:number;retryAt:number}>();
+  private readonly vehicleProgress=new WeakMap<Unit,{
+    x:number;y:number;since:number;retryAt:number;
+    nextX:number;nextY:number;bestDistance:number;
+  }>();
   /** Temporary, deliberately non-serialized combat position for AI rockets. */
   private readonly rocketStandoff=new WeakMap<Unit,{targetId:number;point:Point;expires:number}>();
   /** Transient AI-only progress monitors. No new save fields, free units,
@@ -1962,8 +1965,17 @@ export class Simulation {
     // Try a collision-checked side step only after an actual 3.3-second stall.
     if(vehicle){
       const state=this.vehicleProgress.get(u);
-      if(!state)this.vehicleProgress.set(u,{x:u.x,y:u.y,since:this.time,retryAt:-1});
-      else if(distance(u,state)>=8){state.x=u.x;state.y=u.y;state.since=this.time;}
+      const waypointDistance=distance(u,next);
+      // A vehicle pushed sideways in a crowded column can move 8 units
+      // without getting ANY closer to its waypoint. That must not reset the
+      // watchdog forever. Track forward progress, not raw displacement.
+      if(!state||Math.hypot(state.nextX-next.x,state.nextY-next.y)>24)
+       this.vehicleProgress.set(u,{x:u.x,y:u.y,since:this.time,retryAt:-1,
+        nextX:next.x,nextY:next.y,bestDistance:waypointDistance});
+      else if(state.bestDistance-waypointDistance>=10){
+       state.x=u.x;state.y=u.y;state.since=this.time;
+       state.bestDistance=waypointDistance;
+      }
       else if(this.time-state.since>3.3&&this.time-state.retryAt>3.3){
         const direction=Math.atan2(next.y-u.y,next.x-u.x);
         const turning=u.kind==='tank'&&(u.driveSpeed??0)<2&&
@@ -2461,7 +2473,14 @@ export class Simulation {
     const separation=this.movingColliders().byOwner;
     for(const u of this.units)if(u.hp>0&&!u.carrier)
       for(const v of this.spatial.query(u,unitSpec(u).radius+105)){
-        if(v.id<=u.id||v.hp<=0||u.airfieldService||v.airfieldService||u.factoryService||v.factoryService||unitSpec(u).flying!==unitSpec(v).flying)continue;
+        if(v.id<=u.id||v.hp<=0||u.airfieldService||v.airfieldService||
+          u.factoryService||v.factoryService||
+          unitSpec(u).flying!==unitSpec(v).flying)continue;
+        // Bombers fly their own physical arcs and are displayed at distinct
+        // cruise altitudes. Forcing them apart in the shared 2D ground
+        // separation pass made overlapping sorties shimmy and circle forever.
+        // Ground units and helicopters retain their current collision rules.
+        if(unitSpec(u).flying&&(u.kind==='bomber'||v.kind==='bomber'))continue;
         const spacing=vehicleSpacingGap(u,v);
         const d=distance(u,v);
         if(d>=spacing.comfortable)continue;

@@ -1341,6 +1341,8 @@ function animate(now){
  sun.position.add(reusableShadowShift);sun.target.position.add(reusableShadowShift);
  atmosphere.update(visualDt);
  oases.update(now*.001);
+ // Authored palms use the same visual clock and real weather transitions.
+ desertArt.update(now*.001,game.weather.intensity);
  if(performanceWatch.enabled)performanceWatch.auxiliary(performance.now()-beforeAux);
  const beforeRender=performanceWatch.enabled?performance.now():0;
  renderer.render(scene,camera);

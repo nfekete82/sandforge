@@ -1,0 +1,40 @@
+name: Sandforge AI traffic and palm wind regression
+on:
+  push:
+    branches:
+      - fix/sandforge-ai-traffic-tracks-airlanes-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  traffic-and-wind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript, scripts and shipped WebGL module imports
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-oases.js
+          node --check scripts/webgl-environment.js
+          node --check scripts/webgl-ground-tracks.js
+          node --check scripts/webgl-preview.js
+          node --check scripts/webgl-battlefield.js
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Ground traffic, flight separation, palm wind and rich Bastion income
+        run: |
+          node --test \
+            tests/sandforge-ai-traffic-palm-wind-20261119.test.mjs \
+            tests/sandforge-ai-rich-bastion-production-20261119.test.mjs \
+            tests/sandforge-ai36-combat-movement-20261119.test.mjs \
+            tests/sandforge-ai36-recon-bomber-support-20261119.test.mjs \
+            tests/sandforge-ai-offense-before-walls-20261119.test.mjs \
+            tests/sandforge-ai-base-fortifications-20261119.test.mjs \
+            tests/reborn-bomber-idle-orbit.test.mjs \
+            tests/webgl-bomber-hangar-capture-orbit-20261111.test.mjs

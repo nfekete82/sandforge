@@ -1153,7 +1153,13 @@ export class SandforgeBattlefield {
     entry.previousServiceGround=visualGround;
     if(Math.abs(visualGround-terrainGround)<.03)delete entry.previousServiceGround;
    }
-   entry.node.position.copy(this.pos(x,z,visualGround+unitRenderAltitude(u.kind,u.flightHeight??1)));
+   // Give fixed-wing planes deterministic, separated cruising levels. Their
+   // gameplay coordinates, weapon ranges and fog remain authoritative 2D.
+   // Ease the offset in after takeoff; landed aircraft stay on the flightline.
+   const cruise=Math.max(0,Math.min(1,((u.flightHeight??1)-.35)/.65));
+   const flightLane=u.kind==='bomber'?(u.id%4)*65*cruise:0;
+   entry.node.position.copy(this.pos(x,z,
+    visualGround+unitRenderAltitude(u.kind,u.flightHeight??1)+flightLane));
    const hullAngle=['tank','artillery'].includes(u.kind)&&Number.isFinite(u.hullAngle)?u.hullAngle:u.angle;
    entry.node.rotation.y=unitVisualYaw(u.kind,hullAngle);
    if(u.kind==='tank'||u.kind==='artillery')this.orientTankRig(entry,u);

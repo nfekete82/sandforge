@@ -27,6 +27,7 @@ import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllo
 import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
 import {preserveAI36Assault,ai36JoinActiveFront,maintainAI36FrontOnRetarget} from './ai36-assault-continuity.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
+import {formationSlotPitch} from './vehicle-spacing.js';
 import type {Simulation,Unit,Base,Memory} from './simulation.js';
 import {friendlyGatePostColliders} from './defensive-wall.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -565,7 +566,15 @@ export class TacticalAI {
       o.march=front.map(v=>v.id);
     else delete o.march;
     if(u.kind==='artillery')o.rear=150;
-    if(target===undefined&&front.includes(u)&&front.length>1){const i=front.indexOf(u),lane=(i%2-.5)*30,depth=-Math.floor(i/2)*30,p={x:point.x+h.x*depth-h.y*lane,y:point.y+h.y*depth+h.x*lane};
+    if(target===undefined&&front.includes(u)&&front.length>1){
+     // The previous two-column 30-unit slots put real tanks INSIDE each
+     // other, so collision separation fought the AI march orders.
+     const i=front.indexOf(u);
+     const columns=Math.min(4,Math.max(2,Math.ceil(Math.sqrt(front.length))));
+     const pitch=formationSlotPitch(front);
+     const lane=(i%columns-(columns-1)/2)*pitch;
+     const depth=-Math.floor(i/columns)*pitch;
+     const p={x:point.x+h.x*depth-h.y*lane,y:point.y+h.y*depth+h.x*lane};
      const at=unitSpec(u).flying?p:g.world.nearest(p,this.obstacles(),[],u,Math.max(0,unitSpec(u).radius-10));if(at){o.x=at.x;o.y=at.y;}
     }
    }
@@ -1098,9 +1107,14 @@ export class TacticalAI {
     observed.some(v=>v.id===o.target)))continue;
    const dx=target.x-front.x,dy=target.y-front.y,
     norm=Math.hypot(dx,dy)||1;
+   // Older index%2 assigned the exact same flank to bomber #1 and #3.
+   // Keep two broad sides, but stagger additional aircraft along the
+   // approach so each has its own real route before the common target.
+   const wing=index%2===0?-1:1;
+   const depth=220+Math.floor(index/2)*160;
    const flank={
-    x:clamp(target.x-dx/norm*220-dy/norm*(index%2?260:-260),50,g.world.size-50),
-    y:clamp(target.y-dy/norm*220+dx/norm*(index%2?260:-260),50,g.world.size-50)
+    x:clamp(target.x-dx/norm*depth-dy/norm*wing*260,50,g.world.size-50),
+    y:clamp(target.y-dy/norm*depth+dx/norm*wing*260,50,g.world.size-50)
    };
    if(!g.command([u.id],{...flank,kind:'move'}))continue;
    g.command([u.id],{x:target.x,y:target.y,
