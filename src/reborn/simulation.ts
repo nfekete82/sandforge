@@ -2076,6 +2076,19 @@ export class Simulation {
       if(this.transports.boarding(u,dt))continue;
       if(this.escort(u,dt)||this.support(u,dt)){delete u.burst;continue;}
       const order=u.orders[0];
+      // AI3.6 micro-tactics: an isolated RED Humvee must not trade its
+      // weak MG against a visible BLUE helicopter. Execute ONLY this
+      // unit's genuine, collision-aware escape movement before combat.
+      if(u.kind==='rover'&&u.owner===1&&
+         this.tactical.evadeRoverFromHelicopter(u)){
+       const escape=u.orders[0];
+       if(escape?.kind==='move'){
+        delete u.burst;u.combatTarget=null;u.pursuitOrigin=null;
+        if(distance(u,escape)<18){u.orders.shift();u.path=[];u.repath=0;}
+        else this.move(u,escape,dt);
+        continue;
+       }
+      }
       // A flying transport may launch a tiny defensive missile while moving,
       // but never interrupts its own approach, delivery or rally orders.
       if(u.kind==='scout'&&order?.kind==='move')this.fireScoutRocket(u,undefined);

@@ -23,7 +23,7 @@ import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad} from './ai36-terrain-routes.js';
-import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed} from './ai36-air-support.js';
+import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage} from './ai36-air-support.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
 import type {Simulation,Unit,Base,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -147,6 +147,7 @@ export class TacticalAI {
  ai36Mode:AI36Mode='coordinated';
  private recaptureMission:{sector:number;ids:number[];since:number;securedAt:number|null}|null=null;
  private recaptureRetryAt=0;
+ private roverAirEscapeRetryAt=new Map<number,number>();
  private get ai36Enabled():boolean{
   return this.mode==='director'&&this.ai36Mode==='coordinated'&&
    this.ai35Enabled;
@@ -296,6 +297,67 @@ export class TacticalAI {
   b.reactions++;this.riskAt=-1;
   if(s.target!==null&&!b.fronts.some(f=>f.sector===s.target&&g.time-f.at<8))recordFailure(b,s.target,u,assessment.own,towers.length,g.time);
  }
+ /** AI3.6 only: an exposed RED Humvee cannot win a lone duel against
+  * a BLUE helicopter. Do not drag allied tanks or soldiers backwards.
+  * This is checked during the actual simulation tick (not merely at
+  * the 3-second campaign pulse). Both enemy sight and AA cover are real.
+  */
+ evadeRoverFromHelicopter(u:Unit):boolean{
+  const g=this.g,s=this.state;
+  if(!this.ai36Enabled||u.owner!==1||u.kind!=='rover'||
+     u.hp<=0||u.carrier||u.factoryService)return false;
+  const battle=s.battle??=newBattle();
+  const active=battle.withdrawals.find(w=>w.unit===u.id&&g.time<w.until);
+  if(active&&u.orders[0]?.kind==='move'&&
+     u.orders[0]?.tactical?.mode==='safe')return true;
+  if((this.roverAirEscapeRetryAt.get(u.id)??0)>g.time)return false;
+  const helis=g.units.filter(v=>v.owner===0&&v.kind==='scout'&&
+    v.hp>0&&!v.carrier&&g.canSee(1,v)&&distance(u,v)<=500)
+   .sort((a,b)=>distance(u,a)-distance(u,b)||a.id-b.id);
+  const heli=helis[0];if(!heli)return false;
+  const aaCover=g.units.some(v=>v.owner===1&&v.hp>0&&!v.carrier&&
+   v.kind==='rocket'&&distance(v,heli)<=unitSpec(v).range+25&&
+   distance(v,u)<=430)||
+   g.bases.some(v=>v.owner===1&&v.kind==='turret'&&v.hp>0&&
+    v.buildRemaining<=0&&distance(v,heli)<=RULES.turret.range+30);
+  if(!loneRoverAirDisengage({roverKind:u.kind,enemyKind:heli.kind,
+     enemyVisible:true,distance:distance(u,heli),aaCover}))return false;
+  // A blocked, winding desert map must not run eight A* queries every
+  // 50-ms physics frame; the retry gate is transient, not save data.
+  this.roverAirEscapeRetryAt.set(u.id,g.time+1.5);
+  // Head toward a live friendly rocket/turret, or retreat out of the
+  // observed helicopter's range. Never move through blocked geometry.
+  const aa=[...g.units.filter(v=>v.owner===1&&v.kind==='rocket'&&
+     v.hp>0&&!v.carrier),...g.bases.filter(v=>v.owner===1&&
+     v.kind==='turret'&&v.hp>0&&v.buildRemaining<=0)];
+  const home=g.bases.find(v=>v.owner===1&&v.kind==='headquarters'&&v.hp>0);
+  const away=Math.atan2(u.y-heli.y,u.x-heli.x);
+  const candidates=[
+   ...aa.slice().sort((a,b)=>distance(u,a)-distance(u,b)).slice(0,2)
+     .map(v=>({x:v.x,y:v.y})),
+   ...[0,-.5,.5,-1.05,1.05,Math.PI].map(delta=>({
+     x:clamp(u.x+Math.cos(away+delta)*550,55,g.world.size-55),
+     y:clamp(u.y+Math.sin(away+delta)*550,55,g.world.size-55)
+   })),...(home?[{x:home.x,y:home.y}]:[])
+  ];
+  const obstacles=this.obstacles();
+  const guns=[{x:heli.x,y:heli.y,range:unitSpec(heli).range}];
+  for(const candidate of candidates){
+   const point=g.world.nearest(candidate,obstacles,[],u,12);
+   if(!point||distance(point,heli)<unitSpec(heli).range+145)continue;
+   const route=this.route(u,point);
+   if(!route.length||!retreatCorridorSafe(u,route,guns))continue;
+   if(!g.command([u.id],{kind:'move',x:point.x,y:point.y}))continue;
+   if(u.orders[0])u.orders[0].tactical={group:s.groupId,mode:'safe'};
+   battle.withdrawals=battle.withdrawals.filter(w=>w.unit!==u.id);
+   battle.withdrawals.push({x:point.x,y:point.y,unit:u.id,
+     since:g.time,until:g.time+7});
+   battle.reactions++;
+   return true;
+  }
+  // A blocked path is not a valid escape: fight rather than stand still.
+  return false;
+ }
  private retreatSafe(from:Point,goal:Point,observed:readonly Unit[],
   towers:readonly KnownTurret[]):boolean{
   const threats=[
@@ -319,6 +381,10 @@ export class TacticalAI {
   const g=this.g,s=this.state,b=s.battle??=newBattle();
   b.withdrawals=b.withdrawals.filter(w=>{
    const u=army.find(u=>u.id===w.unit);if(!u)return false;
+   // Preserve a local lone-Jeep air escape, even if the main assault
+   // normally cancels low-HP withdrawals and commits to the firefight.
+   if(this.ai36Enabled&&u.kind==='rover'&&g.time<w.until&&
+    u.orders[0]?.kind==='move'&&u.orders[0]?.tactical?.mode==='safe')return true;
    if(this.ai36Enabled&&s.group.includes(u.id)&&u.defendUntil>g.time){
     const observed=g.units.filter(v=>v.owner===0&&v.hp>0&&!v.carrier&&
      v.kind!=='drone'&&g.canSee(1,v)&&distance(v,u)<650);
