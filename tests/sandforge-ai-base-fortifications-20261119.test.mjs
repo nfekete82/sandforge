@@ -12,7 +12,8 @@ import {sitesVisuallyOverlap} from '../dist/src/reborn/construction-spacing.js';
 
 function scene(){
  const g=new Simulation(20261119,24);
- g.status='playing';g.time=210;g.credits[1]=12500;g.aiClock=-1e8;
+ g.status='playing';g.time=650;g.credits[1]=12500;g.aiClock=-1e8;
+ for(const territory of g.territories.slice(0,2))territory.owner=1;
  g.world.blocked.fill(0);g.world.opaque.fill(0);g.world.components.fill(0);
  g.world.terrainSlope=()=>0;g.world.terrainHeight=()=>0;
  g.explored[1].fill(1);
@@ -29,7 +30,7 @@ function scene(){
  worker.x=hq.x+110;worker.y=hq.y+120;worker.orders=[];worker.defendUntil=0;
  return {g,hq,worker};
 }
-const options={underAttack:false,fighters:8,reserve:285};
+const options={underAttack:false,fighters:18,reserve:285};
 function finish(g,worker,kind){
  const site=g.bases.filter(b=>b.owner===1&&b.kind===kind&&b.buildRemaining>0).at(-1);
  assert.ok(site,kind+' construction site not found');
@@ -150,7 +151,7 @@ test('the real AI economy executes a paid HQ turret project without sacrificing 
  assert.ok(towers.some(b=>distance(b,hq)<760));
  assert.ok(g.credits[1]<=before-BUILDINGS.turret.cost,
   'paid construction, never free defensive towers');
- assert.ok(g.tactical.state.economy?.baseFortificationAttemptAt>=210);
+ assert.ok(g.tactical.state.economy?.baseFortificationAttemptAt>=650);
  assert.ok(g.tactical.state.economy?.built.turret>=1);
  assert.ok(worker.orders.some(o=>o.kind==='build'),
   'normal engineer receives a construction order');
