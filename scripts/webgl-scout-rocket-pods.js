@@ -11,35 +11,45 @@ export function attachScoutRocketPods(entry){
  root.name='Scout_LightRocketPods';
  root.userData={visualOnly:true,nonPlayable:true,scoutRocketPods:true};
  const casing=new THREE.MeshStandardMaterial({
-  color:entry.owner===0?'#505d55':'#605348',metalness:.52,roughness:.57
+  color:entry.owner===0?'#5b6250':'#645d4b',metalness:.36,roughness:.68
  });
  const barrel=new THREE.MeshStandardMaterial({
-  color:'#202927',metalness:.64,roughness:.43
+  color:'#1d2420',metalness:.58,roughness:.53
  });
  const ring=new THREE.MeshStandardMaterial({
-  color:'#a9a999',metalness:.58,roughness:.45
+  color:'#828576',metalness:.48,roughness:.53
  });
  const muzzles=[];
  for(const [index,side] of [-1,1].entries()){
+  // Small pods carried OUTSIDE the cabin on a short fixed pylon, farther
+  // aft than the bulky original crates. Exactly two visible tubes per side.
+  // The six-round magazine stays a simulation rule, not six giant 3D holes.
   const pod=new THREE.Group();
   pod.name='Scout_RocketPod_'+index;
-  pod.position.set(side*27,12,3);
-  const shell=new THREE.Mesh(new THREE.BoxGeometry(13,8,26),casing);
-  shell.castShadow=true;pod.add(shell);
-  const mount=new THREE.Mesh(new THREE.BoxGeometry(8,5,7),casing);
-  mount.position.set(-side*9,2,0);pod.add(mount);
-  for(let n=0;n<3;n++){
-   const tube=new THREE.Mesh(new THREE.CylinderGeometry(2.05,2.05,21,8),barrel);
+  pod.position.set(side*37,6,-11);
+  const fairing=new THREE.Mesh(new THREE.CylinderGeometry(5.5,5.5,16,14),casing);
+  fairing.rotation.x=Math.PI/2;
+  fairing.castShadow=true;pod.add(fairing);
+  const shoulder=new THREE.Mesh(new THREE.BoxGeometry(14,2.6,6.5),casing);
+  shoulder.position.set(-side*10,1.5,-1);
+  shoulder.castShadow=true;pod.add(shoulder);
+  const brace=new THREE.Mesh(new THREE.BoxGeometry(5,3.5,5.5),ring);
+  brace.position.set(-side*17,2,-1);
+  pod.add(brace);
+  // Two small recessed nozzle circles, instead of three exposed black pipes
+  // or an oversized rectangular launcher box on each side.
+  for(const n of [-1,1]){
+   const tube=new THREE.Mesh(new THREE.CylinderGeometry(1.75,1.75,12,10),barrel);
    tube.rotation.x=Math.PI/2;
-   tube.position.set((n-1)*3.7,0,1);
+   tube.position.set(n*2.55,0,.5);
    pod.add(tube);
-   const lip=new THREE.Mesh(new THREE.TorusGeometry(2.12,.43,4,8),ring);
-   lip.position.set((n-1)*3.7,0,13.3);
+   const lip=new THREE.Mesh(new THREE.TorusGeometry(1.8,.36,5,12),ring);
+   lip.position.set(n*2.55,0,8.25);
    pod.add(lip);
   }
   const muzzle=new THREE.Object3D();
   muzzle.name='ScoutRocketMuzzle_'+index;
-  muzzle.position.set(0,0,17);
+  muzzle.position.set(0,0,10);
   pod.add(muzzle);muzzles.push(muzzle);
   root.add(pod);
  }
