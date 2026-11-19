@@ -1,0 +1,34 @@
+name: Sandforge tank cliff exit and path stability
+on:
+  push:
+    branches:
+      - fix/sandforge-tank-cliff-exit-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tank-exit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript compilation and complete WebGL startup dependency check
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+      - name: Tank slope recovery, route budget, legacy navigation and wall gates
+        run: |
+          node --test \
+            tests/sandforge-tank-cliff-exit-20261119.test.mjs \
+            tests/sandforge-vehicle-slope-heli-pbr-20261119.test.mjs \
+            tests/reborn-navigation-clearance.test.mjs \
+            tests/reborn-navigation-retry.test.mjs \
+            tests/sandforge-221s-path-hitch-regression-20261119.test.mjs \
+            tests/sandforge-vehicle-gate-clearance-20261119.test.mjs \
+            tests/sandforge-ai-base-fortifications-20261119.test.mjs \
+            tests/sandforge-webgl-shadow-module-packaging-20261119.test.mjs
