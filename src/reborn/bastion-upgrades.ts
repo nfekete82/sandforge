@@ -10,8 +10,8 @@ export function bastionEffectiveIncome(t:Territory):number {
  return t.income*(t.upgradeLevel===2?2:1);
 }
 export function bastionUpgradable(t:Territory,owner:0|1,
- bases:readonly Base[]):boolean{
- return t.owner===owner&&t.upgradeLevel!==2&&
+ bases:readonly Base[],homeIds:readonly number[]=[]):boolean{
+ return !homeIds.includes(t.id)&&t.owner===owner&&t.upgradeLevel!==2&&
   (t.capturing===-1||t.capturing===owner)&&t.progress<=0&&
   !bases.some(b=>b.kind==='headquarters'&&b.territory===t.id);
 }
