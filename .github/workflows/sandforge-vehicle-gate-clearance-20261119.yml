@@ -1,0 +1,31 @@
+name: Sandforge vehicle gate clearance
+on:
+  push:
+    branches:
+      - fix/sandforge-vehicle-gate-clearance-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile game and verify JS
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-battlefield.js
+      - name: Real movement through gate and existing wall tests
+        run: |
+          node --test \
+            tests/sandforge-vehicle-gate-clearance-20261119.test.mjs \
+            tests/sandforge-double-gate-retrofit-20261119.test.mjs \
+            tests/sandforge-heli-gates-longmatch-20261119.test.mjs \
+            tests/sandforge-steel-gate-20261119.test.mjs \
+            tests/sandforge-wall-terrain-border-20261119.test.mjs
