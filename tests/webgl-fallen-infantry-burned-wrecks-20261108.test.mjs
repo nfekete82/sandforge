@@ -8,7 +8,7 @@ import {
 } from '../scripts/webgl-wreck-lifecycle.js';
 
 test('burned wreck lifecycle discards debris after a short finite timeout',()=>{
- assert.equal(WRECK_LIFETIME_SECONDS,21);
+ assert.equal(WRECK_LIFETIME_SECONDS,28);
  assert.ok(WRECK_CAP<=24&&WRECK_CAP_LITE<=WRECK_CAP);
  const records=[];
  assert.equal(addWreckRecord(records,{kind:'tank',x:400,y:500,angle:0}),true);
@@ -16,10 +16,10 @@ test('burned wreck lifecycle discards debris after a short finite timeout',()=>{
  assert.equal(advanceWreckRecords(records,12),true);
  assert.equal(records[0].age,12);
  assert.equal(wreckSink(records[0]),0);
- assert.equal(advanceWreckRecords(records,8),true);
- assert.equal(records[0].age,20);
+ assert.equal(advanceWreckRecords(records,21),true);
+ assert.equal(records[0].age,33);
  assert.ok(wreckSink(records[0])>0,'sinks into sand before expiry');
- assert.equal(advanceWreckRecords(records,1),true);
+ assert.equal(advanceWreckRecords(records,2),true);
  assert.equal(records.length,0,'GPU instance eventually disappears');
  assert.equal(advanceWreckRecords(records,1),false);
 });
@@ -63,8 +63,8 @@ test('rendered wrecks have rounded metallic geometry, no persistent black box sl
  assert.doesNotMatch(vfx,/new THREE\.CapsuleGeometry\(1,2,4,8\)/);
  assert.match(battlefield,/this\.effects\?\.captureAircraftCrash\?\.\(e,removal\)/);
  assert.doesNotMatch(vfx,/new THREE\.BoxGeometry\(1,1,1\),wreckMat,90/);
- assert.match(actor,/this\.remnantSeconds=6/);
- assert.match(actor,/this\.maxRemnants=24/);
+ assert.match(actor,/this\.remnantSeconds=9/);
+ assert.match(actor,/this\.maxRemnants=28/);
  assert.match(actor,/pose\.rotation\.x=Math\.PI\/2/);
  assert.match(actor,/entry\.node\.remove\(detail\)/);
  assert.match(actor,/this\.removeRemnant\(r\)/);
