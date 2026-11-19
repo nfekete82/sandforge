@@ -36,6 +36,23 @@ export function terrainAwareTravelEstimate(from:Point,to:Point,
   if(fromSide*toSide>=0||
     Math.abs(fromSide)<ridge.width*.5||
     Math.abs(toSide)<ridge.width*.5)continue;
+  // If the direct line already uses a real pass (or a protected Bastion
+  // clearing), there is no extra canyon detour to charge. Similarly a
+  // route outside the ridge endpoints can go around the natural cliff tip.
+  let lo=0,hi=1;
+  for(let i=0;i<14;i++){
+   const t=(lo+hi)*.5;
+   const p={x:from.x+(to.x-from.x)*t,y:from.y+(to.y-from.y)*t};
+   if((p.y-ridgeHeightAtX(ridge,p.x))*fromSide>0)lo=t;
+   else hi=t;
+  }
+  const crossing={x:from.x+(to.x-from.x)*(lo+hi)*.5,
+   y:from.y+(to.y-from.y)*(lo+hi)*.5};
+  if(crossing.x<ridge.spine[0].x-ridge.width||
+     crossing.x>ridge.spine[ridge.spine.length-1].x+ridge.width||
+     ridge.ramps.some(pass=>Math.abs(crossing.x-pass.x)<pass.width*.5)||
+     ridge.clearings?.some(zone=>length(crossing,zone.point)<zone.radius+ridge.width))
+   continue;
   const side=Math.sign(fromSide);
   const offset=ridge.width+70;
   let through=Infinity;
