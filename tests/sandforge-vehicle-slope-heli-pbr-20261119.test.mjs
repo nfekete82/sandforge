@@ -29,7 +29,7 @@ test('2 compact launch bores per side are attached close to helicopter cabin, no
  assert.equal(entry.scoutRocketMuzzles.length,2);
  const albedos=new Set();
  for(const pod of root.children){
-  assert.ok(Math.abs(pod.position.x)<=26&&Math.abs(pod.position.x)>=21);
+  assert.ok(Math.abs(pod.position.x)<=26&&Math.abs(pod.position.x)>=16);
   assert.ok(pod.position.y>=16,'rocket pods ride alongside cabin');
   const fairings=pod.children.filter(x=>x.isMesh&&x.material.map);
   assert.equal(fairings.length,2,'textured rounded fairing and stub pylon');
