@@ -893,7 +893,10 @@ export class TacticalAI {
   ];
   const ground=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier&&
    combat(u)&&!unitSpec(u).flying&&
-   !u.factoryService&&!u.airfieldService);
+   !u.factoryService&&!u.airfieldService&&
+   (u.orders.some(o=>o.kind==='attack'||o.kind==='attackMove'||
+      o.tactical?.mode==='assault')||u.defendUntil>g.time||
+    this.state.phase==='attack'&&this.state.group.includes(u.id)));
   return bomberCloseAirSupportAllowed(target,observed,ground);
  }
  private airSupport(members:Unit[],goal:Point,targetId:number|null):void{
