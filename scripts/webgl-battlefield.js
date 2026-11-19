@@ -8,7 +8,7 @@ import {wheelsShouldRoll} from '/webgl-wheel-motion.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
 import {UNITS,BUILDINGS,MAX_GENERATORS_PER_FACTION,unitKinds,buildingKinds,unitSpec,buildingSpec} from '/src/reborn/catalog.js';
 import {TERRAIN_LABELS} from '/src/reborn/battlefield-terrain.js';
-import {RULES} from '/src/reborn/config.js';
+import {RULES,campaignLayout} from '/src/reborn/config.js';
 import {installClassicHud} from '/webgl-classic-hud.js';
 import {globalCatalogAvailability} from '/webgl-global-catalog.js';
 import {hydrateUnitIcons,hydrateBuildingIcons,unitIcon,buildingIcon,buildingIconUrl,researchIconMarkup,hydrateResearchArtworks} from '/webgl-portraits.js';
@@ -2072,7 +2072,7 @@ export class SandforgeBattlefield {
     const level=t.upgradeLevel===2?2:1;
     upgrade.hidden=t.owner!==0;
     upgrade.disabled=level===2||t.progress>0||g.credits[0]<750||
-      g.bases.some(b=>b.kind==='headquarters'&&b.territory===t.id);
+      campaignLayout(g.world.mapVersion,g.seed).headquarters.includes(t.id);
     upgrade.textContent=level===2?'STUFE 2 ✓':'UPGRADE · 750';
     upgrade.title='Einkommen '+t.income+' → '+(t.income*2)+
       ' Credits je 10 Sekunden · Ausbau verfällt bei Verlust';
