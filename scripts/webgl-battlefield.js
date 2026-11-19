@@ -1367,6 +1367,15 @@ export class SandforgeBattlefield {
     }
    }
    if(entry){
+    // Keep the sector's faction colour while highlighting paid tier 2.
+    if(entry.upgradeLevel!==territory.upgradeLevel){
+     entry.upgradeLevel=territory.upgradeLevel;
+     const promoted=territory.upgradeLevel===2;
+     entry.halo.scale.setScalar(promoted?1.14:1);
+     entry.halo.material.opacity=promoted?.96:.75;
+     entry.halo.material.color.set(promoted?'#e8c15d':
+      territory.owner===0?colors.blue:territory.owner===1?colors.red:colors.neutral);
+    }
     updateBastionCaptureBar(entry.captureBar,territory,this.game,this.fogEnabled);
     if(active&&entry.motion){
      if(entry.motion.mixer)entry.motion.mixer.update(dt);
@@ -2055,7 +2064,7 @@ export class SandforgeBattlefield {
    tile.classList.toggle('blue',owner==='blue');
    tile.classList.toggle('red',owner==='red');
    tile.classList.toggle('unknown',owner==='unknown');
-   const caption=label+capture;
+   const caption=label+' · +'+(t.income*(t.upgradeLevel===2?2:1))+'/10s'+(t.upgradeLevel===2?' · STUFE 2':'')+capture;
    if(tile.querySelector('small')?.textContent!==caption)
     tile.querySelector('small').textContent=caption;
    const upgrade=tile.closest('.sf-sector-controls')?.querySelector('[data-upgrade-bastion]');
