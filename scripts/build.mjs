@@ -66,6 +66,7 @@ cpSync('scripts/webgl-building-shading.js','dist/webgl-building-shading.js');
 cpSync('scripts/webgl-building-pbr.js','dist/webgl-building-pbr.js');
 cpSync('scripts/webgl-barracks-shell.js','dist/webgl-barracks-shell.js');
 cpSync('scripts/webgl-environment.js','dist/webgl-environment.js');
+cpSync('scripts/webgl-landscape-network.js','dist/webgl-landscape-network.js');
 cpSync('scripts/webgl-atmosphere-3d.js','dist/webgl-atmosphere-3d.js');
 cpSync('scripts/webgl-combat-vfx.js','dist/webgl-combat-vfx.js');
 cpSync('scripts/webgl-ordnance-profile.js','dist/webgl-ordnance-profile.js');
