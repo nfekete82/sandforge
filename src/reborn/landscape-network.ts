@@ -42,7 +42,8 @@ export function generateLandscapeNetwork(seed:number,size:number,sites:readonly 
       Math.sin(t*Math.PI*6+phase2)*24)};
   });
   const upper=seamRow-1,lower=seamRow;
-  const passes=columns<=2?[0,1]:r()<.5?[0,2]:[1,3];
+  // Opposing start corners receive mirrored crossing choices.
+  const passes=columns<=2?[0,1]:r()<.5?[0,3]:[1,2];
   const width=Math.max(340,Math.min(620,size/columns*.37));
   const ridge:CanyonRidge={
     spine,width:118,height:122,
