@@ -28,14 +28,15 @@ export function planOasisVillages({world,terrain,seed=world?.seed??0,oases=[],lo
    'main_house','flat_house','small_hut'
   ]:[
    'main_house','flat_house','courtyard_house',
-   'flat_house','small_hut','ruin_house'
+   'market_house','small_hut','ruin_house'
   ];
   const limits={
    main_house:[160,192,54,70],
    flat_house:[122,158,43,59],
    courtyard_house:[136,174,44,61],
    small_hut:[80,106,31,43],
-   ruin_house:[84,119,30,44]
+   ruin_house:[84,119,30,44],
+   market_house:[118,151,41,56]
   };
   const houses=[];
   // For a real village, buildings sit 250-500 units from the water, in
@@ -52,8 +53,8 @@ export function planOasisVillages({world,terrain,seed=world?.seed??0,oases=[],lo
    const height=range(rng,minH,maxH);
    const quarter=Math.floor(rng()*4)*Math.PI*.5;
    const angle=quarter+range(rng,-.21,.21);
-   const template=kind==='main_house'||kind==='courtyard_house'?1:
-    kind==='ruin_house'?0:index%2;
+   const template={main_house:0,flat_house:1,courtyard_house:2,
+    small_hut:3,ruin_house:4,market_house:5}[kind];
    // Persist the original authored glTF as the foundation for all variants.
    // The distinguishing features are proportions, roof levels, courtyard walls
    // and separately seeded orientation rather than copy/pasted model placement.
