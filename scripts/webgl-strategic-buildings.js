@@ -318,6 +318,10 @@ function createDefensiveWall(owner,gate=false){
    name:'Sandforge gate | recessed warm floodlights',color:'#ead5a2',
    emissive:'#f6c16a',emissiveIntensity:.75,roughness:.38,metalness:.16
   });
+  // The normal building tint shader would paint the steel in desert camo.
+  // Explicit authored-metal flags preserve the real sheet-metal finish.
+  for(const mat of [steel,frame,edges,warning,vent,light])
+   mat.userData.sandforgeAuthoredMetal=true;
   const brace=(parent,name,x1,y1,x2,y2,z)=>{
    const length=Math.hypot(x2-x1,y2-y1);
    const mesh=add(parent,length,2.9,1.5,(x1+x2)*.5,
@@ -381,6 +385,33 @@ function createDefensiveWall(owner,gate=false){
   };
   leaf(left,1,'Left');
   leaf(right,-1,'Right');
+  // Static geometry and each hinged leaf are merged independently by
+  // material. A large perimeter must not turn 60 steel details PER GATE
+  // into 60 separate draw calls (especially late into a large match).
+  // The gate's two animation groups and original textures remain intact.
+  const batchByMaterial=(parent,name)=>{
+   const parts=new Map();
+   for(const child of [...parent.children]){
+    if(!child.isMesh)continue;
+    child.updateMatrix();
+    child.geometry.applyMatrix4(child.matrix);
+    const group=parts.get(child.material)??[];
+    group.push(child.geometry);parts.set(child.material,group);
+    parent.remove(child);
+   }
+   for(const [material,geometries] of parts){
+    const geometry=mergeGeometries(geometries,false);
+    for(const g of geometries)g.dispose();
+    if(!geometry)throw new Error('Could not batch gate armour geometry');
+    const combined=new THREE.Mesh(geometry,material);
+    combined.name=name+'_'+material.name;
+    combined.castShadow=true;combined.receiveShadow=true;
+    parent.add(combined);
+   }
+  };
+  batchByMaterial(left,'WallGate_Left');
+  batchByMaterial(right,'WallGate_Right');
+  batchByMaterial(root,'WallGate_Frame');
   root.userData.gateLeaves=[left,right];
  }
  addWallBarbedWire(root,{half:gate});
