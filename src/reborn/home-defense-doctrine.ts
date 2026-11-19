@@ -5,7 +5,7 @@
 export interface HomeDefenseInput {
  fighters:number;time:number;recentLosses:number;recentFailures:number;
  lastFailureAt:number;observedHomePressure:boolean;defendedTarget:boolean;
- confirmedEndgame:boolean;
+ confirmedEndgame:boolean;tempoPressure?:boolean;
 }
 export interface HomeDefensePlan {
  guards:number;minimumReady:number;notBefore:number;allowSecondaryRaids:boolean;
@@ -20,7 +20,7 @@ export function homeDefensePlan(x:HomeDefenseInput):HomeDefensePlan {
  // A 180-second forced buildup and 2-5 stationary sentries made the AI
  // look passive even after it had bought a valid paid attack group.
  // Keep a genuine garrison, but release useful combat troops sooner.
- const early=x.time<125;
+ const early=x.time<(x.tempoPressure?95:125);
  const base=fighters>=14?4:fighters>=9?3:fighters>=6?2:fighters>=3?1:fighters;
  // A beaten force needs surviving screens at the headquarters; a visible
  // intruder earns more guards, never imaginary instant defenders.
@@ -36,8 +36,8 @@ export function homeDefensePlan(x:HomeDefenseInput):HomeDefensePlan {
   losses>=2?x.time+12:0;
  return {
   guards,minimumReady,
-  notBefore:Math.max(early?50:0,cooldown),
-  allowSecondaryRaids:!early&&!setback&&!x.observedHomePressure&&fighters>=10,
+  notBefore:Math.max(early?(x.tempoPressure?37:50):0,cooldown),
+  allowSecondaryRaids:(!early||x.tempoPressure)&&!setback&&!x.observedHomePressure&&fighters>=10,
   mode:x.observedHomePressure?'defense':setback?'recover':early?'buildup':'probe'
  };
 }
