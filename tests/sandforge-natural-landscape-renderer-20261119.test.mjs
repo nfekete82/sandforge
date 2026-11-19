@@ -6,14 +6,14 @@ import {sharedStoneMaps} from '../scripts/webgl-rock-materials.js';
 
 const geometryOptions=()=>({
  scene:new THREE.Scene(),
- size:2400,
+ size:5000,
  heightAt:(x,z)=>6+2*Math.sin(x*.003)+Math.cos(z*.004),
  roads:[
   [{x:120,y:900},{x:570,y:840},{x:1100,y:880},{x:2050,y:970}],
   [{x:800,y:1300},{x:1080,y:880},{x:1430,y:380}],
  ],
  ridges:[{
-  spine:Array.from({length:21},(_,i)=>({x:110+i*102,y:500+Math.sin(i*.42)*45})),
+  spine:Array.from({length:21},(_,i)=>({x:110+i*190,y:500+Math.sin(i*.42)*45})),
   width:118,height:122,
   ramps:[{x:1120,width:280}],
   clearings:[{point:{x:350,y:500},radius:240},
