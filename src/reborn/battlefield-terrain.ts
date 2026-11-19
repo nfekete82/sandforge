@@ -10,6 +10,12 @@ export const TERRAIN_GRADING_V2={
  homeFlatRadius:775,homeShoulder:460,
  rockSafetyMargin:110
 } as const;
+/** Generator v3 only: wide build pads with a smooth transition into the cliffs. */
+export const TERRAIN_GRADING_V3={
+ bastionFlatRadius:680,bastionShoulder:350,
+ homeFlatRadius:890,homeShoulder:430,
+ rockSafetyMargin:180
+} as const;
 export const TERRAIN_PROFILES = ['open','dunes','rocky','oasis','mixed'] as const;
 export type TerrainProfile = typeof TERRAIN_PROFILES[number];
 export const TERRAIN_LABELS:Record<TerrainProfile,string> = {
@@ -102,12 +108,13 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
    for(const home of homes)mask=Math.min(mask,smooth((Math.hypot(x-home.x,y-home.y)-650)/480));
    for(const site of sites)mask=Math.min(mask,smooth((Math.hypot(x-site.x,y-site.y)-230)/360));
   }else{
+   const grading=generatorVersion===3?TERRAIN_GRADING_V3:TERRAIN_GRADING_V2;
    for(const home of homes)mask=Math.min(mask,smooth(
-    (Math.hypot(x-home.x,y-home.y)-TERRAIN_GRADING_V2.homeFlatRadius)/
-     TERRAIN_GRADING_V2.homeShoulder));
+    (Math.hypot(x-home.x,y-home.y)-grading.homeFlatRadius)/
+     grading.homeShoulder));
    for(const site of sites)mask=Math.min(mask,smooth(
-    (Math.hypot(x-site.x,y-site.y)-TERRAIN_GRADING_V2.bastionFlatRadius)/
-     TERRAIN_GRADING_V2.bastionShoulder));
+    (Math.hypot(x-site.x,y-site.y)-grading.bastionFlatRadius)/
+     grading.bastionShoulder));
   }
   h*=mask;
   for(const basin of basins){
@@ -137,8 +144,8 @@ export function terrainGradingEdge(x:number,y:number,sites:readonly Point[],
  if(version<2)return 0;
  let strongest=0;
  for(const [positions,flat] of [
-  [sites,TERRAIN_GRADING_V2.bastionFlatRadius] as const,
-  [homes,TERRAIN_GRADING_V2.homeFlatRadius] as const
+  [sites,version===3?TERRAIN_GRADING_V3.bastionFlatRadius:TERRAIN_GRADING_V2.bastionFlatRadius] as const,
+  [homes,version===3?TERRAIN_GRADING_V3.homeFlatRadius:TERRAIN_GRADING_V2.homeFlatRadius] as const
  ]){
   for(const p of positions){
    const offset=Math.hypot(x-p.x,y-p.y)-flat;
