@@ -3,10 +3,10 @@
  * circular building collision and backwards compatible saves.
  */
 export type WallFacing=0|1|2|3;
-/** A gate uses exactly the existing 109×32 wall footprint, including the
- * same cliff, rock and building exclusion rules, but pathfinding is
- * faction-sensitive. Gate open/close animation is derived from nearby
- * visible actors; no new save field and no permanent open collision hole.
+/** A newly constructed gate spans TWO ordinary 109x32 wall sections.
+ * Legacy saves missing gateSpan keep the former single-segment size.
+ * Pathfinding is faction-sensitive: completed friendly gates are passable,
+ * enemy gates remain solid regardless of visual swing animation.
  */
 export const isWallLike=(kind:string|undefined):boolean=>
  kind==='wall'||kind==='wallGate';
@@ -27,11 +27,13 @@ export function navigableBasesForFaction<T extends {
 
 export const WALL_GATE_UPGRADE_COST=60;
 
-export function wallColliderSamples(p:{x:number;y:number;facing?:WallFacing},
+export function wallColliderSamples(p:{x:number;y:number;facing?:WallFacing;kind?:string;gateSpan?:number},
  facing:WallFacing=p.facing??0,radius=24):{x:number;y:number;radius:number}[]{
  const yaw=[0,Math.PI,Math.PI/2,Math.PI*1.5][facing];
  const c=Math.cos(yaw),s=Math.sin(yaw);
- return [-33,0,33].map(offset=>({
+ const offsets=p.kind==='wallGate'&&p.gateSpan===2?
+  [-87,-43.5,0,43.5,87]:[-33,0,33];
+ return offsets.map(offset=>({
   x:p.x+offset*c,y:p.y-offset*s,radius
  }));
 }
@@ -54,7 +56,7 @@ export function wallTerrainPlacementError(
   terrainHeight(x:number,y:number):number;
   terrainSlope(x:number,y:number):number;
  },
- p:{x:number;y:number},facing:WallFacing
+ p:{x:number;y:number},facing:WallFacing,span:1|2=1
 ):string|null{
  const yaw=[0,Math.PI,Math.PI/2,Math.PI*1.5][facing];
  const c=Math.cos(yaw),s=Math.sin(yaw);
@@ -62,7 +64,7 @@ export function wallTerrainPlacementError(
  // even a single 15-m navigation rock cell cannot be skipped unnoticed.
  for(const z of [-16,-8,0,8,16]){
   let previousHeight:number|undefined;
-  for(let x=-54;x<=54;x+=9){
+  for(let x=-54*span;x<=54*span;x+=9){
    const px=p.x+x*c+z*s,py=p.y-x*s+z*c;
    const q={x:px,y:py},cell=ground.index(q);
    if(px<0||py<0||px>=ground.size||py>=ground.size)
@@ -90,12 +92,12 @@ export function wallTerrainPlacementError(
  */
 export function wallTerrainPitch(
  ground:{terrainHeight(x:number,y:number):number},
- p:{x:number;y:number},facing:WallFacing
+ p:{x:number;y:number},facing:WallFacing,span:1|2=1
 ):number{
  const yaw=[0,Math.PI,Math.PI/2,Math.PI*1.5][facing];
  const c=Math.cos(yaw),s=Math.sin(yaw);
- const left=ground.terrainHeight(p.x-49*c,p.y+49*s);
- const right=ground.terrainHeight(p.x+49*c,p.y-49*s);
+ const left=ground.terrainHeight(p.x-49*span*c,p.y+49*span*s);
+ const right=ground.terrainHeight(p.x+49*span*c,p.y-49*span*s);
  if(!Number.isFinite(left)||!Number.isFinite(right))return 0;
- return Math.atan2(right-left,98);
+ return Math.atan2(right-left,98*span);
 }
