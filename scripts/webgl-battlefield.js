@@ -1212,6 +1212,26 @@ export class SandforgeBattlefield {
     entry.node.rotation.z=entry.wallSlopePitch;
    }else entry.node.rotation.z=0;
    this.construction.update(entry,b);
+   if(b.kind==='wallGate'){
+    // Cosmetic twin-door animation. Every owner can drive through their
+    // finished gate in the SIMULATION; the hostile faction always collides.
+    // Refresh proximity only at the fixed-tick boundary, never every RAF.
+    const gate=entry.placeholder??entry.detail;
+    const leaves=gate?.userData?.gateLeaves;
+    if(leaves&&b.buildRemaining<=0){
+     if(entry.gatePresenceAt!==this.game.time){
+      entry.gatePresenceAt=this.game.time;
+      entry.gatePresence=this.game.units.some(u=>u.hp>0&&!u.carrier&&
+       u.owner===b.owner&&!UNITS[u.kind].flying&&
+       Math.hypot(u.x-b.x,u.y-b.y)<153);
+     }
+     const wanted=entry.gatePresence?1:0;
+     const amount=Math.min(1,Math.max(0,dt)*5.8);
+     entry.gateOpen=(entry.gateOpen??0)+(wanted-(entry.gateOpen??0))*amount;
+     leaves[0].rotation.y=-entry.gateOpen*1.48;
+     leaves[1].rotation.y=entry.gateOpen*1.48;
+    }
+   }
    // Site dressing and the FULL facility footprint are present from the
    // first construction tick. Construction scaffolding overlays them, rather
    // than making an incomplete hangar suddenly pop in on completion.
