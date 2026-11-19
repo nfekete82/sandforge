@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       full:
-        description: Full 3-seed 2-opponent 36-match balance tournament
+        description: Full 4-seed 2-opponent 48-match balance tournament
         required: false
         default: false
         type: boolean
@@ -40,7 +40,7 @@ jobs:
             tests/sandforge-bastion-economy-rollback-20261117.test.mjs \
             tests/sandforge-ai-combat-ready-waves.test.mjs
       - name: Paired smoke tourney 8 12 16 Bastions
-        if: github.event_name != 'workflow_dispatch' || inputs.full != true
+        if: github.event_name == 'workflow_dispatch' && inputs.full != true
         run: |
           mkdir -p reports
           node scripts/benchmark-sandforge-balance-tournament.mjs \
@@ -49,13 +49,13 @@ jobs:
             --presets baseline,tuned \
             --output reports/sandforge-balance-smoke.json \
             --markdown reports/sandforge-balance-smoke.md
-      - name: Full 36-match tourney on demand
-        if: github.event_name == 'workflow_dispatch' && inputs.full == true
+      - name: Full 48-match tourney across all four landscapes
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.full == true)
         run: |
           mkdir -p reports
           node scripts/benchmark-sandforge-balance-tournament.mjs \
             --maps 24,25,26 \
-            --seeds 824836862,20261119,20261120 \
+            --seeds 824836862,20261119,20261120,9999 \
             --opponents guarded,contesting --seconds 300 \
             --presets baseline,tuned \
             --output reports/sandforge-balance-full.json \
