@@ -58,6 +58,59 @@ export function shouldCommitFirefight(x:{
  if(x.knownTowers>0&&ratio<.85)return false;
  return ratio>=.48||(x.time<x.commitUntil&&ratio>=.32);
 }
+/** KI 3.6: withdrawal is an emergency measure, never a routine response
+ * to HP loss or a merely stronger observed opponent. Only a truly hopeless
+ * engagement with a genuinely safe escape justifies pulling combat troops
+ * out. The function sees only actually observed opponents and legal routes.
+ */
+export function fightInsteadOfFleeing(x:{
+ continuing:boolean;visible:number;inRange:number;healthy:number;
+ own:number;enemy:number;knownTowers:number;escapeSafe:boolean;
+}):boolean{
+ if(!x.continuing||x.visible<=0||x.healthy<=0)return false;
+ const ratio=x.own/Math.max(.1,x.enemy);
+ // Running under the same guns is almost never safer than returning fire.
+ if(!x.escapeSafe)return true;
+ // No in-range weapon: a real uncontested escape is permitted when the
+ // formation cannot answer an observed threat (e.g. an uncovered turret).
+ if(x.inRange<=0)return false;
+ // Single isolated survivors can pull out of a genuine overmatch.
+ if(x.healthy===1)return ratio>=.65;
+ // A known turret with almost no supporting screen is not a fair firefight.
+ if(x.knownTowers>0&&x.healthy<3)return ratio>=.9;
+ // A supported frontline only yields to more than ~4x observed strength.
+ return ratio>=.24;
+}
+
+/** Inspect a REAL path's first exposed 300 units, plus its final position.
+ * A backwards move that stays in visible enemy weapon range is not a safe
+ * retreat; it hands the enemy free rear shots. No fog/AI state queried here.
+ * The normal navigation/pathfinder still decides which paths are legal.
+ */
+export function retreatCorridorSafe(
+ from:Point,path:readonly Point[],
+ threats:readonly (Point&{range:number})[],
+):boolean{
+ if(!path.length)return false;
+ if(!threats.length)return true;
+ const exposed=(p:Point)=>threats.some(t=>distance(p,t)<t.range+45);
+ if(exposed(path[path.length-1]))return false;
+ let walked=0,exposureEnd=0,prior=from;
+ for(const next of path){
+  const d=distance(prior,next),steps=Math.max(1,Math.ceil(d/35));
+  for(let i=1;i<=steps;i++){
+   const traveled=walked+d*i/steps;
+   if(traveled>320)break;
+   const p={x:prior.x+(next.x-prior.x)*i/steps,
+    y:prior.y+(next.y-prior.y)*i/steps};
+   if(exposed(p))exposureEnd=traveled;
+  }
+  walked+=d;prior=next;
+  if(walked>320)break;
+ }
+ return exposureEnd<=190;
+}
+
 /** A large observed local overmatch should not be thrown away merely
  * because one tank falls below the routine repair HP threshold.
  * Only what faction 1 can currently see (plus previously observed guns)
