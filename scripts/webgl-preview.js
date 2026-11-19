@@ -1035,14 +1035,8 @@ const biomeVegetation=addBiomeVegetation({THREE,scene,world,terrain,game,heightA
 // One visual-only instanced draw call; no gameplay pathing or collision edits.
 const washStones=spacious&&biome==='desert'?addDesertWashStones({scene,world,size,seed,heightAt,
  sites:terrain.sites,lowQuality:query.get('lite')==='1'}):null;
-// Desert hamlets now share the SAME two textured authored canyon ruin GLTFs
-// as the original Sandforge ruins. No procedural box houses or opaque roads.
-// Load asynchronously so terrain and units remain responsive at game start.
-const villageArt=spacious&&biome==='desert'?createDesertVillages({scene,world,terrain,
- pos,heightAt,seed,lowQuality:query.get('lite')==='1',
- loadModel:async url=>{await ruinStrataLoad;return tryModel(url);},
- weatherModel:weatherRuinMeshes
-}).catch(error=>{console.warn('Scenic abandoned hamlet unavailable:',error);return null;}):null;
+// Oases are initialized before v3 village placement, so decorative houses
+// are positioned around the actual oasis pool rather than random empty sand.
 const battlefield=new SandforgeBattlefield({
  game,world,terrain,scene,renderer,camera,controls,loader,groundMeshes,heightAt,pos,biome,
  lite:query.get('lite')==='1'
@@ -1144,6 +1138,15 @@ if(query.get('showcase')==='1')setShowcase(true);
 const desertArt=new DesertArtPass({scene,world,terrain,heightAt,pos,loader,biome,lowQuality:query.get('lite')==='1'});
 const oases=new DesertOases({scene,game,heightAt,groundMeshes,lowQuality:query.get('lite')==='1',enabled:biome==='desert'&&query.get('oases')!=='off'});
 battlefield.oases=oases;
+// Generator v3: six unique, locally generated UV-textured adobe house GLBs.
+// Older maps keep their established sparse two-GLTF hamlets, unchanged.
+// Render-only scenery; never creates terrain obstacles or changes saved games.
+const villageArt=spacious&&biome==='desert'?createDesertVillages({
+ scene,world,terrain,pos,heightAt,seed,lowQuality:query.get('lite')==='1',
+ oases:oases.layout,
+ loadModel:async url=>{await ruinStrataLoad;return tryModel(url);},
+ weatherModel:weatherRuinMeshes
+}).catch(error=>{console.warn('Oasis adobe hamlet unavailable:',error);return null;}):null;
 const oasisFocus=oases.layout.find(o=>o.type===query.get('oasis'));
 if(oasisFocus){
  const target=pos(oasisFocus.x,oasisFocus.y);target.y+=24;
