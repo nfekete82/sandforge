@@ -3065,3 +3065,26 @@
 #sf3d-battle-debrief .sf3d-debrief-events li{margin-bottom:2px}
 #sf3d-battle-debrief .sf3d-debrief-note{margin:5px 0 0;color:#abbaa9;font-size:10px}
 @media(max-width:640px){#sf3d-battle-debrief.sf3d-battle-debrief{bottom:8px;right:8px}}
+
+/* Bastion economy tier: compact upgrade action inside each sector row.
+ * Never cover the map, production queue or existing troop controls. */
+#sf-classic-root #sf-actions .sf-sector-controls{
+ display:flex;align-items:center;gap:5px;min-width:0;
+}
+#sf-classic-root #sf-actions .sf-sector-controls .territory-row{
+ flex:1;min-width:0;
+}
+#sf-classic-root #sf-actions .sf-bastion-upgrade{
+ flex:0 0 auto;background:#3f4d3c;color:#e8d7b3;border:1px solid #8e9c70;
+ padding:8px 9px;border-radius:4px;font:700 10px/1.1 inherit;
+ letter-spacing:.025em;cursor:pointer;
+}
+#sf-classic-root #sf-actions .sf-bastion-upgrade:hover:not(:disabled){
+ background:#5b7050;border-color:#b6c28a;
+}
+#sf-classic-root #sf-actions .sf-bastion-upgrade:disabled{
+ opacity:.51;cursor:default;
+}
+#sf-classic-root .sf-passenger-manifest .sf-passenger-unload-all{
+ cursor:pointer;
+}
