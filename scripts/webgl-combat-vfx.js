@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import {UNITS} from '/src/reborn/catalog.js';
 import {hitResponseFor,impactHeight,damagedVehicleIntensity} from '/webgl-hit-response.js';
 import {addWreckRecord,advanceWreckRecords,wreckSink,WRECK_CAP,
- WRECK_CAP_LITE,CRASH_CAP,CRASH_LIFETIME_SECONDS,isWreckableUnit,
+ WRECK_CAP_LITE,CRASH_CAP,CRASH_LIFETIME_SECONDS,isWreckableUnit,wreckSmokeFraction,
  isAircraftWreck} from '/webgl-wreck-lifecycle.js';
-import {guidedRocketAimY,aircraftAimOffsetY,adoptAircraftForCrash,disposeAircraftCrash} from '/webgl-aircraft-effects.js';
+import {guidedRocketAimY,aircraftAimOffsetY,adoptAircraftForCrash,disposeAircraftCrash,crashDurationFor,aircraftCrashPose} from '/webgl-aircraft-effects.js';
 import {vehicleDustEligible,vehicleDustTail,VEHICLE_DUST_CAP,VEHICLE_DUST_CAP_LITE} from '/webgl-vehicle-dust.js';
 import {ORDNANCE_TRAIL_SEGMENTS,ORDNANCE_VISUALS,ordnanceVisualKind,ordnanceVisualProfile,appendOrdnanceTrail} from '/webgl-ordnance-profile.js';
 
@@ -187,7 +187,7 @@ export class SandforgeCombatEffects {
    scene.add(mesh);
   }
   this.wrecks=[];
-  this.wreckSync=0;
+  this.wreckSync=0;this.wreckSmokeClock=0;
   this.crashes=[];
   // Crashes reuse the real textured aircraft actor; no gray proxy meshes.
   this.capturedAircraftIds=new Set();
@@ -282,7 +282,7 @@ export class SandforgeCombatEffects {
   this.wreckCount=0;this.emitters=[];this.seenBlasts=new Set();this.seenShots=new WeakSet();
   this.lastUnits=new Map();
   this.seed=game.seed>>>0;this.frame=0;
-  this.stats={blasts:0,impacts:0,misses:0,scorch:0,tracks:0,wrecks:0,rockets:0};
+  this.stats={blasts:0,impacts:0,misses:0,scorch:0,tracks:0,wrecks:0,rockets:0,muzzlePuffs:0,crashes:0};
   this.lastUnitPollTime=NaN;
   this.lastDamageSmoke=new Map();this.lastDamageSmokeSweep=0;
   this.activeParticles=0;
@@ -297,6 +297,24 @@ export class SandforgeCombatEffects {
   if(pool.particles.length>=pool.max)pool.particles.shift();
   pool.particles.push({x,z,y,size,life,ttl:life,vx,vz,vy,
    floor:pool.mode==='debris'?y-7:undefined,angle:(this.rand()-.5)*.45});
+ }
+ /** Small barrel haze tied only to real visible shots; not an additional
+  * blast event. Shared capped smoke pool, no lights, traces or AI work. */
+ muzzleAt(shot){
+  if(!['rifle','machinegun','heavy','pistol','cannon','turret'].includes(shot.weapon))return;
+  const p=shot.groundFrom??shot.from;
+  if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y)||
+   !this.game.canSee(0,p))return;
+  // No cartoon gunfire: MG/rifles emit a small wisp, cannon a short
+  // dusty pressure pulse. Authoritative flashes remain on the GLB muzzle.
+  const heavy=shot.weapon==='cannon'||shot.weapon==='turret';
+  const originY=this.heightAt(p.x,p.y)+(heavy?34:24);
+  this.particle(this.smoke,p.x,p.y,originY,
+   heavy?11:5.6,heavy?.35:.18,
+   (this.rand()-.5)*7,(this.rand()-.5)*7,heavy?9:4);
+  if(heavy)this.particle(this.dust,p.x,p.y,this.heightAt(p.x,p.y)+5,
+   12,.30,(this.rand()-.5)*15,(this.rand()-.5)*15,8);
+  this.stats.muzzlePuffs++;
  }
  impactAt(shot){
   const p=shot.groundTo??shot.to;
@@ -556,7 +574,9 @@ export class SandforgeCombatEffects {
   this.scene.add(captured.root);
   this.crashes.push({...captured,mesh:captured.root,id:u.id,
    x,y,angle:snapshot?.angle??u.angle??0,age:0,start,
-   duration:CRASH_LIFETIME_SECONDS,kind:u.kind});
+   smokeClock:0,
+   duration:crashDurationFor(u.kind),kind:u.kind});
+  this.stats.crashes++;
   if(this.lastUnits.has(u.id))this.capturedAircraftIds.add(u.id);
   return true;
  }
@@ -568,17 +588,27 @@ export class SandforgeCombatEffects {
   for(let i=this.crashes.length-1;i>=0;i--){
    const c=this.crashes[i];
    c.age+=dt;
-   const t=Math.min(1,c.age/c.duration);
-   const travel=(c.kind==='bomber'?105:63)*t;
-   const x=clamp(c.x+Math.cos(c.angle)*travel,8,this.world.size-8);
-   const z=clamp(c.y+Math.sin(c.angle)*travel,8,this.world.size-8);
+   const flight=aircraftCrashPose(c.kind,{x:c.x,y:c.y},
+    c.angle,c.age,c.duration);
+   const x=clamp(flight.x,8,this.world.size-8);
+   const z=clamp(flight.y,8,this.world.size-8);
    const point=this.pos(x,z);
    c.mesh.position.copy(point);
-   c.mesh.position.y+=c.start*Math.pow(1-t,1.25);
-   c.mesh.rotation.z=-t*.77;
-   c.mesh.rotation.x=t*.47;
-   if(t<1&&this.frame%10===0)
-    this.particle(this.smoke,x,z,c.mesh.position.y,17+this.rand()*12,.9);
+   c.mesh.position.y+=c.start*flight.lift;
+   c.mesh.rotation.z=flight.bank;
+   c.mesh.rotation.x=flight.pitch;
+   c.mesh.rotation.y=c.angle+flight.spin;
+   // Frame-independent emission; short trails even on slower machines.
+   c.smokeClock+=dt;
+   while(c.smokeClock>=.14&&c.age<c.duration){
+    c.smokeClock-=.14;
+    this.particle(this.smoke,x,z,c.mesh.position.y+8,
+     c.kind==='scout'?19:25,1.15,
+     (this.rand()-.5)*9,(this.rand()-.5)*9,20);
+    if(c.age>c.duration*.74&&this.rand()>.58)
+     this.particle(this.flames,x,z,c.mesh.position.y+2,
+      10+this.rand()*8,.17,0,0,12);
+   }
    if(t>=1){
     this.crashes.splice(i,1);
     this.releaseAircraftCrash(c);
@@ -765,6 +795,7 @@ export class SandforgeCombatEffects {
   for(const shot of this.game.shots){
    if(this.seenShots.has(shot))continue;
    this.seenShots.add(shot);
+   this.muzzleAt(shot);
    if(shot.miss){
     this.sandMissAt(shot);
     continue;
@@ -832,6 +863,23 @@ export class SandforgeCombatEffects {
   this.frame++;
   this.updateAircraftCrashes(dt);
   this.wreckSync+=dt;
+  this.wreckSmokeClock+=dt;
+  if(this.wreckSmokeClock>=.38){
+   this.wreckSmokeClock=0;
+   // Only the newest visible burning hulls emit; max four puffs per tick.
+   let smoked=0;
+   for(let i=this.wrecks.length-1;i>=0&&smoked<4;i--){
+    const wreck=this.wrecks[i],intensity=wreckSmokeFraction(wreck);
+    if(intensity<=0||!this.game.canSee(0,{x:wreck.x,y:wreck.y}))continue;
+    const x=wreck.x,z=wreck.y;
+    this.particle(this.smoke,x,z,this.heightAt(x,z)+10,
+     14+intensity*20,1+intensity*1.5,
+     (this.rand()-.5)*6,(this.rand()-.5)*6,13+intensity*17);
+    if(intensity>.65&&this.rand()>.83)
+     this.particle(this.flames,x,z,this.heightAt(x,z)+8,7+intensity*7,.23);
+    smoked++;
+   }
+  }
   if(advanceWreckRecords(this.wrecks,dt)){
    this.wreckCount=this.wrecks.length;
    if(this.wreckSync>=.20){

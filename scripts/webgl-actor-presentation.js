@@ -103,8 +103,9 @@ export class SandforgeActorPresentation {
   // the sand. No dark rectangular "death decal" or new polygon geometry.
   // Move, don't clone, the existing model: bounded and GPU-cheap.
   this.remnants=[];
-  this.maxRemnants=24;
-  this.remnantSeconds=6;
+  this.maxRemnants=28;
+  this.remnantSeconds=9;
+  this.remnantFadeSeconds=2.1;
  }
  attach(entry,entity,type){
   const bar=statusBar(this.scene,entity,type);
@@ -156,12 +157,32 @@ export class SandforgeActorPresentation {
     pose.rotation.x=Math.PI/2;
     pose.rotation.z=(entity.id%2?1:-1)*.13;
     pose.add(detail);fallen.add(pose);
+    // Reuse the real soldier's rig and PBR textures, but clone just its
+    // material instances. Fading must never modify globally cached GLB
+    // materials shared with living units or other fallen soldiers.
+    const fadeMaterials=[],ownedOriginals=new Set(),materialCopies=new Map();
     detail.traverse(mesh=>{
-     if(mesh.isMesh)mesh.raycast=()=>{};
+     if(!mesh.isMesh)return;
+     mesh.raycast=()=>{};
+     const cloneMaterial=material=>{
+      if(!material)return material;
+      if(materialCopies.has(material))return materialCopies.get(material);
+      const copy=material.clone();
+      copy.transparent=true;copy.depthWrite=true;
+      copy.userData={...copy.userData,cosmeticRemnant:true};
+      delete copy.userData.sandforgeFactionTint;
+      fadeMaterials.push({material:copy,opacity:material.opacity??1});
+      if(wasFallback||material.userData?.sandforgeFactionTint)
+       ownedOriginals.add(material);
+      materialCopies.set(material,copy);
+      return copy;
+     };
+     mesh.material=Array.isArray(mesh.material)
+      ?mesh.material.map(cloneMaterial):cloneMaterial(mesh.material);
     });
     this.scene.add(fallen);
     this.remnants.push({
-     mesh:fallen,model:detail,wasFallback,
+     mesh:fallen,model:detail,wasFallback,fadeMaterials,ownedOriginals,
      time:this.remnantSeconds,total:this.remnantSeconds
     });
     while(this.remnants.length>this.maxRemnants)
@@ -193,6 +214,8 @@ export class SandforgeActorPresentation {
      materials.add(mat);
    }
   });
+  for(const owned of r.ownedOriginals??[])materials.add(owned);
+  for(const {material} of r.fadeMaterials??[])materials.add(material);
   for(const material of materials)material.dispose();
   for(const geometry of geometries)geometry.dispose();
   r.mesh.clear();
@@ -202,8 +225,14 @@ export class SandforgeActorPresentation {
   this.remnants=this.remnants.filter(r=>{
    r.time-=dt;
    if(r.time>0){
-    // After 4.5 seconds sink gently into the sand, not a sudden pop.
-    if(r.time<1.5)r.mesh.position.y-=dt*3.4;
+    // Remain identifiable on the sand before fading over the final 2.1s.
+    // No new meshes; cloned material instances share existing PBR textures.
+    if(r.time<this.remnantFadeSeconds){
+     const alpha=Math.max(0,r.time/this.remnantFadeSeconds);
+     for(const {material,opacity} of r.fadeMaterials)
+      material.opacity=opacity*alpha;
+     r.mesh.position.y-=dt*2.4;
+    }
     return true;
    }
    this.removeRemnant(r);
