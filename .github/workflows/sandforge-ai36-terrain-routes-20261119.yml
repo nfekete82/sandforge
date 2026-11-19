@@ -32,7 +32,7 @@ jobs:
             tests/sandforge-natural-landscape-v3-20261119.test.mjs \
             tests/webgl-pathfinding-budget-20261111.test.mjs
       - name: Paired AI 3.5 versus 3.6 natural-map smoke benchmark
-        run: SANDFORGE_BENCH_SECONDS=140 node scripts/benchmark-ai36-natural-maps.mjs
+        run: SANDFORGE_BENCH_SECONDS=260 node scripts/benchmark-ai36-natural-maps.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
