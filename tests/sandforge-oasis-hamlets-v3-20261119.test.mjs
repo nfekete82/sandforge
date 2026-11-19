@@ -113,13 +113,15 @@ test('rendered V3 buildings use batched authored GLBs without altering collision
  art.roads.geometry.dispose();art.roads.material.dispose();
 });
 
-test('real v3 maps keep units and bases navigable beside any new oasis hamlets',()=>{
- for(const seed of [2077,42102026]){
+test('real v3 maps spawn oasis hamlets and keep nearby ground navigable',()=>{
+ let existingOases=0,spawnedVillages=0;
+ for(const seed of [2077,42102026,2988452066,3610769721]){
   const game=Simulation.campaign(seed,23,'oasis',3),world=game.world,
    terrain=world.generated;
   const oases=generateOases({world,seed,startRegions:game.startRegions,
    heightAt:(x,z)=>world.terrainHeight(x,z)});
   const villages=planDesertVillages({world,terrain,seed,oases});
+  existingOases+=oases.length;spawnedVillages+=villages.filter(v=>v.architecturalStyle==='oasis-adobe').length;
   for(const village of villages)for(const house of village.houses){
    assert.ok(world.walkable({x:house.x,y:house.y}));
    assert.ok(world.terrainSlope(house.x,house.y)<.2);
@@ -127,4 +129,6 @@ test('real v3 maps keep units and bases navigable beside any new oasis hamlets',
   }
   assert.ok(world.validation?.valid);
  }
+ assert.ok(existingOases>0,'real terrain should generate oases');
+ assert.ok(spawnedVillages>0,'real oases should receive at least one natural hamlet');
 });
