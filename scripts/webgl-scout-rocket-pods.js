@@ -51,6 +51,15 @@ export function scoutPodCamouflageTexture(owner=0){
  return texture;
 }
 
+/** Side-specific mounting compensation for the helicopter's asymmetric
+ * sliding door and cockpit. One mirrored local pod shape, no independent
+ * left/right geometry drift or separately generated paint.
+ */
+export function scoutRocketPodMount(side){
+ const right=side===1;
+ return {x:right?19:-23,y:right?18.5:18,z:right?-6:-5};
+}
+
 /** Visual-only twin pods flush with the side of the real heli cabin.
  * The model contains ONLY two visible round launcher openings per side.
  * Magazine, fire timing and six real missiles stay with Simulation.
@@ -74,20 +83,22 @@ export function attachScoutRocketPods(entry){
  for(const [index,side] of [-1,1].entries()){
   const pod=new THREE.Group();
   pod.name='Scout_RocketPod_'+index;
-  // Previous offset ±37, height 6: floating black boxes underneath
-  // the rotor/cabin. Mount only ~24 units from center and up at cabin
-  // height so the arm disappears into the normal fuselage silhouette.
-  pod.position.set(side*24,18,-5);
+  // The authored cockpit/door is not perfectly symmetrical. Starboard's
+  // outer pod previously floated off its mounting hardpoint; nudge it
+  // inward and aft while constructing the SAME mirrored local assembly.
+  const mount=scoutRocketPodMount(side);
+  pod.position.set(mount.x,mount.y,mount.z);
+  pod.scale.x=side;
   const fairing=new THREE.Mesh(
    new THREE.CylinderGeometry(4.25,4.45,14,16),casing);
   fairing.rotation.x=Math.PI/2;
   fairing.castShadow=true;pod.add(fairing);
   // Real short stub pylon rather than a huge black rectangular wing box.
   const shoulder=new THREE.Mesh(new THREE.BoxGeometry(8,2.8,5),casing);
-  shoulder.position.set(-side*5.4,1,-.5);
+  shoulder.position.set(-5.4,1,-.5);
   shoulder.castShadow=true;pod.add(shoulder);
   const brace=new THREE.Mesh(new THREE.BoxGeometry(3,3,4),ring);
-  brace.position.set(-side*9.2,1,-.5);
+  brace.position.set(-9.2,1,-.5);
   pod.add(brace);
   // Two recessed, aligned launch bores, inside the camouflage fairing.
   for(const n of [-1,1]){
