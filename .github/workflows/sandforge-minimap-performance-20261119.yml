@@ -19,10 +19,16 @@ jobs:
           cache: npm
       - name: Install Sandforge
         run: npm ci --no-audit --no-fund
-      - name: TypeScript + production WebGL + complete module graph
+      - name: TypeScript + complete WebGL module audit (without untracked Mac PBR binaries)
         run: |
-          npm run build
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
           node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+          # The main production build still requires the actual authored HQ
+          # and barracks PBR GLBs on Nobby's Mac. Browser LITE tests can use
+          # tracked public assets without replacing or downgrading those.
+          cp -a src/assets dist/src/assets
+          node scripts/generate-oasis-adobe-glbs.mjs dist/src/assets/reborn/oasis-village
       - name: Minimap commands, fast A*, terrain, game-speed and prior AI/VFX regressions
         run: |
           node --test \
