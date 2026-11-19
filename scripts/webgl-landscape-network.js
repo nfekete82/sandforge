@@ -135,13 +135,15 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
       .lerp(rockPalette[1],clamp01(.25+Math.abs(offset)*.34+grains))
       .lerp(rockPalette[2],clamp01(.15+silhouette[j]*.24))
       .lerp(rockPalette[3],clamp01(.035+Math.max(0,grains)*.25));
-    return {position,color};
+    return {position,color,rise:Math.max(0,height)};
    });
   });
   for(let i=1;i<sections.length;i++){
    for(let j=1;j<offsets.length;j++){
     const a=sections[i-1][j-1],b=sections[i-1][j],
       c=sections[i][j-1],d=sections[i][j];
+    // No flat rock-colored carpet across openings or the safe build zones.
+    if(Math.max(a.rise,b.rise,c.rise,d.rise)<1)continue;
     for(const vertex of [a,c,b,b,c,d]){
      rockPositions.push(...vertex.position);
      rockRgb.push(vertex.color.r,vertex.color.g,vertex.color.b);
