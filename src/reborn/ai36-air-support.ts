@@ -63,3 +63,40 @@ export function observedBomberSupportTarget<T extends Point&{id:number;kind:stri
   .slice().sort((a,b)=>(distance(a,front)-priority(a.kind))-
    (distance(b,front)-priority(b.kind))||a.id-b.id)[0];
 }
+
+
+/** KI3.6 bomber sortie gate. Only known, *currently visible* hostile ground
+ * threats may be passed by the caller. No invisible anti-air units, no
+ * arbitrary escort requirement when a truly lone tank is exposed.
+ *
+ * A bomber cannot be the first unit over a defended front. It may strike
+ * once a REAL nearby ground screen has arrived, not merely because that
+ * screen was purchased or is sitting on the other side of the map.
+ */
+export function bomberCloseAirSupportAllowed<
+ T extends Point&{id:number;kind:string;hp:number},
+ A extends Point&{kind:string;hp:number}
+>(target:T,observed:readonly T[],groundArmy:readonly A[]):boolean{
+ if(!target||target.hp<=0)return false;
+ const at=observed.some(v=>v.id===target.id);
+ if(!at)return false; // Target must be currently observed, not remembered.
+ const hostiles=observed.filter(v=>v.hp>0&&distance(v,target)<=430);
+ const grounded=groundArmy.filter(u=>u.hp>0&&distance(u,target)<=500&&
+  !['medic','engineer','drone','scout','bomber'].includes(u.kind));
+ const adjacent=hostiles.filter(v=>distance(v,target)<=365);
+ const isBuilding=['turret','headquarters','factory','airfield','barracks',
+  'generator','research','silo','interceptor'].includes(target.kind);
+ const hostileAA=hostiles.some(v=>
+  (v.kind==='rocket'||v.kind==='turret'||v.kind==='interceptor')&&
+  distance(v,target)<=410);
+ // A single isolated tank/rover/artillery or foot soldier can be bombed
+ // without sending an entire armored column. Never solo a defended site.
+ if(!isBuilding&&!hostileAA&&adjacent.length===1)return true;
+ const vehicles=grounded.filter(u=>
+  ['tank','rover','artillery'].includes(u.kind)).length;
+ const guns=grounded.reduce((sum,u)=>sum+
+  (u.kind==='tank'?2:u.kind==='artillery'?1.8:u.kind==='rover'?1.2:
+   u.kind==='rocket'?1.25:u.kind==='heavy'?1.0:.65),0);
+ return (grounded.length>=3||vehicles>=2)&&guns>=3.3&&
+  (!hostileAA||(grounded.length>=4||vehicles>=2&&guns>=4));
+}
