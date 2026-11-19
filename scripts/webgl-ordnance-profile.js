@@ -5,7 +5,7 @@
 export const ORDNANCE_TRAIL_SEGMENTS=6;
 export const ORDNANCE_VISUALS=Object.freeze({
  tank:Object.freeze({body:.76,exhaust:.83,streak:.95,smokeRate:.085,smokeSize:12,muzzleFlash:37,impactScale:.87}),
- artillery:Object.freeze({body:1.18,exhaust:1.32,streak:1.35,smokeRate:.048,smokeSize:19,muzzleFlash:30,impactScale:1.06}),
+ artillery:Object.freeze({body:1.42,exhaust:1.22,streak:1.12,smokeRate:.075,smokeSize:21,muzzleFlash:34,impactScale:1.06}),
  rocket:Object.freeze({body:.56,exhaust:.66,streak:.64,smokeRate:.085,smokeSize:10,muzzleFlash:16,impactScale:.76}),
  scoutRocket:Object.freeze({body:.40,exhaust:.46,streak:.42,smokeRate:.13,smokeSize:7,muzzleFlash:12,impactScale:.40}),
  bomb:Object.freeze({body:1.0,exhaust:0,streak:0,smokeRate:.10,smokeSize:9,muzzleFlash:0,impactScale:1.23}),
