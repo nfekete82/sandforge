@@ -19,11 +19,11 @@ function setup(){
  return {game,helicopter,target};
 }
 
-test('Transportheli is +27% faster while MG and passenger capacity stay unchanged',()=>{
+test('Transportheli is +27% faster with the upgraded MG and unchanged capacity',()=>{
  assert.equal(UNITS.scout.speed,280);
- assert.equal(UNITS.scout.damage,18);
+ assert.equal(UNITS.scout.damage,24);
  assert.equal(UNITS.scout.cooldown,.6);
- assert.equal(UNITS.scout.range,200);
+ assert.equal(UNITS.scout.range,225);
  assert.ok(UNITS.scout.speed<UNITS.bomber.speed);
  assert.equal(SCOUT_ROCKETS.maxAmmo,6);
  assert.equal(SCOUT_ROCKETS.cooldown,9);
