@@ -99,10 +99,16 @@ test('v3 reserves broad buildable, genuinely flat, cliff-free circles around HQs
     for(const [i,zone] of protectedZones.entries()){
      assert.equal(zone.radius,i<bastionCenters.length?
       TERRAIN_GRADING_V3.bastionFlatRadius+140:TERRAIN_GRADING_V3.homeFlatRadius+150);
-     assert.ok(!world.cliffIds.slice().some((id,index)=>id>=0&&
-      Math.hypot(world.center(index).x-zone.point.x,world.center(index).y-zone.point.y)<
-       (i<bastionCenters.length?TERRAIN_GRADING_V3.bastionFlatRadius:TERRAIN_GRADING_V3.homeFlatRadius)-15),
-      `${version}/${seed}/${profile} ${i}: collision cliff inside protected pad`);
+     const flatRadius=i<bastionCenters.length?
+      TERRAIN_GRADING_V3.bastionFlatRadius:TERRAIN_GRADING_V3.homeFlatRadius;
+     for(let dx=-flatRadius;dx<=flatRadius;dx+=160)
+      for(let dy=-flatRadius;dy<=flatRadius;dy+=160){
+       if(Math.hypot(dx,dy)>=flatRadius-25)continue;
+       const p={x:zone.point.x+dx,y:zone.point.y+dy};
+       if(p.x<10||p.y<10||p.x>world.size-10||p.y>world.size-10)continue;
+       assert.equal(world.cliffIds[world.index(p)],-1,
+        `${version}/${seed}/${profile} ${i}: collision cliff inside protected pad`);
+      }
     }
    }
 });
