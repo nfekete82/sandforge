@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {createLandscapeMeshes} from '../scripts/webgl-landscape-network.js';
+import {sharedStoneMaps} from '../scripts/webgl-rock-materials.js';
 
 const geometryOptions=()=>({
  scene:new THREE.Scene(),
@@ -68,6 +69,45 @@ test('v3 rock formations are connected low-poly hills, with real smooth gaps and
  assert.ok(maxRise>45,'tactical mountainous relief remains visible');
  assert.equal(highInPass,0,'open tank pass must not be visually blocked');
  assert.equal(highInBuildPad,0,'build pads remain free from mountains');
+});
+
+test('new cliffs reuse the existing Sandforge sandstone PBR atlas and fractured rocks',()=>{
+ const setup=geometryOptions(),meshes=createLandscapeMeshes(setup);
+ const ridge=meshes.find(m=>m.userData.erodedRidge);
+ const atlas=sharedStoneMaps(false);
+ assert.equal(ridge.material.map,atlas.map);
+ assert.equal(ridge.material.normalMap,atlas.normalMap);
+ assert.equal(ridge.material.roughnessMap,atlas.roughnessMap);
+ assert.equal(ridge.material.flatShading,true,'weathered sandstone must be faceted');
+ assert.equal(ridge.geometry.getAttribute('uv').itemSize,2);
+ assert.equal(ridge.geometry.getAttribute('uv').count,
+   ridge.geometry.getAttribute('position').count);
+ const outcrops=meshes.filter(m=>m.userData.rockOutcrops);
+ assert.ok(outcrops.length>=1,'reuse existing weathered stones as natural outcrops');
+ let total=0;
+ for(const stone of outcrops){
+  assert.equal(stone.isInstancedMesh,true,'all outcrops batched, not one draw call per rock');
+  assert.equal(stone.material.map,atlas.map);
+  assert.equal(stone.material.normalMap,atlas.normalMap);
+  assert.ok(stone.geometry.userData.sedimentaryLedges,'use existing fractured rock geometry');
+  assert.equal(stone.userData.visualOnly,true);
+  const mat=new THREE.Matrix4();
+  for(let i=0;i<stone.count;i++){
+   stone.getMatrixAt(i,mat);
+   const p=new THREE.Vector3().setFromMatrixPosition(mat);
+   const x=p.x+setup.size/2,z=p.z+setup.size/2;
+   for(const clearing of setup.ridges[0].clearings){
+    assert.ok(Math.hypot(x-clearing.point.x,z-clearing.point.y)>clearing.radius+60,
+      'cliff outcrops must not invade build pads');
+   }
+   for(const pass of setup.ridges[0].ramps){
+    assert.ok(Math.abs(x-pass.x)>pass.width*.5+60,
+      'outcrops must not fill the tank crossings');
+   }
+   total++;
+  }
+ }
+ assert.ok(total>=4,'landscape gets a visible number of weathered stones');
 });
 
 test('the renderer is deterministic and cannot intercept mouse orders',()=>{
