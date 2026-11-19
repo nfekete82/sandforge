@@ -11,6 +11,8 @@ import {canyonPassWaypoint} from './ai36-terrain-routes.js';
 export interface Territory {
   id: number; name: string; polygon: Point[]; point: Point; neighbors: number[];
   owner: Owner; capturing: Owner; progress: number; income: number; value: number;
+  /** Optional paid tier 2; missing/1 means normal income (legacy saves). */
+  upgradeLevel?:1|2;
 }
 // Hand-traced against the supplied landscape, in original image pixels.
 const ROCKS = [
