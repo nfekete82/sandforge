@@ -198,9 +198,12 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
    // rather than queuing tanks forever and then leaving artillery unused.
    // True counter/siege orders still win through planned() above.
    const order:['tank','rover','artillery']=['tank','rover','artillery'];
+   const tieBreak:Record<'tank'|'rover'|'artillery',number>={
+    tank:0,rover:1,artillery:2
+   };
    result=order.sort((a,b)=>
     n[a]/ceiling(a)-n[b]/ceiling(b)||
-    order.indexOf(a)-order.indexOf(b));
+    tieBreak[a]-tieBreak[b]);
   }
   return result.filter(k=>n[k]<ceiling(k));
  };
