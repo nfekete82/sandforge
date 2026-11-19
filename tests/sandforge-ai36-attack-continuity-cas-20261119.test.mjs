@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {preserveAI36Assault,ai36JoinActiveFront} from '../dist/src/reborn/ai36-assault-continuity.js';
+import {preserveAI36Assault,ai36JoinActiveFront,maintainAI36FrontOnRetarget} from '../dist/src/reborn/ai36-assault-continuity.js';
 import {observedBomberSupportTarget,bomberCloseAirSupportAllowed} from '../dist/src/reborn/ai36-air-support.js';
 import {readFileSync} from 'node:fs';
 
@@ -73,4 +73,33 @@ test('the new director gate is restricted to KI3.6 and uses the actual current a
  assert.match(source,/candidate=>this\.bomberStrikeSafe\(candidate\)/);
  assert.match(source,/recalled\.has\(u\.id\)/);
  assert.match(source,/c\.aborted\+\+/);
+});
+
+test('a same-sector HQ-to-turret switch keeps a healthy active assault in place',()=>{
+ const input={sameSector:true,oldKind:'structure',newKind:'structure',
+  objectiveDistance:420,observedObjective:true,activeAssault:true,
+  livingAttackers:9,recentLosses:0};
+ assert.equal(maintainAI36FrontOnRetarget(input),true);
+ assert.equal(maintainAI36FrontOnRetarget({...input,
+  oldKind:'capture'}),false,'a sector-capture mission is a separate type');
+ assert.equal(maintainAI36FrontOnRetarget({...input,
+  sameSector:false}),false);
+ assert.equal(maintainAI36FrontOnRetarget({...input,
+  observedObjective:false}),false,'never rely on a hidden live enemy');
+ assert.equal(maintainAI36FrontOnRetarget({...input,
+  livingAttackers:2}),false);
+ assert.equal(maintainAI36FrontOnRetarget({...input,
+  recentLosses:2}),false);
+ assert.equal(maintainAI36FrontOnRetarget({...input,
+  objectiveDistance:800}),false);
+ assert.equal(maintainAI36FrontOnRetarget({...input,
+  activeAssault:false}),false);
+});
+
+test('the AI3.6 planner preserves the real front and rally on local observed retargets',()=>{
+ const source=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(source,/const keepRetarget=this\.ai36Enabled/);
+ assert.match(source,/maintainAI36FrontOnRetarget\(/);
+ assert.match(source,/if\(c\.aborted>aborted&&!keepRetarget\)/);
+ assert.match(source,/if\(!keepRetarget\)s\.rally=null/);
 });
