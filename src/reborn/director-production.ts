@@ -1,6 +1,7 @@
 import {UNITS,canAttack,type UnitKind} from './catalog.js';
 import {preferredRole} from './ai-director.js';
 import {rocketInfantryQuota,bomberAntiArmorQuota} from './ai-counter-doctrine.js';
+import {ai36AirDoctrineEnabled,bomberSupportQuota} from './ai36-air-support.js';
 import type {Simulation,Unit,Base} from './simulation.js';
 import type {TacticalState} from './tactical-ai.js';
 import type {ProductionDecision} from './army-economy.js';
@@ -51,10 +52,18 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
  const rocketQuota=rocketInfantryQuota({fighters,time:g.time,
   vehicles:observed.armor,air:observed.air,
   barracksReady:available('rocket'),underAttack:c.underAttack});
- const bomberQuota=bomberAntiArmorQuota({airfieldReady:available('bomber'),
+ const antiArmorQuota=bomberAntiArmorQuota({airfieldReady:available('bomber'),
   income:c.income,fighters,groundVehicles:ground(),
   enemyArmor:observed.armor,enemyAir:observed.air,
   underAttack:c.underAttack,finishing:c.finishing});
+ const supportQuota=bomberSupportQuota({
+  enabled:ai36AirDoctrineEnabled(g),airfieldReady:available('bomber'),
+  fighters,groundVehicles:ground(),income:c.income,time:g.time,
+  underAttack:c.underAttack,enemyAir:observed.air,
+  contestedBastions:g.territories.some(t=>t.owner!==1),
+  finishing:c.finishing
+ });
+ const bomberQuota=Math.max(antiArmorQuota,supportQuota);
  // A visible force, rather than an unseen technology assumption, creates a
  // counter deficit. Queue counts make this stable across successive pulses.
  const counter=():UnitKind|null=>{

@@ -2,6 +2,7 @@ import {UNITS,BUILDINGS,MAX_GENERATORS_PER_FACTION,unitSpec,canAttack,type UnitK
 import {distance,type Point} from './config.js';
 import {produceCombinedArmy} from './director-production.js';
 import {rocketInfantryQuota,bomberAntiArmorQuota} from './ai-counter-doctrine.js';
+import {ai36AirDoctrineEnabled,shouldBuyReconDrone,bomberSupportQuota} from './ai36-air-support.js';
 import {buildBastionDefense,defensiveTowerLimit,rankBastionDefenses} from './bastion-defense.js';
 import {aiBuildSiteScore} from './construction-spacing.js';
 import {defenseLessonsLost} from './battle-learning.js';
@@ -59,6 +60,7 @@ export function firstSiegeRocketReserve(input:{
 export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p:Point)=>number):void{
  const e:EconomyState=s.economy??{goal:null,since:g.time,attemptAt:-9,produced:{},built:{}},own=g.bases.filter(b=>b.owner===1&&b.hp>0),home=own.find(b=>b.kind==='headquarters')??own[0];if(!home)return;
  const fighters=army.filter(fighter),workers=army.filter(u=>u.kind==='engineer'&&!u.carrier),seen=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u)),income=g.income(1);
+ const ai36Air=ai36AirDoctrineEnabled(g);
  const underAttack=seen.some(u=>own.some(b=>distance(b,u)<480)),known=s.knownTurrets.length;
  const director=g.world.mapVersion>=3&&g.tactical.mode==='director';
  const finishing=director&&s.commander?.enemyHQEliminatedAt!==undefined;
@@ -159,6 +161,22 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   if(director)e.production={at:g.time,reason:'army-cap',goal:null,missing:0,facilities:Object.fromEntries(own.filter(b=>b.buildRemaining<=0).map(b=>[b.id,{reason:b.queue.length>=2?'queue-blocked':'army-cap',goal:null,missing:0}]))};
   return;
  }
+ // Real R-01 reconnaissance: the headquarters PAYS 50 credits and queues
+ // the 4-second unit, never a free spawn or a fake fog reveal. A single
+ // R-01 may be replaced at most three times per match.
+ const headquarters=own.find(b=>b.kind==='headquarters'&&b.buildRemaining<=0&&b.queue.length<2);
+ if(headquarters&&shouldBuyReconDrone({
+  enabled:ai36Air,time:g.time,headquartersReady:complete('headquarters'),
+  barracksReady:complete('barracks'),workers:count('engineer'),
+  fighters:fighters.length,existing:count('drone'),
+  totalPurchased:e.produced.drone??0,creditsAfterReserve:g.credits[1]-reserve,
+  underAttack,room:maxArmy-g.count(1)-g.queued(1),
+  needsIntel:g.territories.some(t=>t.owner!==1)
+ })){
+  if(g.recruit(headquarters.id,'drone')){
+   e.produced.drone=(e.produced.drone??0)+1;s.productionSerial++;
+  }
+ }
  const wounded=army.filter(u=>!u.carrier&&unitSpec(u).group==='Infanterie'&&u.kind!=='engineer'&&u.hp<unitSpec(u).hp*.7).length;
  const armor=seen.filter(u=>!unitSpec(u).flying&&unitSpec(u).group==='Fahrzeuge').length,air=seen.filter(u=>unitSpec(u).flying).length;
  const military=g.memories[1].filter(b=>b.owner===0&&b.hp>0&&['headquarters','factory','airfield','turret'].includes(b.kind??''));
@@ -172,6 +190,14 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   groundVehicles:count('rover')+count('tank')+count('artillery'),
   enemyArmor:armor,enemyAir:air,underAttack,finishing
  });
+ const supportBomberQuota=bomberSupportQuota({
+  enabled:ai36Air,airfieldReady:complete('airfield'),
+  income,time:g.time,fighters:fighters.length,
+  groundVehicles:count('rover')+count('tank')+count('artillery'),
+  enemyAir:air,underAttack,finishing,
+  contestedBastions:g.territories.some(t=>t.owner!==1)
+ });
+ const desiredBombers=Math.max(antiArmorBomberQuota,supportBomberQuota);
  const scores:Record<UnitKind,number>={
   infantry:Math.max(1,22-count('infantry')*5)+(fighters.length<4?18:0),
   // A raised unit ceiling alone is not sufficient: 11-point decay made
@@ -189,14 +215,14 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   artillery:complete('factory')&&(known||fighters.length>=5)?32+known*14
    -count('artillery')*(director?18:32):0,
   scout:complete('airfield')&&fighters.length>=4?25-count('scout')*35:0,
-  bomber:antiArmorBomberQuota>count('bomber')
+  bomber:desiredBombers>count('bomber')
    ?58+armor*10-count('bomber')*12
    :complete('airfield')&&count('scout')>0&&income>=65&&fighters.length>=6&&military.length
     ?22+military.filter(b=>b.kind==='factory'||b.kind==='airfield').length*3-count('bomber')*25:0,
  };
  if(finishing){
   // Preserve a paid replacement builder, but put other spending into the army.
-  if(!antiArmorBomberQuota)scores.bomber=0;
+  if(!desiredBombers)scores.bomber=0;
   scores.engineer=count('engineer')===0?80:0;
  }
  if(underAttack&&fighters.length<4){scores.infantry+=20;scores.heavy+=15;}

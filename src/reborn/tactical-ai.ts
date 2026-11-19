@@ -23,6 +23,7 @@ import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad} from './ai36-terrain-routes.js';
+import {droneFrontierPoint,observedBomberSupportTarget} from './ai36-air-support.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
 import type {Simulation,Unit,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -604,7 +605,9 @@ export class TacticalAI {
  private campaignRecon(army:Unit[],home:Point):Set<number>{
   const g=this.g,s=this.state,c=s.commander??=newCampaign();refreshIntelligence(g,c);
   c.recon=c.recon.filter(t=>army.some(u=>u.id===t.unit));
-  const recovering=new Set(s.recovering??[]),explorers=army.filter(u=>u.kind==='scout'&&u.id!==s.airlift?.heli);
+  const recovering=new Set(s.recovering??[]),explorers=army.filter(u=>
+   u.kind==='scout'&&u.id!==s.airlift?.heli||
+   this.ai36Enabled&&u.kind==='drone');
   // Large modern deserts use dedicated aircraft for reconnaissance. A lone
   // Humvee was previously drafted after just four paid fighters, then driven
   // deep into the player's base by fog-frontier exploration and ordered out
@@ -616,8 +619,18 @@ export class TacticalAI {
   for(const u of explorers){
    if(recovering.has(u.id)||u.transport&&u.transport.phase!=='cruise')continue;
    if(u.hp<unitSpec(u).hp*.6&&u.defendUntil>g.time){this.issue([u],home,'safe');continue;}
-   const goal=reconGoal(g,c,u,p=>this.danger(p));
-   if(goal&&(!u.orders.length||distance(u.orders.at(-1)!,goal)>60))this.issue([u],goal,'safe',undefined,false,false);
+   // The paid R-01 reveals fog *ahead of* the actual mission. Its 1120m
+   // vision stays governed by World/VisionCache, exactly like player drones.
+   const mission=c.mission;
+   let goal:Point|undefined;
+   if(this.ai36Enabled&&u.kind==='drone'&&mission&&
+      distance(home,mission)>650&&!g.canSee(1,mission)){
+    const forward=droneFrontierPoint(home,mission,g.world.size);
+    if(!g.canSee(1,forward)&&this.danger(forward)<5)goal=forward;
+   }
+   goal??=reconGoal(g,c,u,p=>this.danger(p));
+   if(goal&&(!u.orders.length||distance(u.orders.at(-1)!,goal)>60))
+    this.issue([u],goal,'safe',undefined,false,false);
   }
   return new Set(explorers.map(u=>u.id));
  }
@@ -930,6 +943,45 @@ export class TacticalAI {
    if(!target||u.orders.some(o=>o.kind==='attack'&&o.target===target.id))
     continue;
    g.command([u.id],{kind:'attack',x:target.x,y:target.y,target:target.id});
+  }
+ }
+ /** KI 3.6 uses paid bombers as close air support, not merely anti-armor
+  * reserves. Visibility is checked BEFORE a target enters this list.
+  * Keep an existing valid strike and any live bomber run intact.
+  */
+ private supportBombers(army:Unit[],home:Point):void{
+  if(!this.ai36Enabled)return;
+  const g=this.g,s=this.state;
+  const bombers=army.filter(u=>u.kind==='bomber'&&u.hp>0&&!u.carrier&&
+   !u.airfieldService&&!u.returnToHangar&&!u.bomberRun&&!u.hold);
+  if(!bombers.length)return;
+  const frontUnits=army.filter(u=>combat(u)&&!unitSpec(u).flying&&
+   (s.group.includes(u.id)||u.defendUntil>g.time));
+  const front=frontUnits.length?frontUnits.reduce((p,u)=>({
+   x:p.x+u.x/frontUnits.length,y:p.y+u.y/frontUnits.length
+  }),{x:0,y:0}):s.commander?.mission??s.rally??home;
+  // Neither an unseen opponent nor an old memory is a bombing target.
+  const observed=[
+   ...g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
+    u.kind!=='drone'&&!unitSpec(u).flying&&g.canSee(1,u)),
+   ...g.bases.filter(b=>b.owner===0&&b.hp>0&&b.buildRemaining<=0&&
+    g.canSee(1,b))
+  ];
+  const target=observedBomberSupportTarget(observed,front,1400);
+  if(!target)return;
+  for(const [index,u] of bombers.entries()){
+   if(u.orders.some(o=>o.kind==='attack'&&
+    observed.some(v=>v.id===o.target)))continue;
+   const dx=target.x-front.x,dy=target.y-front.y,
+    norm=Math.hypot(dx,dy)||1;
+   const flank={
+    x:clamp(target.x-dx/norm*220-dy/norm*(index%2?260:-260),50,g.world.size-50),
+    y:clamp(target.y-dy/norm*220+dx/norm*(index%2?260:-260),50,g.world.size-50)
+   };
+   if(!g.command([u.id],{...flank,kind:'move'}))continue;
+   g.command([u.id],{x:target.x,y:target.y,
+    kind:'attack',target:target.id},true);
+   for(const o of u.orders)o.tactical={group:s.groupId,mode:'assault'};
   }
  }
  /** Observed anti-air/anti-tank interception overrides generic attack-move
@@ -1772,6 +1824,7 @@ export class TacticalAI {
     !earlyContesters.has(u.id)&&!recapture.has(u.id));
    if(main.length)this.campaign(army,main,medics.filter(u=>!defense.has(u.id)),home);
    this.dispatchObservedSpecialists(army);
+   this.supportBombers(army,home);
    if(defense.size)campaignPhase(s.commander??=newCampaign(),'emergencyDefense',g.time);
    return;
   }
