@@ -3,6 +3,30 @@
  * circular building collision and backwards compatible saves.
  */
 export type WallFacing=0|1|2|3;
+/** A gate uses exactly the existing 109×32 wall footprint, including the
+ * same cliff, rock and building exclusion rules, but pathfinding is
+ * faction-sensitive. Gate open/close animation is derived from nearby
+ * visible actors; no new save field and no permanent open collision hole.
+ */
+export const isWallLike=(kind:string|undefined):boolean=>
+ kind==='wall'||kind==='wallGate';
+
+export function isPassableFriendlyGate(
+ base:{kind?:string;owner:number;hp:number;buildRemaining?:number},
+ faction:number
+):boolean{
+ return base.kind==='wallGate'&&base.owner===faction&&
+  base.hp>0&&(base.buildRemaining??0)<=0;
+}
+
+export function navigableBasesForFaction<T extends {
+ kind?:string;owner:number;hp:number;buildRemaining?:number;
+}>(bases:readonly T[],faction:number):T[]{
+ return bases.filter(b=>!isPassableFriendlyGate(b,faction));
+}
+
+export const WALL_GATE_UPGRADE_COST=60;
+
 export function wallColliderSamples(p:{x:number;y:number;facing?:WallFacing},
  facing:WallFacing=p.facing??0,radius=24):{x:number;y:number;radius:number}[]{
  const yaw=[0,Math.PI,Math.PI/2,Math.PI*1.5][facing];
