@@ -19,7 +19,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Compile and check WebGL graph
         run: |
-          npm run build
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
           node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
       - name: Verify mission recovery, AI3.6 air and battle aftermath
         run: |
