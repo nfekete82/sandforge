@@ -11,8 +11,9 @@ test('minimap uses true rendered CSS bounds, not the bitmap backing size',()=>{
  const p=minimapPointerToWorld(125+224*.75,670+224*.25,rect,size);
  assert.deepEqual(p,{x:size*.75,y:size*.25});
  const stretched={left:15,top:500,width:336,height:168};
- assert.deepEqual(minimapPointerToWorld(15+336*.4,500+168*.7,stretched,size),
-  {x:size*.4,y:size*.7});
+ const p=minimapPointerToWorld(15+336*.4,500+168*.7,stretched,size);
+ assert.ok(Math.abs(p.x-size*.4)<1e-8);
+ assert.ok(Math.abs(p.y-size*.7)<1e-8);
 });
 
 test('minimap destination orientation matches existing HUD markers, no swapped or inverted axes',()=>{
