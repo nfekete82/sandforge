@@ -72,7 +72,15 @@ test('browser has selector, pause-independent scale and keeps camera at wall tim
  const html=readFileSync('webgl-preview.html','utf8');
  const preview=readFileSync('scripts/webgl-preview.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
+ const hud=readFileSync('scripts/webgl-classic-hud.js','utf8');
+ const css=readFileSync('src/reborn/webgl-classic-hud.css','utf8');
  assert.match(html,/id="simulation-speed"/);
+ // The old footer is hidden by the real RTS HUD. The existing selector
+ // MUST physically move into the visible top control bar with its listener.
+ assert.match(hud,/const speedSelect=document\.getElementById\('simulation-speed'\)/);
+ assert.match(hud,/const speedLabel=speedSelect\?\.closest\('label'\)/);
+ assert.match(hud,/tools\.append\(speedLabel\)/);
+ assert.match(css,/\.sf-rts \.tools \.sf-tool-speed select/);
  for(const speed of ['1','2','4'])
   assert.match(html,new RegExp('<option value="'+speed+'"'));
  assert.match(preview,/speedControl\.addEventListener\('change'/);
