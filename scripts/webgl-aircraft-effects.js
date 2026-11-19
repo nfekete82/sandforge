@@ -16,7 +16,7 @@ export function aircraftCrashPose(kind,origin,heading,age,duration){
  const travel=kind==='scout'?62:133;
  const distance=travel*(t*.83+t*t*.17);
  const side=kind==='scout'
-  ?Math.sin(t*Math.PI*3.8)*26*t
+  ?Math.sin(t*Math.PI*2.5)*36*t
   :Math.sin(t*Math.PI)*14*t;
  const x=origin.x+Math.cos(heading)*distance-Math.sin(heading)*side;
  const y=origin.y+Math.sin(heading)*distance+Math.cos(heading)*side;
