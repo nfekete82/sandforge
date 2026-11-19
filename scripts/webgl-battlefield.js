@@ -37,7 +37,8 @@ import {releaseBastionRevision} from '/webgl-bastion-lifecycle.js';
 import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
 import {selectedInfantryForTransport,selectedCarrierForPickup,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
 import {pointerGestureIntent,submitConstruction,nearestEngineer,keepPlacementAfterBuild,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
-import {validatedWallDrag,WALL_CHAIN_DRAG_THRESHOLD,WALL_CHAIN_MAX} from '/webgl-wall-drag.js';
+import {validatedWallDrag,snapWallSiteToMap,WALL_CHAIN_DRAG_THRESHOLD,WALL_CHAIN_MAX} from '/webgl-wall-drag.js';
+import {wallTerrainPitch} from '/src/reborn/defensive-wall.js';
 import {sameKindVisibleUnits,visibleFriendlyUnits} from '/webgl-double-click-select.js';
 import {FIELD_UNIT_COMMANDS,orderReturnToBase} from '/webgl-unit-commands.js';
 import {tracerWindow} from '/webgl-hit-response.js';
@@ -982,7 +983,7 @@ export class SandforgeBattlefield {
   const byValidity=[[],[]];
   for(const segment of plan.segments)byValidity[segment.valid?0:1].push(segment);
   const pos=new THREE.Vector3(),rotation=new THREE.Quaternion(),
-   matrix=new THREE.Matrix4(),scale=new THREE.Vector3(1,1,1);
+   euler=new THREE.Euler(),matrix=new THREE.Matrix4(),scale=new THREE.Vector3(1,1,1);
   for(let k=0;k<2;k++){
    const mesh=this.wallPreviewMeshes.meshes[k];
    mesh.count=byValidity[k].length;
@@ -990,8 +991,9 @@ export class SandforgeBattlefield {
     const segment=byValidity[k][i];
     pos.copy(this.pos(segment.point.x,segment.point.y,
      this.heightAt(segment.point.x,segment.point.y)+23));
-    rotation.setFromAxisAngle(UP,
-     segment.facing===2?Math.PI/2:0);
+    rotation.setFromEuler(euler.set(0,
+     segment.facing===2?Math.PI/2:0,
+     wallTerrainPitch(this.world,segment.point,segment.facing)));
     matrix.compose(pos,rotation,scale);mesh.setMatrixAt(i,matrix);
    }
    mesh.instanceMatrix.needsUpdate=true;
@@ -1040,11 +1042,15 @@ export class SandforgeBattlefield {
  }
  updatePlacementPreview(event){
   const ghost=this.buildPreview;if(!this.buildKind||!ghost)return;
-  const p=this.terrainPoint(event);
+  const raw=this.terrainPoint(event,{snapEdge:this.buildKind==='wall'});
+  const p=this.buildKind==='wall'&&raw
+   ?snapWallSiteToMap(raw,this.placementFacing,this.world.size):raw;
   ghost.visible=Boolean(p);
   if(!p){this.buildHint.style.display='none';return;}
   ghost.position.copy(this.pos(p.x,p.y));
   ghost.rotation.y=buildingFacingAngle(this.placementFacing);
+  ghost.rotation.z=this.buildKind==='wall'
+   ?wallTerrainPitch(this.world,p,this.placementFacing):0;
   if(this.buildKind==='airfield'&&ghost.userData.previewService)
    conformAirfieldSurface(ghost.userData.previewService,
     {...p,facing:this.placementFacing},(x,z)=>this.heightAt(x,z));
@@ -1187,6 +1193,15 @@ export class SandforgeBattlefield {
    entry.node.visible=b.owner===0||this.game.canSee(0,b);
    entry.node.scale.y=1;
    entry.node.rotation.y=buildingFacingAngle(b.facing);
+   // Cache each fixed wall's 3D terrain pitch. A large perimeter must not
+   // resample its heightfield hundreds of times per animation frame.
+   if(b.kind==='wall'){
+    if(entry.wallSlopePitch===undefined||entry.wallSlopeFacing!==b.facing){
+     entry.wallSlopeFacing=b.facing;
+     entry.wallSlopePitch=wallTerrainPitch(this.world,b,b.facing??0);
+    }
+    entry.node.rotation.z=entry.wallSlopePitch;
+   }else entry.node.rotation.z=0;
    this.construction.update(entry,b);
    // Site dressing and the FULL facility footprint are present from the
    // first construction tick. Construction scaffolding overlays them, rather
@@ -2885,7 +2900,9 @@ export class SandforgeBattlefield {
    }
    if(this.buildKind){
     const kind=this.buildKind;
-    const blocked=this.game.buildError(0,kind,p,this.placementFacing);
+    const site=kind==='wall'
+     ?snapWallSiteToMap(p,this.placementFacing,this.world.size):p;
+    const blocked=this.game.buildError(0,kind,site,this.placementFacing);
     if(blocked){
      this.message(blocked+' · Bauplatz oder Ausrichtung ändern');
      return;
@@ -2893,7 +2910,7 @@ export class SandforgeBattlefield {
     // The previous flow used only the currently selected pioneer. After an
     // airfield/factory he may still carry the old construction order or be
     // trapped behind its facade. Retry other FREE pioneers before queueing.
-    const order=submitConstruction(this.game,kind,p,this.selected,
+    const order=submitConstruction(this.game,kind,site,this.selected,
      this.placementFacing,event.shiftKey);
     if(order.base){
      // Keep the builder catalogue actionable for the NEXT building, even

@@ -11,3 +11,67 @@ export function wallColliderSamples(p:{x:number;y:number;facing?:WallFacing},
   x:p.x+offset*c,y:p.y-offset*s,radius
  }));
 }
+
+
+/** A wall is a narrow, terrain-following barrier, NOT a building slab.
+ * Check its entire real 109×32 footprint against map bounds, rocks and
+ * physically impassable cliff faces. Do not demand a level foundation:
+ * gradual height differences along the wall are expected and supported
+ * by the renderer's terrain pitch.
+ *
+ * Unlike World.walkable(), sampling the REAL world boundary admits a
+ * perfectly legal perimeter whose concrete ends 0.5m from the map edge;
+ * no part of the 3D model may extend into the surrounding black void.
+ */
+export function wallTerrainPlacementError(
+ ground:{
+  size:number;blocked:Uint8Array;index(p:{x:number;y:number}):number;
+  generated?:{battlefield?:unknown};
+  terrainHeight(x:number,y:number):number;
+  terrainSlope(x:number,y:number):number;
+ },
+ p:{x:number;y:number},facing:WallFacing
+):string|null{
+ const yaw=[0,Math.PI,Math.PI/2,Math.PI*1.5][facing];
+ const c=Math.cos(yaw),s=Math.sin(yaw);
+ // Sample on or just inside the actual mesh silhouette. At 9-m steps
+ // even a single 15-m navigation rock cell cannot be skipped unnoticed.
+ for(const z of [-16,-8,0,8,16]){
+  let previousHeight:number|undefined;
+  for(let x=-54;x<=54;x+=9){
+   const px=p.x+x*c+z*s,py=p.y-x*s+z*c;
+   const q={x:px,y:py},cell=ground.index(q);
+   if(px<0||py<0||px>=ground.size||py>=ground.size)
+    return 'Mauer ragt über den Kartenrand.';
+   if(cell<0||ground.blocked[cell])
+    return 'Felsen oder unpassierbare Bergwand blockieren den Mauerverlauf.';
+   if(ground.generated?.battlefield){
+    const height=ground.terrainHeight(px,py);
+    if(!Number.isFinite(height)||ground.terrainSlope(px,py)>1.35)
+     return 'Eine steile Felswand blockiert den Mauerverlauf.';
+    // Do not bridge an abrupt precipice with one floating rigid segment.
+    // Ordinary hills/dunes were previously rejected at 0.24 slope or 24
+    // total height change; both limitations are intentionally removed.
+    if(previousHeight!==undefined&&Math.abs(height-previousHeight)>9*1.5)
+     return 'Eine senkrechte Geländekante unterbricht die Mauer.';
+    previousHeight=height;
+   }
+  }
+ }
+ return null;
+}
+
+/** Visual-only slope of a built wall, matching its rotated local +X axis.
+ * This does not change the stored wall facing, physical blockers or save.
+ */
+export function wallTerrainPitch(
+ ground:{terrainHeight(x:number,y:number):number},
+ p:{x:number;y:number},facing:WallFacing
+):number{
+ const yaw=[0,Math.PI,Math.PI/2,Math.PI*1.5][facing];
+ const c=Math.cos(yaw),s=Math.sin(yaw);
+ const left=ground.terrainHeight(p.x-49*c,p.y+49*s);
+ const right=ground.terrainHeight(p.x+49*c,p.y-49*s);
+ if(!Number.isFinite(left)||!Number.isFinite(right))return 0;
+ return Math.atan2(right-left,98);
+}

@@ -6,6 +6,24 @@
 export const WALL_CHAIN_PITCH=109;
 export const WALL_CHAIN_MAX=90;
 export const WALL_CHAIN_DRAG_THRESHOLD=13;
+export const WALL_EDGE_LONG=55;  // real panel is 109 wide; half-width 54.5
+export const WALL_EDGE_SHORT=17; // real footing is 32 deep; half-depth 16
+
+/** Clamp a single wall placement onto the nearest legal edge-aligned center.
+ * Existing obstacles, cliff cells and gameplay costs are still validated by
+ * the authoritative Simulation.buildError(). This only solves clicks near
+ * the map edge where the mouse is closer than half a panel to the border.
+ */
+export function snapWallSiteToMap(point,facing,mapSize){
+ if(!point||![point.x,point.y,mapSize].every(Number.isFinite)||
+  mapSize<=WALL_EDGE_LONG*2)return null;
+ const clamp=(n,low,high)=>Math.max(low,Math.min(high,n));
+ const horizontal=facing===0||facing===1;
+ const xMargin=horizontal?WALL_EDGE_LONG:WALL_EDGE_SHORT;
+ const yMargin=horizontal?WALL_EDGE_SHORT:WALL_EDGE_LONG;
+ return {x:clamp(point.x,xMargin,mapSize-xMargin),
+  y:clamp(point.y,yMargin,mapSize-yMargin)};
+}
 export function wallDragSegments(start,end,mapSize,{axis=null,limit=WALL_CHAIN_MAX}={}){
  if(!start||!end||![start.x,start.y,end.x,end.y,mapSize].every(Number.isFinite)||
     mapSize<160)return [];
@@ -17,9 +35,9 @@ export function wallDragSegments(start,end,mapSize,{axis=null,limit=WALL_CHAIN_M
  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
  // 109-long, 30-deep walls extend to the last few pixels of playable sand.
  // The sim checks rock/mesa pixels across the WHOLE rotated footprint.
- const startPos=clamp(primaryStart,64,mapSize-64);
- const endPos=clamp(primaryEnd,64,mapSize-64);
- const cross=clamp(crossStart,26,mapSize-26);
+ const startPos=clamp(primaryStart,WALL_EDGE_LONG,mapSize-WALL_EDGE_LONG);
+ const endPos=clamp(primaryEnd,WALL_EDGE_LONG,mapSize-WALL_EDGE_LONG);
+ const cross=clamp(crossStart,WALL_EDGE_SHORT,mapSize-WALL_EDGE_SHORT);
  const sign=endPos<startPos?-1:1;
  const span=Math.abs(endPos-startPos);
  const count=Math.min(Math.max(1,Math.floor(limit)),Math.floor(span/WALL_CHAIN_PITCH)+1);
