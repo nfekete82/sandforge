@@ -80,7 +80,36 @@ function radialTexture({inner='#ffffff',outer='#ffffff',mode='smoke',biome='dese
   g.addColorStop(.5,'rgba(80,55,37,.5)');
   g.addColorStop(1,'rgba(104,73,44,0)');
  }
- ctx.fillStyle=g;ctx.fillRect(0,0,128,128);
+ if(mode==='flame'){
+  // Several rising, asymmetrical flames instead of an orange round disc.
+  // Drawn ONCE into a shared atlas; particle instance count stays unchanged.
+  for(const [cx,base,width,height,lean,alpha] of [
+   [64,118,30,75,6,1],[45,113,16,61,-9,.85],
+   [83,115,20,80,8,.78],[61,112,12,101,-3,.67]
+  ]){
+   const fill=ctx.createLinearGradient(cx,base,cx+lean,base-height);
+   fill.addColorStop(0,'rgba(166,50,16,.38)');
+   fill.addColorStop(.20,'rgba(239,94,19,.88)');
+   fill.addColorStop(.49,'rgba(255,174,51,.94)');
+   fill.addColorStop(.78,'rgba(255,230,129,.78)');
+   fill.addColorStop(1,'rgba(255,247,197,0)');
+   ctx.globalAlpha=alpha;ctx.fillStyle=fill;
+   ctx.beginPath();ctx.moveTo(cx-width,base);
+   ctx.bezierCurveTo(cx-width*.78,base-height*.27,
+    cx-width*.55+lean,base-height*.60,cx+lean,base-height);
+   ctx.bezierCurveTo(cx+width*.36,base-height*.72,
+    cx+width*.77,base-height*.28,cx+width,base);
+   ctx.closePath();ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  const core=ctx.createRadialGradient(64,104,1,64,104,26);
+  core.addColorStop(0,'rgba(255,255,229,.99)');
+  core.addColorStop(.48,'rgba(255,231,132,.7)');
+  core.addColorStop(1,'rgba(255,156,53,0)');
+  ctx.fillStyle=core;ctx.fillRect(35,79,58,49);
+ }else{
+  ctx.fillStyle=g;ctx.fillRect(0,0,128,128);
+ }
  if(mode==='scorch'){
   // Eroded char and displaced sand should never read as a perfectly round
   // black sticker. This deterministic alpha relief is generated only once.
@@ -110,6 +139,20 @@ function radialTexture({inner='#ffffff',outer='#ffffff',mode='smoke',biome='dese
    puff.addColorStop(1,'rgba(0,0,0,0)');
    ctx.fillStyle=puff;ctx.fillRect(px-d,py-d,d*2,d*2);
   }
+ }
+ if(mode==='smoke'||mode==='rocketSmoke'){
+  // No perfect gray circles: tear the silhouette into turbulent lobes.
+  // The alpha field is pre-baked, not recalculated every rendered frame.
+  const pixels=ctx.getImageData(0,0,128,128);
+  for(let y=0;y<128;y++)for(let x=0;x<128;x++){
+   const dx=x-64,dy=y-64,theta=Math.atan2(dy,dx),radius=Math.hypot(dx,dy);
+   const edge=50+7*Math.sin(theta*7+.9)+4*Math.sin(theta*13-1.7);
+   const wisps=.87+.11*Math.sin(x*.24+y*.31)+.08*Math.cos(x*.39-y*.17);
+   const shape=Math.max(0,Math.min(1,(edge-radius)/10));
+   pixels.data[(y*128+x)*4+3]=Math.round(
+    pixels.data[(y*128+x)*4+3]*shape*Math.max(.45,wisps));
+  }
+  ctx.putImageData(pixels,0,0);
  }
  const texture=new THREE.CanvasTexture(canvas);
  texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=4;
