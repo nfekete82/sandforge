@@ -735,6 +735,13 @@ export class Simulation {
     vehicleFacades:{x:number;y:number;radius:number}[];
     infantry:{x:number;y:number;radius:number}[];
     vehicle:{x:number;y:number;radius:number}[];
+    byOwner:{
+      buildings:Base[];
+      infantryFacades:{x:number;y:number;radius:number}[];
+      vehicleFacades:{x:number;y:number;radius:number}[];
+      infantry:{x:number;y:number;radius:number}[];
+      vehicle:{x:number;y:number;radius:number}[];
+    }[];
   };
   private movingColliders(){
     const current=this.movementCollision;
@@ -743,9 +750,16 @@ export class Simulation {
       decor=this.vehicleDecorObstacles();
     const infantryFacades=infantryStructureColliders(buildings),
       vehicleFacades=vehicleStructureColliders(buildings);
+    const byOwner=([0,1] as const).map(owner=>{
+      const physical=navigableBasesForFaction(buildings,owner);
+      const feet=infantryStructureColliders(physical),wheels=vehicleStructureColliders(physical);
+      return {buildings:physical,infantryFacades:feet,vehicleFacades:wheels,
+        infantry:[...physical,...feet,...towers],
+        vehicle:[...physical,...wheels,...decor,...towers]};
+    });
     const result={at:this.time,buildings,towers,decor,infantryFacades,
       vehicleFacades,infantry:[...buildings,...infantryFacades,...towers],
-      vehicle:[...buildings,...vehicleFacades,...decor,...towers]};
+      vehicle:[...buildings,...vehicleFacades,...decor,...towers],byOwner};
     this.movementCollision=result;
     return result;
   }
@@ -1087,7 +1101,7 @@ export class Simulation {
       if(captureSite){const length=Math.hypot(offset.x,offset.y),limit=RULES.captureRadius-30;
         if(length>limit){offset={x:offset.x*limit/length,y:offset.y*limit/length};}}
       const spec=unitSpec(u),p={x:order.x+offset.x,y:order.y+offset.y};
-      const buildings=this.obstacles(),towers=this.bastionColliders();
+      const buildings=this.navigationBases(u.owner),towers=this.bastionColliders();
       const obstacles=spec.flying?buildings:spec.group==='Infanterie'
          ?[...buildings,...infantryStructureColliders(buildings),...towers]
          :[...buildings,...vehicleStructureColliders(buildings),...this.vehicleDecorObstacles(),...towers];
@@ -1123,7 +1137,7 @@ export class Simulation {
   }
   private supportApproach(u:Unit,target:Unit|Base,requireReachable=false,startSide=0):Point|null {
     const radius='queue' in target?target.radius+32:35,angle=Math.atan2(u.y-target.y,u.x-target.x),range='queue' in target?target.radius+55:u.kind==='engineer'?REPAIR_RADIUS:this.healRadius(u);
-    const buildings=this.obstacles(),routeObstacles=[...buildings,...infantryStructureColliders(buildings)],
+    const buildings=this.navigationBases(u.owner),routeObstacles=[...buildings,...infantryStructureColliders(buildings)],
       obstacles=[...routeObstacles,...this.bastionColliders()];
     if('queue' in target){
       const gap=distance(u,target);
@@ -1746,7 +1760,7 @@ export class Simulation {
     let state=previous;
     if(!state||state.targetId!==enemy.id||state.expires<=this.time||
       distance(u,state.point)<24){
-      const collision=this.movingColliders().infantry;
+      const collision=this.movingColliders().byOwner[u.owner].infantry;
       const clearance=Math.max(0,unitSpec(u).radius-10);
       const point=rocketStandoffPoint({
         soldier:u,enemy,range:unitSpec(u).range,
@@ -1801,14 +1815,14 @@ export class Simulation {
     // from the separate battlefield-movement watchdog.
     if(ground&&!vehicle&&u.kind!=='engineer'&&u.kind!=='medic'&&
        this.recoverStalledAiRoute(u,target))return;
-    const cached=this.movingColliders();
-    const {buildings}=cached;
+    const cached=this.movingColliders(),open=cached.byOwner[u.owner];
+    const {buildings}=open;
     const towers=ground?cached.towers:[];
     const decor=vehicle?cached.decor:[];
-    const visualBuildings=vehicle?cached.vehicleFacades:
-      ground?cached.infantryFacades:[];
+    const visualBuildings=vehicle?open.vehicleFacades:
+      ground?open.infantryFacades:[];
     const collisionObstacles=ground?
-      (vehicle?cached.vehicle:cached.infantry):buildings;
+      (vehicle?open.vehicle:open.infantry):buildings;
     // Older savegames can contain vehicles standing within the newly enlarged
     // visual clearance. Allow only a proven escape route out, then route normally.
     if(ground&&u.vehicleEscape==='exit'&&this.world.walkable(u,collisionObstacles,clearance)){
@@ -1817,7 +1831,9 @@ export class Simulation {
     if(!u.path.length&&u.repath<=0){
       delete u.vehicleEscape;
       const tactical=u.owner===1&&u.orders[0]?.tactical;
-      const baseObstacles=tactical?this.tactical.navigationObstacles():buildings;
+      const baseObstacles=tactical?this.tactical.navigationObstacles().filter(o=>
+        !('kind' in o&&o.kind==='wallGate'&&'owner' in o&&o.owner===u.owner&&
+          this.bases.some(b=>b.id===o.id&&b.buildRemaining<=0&&b.hp>0))):buildings;
       const routeObstacles=ground?[...baseObstacles,...visualBuildings,...decor,...towers]:baseObstacles;
       const risk=this.tactical.costs(u);
       u.path=spec.flying&&!risk?[target]:this.world.path(u,target,routeObstacles,clearance,risk,spec.flying,u.exactPath,true,slopeLimit);
@@ -2329,13 +2345,8 @@ export class Simulation {
     this.spatial.rebuild(this.units);
     // Comfort separation yields to a legitimate drive route in tight spots.
     // Only the original physical radius constitutes a hard collision.
-    const separationBuildings=this.obstacles(),separationVisual=vehicleStructureColliders(separationBuildings);
-    const separationDecor=this.vehicleDecorObstacles(),separationTowers=this.bastionColliders();
-    // Avoid rebuilding infantry facades and four concatenated obstacle arrays
-    // for every close-contact pair in the separation pass.
-    const separationInfantryFacade=infantryStructureColliders(separationBuildings);
-    const separationInfantry=[...separationBuildings,...separationInfantryFacade,...separationTowers];
-    const separationVehicles=[...separationBuildings,...separationVisual,...separationDecor,...separationTowers];
+    // Separation uses the same faction-specific blockers as movement.
+    const separation=this.movingColliders().byOwner;
     for(const u of this.units)if(u.hp>0&&!u.carrier)
       for(const v of this.spatial.query(u,unitSpec(u).radius+105)){
         if(v.id<=u.id||v.hp<=0||u.airfieldService||v.airfieldService||u.factoryService||v.factoryService||unitSpec(u).flying!==unitSpec(v).flying)continue;
@@ -2364,8 +2375,9 @@ export class Simulation {
               if(Math.hypot(p.x-a.previousX!,p.y-a.previousY!)>pace*dt+1e-8)continue;
             }
           }
-          const colliders=unitSpec(a).group==='Fahrzeuge'?separationVehicles:
-           unitSpec(a).flying?separationBuildings:separationInfantry;
+          const faction=separation[a.owner];
+          const colliders=unitSpec(a).group==='Fahrzeuge'?faction.vehicle:
+           unitSpec(a).flying?faction.buildings:faction.infantry;
           if(unitSpec(a).flying||
            this.world.walkable(p,colliders,Math.max(0,unitSpec(a).radius-10))){
             a.x=p.x;a.y=p.y;
