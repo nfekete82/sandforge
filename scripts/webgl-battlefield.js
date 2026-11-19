@@ -1722,10 +1722,10 @@ export class SandforgeBattlefield {
    }
    if(action==='menu'){window.Sandforge3DMenu?.openPause();}
    if(action==='health'){
-    const modes=['all','selected','off','damaged'];
+    const modes=['smart','all','selected','off','damaged'];
     const old=this.presentation.showHealth;
     this.presentation.setHealthMode(modes[(modes.indexOf(old)+1)%modes.length]);
-    this.message('Lebensbalken: '+({all:'Alle',damaged:'Beschädigte',selected:'Ausgewählte',off:'Aus'}[this.presentation.showHealth]));
+    this.message('Lebensbalken: '+({smart:'Automatisch',all:'Alle',damaged:'Beschädigte',selected:'Ausgewählte',off:'Aus'}[this.presentation.showHealth]));
    }
    if(action==='fog'){this.fogEnabled=!this.fogEnabled;this.updateFog();this.message('Nebel des Krieges '+(this.fogEnabled?'aktiv':'deaktiviert'));}
    if(action==='save')this.saveGame();

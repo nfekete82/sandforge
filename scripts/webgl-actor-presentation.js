@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {disposeRocketLauncher} from '/webgl-rocket-infantry.js';
 import {updateEngineerTools} from '/webgl-engineer-tools.js';
 import {UNITS,BUILDINGS} from '/src/reborn/catalog.js';
-import {healthFraction,healthColor} from '/webgl-health.js';
+import {healthFraction,healthColor,showHealthBar} from '/webgl-health.js';
 import {turretMuzzleOffset} from '/webgl-scale.js';
 
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
@@ -38,8 +38,8 @@ const flashTex=muzzleTexture();
 const ownerColor=owner=>owner===0?'#68ddf5':'#ff8a69';
 const pulseSize=kind=>infantry.has(kind)?17:air.has(kind)?36:kind==='tank'?40:35;
 const barWidth=(kind,type)=>type==='building'
- ?Math.max(42,Math.min(68,(BUILDINGS[kind]?.width??115)*.30)):
- infantry.has(kind)?22:air.has(kind)?44:36;
+ ?Math.max(36,Math.min(56,(BUILDINGS[kind]?.width??115)*.26)):
+ infantry.has(kind)?19:air.has(kind)?36:31;
 const barAltitude=(kind,type)=>type==='building'
  ?Math.max(65,Math.min(144,(BUILDINGS[kind]?.width??130)*.55)):
  infantry.has(kind)?43:air.has(kind)?49:56;
@@ -50,20 +50,20 @@ function statusBar(scene,entity,type){
  root.name='hp-'+type+'-'+entity.id;
  root.userData={type,id:entity.id,healthBar:true};
  const surround=new THREE.Mesh(barGeo,outlineMats[entity.owner===1?1:0]);
- surround.scale.set(width+1.8,4.8,1);surround.position.z=0;surround.renderOrder=1016;
+ surround.scale.set(width+1.4,4.0,1);surround.position.z=0;surround.renderOrder=1016;
  root.add(surround);
  const back=new THREE.Mesh(barGeo,bgMat);
- back.scale.set(width,3.4,1);back.position.z=.9;back.renderOrder=1017;
+ back.scale.set(width,2.8,1);back.position.z=.9;back.renderOrder=1017;
  root.add(back);
  // All three health pieces must share the transparent rendering pass: an
  // opaque fill drawn before the translucent background appeared BLACK.
  const fillMaterial=new THREE.MeshBasicMaterial({color:'#24e568',transparent:true,opacity:1,depthTest:false,
   depthWrite:false,side:THREE.DoubleSide,toneMapped:false});
  const fill=new THREE.Mesh(barGeo,fillMaterial);
- fill.scale.set(width-2.1,2.5,1);fill.position.z=1.8;fill.renderOrder=1018;root.add(fill);
+ fill.scale.set(width-1.8,2.0,1);fill.position.z=1.8;fill.renderOrder=1018;root.add(fill);
  root.renderOrder=1015;
  scene.add(root);
- return {root,fill,fillMaterial,width:width-2.1,altitude:barAltitude(entity.kind,type),
+ return {root,fill,fillMaterial,width:width-1.8,altitude:barAltitude(entity.kind,type),
    previousHp:entity.hp,hitPulse:0,healPulse:0};
 }
 
@@ -96,9 +96,9 @@ export class SandforgeActorPresentation {
   this.status=new Map();
   this.stats={shots:0,hits:0,heals:0,visibleBars:0,walking:0,shooting:0};
   this.time=0;
-  // HUD health must remain visible for every currently seen unit by default.
-  // A pre-existing damaged-only preset hid full-HP soldiers and vehicles.
-  this.showHealth='all';
+  // Default: unobtrusive health indicators, always available by HUD toggle.
+  // Full-health unselected actors do not cover the scene in green bars.
+  this.showHealth='smart';
   // Keep the actual rendered infantry model briefly after death, prone on
   // the sand. No dark rectangular "death decal" or new polygon geometry.
   // Move, don't clone, the existing model: bounded and GPU-cheap.
@@ -240,7 +240,7 @@ export class SandforgeActorPresentation {
   });
  }
  setHealthMode(mode){
-  if(['all','selected','damaged','off'].includes(mode))this.showHealth=mode;
+  if(['smart','all','selected','damaged','off'].includes(mode))this.showHealth=mode;
  }
  consumeShots(units,bases){
   for(const shot of this.game.shots){
@@ -287,9 +287,14 @@ export class SandforgeActorPresentation {
   bar.hitPulse=Math.max(0,bar.hitPulse-dt);
   bar.healPulse=Math.max(0,bar.healPulse-dt);
   const visible=entry.node.visible&&hp>0;
-  const showBar=visible&&(this.showHealth==='all'||
-   this.showHealth==='selected'&&selected||
-   this.showHealth==='damaged'&&(selected||pct<.999));
+  // Hold a full-HP attacker's bar for a short time after its latest real
+  // shot. Damaged units remain visible; no opponent is exposed through fog.
+  if(state.shotPulse>0||bar.hitPulse>0||entity.fire>0)
+   state.healthCombatUntil=Math.max(state.healthCombatUntil??0,this.game.time+3.2);
+  const fighting=!!(state.healthCombatUntil>this.game.time||
+   entity.defendUntil>this.game.time);
+  const showBar=showHealthBar({mode:this.showHealth,visible,selected,
+    fraction:pct,combatActive:fighting});
   bar.root.visible=showBar&&!entry.productionMotion?.hideHealth;
   // Headquarters may be captured and switch faction without respawning.
   bar.root.children[0].material=outlineMats[entity.owner===1?1:0];

@@ -24,6 +24,7 @@ import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publ
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad} from './ai36-terrain-routes.js';
 import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage} from './ai36-air-support.js';
+import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
 import type {Simulation,Unit,Base,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -1290,7 +1291,17 @@ export class TacticalAI {
   s.group=s.group.filter(id=>army.some(u=>u.id===id));
   const centroid=(units:Unit[])=>units.length?units.reduce((p,u)=>({x:p.x+u.x/units.length,y:p.y+u.y/units.length}),{x:0,y:0}):home;
   const assigned=fighters.filter(u=>s.group.includes(u.id));
-  const previous=c.mission,aborted=c.aborted,origin=centroid(assigned.length?assigned:fighters);
+  const physicalArmy=assigned.length?assigned:fighters;
+  const meanOrigin=centroid(physicalArmy);
+  // In large procedural canyons, the geometric centre of two separated
+  // squads can sit INSIDE a cliff or another disconnected component.
+  // AI3.5 keeps its reference behaviour; KI3.6 uses a living walkable
+  // combatant to validate mission routes and stage its next offensive.
+  const origin=this.ai36Enabled
+   ?groundedAssaultRouteOrigin(physicalArmy,meanOrigin,
+      p=>g.world.walkable(p,this.obstacles(),5))
+   :meanOrigin;
+  const previous=c.mission,aborted=c.aborted;
   const experience=s.experience??=newExperience();
   if(experience.active){const a=experience.active,won=g.territories[a.sector]?.owner===1;
    // Count an observed destroyed objective as victory, even before its sector falls.
