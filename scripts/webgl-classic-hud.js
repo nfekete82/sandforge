@@ -153,6 +153,16 @@ export function installClassicHud(){
  action('home','Kamera zur Basis','Ansicht zurücksetzen');
  action('sound','Sound ein- oder ausschalten','Audio');
  action('simulation','Simulation pausieren oder starten','Pause (Leertaste)');
+ // The original footer is hidden when this compact RTS HUD mounts. Move
+ // the REAL labeled tempo selector beside Pause instead of leaving it
+ // invisible in that footer. Reparenting retains its existing change handler.
+ const speedSelect=document.getElementById('simulation-speed');
+ const speedLabel=speedSelect?.closest('label');
+ if(speedLabel){
+  speedLabel.classList.add('sf-tool-speed');
+  speedLabel.title='Spieltempo für Einheiten, Produktion, Kampf und KI';
+  tools.append(speedLabel);
+ }
  const clock=move('clock',tools),fps=move('fps',tools);
  clock.classList.add('sf-clock');fps.classList.add('sf-fps');
  const settings=panel.querySelector('#sf-settings-fields');
