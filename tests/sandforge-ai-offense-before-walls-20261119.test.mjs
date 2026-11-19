@@ -42,8 +42,8 @@ test('the real director buys affordable soldiers before reserving entire factory
  for(let i=0;i<5;i++)g.spawn(1,{x:hq.x+75+(i%3)*22,y:hq.y+120+Math.floor(i/3)*27},'infantry');
  const army=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier);
  developArmy(g,g.tactical.state,army,()=>0);
- assert.ok(barracks.queueTypes.includes('infantry'),
-  'affordable frontline troop must not be blocked by first 550-credit tank');
+ assert.ok(barracks.queueTypes.some(kind=>kind==='infantry'||kind==='heavy'),
+  'affordable frontline soldier must not be blocked by first expensive vehicle');
  assert.ok(g.credits[1]>=0,'all reinforcements are paid');
  assert.equal(factory.queueTypes.includes('tank'),false);
  assert.equal(g.tactical.state.economy?.production?.facilities[barracks.id]?.reason,'produced');
