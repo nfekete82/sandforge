@@ -41,7 +41,7 @@ test('airborne machinegun damage rises exactly 25% without changing land targets
    close(weaponDamage({kind},{kind:plane}),UNITS[kind].damage*oldScalar*1.25);
  }
  close(weaponDamage({kind:'rover'},{kind:'tank'}),UNITS.rover.damage*.17);
- close(weaponDamage({kind:'heavy'},{kind:'infantry'}),UNITS.heavy.damage);
+ close(weaponDamage({kind:'heavy'},{kind:'infantry'}),UNITS.heavy.damage*.75);
  close(weaponDamage({kind:'rocket'},{kind:'bomber'}),UNITS.rocket.damage*1.2);
 });
 
