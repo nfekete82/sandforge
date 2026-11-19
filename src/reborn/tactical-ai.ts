@@ -25,7 +25,7 @@ import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,t
 import {rankTerrainRecaptureSquad} from './ai36-terrain-routes.js';
 import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage} from './ai36-air-support.js';
 import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
-import {preserveAI36Assault,ai36JoinActiveFront} from './ai36-assault-continuity.js';
+import {preserveAI36Assault,ai36JoinActiveFront,maintainAI36FrontOnRetarget} from './ai36-assault-continuity.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
 import type {Simulation,Unit,Base,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -1350,8 +1350,33 @@ export class TacticalAI {
    return;
   }
   const changed=previous!==mission;
-  if(c.aborted>aborted){g.stop(s.group.filter(id=>fighters.some(u=>u.id===id)));s.group=[];this.setPhase('regroup');}
-  if(changed){s.target=mission.sector;s.objective=mission.objective;s.route=[];s.rally=null;}
+  // The commander can re-target a turret protecting an HQ in the SAME
+  // sector. Its old mission is a new objective, not a lost frontline. Keep
+  // the already paid column fighting, but only with real current vision,
+  // a close local threat and no evidence of a decimated screening force.
+  const newObserved=mission.objective===null?false:
+   knownBuildings(g).some(v=>v.id===mission.objective&&v.hp>0&&g.canSee(1,v));
+  const keepRetarget=this.ai36Enabled&&!!previous&&
+   maintainAI36FrontOnRetarget({
+    sameSector:previous.sector===mission.sector,
+    oldKind:previous.kind,newKind:mission.kind,
+    objectiveDistance:distance(previous,mission),
+    observedObjective:newObserved,
+    activeAssault:s.phase==='attack',
+    livingAttackers:assigned.filter(u=>u.hp>0&&combat(u)).length,
+    recentLosses:s.losses.filter(l=>g.time-l.at<30&&
+     s.group.includes(l.id)&&distance(l,mission)<850).length
+   });
+  if(c.aborted>aborted&&!keepRetarget){
+   g.stop(s.group.filter(id=>fighters.some(u=>u.id===id)));
+   s.group=[];this.setPhase('regroup');
+  }
+  if(changed){
+   s.target=mission.sector;s.objective=mission.objective;s.route=[];
+   // Retargeted artillery and tanks are already near their siege approach.
+   // Rebuilding a fresh rear rally would discard useful offensive momentum.
+   if(!keepRetarget)s.rally=null;
+  }
   const intel=mission.objective===null?undefined:knownBuildings(g).find(b=>b.id===mission.objective);
   const towers=s.knownTurrets.filter(t=>distance(t,mission)<t.range+200);
   // Fighting units can encounter a player ambush *before* reaching their
