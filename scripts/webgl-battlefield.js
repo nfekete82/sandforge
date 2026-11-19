@@ -2352,7 +2352,7 @@ export class SandforgeBattlefield {
    '<span class="sf-health">'+hp+' / '+maxHp+'</span></div>':'')+
    '<p title="'+plain(description)+'">'+plain(kind==='engineer'&&chosen.length===1
      ?'Baut und repariert Gebäude sowie Fahrzeuge. Gebäude im Baumenü wählen, dann Bauplatz auf der Karte anklicken.'
-     :description)+'</p>'+strategicStatus+rocketStatus+serviceMarkup+passengerMarkup;
+     :description)+'</p>'+strategicStatus+rocketStatus+serviceMarkup+passengerMarkup+bunkerMarkup;
   if(this.previousSelectionMarkup!==selectedMarkup){
    el.innerHTML=selectedMarkup;this.previousSelectionMarkup=selectedMarkup;
   }
