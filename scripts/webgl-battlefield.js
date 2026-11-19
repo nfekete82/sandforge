@@ -1682,6 +1682,23 @@ export class SandforgeBattlefield {
    if(action==='select-engineer'){
     this.selectEngineer();return;
    }
+   if(action==='gate-upgrade'){
+    const id=this.selectedBase;
+    if(id===null||!this.game.convertWallToGate(0,id)){
+     this.message('Tor-Umrüstung nicht möglich · eigene fertige Mauer und '+
+      WALL_GATE_UPGRADE_COST+' Credits benötigt');return;
+    }
+    // Replace the old wall mesh without changing the game-side Base ID.
+    const entry=this.bases.get(id);
+    if(entry){
+     if(entry.yard)disposeBuildingYard(entry.yard);
+     if(entry.placeholder)disposeOwnedMeshes(entry.placeholder);
+     this.scene.remove(entry.node);this.bases.delete(id);
+    }
+    this.sync(true);this.drawInterface();
+    this.message('Mauertor installiert · eigene Einheiten passieren automatisch');
+    return;
+   }
    if(action==='sectors'){
     // Sectors remain available from the radar caption, without taking
     // space from the four production tabs.
@@ -2308,9 +2325,22 @@ export class SandforgeBattlefield {
    if(buildingSelected){
     button.hidden=!ownBuilding||
      (a!=='demolish'&&!(a==='missile-target'&&base.kind==='silo')&&
-      !(a==='interceptor-rearm'&&base.kind==='interceptor'));
+      !(a==='interceptor-rearm'&&base.kind==='interceptor')&&
+      !(a==='gate-upgrade'&&base.kind==='wall'&&base.buildRemaining<=0));
    }else if(chosen.length)button.hidden=!FIELD_UNIT_COMMANDS.includes(a);
    else button.hidden=a!=='select-all';
+  }
+  if(commands&&!commands.querySelector('[data-action="gate-upgrade"]')){
+   const button=document.createElement('button');
+   button.type='button';button.dataset.action='gate-upgrade';
+   button.textContent='TOR EINBAUEN · '+WALL_GATE_UPGRADE_COST;
+   button.title='Sperrmauer zu einem automatischen Mauertor umrüsten';
+   button.hidden=true;commands.append(button);
+  }
+  const gateButton=commands?.querySelector('[data-action="gate-upgrade"]');
+  if(gateButton){
+   gateButton.hidden=!(base?.owner===0&&base.kind==='wall'&&base.buildRemaining<=0);
+   gateButton.disabled=g.credits[0]<WALL_GATE_UPGRADE_COST;
   }
   const demolishButton=commands?.querySelector('[data-action="demolish"]');
   if(demolishButton&&ownBuilding){
