@@ -32,7 +32,7 @@ jobs:
             tests/sandforge-a-star-perf-stability-20261119.test.mjs \
             tests/sandforge-ai36-attack-continuity-cas-20261119.test.mjs \
             tests/reborn-control-retreat.test.mjs
-      - name: AI 3.6 smoke: wall map navigation remains stable
+      - name: 'AI 3.6 smoke: wall map navigation remains stable'
         run: |
           node scripts/ai-test-arena.mjs \
             --maps 24,26 --seeds 2026 \
