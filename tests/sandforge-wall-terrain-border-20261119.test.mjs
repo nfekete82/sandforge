@@ -94,7 +94,8 @@ test('wall/building collisions and walls themselves still block the actual gamep
  assert.equal(sitesVisuallyOverlap('wall',{x:1000,y:1000},0,
   'wall',{x:1060,y:1000},0),true);
  const src=readFileSync('src/reborn/simulation.ts','utf8');
- assert.match(src,/wallTerrainPlacementError\(this\.world,p,facing\)/);
+ assert.match(src,/wallTerrainPlacementError\(this\.world,p,facing,span\)/);
+ assert.match(src,/const span=kind==='wallGate'\?2:1/);
  assert.match(src,/sitesVisuallyOverlap\(/);
  assert.match(src,/siteNearBastion\(kind,p,facing,t\.point\)/);
  assert.match(src,/segments\.some\(c=>distance\(u,c\)/);
@@ -127,8 +128,8 @@ test('real Simulation.buildError accepts distant hill walls and rejects rock int
 test('built, single preview, and drag preview all use the same terrain-following wall pitch',()=>{
  const render=readFileSync('scripts/webgl-battlefield.js','utf8');
  assert.match(render,/wallTerrainPitch\(this\.world,segment\.point,segment\.facing\)/);
- assert.match(render,/wallTerrainPitch\(this\.world,p,this\.placementFacing\)/);
- assert.match(render,/wallTerrainPitch\(this\.world,b,b\.facing\?\?0\)/);
- assert.match(render,/snapWallSiteToMap\(p,this\.placementFacing,this\.world\.size\)/);
+ assert.match(render,/wallTerrainPitch\(this\.world,p,this\.placementFacing,/);
+ assert.match(render,/wallTerrainPitch\(this\.world,b,b\.facing\?\?0,/);
+ assert.match(render,/snapWallSiteToMap\(p,this\.placementFacing,this\.world\.size,kind\)/);
  assert.match(render,/submitConstruction\(this\.game,kind,site,this\.selected/);
 });
