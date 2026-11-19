@@ -68,6 +68,51 @@ export function terrainAwareTravelEstimate(from:Point,to:Point,
  return estimate;
 }
 
+/** On large v3 maps a bounded A* can repeatedly terminate on a canyon
+ * face instead of finding a distant legal pass. Return a deterministic
+ * *temporary* navigation goal, never a teleport or an obstacle bypass.
+ * Movement still uses World.path/line and the real slope/collision rules.
+ * No knowledge of enemy units, bases or Fog of War is required.
+ */
+export function canyonPassWaypoint(from:Point,to:Point,
+ ridges:readonly CanyonRidge[],clearance=0):Point|undefined{
+ let best:{point:Point;cost:number}|undefined;
+ for(const ridge of ridges){
+  if(ridge.spine.length<2||!ridge.ramps.length)continue;
+  const a=from.y-ridgeHeightAtX(ridge,from.x);
+  const b=to.y-ridgeHeightAtX(ridge,to.x);
+  const margin=ridge.width*.5+Math.max(24,clearance);
+  // A unit embedded in the cliff needs the ordinary collision recovery.
+  if(a*b>=0||Math.abs(a)<margin*.55||Math.abs(b)<margin*.55)continue;
+  let lo=0,hi=1;
+  for(let i=0;i<16;i++){
+   const t=(lo+hi)*.5;
+   const x=from.x+(to.x-from.x)*t,y=from.y+(to.y-from.y)*t;
+   if((y-ridgeHeightAtX(ridge,x))*a>0)lo=t;
+   else hi=t;
+  }
+  const x=from.x+(to.x-from.x)*(lo+hi)*.5;
+  const first=ridge.spine[0].x,last=ridge.spine[ridge.spine.length-1].x;
+  // Crossing around a ridge tip or already through a pass is legitimate.
+  if(x<first-ridge.width||x>last+ridge.width||
+    ridge.ramps.some(pass=>Math.abs(x-pass.x)<pass.width*.42))continue;
+  const crossing={x,y:ridgeHeightAtX(ridge,x)};
+  if(ridge.clearings?.some(zone=>length(crossing,zone.point)<zone.radius+ridge.width))continue;
+  const side=Math.sign(a),offset=ridge.width*.5+Math.max(105,clearance+65);
+  for(const pass of ridge.ramps){
+   const y=ridgeHeightAtX(ridge,pass.x);
+   const near={x:pass.x,y:y+side*offset};
+   const far={x:pass.x,y:y-side*offset};
+   // First reach a flat pass entrance, then cross the ramp. Once the unit
+   // is beyond it, a new call goes straight to its original target.
+   const goal=length(from,near)>Math.max(52,clearance+42)?near:far;
+   const cost=length(from,near)+2*offset+length(far,to);
+   if(!best||cost<best.cost)best={point:goal,cost};
+  }
+ }
+ return best?.point;
+}
+
 export function rankTerrainRecaptureSquad<T extends Point&{id:number}>(
  units:readonly T[],target:Point,ridges:readonly CanyonRidge[],count:number
 ):T[]{
