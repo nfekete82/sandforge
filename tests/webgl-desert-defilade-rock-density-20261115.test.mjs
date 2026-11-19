@@ -9,23 +9,23 @@ import {DESERT_SCENIC_STYLE as style} from '../scripts/webgl-desert-style.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 
 const renderStub={capabilities:{getMaxAnisotropy:()=>8}};
-test('modern 4-bastion desert: sparse independent decorative scatter; physical rocks unchanged',()=>{
+test('modern 4-bastion desert: no scattered boulders and uncluttered build space',()=>{
  const preview=readFileSync('scripts/webgl-preview.js','utf8');
  const art=readFileSync('scripts/webgl-desert-art.js','utf8');
- assert.match(preview,/spacious&&biome==='desert'\?60:spacious\?420:1600/);
+ assert.match(preview,/spacious&&biome==='desert'\?0:spacious\?420:1600/);
  assert.match(art,/const target=lowQuality\?25:60/);
- assert.equal(60+60,120);
- assert.ok((900-120)/900>.86);
+ assert.equal(0+60,60);
+ assert.ok((900-60)/900>.90);
  const env=readFileSync('scripts/webgl-environment.js','utf8');
  const oasis=readFileSync('scripts/webgl-oases.js','utf8');
  assert.ok(env.includes('const debrisLimit=modernDesert?(this.lowQuality?22:40)'));
  assert.ok(env.includes('const rubblePerRuin=modernDesert?(this.lowQuality?2:3)'));
  assert.ok(oasis.includes('const stoneCount=this.game.world.mapVersion>=23?4:16'));
- assert.match(preview,/if\(terrain\.battlefield\)addBattlefieldRocks\(materials\[0\]\)/);
+ assert.match(preview,/if\(terrain\.battlefield&&terrain\.mesas\.length\)addBattlefieldRocks\(materials\[0\]\)/);
  for(const seed of [2988452066,3610769721]){
   const g=Simulation.campaign(seed,23);
   const original=g.world.generated.mesas.length;
-  assert.ok(original>=0);
+  assert.equal(original,0);
   assert.ok(g.world.generated.battlefield);
  }
 });
