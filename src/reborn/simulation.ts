@@ -1865,7 +1865,7 @@ export class Simulation {
   // A blocked step used to set repath=0, causing a new full 4200-node
   // search on every catch-up tick. Back off only while the unit stays at
   // the same stuck location. Fresh commands continue to reset u.repath.
-  private blockedRouteRetries=new WeakMap<Unit,{x:number;y:number;count:number}>();
+  private blockedRouteRetries=new WeakMap<Unit,{x:number;y:number;targetX:number;targetY:number;count:number}>();
   private move(u:Unit,target:Point,dt:number,speedLimit=Infinity,formationCatchUp=false):void {
     const spec=unitSpec(u),clearance=Math.max(0,spec.radius-10);
     const vehicle=spec.group==='Fahrzeuge'&&!spec.flying,ground=!spec.flying;
@@ -2102,10 +2102,12 @@ export class Simulation {
       if(this.world.mapVersion>=3&&!spec.flying)u.exactPath=true;
       if(!spec.flying&&this.world.mapVersion>=23){
         const blocked=this.blockedRouteRetries.get(u);
-        const same=blocked&&distance(u,blocked)<12;
+        const same=blocked&&distance(u,blocked)<12&&
+          Math.hypot(target.x-blocked.targetX,target.y-blocked.targetY)<24;
         const count=same?Math.min(7,blocked.count+1):1;
         this.blockedRouteRetries.set(u,{
-          x:same?blocked.x:u.x,y:same?blocked.y:u.y,count});
+          x:same?blocked.x:u.x,y:same?blocked.y:u.y,
+          targetX:target.x,targetY:target.y,count});
         // Immediate zero-retry here was the trigger for the 221s report:
         // 16-35 4200-node A* calls per rendered frame at 4x speed.
         // Retry in simulated time; a new explicit order still resets path.
