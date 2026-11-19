@@ -1,0 +1,75 @@
+name: Sandforge AI3.6 assault continuity and close air support
+on:
+  push:
+    branches: ['feat/sandforge-ai36-attack-continuity-cas-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  coordinated-offense:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript and WebGL module audit
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Regression tests for AI3.6, bomber, helicopter, health and saves
+        run: |
+          node --test \
+            tests/sandforge-ai36-attack-continuity-cas-20261119.test.mjs \
+            tests/sandforge-ai36-mission-retarget-20261119.test.mjs \
+            tests/sandforge-ai36-grounded-offense-20261119.test.mjs \
+            tests/sandforge-smart-healthbars-20261119.test.mjs \
+            tests/sandforge-ai36-endgame-route-recovery-20261119.test.mjs \
+            tests/sandforge-ai36-recon-bomber-support-20261119.test.mjs \
+            tests/sandforge-ai36-fight-dont-flee-20261119.test.mjs \
+            tests/sandforge-bomber-escort-heli-mg-20261119.test.mjs \
+            tests/sandforge-scout-pods-rover-air-evasion-20261119.test.mjs \
+            tests/sandforge-combat-aftermath-v1-20261119.test.mjs
+      - name: Four matched 600-second AI3.6 campaigns
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps 24,26 --seeds 2026,2027 \
+            --seconds 600 --modes director --ai36 coordinated \
+            --label ai36-continuity-cas \
+            --output ai-arena-results/ci-ai36-continuity-cas.json
+      - name: Summarize campaign wins, mission aborts and HQ attacks
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const d=JSON.parse(readFileSync('ai-arena-results/ci-ai36-continuity-cas.json','utf8'));
+          let wins=0,aborts=0,retargets=0,hqDamage=0,losses=0;
+          for(const r of d.details){
+           wins+=r.outcome==='win';aborts+=r.abortedMissions;
+           retargets+=r.retargetedMissions;
+           hqDamage+=r.enemyHQDamage;losses+=r.redUnitsLost;
+           console.log('WORLD map='+r.mapVersion+' seed='+r.seed+
+            ' outcome='+r.outcome+' HQdamage='+r.enemyHQDamage+
+            ' captures='+r.captures+' missions='+r.missionCount+
+            ' realAborts='+r.abortedMissions+' retargets='+r.retargetedMissions+
+             ' losses='+r.redUnitsLost+
+            ' stalled='+r.stalledMissions);
+          }
+          console.log('SUMMARY realWins='+wins+'/'+d.details.length+
+           ' REAL aborted='+aborts+' retargetedInSameWave='+retargets+
+            ' HQdamage='+hqDamage+' losses='+losses+
+           ' (reference 4/4 wins, 5 actual aborts + 11 same-wave retargets, CI 44518786184)');
+          if(wins<4)throw new Error('REJECT: regression from four confirmed reference wins');
+          if(aborts>5)throw new Error('REJECT: more actual frontline interruptions than baseline');
+          NODE
+      - name: Export arena results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai36-attack-continuity-cas
+          path: ai-arena-results/ci-ai36-continuity-cas.*
+          if-no-files-found: warn

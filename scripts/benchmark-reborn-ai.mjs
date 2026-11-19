@@ -12,6 +12,7 @@ import {pathToFileURL} from 'node:url';
 import {blueDefense,blueContest,blueBastionRush} from './benchmark-ai-opponent.mjs';
 import {createArtilleryObserver} from './ai-artillery-observer.mjs';
 import {createEndgameObserver} from './ai-51-endgame-observer.mjs';
+import {classifyMissionTransition} from './ai-test-mission-transition.mjs';
 
 const vehicles=new Set(['tank','rover','artillery','bomber','scout']);
 const groundVehicles=new Set(['tank','rover','artillery']);
@@ -99,7 +100,7 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
   attackingSeconds:0,productiveFactorySeconds:0,productiveBarracksSeconds:0,productiveAirfieldSeconds:0,
   parallelProductionSeconds:0,tripleProductionSeconds:0,maxParallelProducers:0,
   productionSeconds:{barracks:{available:0,busy:0,idle:0},factory:{available:0,busy:0,idle:0},airfield:{available:0,busy:0,idle:0}},
-  phaseTransitions:0,commanderTransitions:0,commanderSeconds:{},missionCount:0,abortedMissions:0,unfinishedMissions:0,stalledMissions:0,
+  phaseTransitions:0,commanderTransitions:0,commanderSeconds:{},missionCount:0,abortedMissions:0,retargetedMissions:0,unfinishedMissions:0,stalledMissions:0,
   commands:0,unitCommands:0,attackCommands:0,buildingAttackCommands:0,repeatedUnitCommands:0,rapidUnitOrderChanges:0,
   productionIdleReasons:{},productionIdleReasonSources:{},productionDecisionReasons:{},bluePaidOrdersByKind:{},bluePaidRecruitCredits:0,
   paidBuildCredits:0,bluePaidBuildCredits:0,paidBuildingsByKind:{},bluePaidBuildingsByKind:{},
@@ -201,6 +202,7 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
   const survivors=g.units.filter(u=>u.hp>0&&mission.units.includes(u.id)).length;
   const outcome=completed?'completed':survivors===0?'annihilated':reason;
   if(!completed&&reason==='aborted')metrics.abortedMissions++;
+  if(!completed&&reason==='retargeted')metrics.retargetedMissions++;
   if(!completed&&reason==='unfinished')metrics.unfinishedMissions++;
   metrics.missionEvents.push({...mission,units:undefined,ended:time(),survivors,outcome});mission=null;
  };
@@ -279,7 +281,8 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
    metrics.commanderSeconds[strategic]=(metrics.commanderSeconds[strategic]??0)+dt;
    if(commanderPhase!==null&&commanderPhase!==strategic){metrics.commanderTransitions++;if(commanderPhase==='emergencyDefense'&&['offensive','siege','endgame'].includes(strategic))metrics.counterattacks++;}
    commanderPhase=strategic;
-   if(mission&&(s.phase!=='attack'||s.groupId!==mission.groupId||s.target!==mission.target||s.objective!==mission.objective))endMission('aborted');
+   if(mission&&(s.phase!=='attack'||s.groupId!==mission.groupId||s.target!==mission.target||s.objective!==mission.objective))
+    endMission(classifyMissionTransition(mission,s));
    if(s.phase==='attack'&&!mission){metrics.missionCount++;mission={groupId:s.groupId,target:s.target,objective:s.objective,started:now,units:[...s.group],stalled:false};}
    if(mission){for(const id of s.group)if(!mission.units.includes(id)){mission.units.push(id);metrics.reinforcements++;}
     if(!mission.stalled&&g.time-s.progressAt>95){mission.stalled=true;metrics.stalledMissions++;}}

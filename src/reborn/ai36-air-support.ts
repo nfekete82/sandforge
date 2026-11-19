@@ -52,16 +52,21 @@ export function droneFrontierPoint(home:Point,objective:Point,size:number,
  * Aircraft never get omniscient targeting from this function.
  */
 export function observedBomberSupportTarget<T extends Point&{id:number;kind:string;hp:number}>(
- observed:readonly T[],front:Point,maxRadius=1350
+ observed:readonly T[],front:Point,maxRadius=1350,
+ eligible?:(target:T)=>boolean
 ):T|undefined{
  const priority=(kind:string)=>({
   tank:450,artillery:440,rover:300,turret:330,headquarters:270,
   factory:235,airfield:220,rocket:185,heavy:115,infantry:60,
   barracks:130,generator:80
  } as Record<string,number>)[kind]??20;
- return observed.filter(t=>t.hp>0&&distance(t,front)<maxRadius)
+ const ranked=observed.filter(t=>t.hp>0&&distance(t,front)<maxRadius)
   .slice().sort((a,b)=>(distance(a,front)-priority(a.kind))-
-   (distance(b,front)-priority(b.kind))||a.id-b.id)[0];
+   (distance(b,front)-priority(b.kind))||a.id-b.id);
+ // The first high-value contact may be unsupported (AA or armor cluster).
+ // Keep looking among equally *observed* candidates instead of idling a
+ // bomber that could strike an isolated tank closer to its real ground front.
+ return eligible?ranked.find(eligible):ranked[0];
 }
 
 
