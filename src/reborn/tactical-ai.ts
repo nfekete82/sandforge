@@ -969,7 +969,10 @@ export class TacticalAI {
    // every macro pulse would prevent him from ever reaching the tank.
    if(!target||u.orders.some(o=>o.kind==='attack'&&o.target===target.id))
     continue;
-   if(u.kind==='bomber'&&this.ai36Enabled&&!this.bomberStrikeSafe(target))continue;
+   if(u.kind==='bomber'&&this.ai36Enabled){
+    const actual=g.units.find(v=>v.id===target.id&&v.hp>0);
+    if(!actual||!this.bomberStrikeSafe(actual))continue;
+   }
    g.command([u.id],{kind:'attack',x:target.x,y:target.y,target:target.id});
   }
  }
