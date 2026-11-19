@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES,distance} from '../dist/src/reborn/config.js';
 import {airfieldPoint,airfieldTaxiPoint,AIRFIELD_TAXI_SECONDS,
- AIRFIELD_TAKEOFF_SECONDS} from '../dist/src/reborn/airfield-maintenance.js';
+ AIRFIELD_TAKEOFF_SECONDS,AIRFIELD_COMPACT_OFFSET_X,AIRFIELD_COMPACT_X} from '../dist/src/reborn/airfield-maintenance.js';
 import {bastionCaptureOrbit,approachBastionCaptureOrbit,BOMBER_ORBIT_RADII,
  isOnBomberOrbit} from '../dist/src/reborn/bomber-orbit.js';
 import {createAirfieldServiceYard,updateAirfieldServiceYard,
@@ -22,7 +22,8 @@ test('all four rotations use open apron before aligning along hangar entrance',(
  for(let facing=0;facing<4;facing++){
   const base={x:2500,y:2600,facing};
   for(const bay of [0]){
-   const cx=42-151*.90;
+   // The airfield's new 95-unit lateral offset is authoritative.
+   const cx=AIRFIELD_COMPACT_OFFSET_X-151*AIRFIELD_COMPACT_X;
    const lineup=local(base,airfieldPoint(base,'lineup',bay));
    const door=local(base,airfieldPoint(base,'door',bay));
    const dock=local(base,airfieldPoint(base,'dock',bay));
