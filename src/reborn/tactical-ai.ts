@@ -1237,7 +1237,11 @@ export class TacticalAI {
   };
   const assessment=assessBattle(readyForce,visible,towers,g.time,continuing);battle.assessment=assessment;
   const overrun=canOverrun(assessment.own,assessment.enemy,readyForce.length,towers.length,experience)&&!readyForce.some(u=>u.kind==='artillery');
-  if(!towers.length&&!retryFront(battle,mission.sector,assessment.own,0,readyForce.filter(u=>u.kind==='artillery').length,g.time)){
+  if(!towers.length&&!retryFront(battle,mission.sector,assessment.own,0,readyForce.filter(u=>u.kind==='artillery').length,g.time)
+   // A previously lost battle does not justify pulling an actively firing
+   // KI 3.6 assault line back to base in the middle of a NEW skirmish.
+   &&!(this.ai36Enabled&&continuing&&visible.length>0&&
+    members.some(u=>u.defendUntil>g.time))){
    campaignPhase(c,'buildup',g.time);this.issue([...selected,...medics],s.rally,'safe',undefined,false,false);return;
   }
   if(towers.length||visible.length){
@@ -1263,9 +1267,22 @@ export class TacticalAI {
     inRange:inRange.length,healthy,knownTowers:towers.length,
     time:g.time,commitUntil:battle.commitUntil??0
    });
+   // A route that spends hundreds of meters inside observed enemy gun
+   // ranges is not a rescue. KI 3.6 stands and shoots instead of fleeing
+   // backwards into free fire; older AI A/B controls remain unchanged.
+   const front=centroid(members);
+   const fallback=this.ai36Enabled&&continuing&&visible.length>0
+    ?this.withdrawPoint(front,home,towers):undefined;
+   const escapeSafe=fallback
+    ?this.retreatSafe(front,fallback,visible,towers):true;
+   const standGround=this.ai36Enabled&&fightInsteadOfFleeing({
+    continuing,visible:visible.length,inRange:inRange.length,
+    healthy,own:assessment.own,enemy:assessment.enemy,
+    knownTowers:towers.length,escapeSafe
+   });
    // Keep the tactical director's screening/flanking decisions when an
    // assault is already favoured; intercept only unwanted macro withdrawals.
-   if(holdLine&&(assessment.stance==='withdraw'||assessment.stance==='reinforce')){
+   if((holdLine||standGround)&&(assessment.stance==='withdraw'||assessment.stance==='reinforce')){
     // AI 3.2 gives a proven local overmatch nine seconds instead of six.
     // A collapse below 32% of the actually observed enemy still disengages.
     if(assessment.own>=assessment.enemy*.48)
@@ -1273,14 +1290,20 @@ export class TacticalAI {
     for(const u of members){
      const candidates=visible.filter(v=>canAttack(u,v));
      const target=candidates.sort((a,b)=>distance(u,a)-distance(u,b)||a.id-b.id)[0];
-     if(!target)continue;
+     if(!target){
+      // Non-shooting escorts retain offensive movement rather than obeying
+      // the previous safe retreat order while the screen is committed.
+      if(u.orders[0]?.tactical?.mode==='safe')
+       this.issue([u],mission,'assault',undefined,false,false);
+      continue;
+     }
      if(u.orders[0]?.target===target.id&&u.orders[0]?.tactical?.mode==='assault')continue;
      this.issue([u],target,'assault',target.id,false,false);
     }
     return;
    }
    if(assessment.stance==='withdraw'&&!overrun){
-    const at=this.withdrawPoint(centroid(members),home,towers);
+    const at=fallback??this.withdrawPoint(centroid(members),home,towers);
     recordFailure(battle,mission.sector,mission,assessment.own,towers.length,g.time);battle.retreats++;
     for(const u of members){this.issue([u],at,'safe',undefined,false,false);battle.withdrawals=battle.withdrawals.filter(w=>w.unit!==u.id);battle.withdrawals.push({...at,unit:u.id,since:g.time,until:g.time+10});}
     this.setPhase('regroup');s.group=[];campaignPhase(c,'buildup',g.time);return;
