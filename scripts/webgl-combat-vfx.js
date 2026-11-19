@@ -162,6 +162,7 @@ function artilleryFinGeometry(){
  geometry.computeVertexNormals();
  return geometry;
 }
+const rocketVisualOrientation=new THREE.Quaternion();
 const dummy=new THREE.Object3D();
 const emptyMatrix=(()=>{
  const d=new THREE.Object3D();d.scale.setScalar(.00001);d.updateMatrix();return d.matrix;
@@ -777,8 +778,8 @@ export class SandforgeCombatEffects {
    if(kind==='artillery'){
     // Match the body quaternion BEFORE assigning local fin/collar frames;
     // all geometry remains centered on this one authoritative missile.
-    const aligned=new THREE.Quaternion().setFromUnitVectors(up,heading);
-    dummy.quaternion.copy(aligned);
+    rocketVisualOrientation.setFromUnitVectors(up,heading);
+    dummy.quaternion.copy(rocketVisualOrientation);
     dummy.scale.setScalar(profile.body);
     dummy.position.copy(point);dummy.updateMatrix();
     this.artilleryFins.setMatrixAt(artilleryCount,dummy.matrix);
