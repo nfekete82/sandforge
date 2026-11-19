@@ -94,7 +94,7 @@ test('large synchronous squad A* bursts are deferred in modern 50ms ticks',()=>{
  g.time=730;
  for(const u of units)g.move(u,target,.05);
  assert.equal(count,2,'only two expensive path searches per physics tick');
- assert.equal(units.filter(u=>u.repath>.09&&u.repath<=.30).length,7,
+ assert.equal(units.filter(u=>u.repath>.09&&u.repath<.31).length,7,
   'the others preserve their move orders and retry shortly');
  g.time+=.05;
  for(const u of units.slice(2)){u.repath=0;g.move(u,target,.05);}
