@@ -1292,7 +1292,12 @@ function animate(now){
   // production and movement all run on identical 50-ms physics steps.
   const budget=simulationFrameBudget(accumulator,dt,simulationSpeed);
   accumulator=budget.accumulator;visualDt=budget.visualDt;
-  for(let i=0;i<budget.steps;i++){game.step(.05);constructionRecovery.tick();}
+  // One RAF may replay up to 12 fixed ticks at 4x speed. Group them
+  // under ONE route-work budget, not a fresh A* allowance per tick.
+  game.beginRenderFrame();
+  try{
+   for(let i=0;i<budget.steps;i++){game.step(.05);constructionRecovery.tick();}
+  }finally{game.endRenderFrame();}
  }
  // Losses are tracked independently of the mute state. A disembarking
  // passenger stays in Simulation.units and is never reported as killed.
