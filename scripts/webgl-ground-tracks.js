@@ -127,7 +127,10 @@ export class SandforgeGroundTracks{
  capture(){
   const alive=new Set();
   for(const unit of this.game.units){
-   if(unit.hp<=0||unit.carrier||unit.owner!==0||
+   // Enemy impressions are created only while the player actually sees
+   // the actor. A hidden unit must not bridge a trail through fog later.
+   if(unit.hp<=0||unit.carrier||
+    (unit.owner!==0&&!this.game.canSee(0,unit))||
     unit.kind==='scout'||unit.kind==='bomber')continue;
    alive.add(unit.id);
    const last=this.last.get(unit.id);
