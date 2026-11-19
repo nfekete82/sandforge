@@ -22,6 +22,7 @@ import {newMatchStatistics,countDeployed,countProduced,countIncome,validMatchSta
 import {turretPivot,turretMuzzles} from './turret.js';
 import {Transports,type TransportState} from './transports.js';
 import {BUNKER_CAPACITY,bunkerApproach,bunkerCanBoard,bunkerGarrisonedUnits,bunkerTargetRange,bunkerExitPoints,validBunkerGarrisons} from './bunker-garrison.js';
+import {BASTION_UPGRADE_COST,bastionEffectiveIncome,bastionUpgradable,validBastionUpgradeState} from './bastion-upgrades.js';
 import {TacticalAI,type TacticalState,type TacticalOrder} from './tactical-ai.js';
 import { MAP_VERSION, randomMapSeed } from './world-generation.js';
 import {beginBomberOrbit,advanceBomberOrbit,validBomberOrbit,BOMBER_ORBIT_SPEED,preservesCaptureBoundary,safeOrbitApproach,isOnBomberOrbit,bastionCaptureOrbit,approachBastionCaptureOrbit,type BomberOrbit} from './bomber-orbit.js';
@@ -825,7 +826,19 @@ export class Simulation {
   income(owner:Faction):number {
     return this.bases.filter(b=>b.owner===owner&&b.hp>0&&b.buildRemaining<=0).reduce((n,b)=>
       n+buildingSpec(b).income,0)+
-      this.territories.filter(t=>t.owner===owner).reduce((n,t)=>n+t.income,0);
+      this.territories.filter(t=>t.owner===owner).reduce((n,t)=>n+bastionEffectiveIncome(t),0);
+  }
+  /** Spend real credits for exactly one extra Bastion income tier.
+   * No home-sector rush: paid upgrades apply only to captured forward sites.
+   */
+  upgradeBastion(owner:Faction,id:number):boolean{
+    const t=this.territories.find(t=>t.id===id);
+    if(this.status!=='playing'||!t||this.credits[owner]<BASTION_UPGRADE_COST||
+      !bastionUpgradable(t,owner,this.bases))return false;
+    this.credits[owner]-=BASTION_UPGRADE_COST;t.upgradeLevel=2;
+    this.revision++;
+    if(owner===0)this.notices.push(t.name+' auf Stufe 2: +'+bastionEffectiveIncome(t)+' Credits / 10 s');
+    return true;
   }
   count(owner:Faction):number{return this.units.filter(u=>u.owner===owner&&u.hp>0).length;}
   queued(owner:Faction):number{return this.bases.filter(b=>b.owner===owner).reduce((n,b)=>n+b.queue.length,0);}
@@ -2789,7 +2802,7 @@ export class Simulation {
         // Sector control belongs to the Bastion ONLY. Never transfer or
         // resurrect a destroyed enemy headquarters when its sector changes
         // hands: its original owner/HP remain intact for elimination rules.
-        t.owner=owner;t.progress=0;t.capturing=-1;ownershipChanged=true;
+        t.owner=owner;t.progress=0;t.capturing=-1;t.upgradeLevel=1;ownershipChanged=true;
         if(owner===0)this.notices.push(`${t.name} gesichert · +${t.income} Credits / 10 s`);
         else if(this.canSee(0,t.point))this.notices.push(`${t.name} unter feindlicher Kontrolle.`);
         this.revision++;
@@ -2894,7 +2907,8 @@ export class Simulation {
           !UNITS[b.queueTypes?.[i]??'infantry']?.producers.includes(b.kind??'headquarters')))||
         (b.queueCosts!==undefined&&(!Array.isArray(b.queueCosts)||b.queueCosts.length!==b.queue.length||b.queueCosts.some(v=>!finite(v)||v<0)))||
         (b.buildRemaining!==undefined&&(!finite(b.buildRemaining)||b.buildRemaining<0||b.buildRemaining>(BUILDINGS[b.kind??'headquarters']?.buildTime??0)))||!finite(b.production)||b.production<0||b.production>(b.queue[0]??0))||
-      s.territories.some((t,i)=>t.id!==i||![-1,0,1].includes(t.owner)||!finite(t.progress)||t.progress<0||t.progress>8))throw new Error('Dieser Spielstand ist beschädigt oder gehört zu einer anderen Version.');
+      s.territories.some((t,i)=>t.id!==i||![-1,0,1].includes(t.owner)||
+        !validBastionUpgradeState(t)||!finite(t.progress)||t.progress<0||t.progress>8))throw new Error('Dieser Spielstand ist beschädigt oder gehört zu einer anderen Version.');
     const game=new Simulation(s.seed,s.mapVersion??0,weatherEnabled,s.bootstrapVersion===1,s.terrainProfile,s.generatorVersion??1);
     game.time=s.time;
     game.research=structuredClone(research) as [ResearchState,ResearchState];
@@ -2952,7 +2966,7 @@ export class Simulation {
         pursuitOrigin:u.pursuitOrigin??null};
     });
     // Geometry, income and neighbors are regenerated from the seed, never trusted from storage.
-    game.territories.forEach((t,i)=>{t.owner=s.territories[i].owner;t.capturing=s.territories[i].capturing;t.progress=s.territories[i].progress;});
+    game.territories.forEach((t,i)=>{t.owner=s.territories[i].owner;t.capturing=s.territories[i].capturing;t.progress=s.territories[i].progress;t.upgradeLevel=s.territories[i].upgradeLevel??1;});
     game.explored=s.explored.map(a=>{
       if(a.length===RULES.grid**2)return Uint8Array.from(a);
       const oldGrid=Math.sqrt(a.length);
