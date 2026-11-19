@@ -40,3 +40,20 @@ export function ai36JoinActiveFront(input:{
  const radius=x.frontInContact&&!x.knownGunPresent?440:330;
  return x.distance<radius;
 }
+
+
+/** Switching from an observed HQ to its observed blocking turret (or vice
+ * versa) is retargeting the SAME live assault, not a reason to stop the army
+ * and force every tank to drive all the way back to its rally.
+ * Never apply to lost contact, remote targets, a decimated army or KI3.5.
+ */
+export function maintainAI36FrontOnRetarget(input:{
+ sameSector:boolean;oldKind:string;newKind:string;
+ objectiveDistance:number;observedObjective:boolean;
+ activeAssault:boolean;livingAttackers:number;recentLosses:number;
+}):boolean{
+ const x=input;
+ return x.sameSector&&x.oldKind==='structure'&&x.newKind==='structure'&&
+   x.objectiveDistance<=720&&x.observedObjective&&x.activeAssault&&
+   x.livingAttackers>=3&&x.recentLosses<2;
+}
