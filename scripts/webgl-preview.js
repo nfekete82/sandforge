@@ -91,7 +91,7 @@ game.infantryVisionBonus=1.15; // modest +15% infantry sight in 3D only
 game.highGroundEnabled=true; // tactical +20% outgoing / -10% incoming only in 3D
 game.updateVision();
 const world=game.world,terrain=world.generated,size=world.size,half=size/2;
-const gradingHomes=terrain.battlefield?.generatorVersion===2
+const gradingHomes=terrain.battlefield?.generatorVersion>=2
  ?campaignLayout(world.mapVersion,seed).headquarters.map(i=>battlefieldStart(terrain.sites[i],size))
  :[];
 if(terrain.battlefield)document.title='Sandforge · '+biomeStyle.label+' · '+TERRAIN_LABELS[terrain.battlefield.profile]+' · '+seed;
@@ -373,7 +373,7 @@ function buildTerrain(){
    if(terrain.battlefield?.generatorVersion>=2){
     // Baked, subtle cut-and-fill earth at graded bastion edges. Same terrain
     // height field, no additional draw call or changing ground mesh.
-    const earth=terrainGradingEdge(x,z,terrain.sites,gradingHomes,2);
+    const earth=terrainGradingEdge(x,z,terrain.sites,gradingHomes,terrain.battlefield.generatorVersion);
     vertexColor.lerp(sandstone,earth*.16);
    }
    // Warm pale dune sand only. Building GLBs and everything else
@@ -541,7 +541,9 @@ function instancedStone(){
  // Keep seed determinism and all real navigation/collision rocks unchanged.
  for(let i=0;i<(spacious&&biome==='desert'?60:spacious?420:1600);i++){
   const x=75+r()*(size-150),z=75+r()*(size-150),index=world.index({x,y:z});
-  if(index<0||world.blocked[index]||terrain.sites.some(p=>Math.hypot(x-p.x,z-p.y)<160))continue;
+  if(index<0||world.blocked[index]||terrain.sites.some(p=>Math.hypot(x-p.x,z-p.y)<160)||
+   (terrain.battlefield?.generatorVersion===3&&terrain.ridges.some(ridge=>ridge.clearings?.some(zone=>
+    Math.hypot(x-zone.point.x,z-zone.point.y)<zone.radius+24))))continue;
   put(x,z,spacious?1.4+r()*3.6:2+r()*5,
    spacious?.8+r()*2.7:1+r()*4,
    spacious?1.5+r()*4.2:2+r()*6);
