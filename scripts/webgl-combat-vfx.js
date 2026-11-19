@@ -27,6 +27,14 @@ function radialTexture({inner='#ffffff',outer='#ffffff',mode='smoke',biome='dese
   g.addColorStop(.40,'rgba(255,197,91,.78)');
   g.addColorStop(.68,'rgba(251,106,28,.29)');
   g.addColorStop(1,'rgba(255,101,27,0)');
+ }else if(mode==='rocketSmoke'){
+  // Missile motor plume: dense sunlit off-white exhaust with a cool ash rim.
+  // Realistic rocket smoke is not the oily charcoal of burning wrecks.
+  g.addColorStop(0,'rgba(255,251,234,.92)');
+  g.addColorStop(.24,'rgba(235,234,220,.86)');
+  g.addColorStop(.53,'rgba(210,213,204,.54)');
+  g.addColorStop(.76,'rgba(175,180,174,.23)');
+  g.addColorStop(1,'rgba(155,165,159,0)');
  }else if(mode==='smoke'){
   // Charcoal combustion smoke, not the former flat white circles.
   g.addColorStop(0,'rgba(30,33,32,.82)');
@@ -90,14 +98,15 @@ function radialTexture({inner='#ffffff',outer='#ffffff',mode='smoke',biome='dese
  }
  // Stable, generated-once irregular wisps break up the radial-sprite look.
  // Texture-space only; no RNG consumed by gameplay or added frame draws.
- if(mode==='smoke'||mode==='dust'){
+ if(mode==='smoke'||mode==='rocketSmoke'||mode==='dust'){
   for(let i=0;i<22;i++){
    const angle=i*2.399963229728653;
    const radius=12+Math.sqrt((i+.5)/22)*43;
    const px=64+Math.cos(angle)*radius,py=64+Math.sin(angle)*radius;
    const d=8+(i*7%17);
    const puff=ctx.createRadialGradient(px,py,0,px,py,d);
-   puff.addColorStop(0,mode==='smoke'?'rgba(19,23,22,.19)':'rgba(79,60,43,.13)');
+   puff.addColorStop(0,mode==='smoke'?'rgba(19,23,22,.19)':
+    mode==='rocketSmoke'?'rgba(176,180,169,.12)':'rgba(79,60,43,.13)');
    puff.addColorStop(1,'rgba(0,0,0,0)');
    ctx.fillStyle=puff;ctx.fillRect(px-d,py-d,d*2,d*2);
   }
@@ -123,6 +132,36 @@ function makePool(scene,mode,max,opacity,biome='desert'){
  scene.add(mesh);
  return {mesh,particles:[],max,mode};
 }
+/** Four shaped steel stabilizers baked into ONE triangular-prism geometry.
+ * Unlike four standalone fins per missile, this adds a single instanced draw
+ * call even when a barrage launches dozens of real rocket projectiles.
+ * Local +Y is forward, with the tail at negative Y.
+ */
+function artilleryFinGeometry(){
+ const positions=[],indices=[];
+ for(let i=0;i<4;i++){
+  const angle=i*Math.PI*.5;
+  const c=Math.cos(angle),sn=Math.sin(angle);
+  const outline=[[2.05,-4.3],[7.8,-10.1],[2.05,-12.0]];
+  const base=positions.length/3;
+  for(const thickness of [-.55,.55]){
+   for(const [radius,height] of outline){
+    positions.push(c*radius-sn*thickness,height,sn*radius+c*thickness);
+   }
+  }
+  indices.push(base,base+2,base+1,base+3,base+4,base+5);
+  for(let j=0;j<3;j++){
+   const k=(j+1)%3;
+   indices.push(base+j,base+k,base+k+3,base+j,base+k+3,base+j+3);
+  }
+ }
+ const geometry=new THREE.BufferGeometry();
+ geometry.name='Four tapered artillery missile stabilizer fins';
+ geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+ geometry.setIndex(indices);
+ geometry.computeVertexNormals();
+ return geometry;
+}
 const dummy=new THREE.Object3D();
 const emptyMatrix=(()=>{
  const d=new THREE.Object3D();d.scale.setScalar(.00001);d.updateMatrix();return d.matrix;
@@ -137,6 +176,9 @@ export class SandforgeCombatEffects {
  constructor({scene,camera,game,world,heightAt,pos,battlefield=null,lowQuality=false,biome='desert',vehicleDust=true}){
   Object.assign(this,{scene,camera,game,world,heightAt,pos,battlefield,lowQuality,biome,vehicleDust});
   this.smoke=makePool(scene,'smoke',lowQuality?70:260,.68);
+  // Separate bounded off-white jet plume; wreck smoke remains dark and never
+  // consumes the artillery trail budget. One instanced draw call.
+  this.rocketSmoke=makePool(scene,'rocketSmoke',lowQuality?48:160,.68);
   this.flash=makePool(scene,'flash',lowQuality?16:48,.86);
   this.flames=makePool(scene,'flame',lowQuality?28:120,.94);
   this.dust=makePool(scene,'dust',lowQuality?40:170,.50,biome);
@@ -145,7 +187,7 @@ export class SandforgeCombatEffects {
   this.trailDust.mesh.userData.vehicleDust=true;
   this.sparks=makePool(scene,'spark',lowQuality?90:300,.96);
   this.debris=makePool(scene,'debris',lowQuality?42:120,.84);
-  this.pools=[this.smoke,this.flash,this.flames,this.dust,this.trailDust,this.sparks,this.debris];
+  this.pools=[this.smoke,this.rocketSmoke,this.flash,this.flames,this.dust,this.trailDust,this.sparks,this.debris];
   for(const pool of this.pools)clearInstances(pool);
   this.scorch=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),materialFor('scorch',.93),lowQuality?70:210);
   this.scorch.geometry.rotateX(-Math.PI*.5);
@@ -231,6 +273,29 @@ export class SandforgeCombatEffects {
    item.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
    item.count=0;item.frustumCulled=false;scene.add(item);
   }
+  // Recognizable long-range missile silhouette for the 6x6 launcher:
+  // four tapered cruciform metal fins, a darker propulsion nozzle and a
+  // painted identifying band near the ogive. No textures to load, no GLB
+  // clones, no shadows and only three extra instanced draws PER FRAME MAX.
+  const missileParts=[
+   ['artillery-stabilizer-fins',artilleryFinGeometry(),
+    new THREE.MeshStandardMaterial({color:'#555f5b',metalness:.72,roughness:.46,
+     side:THREE.DoubleSide})],
+   ['artillery-rear-nozzle',new THREE.CylinderGeometry(2.2,2.8,3.1,10),
+    new THREE.MeshStandardMaterial({color:'#353f40',metalness:.74,roughness:.5})],
+   ['artillery-warhead-band',new THREE.CylinderGeometry(2.18,2.18,2,12),
+    new THREE.MeshStandardMaterial({color:'#9b9875',metalness:.28,roughness:.7})]
+  ];
+  [this.artilleryFins,this.artilleryNozzles,this.artilleryBands]=missileParts.map(
+   ([name,geometry,material])=>{
+    const mesh=new THREE.InstancedMesh(geometry,material,rocketLimit);
+    mesh.name='visual-3d-'+name;
+    mesh.userData={visualOnly:true,nonPlayable:true,projectile:true,artillery:true};
+    mesh.raycast=()=>{};mesh.castShadow=false;mesh.count=0;
+    mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    scene.add(mesh);return mesh;
+   }
+  );
   // One cheap pooled mesh per simultaneously falling bomb: the authoritative
   // simulation missile supplies trajectory, timing, ground impact and damage.
   this.bombBodies=new THREE.InstancedMesh(
@@ -650,7 +715,7 @@ export class SandforgeCombatEffects {
  }
  updateRockets(active=true,subTick=0){
   const live=new Set(),up=new THREE.Vector3(0,1,0);
-  let count=0,streakCount=0;
+  let count=0,streakCount=0,artilleryCount=0;
   for(const missile of this.game.missiles){
    if(missile.type==='bomb')continue;
    live.add(missile.id);
@@ -709,6 +774,22 @@ export class SandforgeCombatEffects {
    dummy.quaternion.setFromUnitVectors(up,heading.clone().negate());
    dummy.scale.setScalar(profile.exhaust);dummy.updateMatrix();
    this.rocketExhaust.setMatrixAt(count,dummy.matrix);
+   if(kind==='artillery'){
+    // Match the body quaternion BEFORE assigning local fin/collar frames;
+    // all geometry remains centered on this one authoritative missile.
+    const aligned=new THREE.Quaternion().setFromUnitVectors(up,heading);
+    dummy.quaternion.copy(aligned);
+    dummy.scale.setScalar(profile.body);
+    dummy.position.copy(point);dummy.updateMatrix();
+    this.artilleryFins.setMatrixAt(artilleryCount,dummy.matrix);
+    dummy.position.copy(point).addScaledVector(heading,-8.5*profile.body);
+    dummy.updateMatrix();
+    this.artilleryNozzles.setMatrixAt(artilleryCount,dummy.matrix);
+    dummy.position.copy(point).addScaledVector(heading,5.8*profile.body);
+    dummy.updateMatrix();
+    this.artilleryBands.setMatrixAt(artilleryCount,dummy.matrix);
+    artilleryCount++;
+   }
    count++;
    let history=this.rocketHistory.get(missile.id);
    if(active)history=appendOrdnanceTrail(history,point);
@@ -728,14 +809,30 @@ export class SandforgeCombatEffects {
    if(active&&this.game.time-(this.rocketTrailAt.get(missile.id)??-1)>profile.smokeRate){
     this.rocketTrailAt.set(missile.id,this.game.time);
     const tail=point.clone().addScaledVector(heading,-14*profile.body);
-    this.particle(this.smoke,tail.x+this.world.size*.5,
-     tail.z+this.world.size*.5,tail.y,profile.smokeSize+this.rand()*6,
-     .66+this.rand()*.40,(this.rand()-.5)*8,(this.rand()-.5)*8,4+this.rand()*7);
+    const rocketJet=kind==='artillery';
+    this.particle(rocketJet?this.rocketSmoke:this.smoke,
+     tail.x+this.world.size*.5,tail.z+this.world.size*.5,
+     tail.y,profile.smokeSize+this.rand()*(rocketJet?11:6),
+     rocketJet?.88+this.rand()*.55:.66+this.rand()*.40,
+     (this.rand()-.5)*(rocketJet?10:8),
+     (this.rand()-.5)*(rocketJet?10:8),4+this.rand()*7);
+    // Slightly offset second translucent puff makes a rolling 3D exhaust
+    // plume instead of a perfectly uniform orange cone/ribbon.
+    if(rocketJet&&this.rand()>.43){
+     const along=point.clone().addScaledVector(heading,-26*profile.body);
+     this.particle(this.rocketSmoke,along.x+this.world.size*.5,
+      along.z+this.world.size*.5,along.y,12+this.rand()*11,
+      .67+this.rand()*.28,(this.rand()-.5)*9,(this.rand()-.5)*9,3+this.rand()*7);
+    }
    }
   }
   for(const mesh of [this.rockets,this.rocketNoses,this.rocketExhaust]){
    mesh.count=count;
    if(count)mesh.instanceMatrix.needsUpdate=true;
+  }
+  for(const mesh of [this.artilleryFins,this.artilleryNozzles,this.artilleryBands]){
+   mesh.count=artilleryCount;
+   if(artilleryCount)mesh.instanceMatrix.needsUpdate=true;
   }
   this.rocketStreaks.count=streakCount;
   if(streakCount)this.rocketStreaks.instanceMatrix.needsUpdate=true;
@@ -943,7 +1040,7 @@ export class SandforgeCombatEffects {
     if(pool.mode==='debris')p.y=Math.max(p.floor,p.y);
     // Slow irregular smoke advection avoids a stationary stack of identical
     // circular sprites; deterministic elapsed time, no frame RNG or gameplay.
-    if(pool.mode==='smoke'){
+    if(pool.mode==='smoke'||pool.mode==='rocketSmoke'){
      const age=p.ttl-p.life;
      p.x+=Math.sin(age*2.2+p.angle*15)*dt*5;
      p.z+=Math.cos(age*1.7+p.angle*13)*dt*4;
@@ -952,7 +1049,8 @@ export class SandforgeCombatEffects {
     const scale=p.size*(.65+(1-progress)*1.25)*Math.min(1,progress*4);
     dummy.position.set(p.x-this.world.size*.5,p.y,p.z-this.world.size*.5);
     dummy.quaternion.copy(this.camera.quaternion);
-    const width=scale*(pool.mode==='spark'?.45:pool.mode==='smoke'?1.13:1);
+    const width=scale*(pool.mode==='spark'?.45:
+     pool.mode==='smoke'||pool.mode==='rocketSmoke'?1.13:1);
     const height=scale*(pool.mode==='dust'?.57:pool.mode==='flame'?1.27:pool.mode==='debris'?.66:1);
     dummy.scale.set(width,height,1);dummy.updateMatrix();
     pool.mesh.setMatrixAt(k,dummy.matrix);
@@ -965,6 +1063,6 @@ export class SandforgeCombatEffects {
   }
   this.activeParticles=this.particleCount;
  }
- get particleCount(){return this.smoke.particles.length+this.flash.particles.length+this.flames.particles.length+this.dust.particles.length+this.sparks.particles.length+this.debris.particles.length;}
+ get particleCount(){return this.smoke.particles.length+this.rocketSmoke.particles.length+this.flash.particles.length+this.flames.particles.length+this.dust.particles.length+this.sparks.particles.length+this.debris.particles.length;}
 }
 const worldIndex=(world,x,z)=>world.index({x,y:z});
