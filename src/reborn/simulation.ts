@@ -1039,6 +1039,97 @@ export class Simulation {
     this.notices.push('Gebäude abgerissen: '+buildingSpec(b).name+'.');
     return true;
   }
+  /** Five real soldiers enter an owned bunker by normal exterior pathing.
+   * Queued seats are reserved, so simultaneous RMB orders cannot overbook.
+   */
+  boardBunker(baseId:number,ids:number[]):number {
+    const b=this.bases.find(b=>b.id===baseId&&b.kind==='bunker'&&
+      b.hp>0&&b.buildRemaining<=0);
+    if(!b||this.status!=='playing')return 0;
+    let accepted=0;
+    for(const u of this.units.filter(u=>ids.includes(u.id)&&u.hp>0&&!u.carrier)){
+      if(!bunkerCanBoard(b,u,this.units))continue;
+      const point=bunkerApproach(b,u);
+      const exterior=this.world.nearest(point,
+        [...this.obstacles(),...infantryStructureColliders(this.obstacles()),
+         ...this.bastionColliders()],[],u,Math.max(0,unitSpec(u).radius-10));
+      if(!exterior||distance(exterior,b)>b.radius+110)continue;
+      u.orders=[{kind:'garrison',target:b.id,...exterior}];
+      u.path=[];u.repath=0;u.hold=false;u.guardArea=false;
+      u.workingTarget=null;u.combatTarget=null;u.pursuitOrigin=null;
+      accepted++;
+    }
+    return accepted;
+  }
+  /** Exit selected troops or the full roster at the bunker door. Soldiers
+   * retain all paid upgrades, HP and veterancy, with normal collisions.
+   */
+  unloadBunker(baseId:number,passengerId?:number):number {
+    const b=this.bases.find(b=>b.id===baseId&&b.kind==='bunker'&&
+      b.hp>0&&b.buildRemaining<=0);
+    if(!b||this.status!=='playing')return 0;
+    const roster=bunkerGarrisonedUnits(b,this.units).filter(u=>
+      passengerId===undefined||u.id===passengerId);
+    let released=0;
+    const obstacles=[...this.obstacles(),
+      ...infantryStructureColliders(this.obstacles()),...this.bastionColliders()];
+    for(const u of roster){
+      const spot=bunkerExitPoints(b).find(p=>
+        this.world.walkable(p,obstacles,Math.max(0,unitSpec(u).radius-10))&&
+        this.units.every(v=>v.id===u.id||v.hp<=0||v.carrier||
+          unitSpec(v).flying||distance(v,p)>unitSpec(v).radius+unitSpec(u).radius+5));
+      if(!spot)continue;
+      b.garrison=b.garrison?.filter(id=>id!==u.id);
+      delete u.carrier;u.x=u.previousX=spot.x;u.y=u.previousY=spot.y;
+      u.orders=[];u.path=[];u.repath=0;u.moving=false;
+      u.hold=true;u.guardArea=true;u.combatTarget=null;
+      released++;
+    }
+    if(released){this.spatial.rebuild(this.units);this.updateVision();}
+    return released;
+  }
+  /** Destruction and intentional demolition both kill every trapped soldier.
+   * Never respawn, reimburse, or auto-evacuate a destroyed garrison.
+   */
+  private destroyBunkerGarrison(b:Base):void {
+    for(const u of bunkerGarrisonedUnits(b,this.units)){
+      u.hp=0;u.orders=[];u.path=[];delete u.carrier;
+      this.tactical.loss(u);
+    }
+    b.garrison=[];
+    for(const u of this.units)if(u.orders[0]?.kind==='garrison'&&
+      u.orders[0].target===b.id){u.orders.shift();u.path=[];u.repath=0;}
+  }
+  /** Soldiers fire only at actual visible enemies using their own weapons,
+   * current HP, research and cooldowns. No garrison-wide free turret DPS.
+   */
+  private bunkerDefensiveFire(dt:number):void {
+    for(const b of this.bases)if(b.kind==='bunker'&&b.hp>0&&
+      b.buildRemaining<=0&&b.garrison?.length){
+      const roster=bunkerGarrisonedUnits(b,this.units);
+      for(const u of roster){
+        u.cooldown=Math.max(0,u.cooldown-dt);
+        if(u.cooldown>0||unitSpec(u).damage<=0)continue;
+        const maxRange=bunkerTargetRange(u);
+        const enemy=this.spatial.query(b,maxRange).filter(v=>
+          v.owner!==b.owner&&v.hp>0&&!v.carrier&&
+          distance(b,v)<=maxRange&&canAttack(u,v)&&
+          this.canSee(b.owner,v)&&this.world.sightLine(b,v))
+          .sort((a,z)=>distance(b,a)-distance(b,z)||a.id-z.id)[0];
+        if(!enemy)continue;
+        const spec=unitSpec(u);
+        u.cooldown=spec.cooldown/getVeterancyModifiers(u).fireRate;
+        const weapon:Weapon=u.kind==='rocket'?'rocket':
+          u.kind==='heavy'?'heavy':u.kind==='infantry'?'rifle':'pistol';
+        // Keep each soldier's own source ID and ordinary hit/miss rules.
+        if(u.kind==='rocket')this.launch(u,enemy);
+        else this.damage(u,enemy,weaponDamage(u,enemy)*
+          getVeterancyModifiers(u).damage,weapon,
+          {x:b.x,y:b.y-35});
+        u.fire=.18;u.angle=Math.atan2(enemy.y-b.y,enemy.x-b.x);
+      }
+    }
+  }
   command(ids:number[],order:Order,append=false):number {
     if(order.kind==='board'){
       const base=this.bases.find(b=>b.id===order.target&&b.kind==='bunker');
