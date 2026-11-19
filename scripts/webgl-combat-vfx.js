@@ -422,9 +422,10 @@ export class SandforgeCombatEffects {
   // airborne fragments and rolling dark combustion smoke.
   this.particle(this.flash,x,z,impactGround+(strong?31:21)*impactScale,
    (strong?96:58)*impactScale,weaponKind==='bomb'?.15:.12,0,0,0);
-  const fires=strong?(weaponKind==='bomb'?14:11):6,
-   smokes=strong?(weaponKind==='bomb'?19:16):9,
-   dust=strong?(weaponKind==='bomb'?19:15):8;
+  const light=weaponKind==='scoutRocket';
+  const fires=light?3:strong?(weaponKind==='bomb'?14:11):6,
+   smokes=light?5:strong?(weaponKind==='bomb'?19:16):9,
+   dust=light?5:strong?(weaponKind==='bomb'?19:15):8;
   for(let i=0;i<fires;i++){
    const a=this.rand()*Math.PI*2,r=Math.sqrt(this.rand())*(strong?25:13);
    const fx=x+Math.cos(a)*r,fz=z+Math.sin(a)*r;
@@ -449,7 +450,7 @@ export class SandforgeCombatEffects {
     Math.cos(a)*(speed+this.rand()*35),
     Math.sin(a)*(speed+this.rand()*35),4+this.rand()*9);
   }
-  const fragments=strong?12:6;
+  const fragments=light?3:strong?12:6;
   for(let i=0;i<fragments;i++){
    const a=this.rand()*Math.PI*2,speed=38+this.rand()*80;
    this.particle(this.debris,x,z,impactGround+7,
@@ -626,7 +627,9 @@ export class SandforgeCombatEffects {
   const barrel=missile.id%6;
   // The procedural camouflaged shoulder launcher has its own real muzzle
   // node. Never fall back to the tank's offset for a human-sized rocket.
-  const muzzle=entry?.kind==='rocket'
+  const muzzle=missile.type==='scoutRocket'
+   ?entry?.scoutRocketMuzzles?.[missile.id%2]
+   :entry?.kind==='rocket'
    ?entry?.placeholder?.getObjectByName('RocketMuzzle_0')??entry?.detail?.getObjectByName('RocketMuzzle_0')
    :missile.type==='antiArmor'
    ?entry?.detail?.getObjectByName('AtlasMuzzleTip')
@@ -638,11 +641,11 @@ export class SandforgeCombatEffects {
   }
   const a=missile.angle??Math.atan2(
    missile.to.y-missile.from.y,missile.to.x-missile.from.x);
-  const forward=missile.type==='antiArmor'?29:32;
+  const forward=missile.type==='scoutRocket'?24:missile.type==='antiArmor'?29:32;
   const x=missile.from.x+Math.cos(a)*forward;
   const z=missile.from.y+Math.sin(a)*forward;
   return this.pos(x,z,this.heightAt(missile.from.x,missile.from.y)+
-   (missile.type==='antiArmor'?43:52));
+   (missile.type==='scoutRocket'?183:missile.type==='antiArmor'?43:52));
  }
  updateRockets(active=true,subTick=0){
   const live=new Set(),up=new THREE.Vector3(0,1,0);
