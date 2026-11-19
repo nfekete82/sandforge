@@ -34,6 +34,7 @@ import {eliminationOutcome} from './match-outcome.js';
 import {validSupplyJob,SUPPLY_RESTOCK_INTERVAL,type SupplyCache,type SupplyJob} from './legacy-supply-save.js';
 import {formationSlotPitch,vehicleSpacingGap,preservesVehicleProgress,vehicleYieldWaypoint} from './vehicle-spacing.js';
 import {rocketStandoffPoint,shouldRocketReposition} from './combat-movement.js';
+import {SCOUT_ROCKETS,scoutRocketDamage,scoutRocketReady} from './scout-rockets.js';
 import {UPGRADES,UPGRADE_KINDS,newResearchState,canResearchUpgrade,researchModifiers,
  validResearchState,strategicBlastDamage,validStrategicMissile,
  SILO_CHARGE_SECONDS,STRATEGIC_WARNING_SECONDS,STRATEGIC_BLAST_RADIUS,
@@ -51,7 +52,7 @@ export const REPAIR_RADIUS=90;
 export const REPAIR_RATE=18;
 export interface Unit extends Point {
   id:number; owner:Faction; kind:UnitKind; xp?:number; hp:number; orders:Order[]; path:Point[];
-  cooldown:number; mgCooldown?:number; facing:number; moving:boolean; hit:number; repath:number;
+  cooldown:number; mgCooldown?:number; rocketCooldown?:number; rocketAmmo?:number; facing:number; moving:boolean; hit:number; repath:number;
   angle:number; walkDistance:number; fire:number; previousX:number; previousY:number;
   lastAttacker:number|null; defendUntil:number;
   /** Optional motor state keeps version-2 saves compatible. */
@@ -104,7 +105,7 @@ export interface Base extends Point {
 /** Transient on-screen release cue. Never serialized or used for collisions. */
 export interface ProductionRelease {unitId:number;baseId:number;kind:UnitKind;owner:Faction;at:number;from:Point;to:Point}
 export interface Shot { from:Point; to:Point; owner:Faction; life:number; hit:boolean; miss?:boolean; projected?:boolean; source?:number; weapon?:Weapon; barrel?:number; at?:number; groundFrom?:Point; groundTo?:Point; armored?:boolean; targetClass?:'armor'|'infantry'|'air'|'structure'; impactElevation?:number; kind?:UnitKind; angle?:number;flightHeight?:number }
-export interface Missile {id:number;source:number;owner:Faction;from:Point;to:Point;angle:number;at:number;impactAt:number;damage:number;type?:'antiArmor'|'bomb';target?:number;miss?:boolean}
+export interface Missile {id:number;source:number;owner:Faction;from:Point;to:Point;angle:number;at:number;impactAt:number;damage:number;type?:'antiArmor'|'bomb'|'scoutRocket';target?:number;miss?:boolean}
 export interface Blast extends Point {at:number;id:number}
 export type CaptureReadiness='owned'|'no-unit'|'out-of-range'|'contested'|'enemy-hq'|'capturing';
 export interface Memory extends Point { id:number; owner:Faction; hp:number; territory:number; kind?:BuildingKind }
@@ -407,7 +408,7 @@ export class Simulation {
     for(const u of this.units){
       if(!ids.includes(u.id)||u.hp<=0||u.carrier||!['bomber','scout'].includes(u.kind)||
         u.airfieldService||u.transport?.cargo.length||u.transport?.phase&&u.transport.phase!=='cruise'||
-        u.hp>=this.maxUnitHp(u)-1e-6)continue;
+        u.hp>=this.maxUnitHp(u)-1e-6&&!(u.kind==='scout'&&(u.rocketAmmo??SCOUT_ROCKETS.maxAmmo)<SCOUT_ROCKETS.maxAmmo))continue;
       const airfield=this.bases.find(b=>b.owner===u.owner&&b.kind==='airfield'&&b.hp>0&&b.buildRemaining<=0&&
         (preferredBaseId===undefined||b.id===preferredBaseId));
       if(!airfield)continue;
@@ -550,8 +551,25 @@ export class Simulation {
     }
     if(s.phase==='repair'){
       u.flightHeight=0;u.driveSpeed=0;
+      // Both air factions rearm only in a real, owned hangar. Limited ammo
+      // is saved on the actor; each replacement rocket costs 12 credits.
+      const replenish=()=>{
+       if(u.kind!=='scout')return true;
+       const remaining=SCOUT_ROCKETS.maxAmmo-(u.rocketAmmo??SCOUT_ROCKETS.maxAmmo);
+       if(remaining<=0)return true;
+       const count=Math.min(remaining,Math.floor(this.credits[u.owner]/SCOUT_ROCKETS.rearmCost));
+       if(count>0){
+        this.credits[u.owner]-=count*SCOUT_ROCKETS.rearmCost;
+        u.rocketAmmo=(u.rocketAmmo??SCOUT_ROCKETS.maxAmmo)+count;
+       }
+       return (u.rocketAmmo??SCOUT_ROCKETS.maxAmmo)>=SCOUT_ROCKETS.maxAmmo;
+      };
       const missing=Math.max(0,this.maxUnitHp(u)-u.hp);
-      if(missing<1e-5){u.hp=this.maxUnitHp(u);s.phase='ready';s.elapsed=0;return;}
+      if(missing<1e-5){
+       u.hp=this.maxUnitHp(u);
+       if(!replenish())return;
+       s.phase='ready';s.elapsed=0;return;
+      }
       const desired=Math.min(missing,this.maxUnitHp(u)*AIRFIELD_REPAIR_FRACTION_PER_SECOND*dt);
       while(s.paidHp+1e-8<desired&&this.credits[u.owner]>=1){
         this.credits[u.owner]--;s.paidHp+=AIRFIELD_REPAIR_HP_PER_CREDIT;
@@ -559,8 +577,10 @@ export class Simulation {
       const healed=Math.min(desired,s.paidHp);u.hp=Math.min(this.maxUnitHp(u),u.hp+healed);
       s.paidHp=Math.max(0,s.paidHp-healed);
       if(this.maxUnitHp(u)-u.hp<1e-5){
-        u.hp=this.maxUnitHp(u);s.phase='ready';s.elapsed=0;
-        if(u.owner===0)this.notices.push(`${unitSpec(u).name}: Hangarreparatur abgeschlossen – Startbefehl bereit.`);
+        u.hp=this.maxUnitHp(u);
+        if(!replenish())return;
+        s.phase='ready';s.elapsed=0;
+        if(u.owner===0)this.notices.push(`${unitSpec(u).name}: Hangarservice abgeschlossen – Startbefehl bereit.`);
       }
       return;
     }
@@ -714,7 +734,8 @@ export class Simulation {
   spawn(owner:Faction,p:Point,kind:UnitKind='infantry'):Unit {
     while(this.bases.some(b=>b.id===this.nextId))this.nextId++;
     const u:Unit={id:this.nextId++,owner,kind,xp:0,x:p.x,y:p.y,hp:this.maxUnitHp({kind,owner}),orders:[],path:[],cooldown:0,facing:1,moving:false,hit:0,repath:0,
-      angle:Math.PI/4,walkDistance:0,fire:0,previousX:p.x,previousY:p.y,lastAttacker:null,defendUntil:0};
+      angle:Math.PI/4,walkDistance:0,fire:0,previousX:p.x,previousY:p.y,lastAttacker:null,defendUntil:0,
+       ...(kind==='scout'?{rocketAmmo:SCOUT_ROCKETS.maxAmmo,rocketCooldown:0}:{})};
     // The legacy supply kind is no longer offered by any production building.
     this.units.push(u);this.unitById.set(u.id,u);
     countDeployed(this.stats,owner,kind,this.count(owner));return u;
@@ -1475,6 +1496,49 @@ export class Simulation {
     this.missiles.push({id,source:u.id,owner:u.owner,from,to,angle:u.angle,at:this.time,impactAt:this.time+duration,damage:(u.kind==='rocket'?weaponDamage(u,target):unitSpec(u).damage)*getVeterancyModifiers(u).damage,miss,...(antiArmor?{type:'antiArmor' as const}:{}),...(u.kind==='rocket'&&!miss?{target:target.id}:{})});
     this.shots.push({from:{x:u.x,y:u.y-18},to:{x:target.x,y:target.y-23},owner:u.owner,life:.65,hit:false,weapon:'rocket',source:u.id,kind:u.kind,barrel:antiArmor?0:id%6,angle:u.angle,at:this.time,groundFrom:from,groundTo:to});
   }
+  /** One light, unguided helicopter rocket. Unlike the MG it has a
+   * persistent six-round magazine and its own 9-second weapon clock.
+   * A real observed ground target is required; no rockets during landing,
+   * boarding or hangar service, and no new tactical/transport orders.
+   */
+  private fireScoutRocket(u:Unit,target:Unit|Base|undefined):void{
+   if(u.kind!=='scout'||u.hp<=0||u.carrier||
+      (u.rocketAmmo??SCOUT_ROCKETS.maxAmmo)<=0||
+      (u.rocketCooldown??0)>0||u.airfieldService)return;
+   // Transport orders remain authoritative; only currently visible ground
+   // threats can be targeted, without a new chase or squad assignment.
+   if(!target&&!u.hold){
+    const observed=[...this.spatial.query(u,SCOUT_ROCKETS.range),...this.bases]
+      .filter(e=>e.owner!==u.owner&&e.hp>0&&
+       !('orders' in e&&e.carrier)&&
+       scoutRocketReady(u,distance(u,e),e)&&this.canSee(u.owner,e));
+    const priority=(e:Unit|Base)=>'queue' in e?2:
+      unitSpec(e).group==='Fahrzeuge'?0:1;
+    target=observed.sort((a,b)=>priority(a)-priority(b)||
+       distance(u,a)-distance(u,b)||a.id-b.id)[0];
+   }
+   if(!target||!scoutRocketReady(u,distance(u,target),target)||
+      !this.canSee(u.owner,target))return;
+   const from={x:u.x,y:u.y};
+   const miss=this.stageWebGLProduction&&
+     unitShotMisses(this.seed,u.id,target.id,this.time,375);
+   const to=miss?missedGroundPoint(from,target,
+      'queue' in target?target.radius:unitSpec(target).radius,
+      this.world.size,unitShotRoll(this.seed,u.id,target.id,this.time,801)):
+      {x:target.x,y:target.y};
+   const angle=Math.atan2(to.y-from.y,to.x-from.x);
+   const id=this.nextId++;
+   this.missiles.push({id,source:u.id,owner:u.owner,from,to,angle,
+     at:this.time,impactAt:this.time+Math.max(.25,distance(from,to)/SCOUT_ROCKETS.flightSpeed),
+     damage:SCOUT_ROCKETS.damage*getVeterancyModifiers(u).damage,
+     type:'scoutRocket',miss});
+   this.shots.push({from,to,owner:u.owner,life:.65,hit:false,
+     weapon:'rocket',source:u.id,kind:'scout',barrel:id%2,
+     angle,at:this.time,groundFrom:from,groundTo:to});
+   u.rocketAmmo=(u.rocketAmmo??SCOUT_ROCKETS.maxAmmo)-1;
+   u.rocketCooldown=SCOUT_ROCKETS.cooldown;
+   u.fire=Math.max(u.fire,.2);
+  }
   canSee(owner:Faction,p:Point):boolean {const i=this.world.index(p);return i>=0&&this.visible[owner][i]===1;}
   hasExplored(owner:Faction,p:Point):boolean {const i=this.world.index(p);return i>=0&&this.explored[owner][i]===1;}
   updateVision():void {
@@ -1922,7 +1986,9 @@ export class Simulation {
     }
     for(const missile of this.missiles)if(missile.impactAt<=this.time){
       const antiArmor=missile.type==='antiArmor',guidedRocket=antiArmor&&missile.target!==undefined;
-      const radius=guidedRocket?32:antiArmor?44:missile.type==='bomb'?94:60;
+      const scoutRocket=missile.type==='scoutRocket';
+      const radius=scoutRocket?SCOUT_ROCKETS.blastRadius:
+       guidedRocket?32:antiArmor?44:missile.type==='bomb'?94:60;
       // Missed shells/bombs still physically land and explode in the sand,
       // but cannot apply splash, XP, suppression or damage to any unit.
       for(const target of missile.miss?[]:[...this.units,...this.bases])if(target.owner!==missile.owner&&target.hp>0&&!('orders' in target&&(target.carrier||(unitSpec(target).flying&&missile.target===undefined)))&&distance(target,missile.to)<=radius){
@@ -1939,7 +2005,9 @@ export class Simulation {
         // direct hit), and keep unchanged tank-rocket infantry splash (.28).
         const infantrySplash=guidedRocket
           ?target.id===missile.target?1:.10:.28;
-        const amount=missile.damage*(1-.5*distance(target,missile.to)/radius)*secondary*
+        const amount=scoutRocket?
+          scoutRocketDamage(target,missile.damage,distance(target,missile.to)):
+          missile.damage*(1-.5*distance(target,missile.to)/radius)*secondary*
           (antiArmor&&!armored?infantrySplash:1);
         this.strike(missile.source,target,amount);
       }
@@ -1967,7 +2035,9 @@ export class Simulation {
     }
     const squadMoveAt=this.profileSquadWork?performance.now():0;
     for(const u of this.units){
-      if(u.hp<=0||u.carrier)continue;u.previousX=u.x;u.previousY=u.y;u.cooldown-=dt;u.repath-=dt;u.hit=Math.max(0,u.hit-dt);u.fire=Math.max(0,u.fire-dt);u.moving=false;
+      if(u.hp<=0||u.carrier)continue;u.previousX=u.x;u.previousY=u.y;u.cooldown-=dt;
+       if(u.kind==='scout')u.rocketCooldown=Math.max(0,(u.rocketCooldown??0)-dt);
+       u.repath-=dt;u.hit=Math.max(0,u.hit-dt);u.fire=Math.max(0,u.fire-dt);u.moving=false;
       // The single real unit remains at its legal exterior spawn while the
       // visual garage rollout catches up. Once finished, ordinary pathfinding
       // drives it from exactly this position to its existing rally order.
@@ -1982,6 +2052,9 @@ export class Simulation {
       if(this.transports.boarding(u,dt))continue;
       if(this.escort(u,dt)||this.support(u,dt)){delete u.burst;continue;}
       const order=u.orders[0];
+      // A flying transport may launch a tiny defensive missile while moving,
+      // but never interrupts its own approach, delivery or rally orders.
+      if(u.kind==='scout'&&order?.kind==='move')this.fireScoutRocket(u,undefined);
       // Idle tanks must not inherit their previous acceleration after an old
       // order has ended. A new departure should visibly aim and pivot first.
       if(u.kind==='tank'&&!order&&!u.pursuitOrigin)u.driveSpeed=0;
@@ -2049,6 +2122,7 @@ export class Simulation {
         continue;
       }
       if(u.kind==='tank'){u.mgCooldown=Math.max(0,(u.mgCooldown??0)-dt);this.tankMachinegun(u);}
+      if(u.kind==='scout')this.fireScoutRocket(u,enemy);
       const engagementRange=u.kind==='tank'&&enemy&&'orders' in enemy&&unitSpec(enemy).group==='Infanterie'?TANK_MG.range:this.range(u);
       if(u.kind==='rocket'&&enemy&&this.moveRocketToStandoff(u,enemy,dt))
         continue;
@@ -2457,6 +2531,12 @@ export class Simulation {
       s.units.some(u=>!validSupplyJob(u.supply,u.kind??'infantry',mapWorldSize(s.mapVersion??0)))||
       s.units.some(u=>u.exactPath!==undefined&&typeof u.exactPath!=='boolean')||
       s.units.some(u=>u.guardArea!==undefined&&typeof u.guardArea!=='boolean')||
+      s.units.some(u=>u.rocketAmmo!==undefined&&
+       (u.kind!=='scout'||!Number.isInteger(u.rocketAmmo)||
+        u.rocketAmmo<0||u.rocketAmmo>SCOUT_ROCKETS.maxAmmo))||
+      s.units.some(u=>u.rocketCooldown!==undefined&&
+       (u.kind!=='scout'||!finite(u.rocketCooldown)||
+        u.rocketCooldown<0||u.rocketCooldown>SCOUT_ROCKETS.cooldown+1e-6))||
       s.units.some(u=>u.returnToHangar!==undefined&&typeof u.returnToHangar!=='boolean')||
       !Array.isArray(s.territories)||s.territories.length!==mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows||!Array.isArray(s.explored)||s.explored.length!==2||
       s.explored.some(a=>!Array.isArray(a)||![120**2,RULES.grid**2].includes(a.length)||a.some(v=>v!==0&&v!==1))||
@@ -2543,7 +2623,7 @@ export class Simulation {
       return Uint8Array.from({length:RULES.grid**2},(_,i)=>a[Math.floor(Math.floor(i/RULES.grid)*oldGrid/RULES.grid)*oldGrid+Math.floor((i%RULES.grid)*oldGrid/RULES.grid)]);
     });game.memories=structuredClone(s.memories??[[],[]]);game.aiClock=clamp(s.aiClock||0,0,RULES.aiInterval);
     if(!Transports.valid(game))throw Error('Ungültiger Transportzustand im Spielstand.');
-    if(s.missiles!==undefined&&(!Array.isArray(s.missiles)||s.missiles.length>96||s.missiles.some(m=>!Number.isSafeInteger(m.id)||!Number.isSafeInteger(m.source)||![0,1].includes(m.owner)||!point(m.from)||!point(m.to)||!finite(m.at)||m.at>s.time||!finite(m.impactAt)||m.impactAt<=s.time||m.impactAt>s.time+12||!finite(m.damage)||m.damage<=0||m.damage>Math.max(UNITS.artillery.damage,UNITS.tank.damage,UNITS.rocket.damage*1.24)*getVeterancyModifiers({kind:'tank',xp:500}).damage*1.151||(m.type!==undefined&&!['antiArmor','bomb'].includes(m.type))||(m.target!==undefined&&(!Number.isSafeInteger(m.target)||m.target<0))||
+    if(s.missiles!==undefined&&(!Array.isArray(s.missiles)||s.missiles.length>96||s.missiles.some(m=>!Number.isSafeInteger(m.id)||!Number.isSafeInteger(m.source)||![0,1].includes(m.owner)||!point(m.from)||!point(m.to)||!finite(m.at)||m.at>s.time||!finite(m.impactAt)||m.impactAt<=s.time||m.impactAt>s.time+12||!finite(m.damage)||m.damage<=0||m.damage>Math.max(UNITS.artillery.damage,UNITS.tank.damage,UNITS.rocket.damage*1.24)*getVeterancyModifiers({kind:'tank',xp:500}).damage*1.151||(m.type!==undefined&&!['antiArmor','bomb','scoutRocket'].includes(m.type))||(m.target!==undefined&&(!Number.isSafeInteger(m.target)||m.target<0))||
       (m.miss!==undefined&&typeof m.miss!=='boolean')||!finite(m.angle))))throw Error('Ungültige Raketen im Spielstand.');
     game.missiles=structuredClone(s.missiles??[]);
     game.strategicMissiles=structuredClone(s.strategicMissiles??[]);

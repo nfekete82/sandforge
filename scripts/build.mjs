@@ -43,6 +43,7 @@ for(const module of ['webgl-oases','webgl-oasis-generation','webgl-oasis-materia
 cpSync('scripts/webgl-map-edges.js','dist/webgl-map-edges.js');
 cpSync('scripts/webgl-title-menu.js','dist/webgl-title-menu.js');
 cpSync('scripts/webgl-battlefield.js','dist/webgl-battlefield.js');
+cpSync('scripts/webgl-scout-rocket-pods.js','dist/webgl-scout-rocket-pods.js');
 cpSync('scripts/webgl-recon-drone.js','dist/webgl-recon-drone.js');
 cpSync('scripts/webgl-builder-input.js','dist/webgl-builder-input.js');
 cpSync('scripts/webgl-wall-drag.js','dist/webgl-wall-drag.js');
