@@ -31,6 +31,7 @@ import {serviceVisualGround,approachGroundHeight} from '/webgl-service-grounding
 import {factoryRepairPoint} from '/src/reborn/factory-maintenance.js';
 import {selectedMaintenanceKind,serviceFootprintContains,maintenanceClickAllowed} from '/webgl-maintenance-input.js';
 import {disposeOwnedMeshes,disposeTaggedMaterials} from '/webgl-resource-lifecycle.js';
+import {attachScoutRocketPods,detachScoutRocketPods} from '/webgl-scout-rocket-pods.js';
 import {releaseBastionRevision} from '/webgl-bastion-lifecycle.js';
 import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
 import {selectedInfantryForTransport,selectedCarrierForPickup,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
@@ -643,6 +644,7 @@ export class SandforgeBattlefield {
   if(type==='building')finishBuildingFacadeShading(placeholder);
   if(unit)attachTeamMarkings(entry,entity.owner,entity.kind,footprint,height);
   if(type==='unit'&&['tank','artillery'].includes(entity.kind))this.installTankRig(entry,placeholder);
+  if(type==='unit'&&entity.kind==='scout')attachScoutRocketPods(entry);
   this.scheduleDetail(entry,entity,type);return entry;
  }
  beginPlacement(kind){
@@ -1162,6 +1164,7 @@ export class SandforgeBattlefield {
      disposeTaggedMaterials(e.detail,'sandforgeFactionTint');
      if(e.kind==='rocket')disposeRocketLauncher(e.detail);
     }
+    if(e.kind==='scout')detachScoutRocketPods(e);
     this.scene.remove(e.node);this.units.delete(id);this.selected.delete(id);
    }
   for(const b of this.game.bases){
