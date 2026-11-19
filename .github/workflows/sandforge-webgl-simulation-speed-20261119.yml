@@ -1,0 +1,48 @@
+name: Sandforge WebGL 1x 2x 4x simulation speed
+on:
+  push:
+    branches: ['feat/sandforge-webgl-speed-1x-2x-4x-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  speed-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Compile, build and audit WebGL dependencies
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Speed modes and existing pause, AI and combat regression tests
+        run: |
+          node --test \
+            tests/sandforge-webgl-simulation-speed-20261119.test.mjs \
+            tests/sandforge-smart-healthbars-20261119.test.mjs \
+            tests/sandforge-ai36-attack-continuity-cas-20261119.test.mjs \
+            tests/sandforge-ai36-mission-retarget-20261119.test.mjs \
+            tests/sandforge-ai36-endgame-route-recovery-20261119.test.mjs \
+            tests/sandforge-bomber-escort-heli-mg-20261119.test.mjs \
+            tests/webgl-aircraft-effects-20261110.test.mjs
+      - name: Real headless simulation still runs with normal default clock
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps 24 --seeds 2026 \
+            --seconds 120 --modes director --ai36 coordinated \
+            --label speed-independent-headless-control \
+            --output ai-arena-results/ci-speed-headless-control.json
+      - name: Retain headless regression metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-webgl-speed-qa
+          path: ai-arena-results/ci-speed-headless-control.*
+          if-no-files-found: warn
