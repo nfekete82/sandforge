@@ -162,7 +162,7 @@ const gateSteelSheet=(()=>{
   const tone=weld+rivet+brushed+grit*.46-oxidation;
   const i=(y*n+x)*4;
   for(let k=0;k<3;k++)pixels[i+k]=Math.max(0,Math.min(255,
-   Math.round([147,151,144][k]+tone)));
+   Math.round([166,171,163][k]+tone)));
   pixels[i+3]=255;
  }
  const texture=new THREE.DataTexture(pixels,n,n,THREE.RGBAFormat);
@@ -204,7 +204,8 @@ const gateHazardSheet=(()=>{
  * One merged draw call: no per-barb scene nodes, update loops or animations.
  * The geometry belongs to its wall model and is safely disposed on removal.
  */
-function addWallBarbedWire(root,{half=false}={}){
+function addWallBarbedWire(root,{half=false,span=1}={}){
+ const coilHeight=half?66.1:56.1;
  const steel=new THREE.MeshStandardMaterial({
   name:'Sandforge weathered galvanized barbed wire',
   color:'#70716b',roughness:.64,metalness:.76,
@@ -217,7 +218,7 @@ function addWallBarbedWire(root,{half=false}={}){
   for(let i=0;i<=turns*12;i++){
    const t=i/(turns*12),ang=t*turns*Math.PI*2;
    points.push(new THREE.Vector3(
-    a+(b-a)*t,56.1+2.5*Math.cos(ang),z+2.5*Math.sin(ang)));
+    a+(b-a)*t,coilHeight+2.5*Math.cos(ang),z+2.5*Math.sin(ang)));
   }
   pieces.push(new THREE.TubeGeometry(
    new THREE.CatmullRomCurve3(points),turns*12,.23,4,false));
@@ -226,19 +227,19 @@ function addWallBarbedWire(root,{half=false}={}){
    const x=a+(b-a)*i/(turns*2);
    const barb=new THREE.CylinderGeometry(.13,.13,4.2,4);
    barb.rotateZ(i%2?Math.PI*.23:-Math.PI*.23);
-   barb.translate(x,56.1,z+1.8*(i%2?1:-1));
+   barb.translate(x,coilHeight,z+1.8*(i%2?1:-1));
    pieces.push(barb);
   }
  };
  if(half){
-  // Keep the central gate opening completely free of overhead wire.
-  coil(-53,-43,-5);coil(43,53,5);
+  // Wire stays atop the two steel pylons; never cross the vehicle opening.
+  coil(-53*span,-43*span,-5);coil(43*span,53*span,5);
  }else{
   coil(-51,51,-6);coil(-51,51,6);
  }
- for(const x of half?[-51,51]:[-49,-16,16,49]){
+ for(const x of half?[-51*span,51*span]:[-49,-16,16,49]){
   const post=new THREE.CylinderGeometry(.37,.47,8,6);
-  post.translate(x,54.3,half?(x>0?6:-6):0);
+  post.translate(x,coilHeight-1.8,half?(x>0?6:-6):0);
   pieces.push(post);
  }
  const combined=mergeGeometries(pieces,false);
@@ -255,7 +256,7 @@ function addWallBarbedWire(root,{half=false}={}){
  * and rotating terrain pose. Gate leaves open visually only to its owner's
  * approaching troops; physics uses separate per-faction navigation masks.
  */
-function createDefensiveWall(owner,gate=false){
+function createDefensiveWall(owner,gate=false,span=2){
  const root=new THREE.Group();
  root.name=gate?'Strategic_wallGate':'Strategic_wall';
  root.userData={visualOnly:true,defensiveWall:true,gate};
@@ -287,11 +288,13 @@ function createDefensiveWall(owner,gate=false){
    add(root,10,5,28,x,51,0,concrete,'WallPillarTop');
   }
  }else{
-  // Keep the 109x32 gameplay footprint. Unlike the former camouflaged
-  // wall-like leaves, this 95-wide opening uses tall, hinged steel doors.
-  // Only its OWNER may path through, exactly as before; no new collider.
-  root.userData.gateClearOpeningWidth=95;
-  root.userData.gateClearOpeningHeight=56;
+  // One 218x32 vehicle gate replaces TWO standard 109x32 wall sections.
+  // Legacy saved single-segment gates (span 1) retain their old footprint.
+  const sx=span===1?1:2;
+  root.scale.y=1.12; // slightly taller steel portals than the prior version
+  root.userData.gateSpan=sx;
+  root.userData.gateClearOpeningWidth=95*sx;
+  root.userData.gateClearOpeningHeight=62.7;
   const steel=new THREE.MeshStandardMaterial({
    name:'Sandforge gate | riveted steel armour',
    color:'#ffffff',map:gateSteelSheet,bumpMap:gateSteelSheet,
@@ -329,7 +332,7 @@ function createDefensiveWall(owner,gate=false){
    mesh.rotation.z=Math.atan2(y2-y1,x2-x1);
   };
   // Side-only footings; the centre roadway is completely unobstructed.
-  for(const x of [-51,51]){
+  for(const x of [-51*sx,51*sx]){
    add(root,7,5,29,x,3,0,frame,'WallGate_SideFooting');
    add(root,7,64,30,x,32,0,frame,'WallGate_ReinforcedPylon');
    add(root,8,5,30,x,66,0,edges,'WallGate_PylonCap');
@@ -340,35 +343,35 @@ function createDefensiveWall(owner,gate=false){
     add(root,7,6,3,x,6,z,steel,'WallGate_PylonBasePlate');
   }
   // No horizontal steel below this lintel: tanks cross at ground level.
-  add(root,99,8,30,0,60,0,frame,'WallGate_SteelHeader');
-  add(root,90,2.6,31,0,65,0,edges,'WallGate_HeaderTopPlate');
+  add(root,99*sx,8,30,0,60,0,frame,'WallGate_SteelHeader');
+  add(root,90*sx,2.6,31,0,65,0,edges,'WallGate_HeaderTopPlate');
   add(root,28,4,31,0,61,0,stripe,'WallGate_FactionInsigniaPlate');
-  for(const x of [-30,30]){
+  for(const x of [-30*sx,30*sx]){
    add(root,19,2.4,8,x,67,0,vent,'WallGate_RoofVent');
    for(const z of [-15.3,15.3])
     add(root,15,1.8,.3,x,55.6,z,light,'WallGate_EntryFloodlight');
   }
   const left=new THREE.Group(),right=new THREE.Group();
   left.name='WallGate_Leaf_Left';right.name='WallGate_Leaf_Right';
-  left.position.set(-47.5,0,0);right.position.set(47.5,0,0);
+  left.position.set(-47.5*sx,0,0);right.position.set(47.5*sx,0,0);
   root.add(left,right);
   const leaf=(group,sign,label)=>{
-   const cx=sign*23.75;
+   const cx=sign*23.75*sx;
    // Hinges at x=0 of each moving group; doors meet at world x=0.
-   add(group,47.5,50.5,7,cx,29.25,0,steel,
+   add(group,47.5*sx,50.5,7,cx,29.25,0,steel,
     'WallGate_'+label+'_SteelLeaf');
    for(const z of [-4.75,4.75]){
-    add(group,46,3.2,2,cx,51,z,edges,
+    add(group,46*sx,3.2,2,cx,51,z,edges,
      'WallGate_'+label+'_UpperCrossbar');
-    add(group,46,3.1,2,cx,12,z,edges,
+    add(group,46*sx,3.1,2,cx,12,z,edges,
      'WallGate_'+label+'_LowerCrossbar');
-    for(const x of [sign*3.5,sign*44]){
+    for(const x of [sign*3.5*sx,sign*44*sx]){
      add(group,2.6,43,2,x,29.5,z,edges,
       'WallGate_'+label+'_SideRail');
     }
     brace(group,'WallGate_'+label+'_DiagonalBrace',
-     sign*7,16,sign*41,46,z);
-    add(group,44,5.7,.35,cx,8,z>0?6.3:-6.3,warning,
+     sign*7*sx,16,sign*41*sx,46,z);
+    add(group,44*sx,5.7,.35,cx,8,z>0?6.3:-6.3,warning,
      'WallGate_'+label+'_CautionStripe');
    }
    // A locking bar, heavy hinges and an inset vent read as an actual
@@ -377,10 +380,10 @@ function createDefensiveWall(owner,gate=false){
     add(group,4.2,7.2,11,sign*1.4,y,0,frame,
      'WallGate_'+label+'_IndustrialHinge');
    }
-   add(group,4,19,12,sign*44.8,27.5,0,frame,
+   add(group,4,19,12,sign*44.8*sx,27.5,0,frame,
     'WallGate_'+label+'_CentralLatch');
    for(const z of [-5.45,5.45])
-    add(group,14,3.4,.5,cx,43,z,vent,
+    add(group,14*sx,3.4,.5,cx,43,z,vent,
      'WallGate_'+label+'_HighVent');
   };
   leaf(left,1,'Left');
@@ -414,14 +417,14 @@ function createDefensiveWall(owner,gate=false){
   batchByMaterial(root,'WallGate_Frame');
   root.userData.gateLeaves=[left,right];
  }
- addWallBarbedWire(root,{half:gate});
+ addWallBarbedWire(root,{half:gate,span:gate?(span===1?1:2):1});
  return root;
 }
 export const STRATEGIC_BUILDING_KINDS=Object.freeze(['research','silo','interceptor','wall','wallGate']);
 export const isStrategicBuilding=kind=>STRATEGIC_BUILDING_KINDS.includes(kind);
-export function createStrategicBuilding(kind,owner=0){
+export function createStrategicBuilding(kind,owner=0,gateSpan=2){
  if(!isStrategicBuilding(kind))return null;
- if(kind==='wall'||kind==='wallGate')return createDefensiveWall(owner,kind==='wallGate');
+ if(kind==='wall'||kind==='wallGate')return createDefensiveWall(owner,kind==='wallGate',gateSpan);
  const root=new THREE.Group();
  root.name='Strategic_'+kind;
  root.userData.visualOnly=true;
