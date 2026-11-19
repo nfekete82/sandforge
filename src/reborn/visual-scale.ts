@@ -12,7 +12,7 @@ export const unitArtScale=(kind:UnitKind):number=>
 
 /** Give industrial buildings the visual weight of a real base beside the infantry. */
 export const buildingArtScale=(kind:BuildingKind):number=>
-  kind==='wall'?1:
+  kind==='wall'||kind==='wallGate'?1:
   kind==='research'?1.0:
   kind==='headquarters'?1.30:
   kind==='barracks'||kind==='factory'||kind==='airfield'?1.26:
