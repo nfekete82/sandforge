@@ -22,6 +22,7 @@ import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefens
 import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,type AI33Mode} from './ai33-map-doctrine.js';
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
+import {rankTerrainRecaptureSquad} from './ai36-terrain-routes.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
 import type {Simulation,Unit,Memory} from './simulation.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -1588,7 +1589,12 @@ export class TacticalAI {
     Number(a.id===s.experience?.lastLostSector)||b.income-a.income||a.id-b.id);
   for(const t of targets.slice(0,6)){
    const near=available.slice().sort((a,b)=>distance(a,t.point)-distance(b,t.point)||a.id-b.id);
-   const squad=near.slice(0,readiness);
+   // On v3, a closer-looking soldier may be trapped on the wrong side of
+   // a mountain wall. Prefer paid units with a shorter pass-aware approach.
+   // World.path below still validates every selected unit's real route.
+   const squad=g.world.generatorVersion===3
+    ?rankTerrainRecaptureSquad(available,t.point,g.world.generated?.ridges??[],readiness)
+    :near.slice(0,readiness);
    if(squad.length!==readiness)continue;
    const seen=visible.filter(u=>distance(u,t.point)<380);
    if(!recaptureThreatPermits(fightingPower(squad),fightingPower(seen),false))continue;
