@@ -24,7 +24,7 @@ import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad,canyonPassWaypoint} from './ai36-terrain-routes.js';
-import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage,ai42BreakoutAllowed,ai42HqLookout} from './ai36-air-support.js';
+import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage,ai42BreakoutAllowed,ai42HqLookout,ai42HoldVisibleBuildingCommitment} from './ai36-air-support.js';
 import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
 import {preserveAI36Assault,ai36JoinActiveFront,maintainAI36FrontOnRetarget} from './ai36-assault-continuity.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
@@ -197,6 +197,9 @@ export class TacticalAI {
     waveReason:string;guardBuildup:boolean;minimumReady:number};
  }>=[];
  private lastRallyGateTraceAt=-1e6;
+ /** Transient, never serialized: a confirmed static-target air sortie
+  * is not canceled merely because its turning circle briefly loses sight. */
+ private ai42BomberCommitments=new Map<number,{target:number;until:number}>();
  constructor(private readonly g:Simulation){}
  /** Only known front-line choices are shown to the optional language model. */
  strategicBrief():StrategicBrief|null{
@@ -211,7 +214,7 @@ export class TacticalAI {
   this.sectorPreference={sectorId,until:this.g.time+35};return true;
  }
  restore(state:TacticalState|undefined):void{
-  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
+  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;this.ai42BomberCommitments.clear();
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
   if(!state)for(const m of this.g.memories[1])if(m.owner===0&&
     (m.kind==='turret'||m.kind==='bunker')&&m.hp>0)
@@ -1133,7 +1136,28 @@ export class TacticalAI {
    const pending=u.orders.find(o=>o.kind==='attack'&&o.target!==undefined);
    if(!pending)continue;
    const victim=g.units.find(v=>v.id===pending.target&&v.hp>0)??g.bases.find(b=>b.id===pending.target&&b.hp>0);
-   if(!victim||!this.bomberStrikeSafe(victim)){
+   const safe=!!victim&&this.bomberStrikeSafe(victim);
+   const commitment=this.ai42BomberCommitments.get(u.id);
+   if(safe){
+    // Fresh actual visual confirmation extends ONLY the pending fixed
+    // building's flight queue, never a moving hidden-unit pursuit.
+    if(commitment&&victim&&'queue' in victim&&
+       commitment.target===victim.id&&g.canSee(1,victim))
+      commitment.until=g.time+24;
+    continue;
+   }
+   if(ai42HoldVisibleBuildingCommitment({
+      enabled:g.world.mapVersion===26&&g.world.generatorVersion>=4&&
+       this.ai37Mode==='coordinated',
+      stationaryTarget:!!victim&&'queue' in victim&&
+       ['headquarters','turret'].includes(victim.kind),
+      sameTarget:!!commitment&&commitment.target===pending.target,
+      missionStillValid:!!victim&&s.commander?.mission?.kind==='structure'&&
+       s.commander.mission.sector===victim.territory,
+      time:g.time,expiry:commitment?.until??0
+    }))continue;
+   if(!safe){
+    this.ai42BomberCommitments.delete(u.id);
     // Do not replace a just-cancelled strike with a different flank in this
     // same planning tick. A bomber must actually turn away from the lost
     // screen instead of zigzagging between defended targets.
@@ -1188,7 +1212,9 @@ export class TacticalAI {
   for(const [index,u] of bombers.entries()){
    if(recalled.has(u.id))continue;
    if(u.orders.some(o=>o.kind==='attack'&&
-    observed.some(v=>v.id===o.target)))continue;
+    (observed.some(v=>v.id===o.target)||
+     this.ai42BomberCommitments.get(u.id)?.target===o.target&&
+       (this.ai42BomberCommitments.get(u.id)?.until??0)>=g.time)))continue;
    const fx=target.x-front.x,fy=target.y-front.y;
    // A front-centroid sitting exactly at the observed HQ provides no
    // valid flank direction. Use the actual bomber approach instead.
@@ -1206,8 +1232,13 @@ export class TacticalAI {
     y:clamp(target.y-dy/norm*depth+dx/norm*wing*260,50,g.world.size-50)
    };
    if(!g.command([u.id],{...flank,kind:'move'}))continue;
-   g.command([u.id],{x:target.x,y:target.y,
+   const queued=g.command([u.id],{x:target.x,y:target.y,
     kind:'attack',target:target.id},true);
+   if(queued&&g.world.mapVersion===26&&g.world.generatorVersion>=4&&
+      this.ai37Mode==='coordinated'&&g.time>=360&&
+      ['turret','headquarters'].includes(target.kind)&&
+      this.bomberStrikeSafe(target))
+    this.ai42BomberCommitments.set(u.id,{target:target.id,until:g.time+24});
    for(const o of u.orders)o.tactical={group:s.groupId,mode:'assault'};
   }
  }

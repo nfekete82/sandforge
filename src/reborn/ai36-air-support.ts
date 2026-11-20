@@ -156,3 +156,15 @@ export function ai42HqLookout(x:{
   return p;
  }
 }
+
+/** A previously VISIBLE static target may keep its issued flight queue for
+ * a few simulated seconds while the bomber turns. This does not grant a
+ * bomb release in fog: the authoritative 20 Hz release still checks vision.
+ * Unseen mobile actors can never use the commitment. */
+export function ai42HoldVisibleBuildingCommitment(x:{
+ enabled:boolean;stationaryTarget:boolean;sameTarget:boolean;
+ missionStillValid:boolean;time:number;expiry:number;
+}):boolean{
+ return x.enabled&&x.stationaryTarget&&x.sameTarget&&x.missionStillValid&&
+  x.time<=x.expiry&&x.expiry-x.time<=24;
+}
