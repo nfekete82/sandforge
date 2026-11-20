@@ -24,7 +24,7 @@ import {addBarracksContactShadows} from '/webgl-barracks-contact-shadows.js';
 import {createAirfieldServiceYard,conformAirfieldSurface,updateAirfieldServiceYard,hideOldAirfieldHangar,disposeAirfieldServiceYard} from '/webgl-airfield-service.js';
 import {detachAirfieldPbr} from '/webgl-airfield-pbr.js';
 import {removeRunwaySkidArtifacts} from '/webgl-airfield-runway-clearance.js';
-import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '/webgl-factory-service.js';
+import {disposeFactoryServiceYard} from '/webgl-factory-service.js';
 import {disposeServicePaint,previewServiceMaterial} from '/webgl-service-materials.js';
 import {createSegmentedSelectionRing} from '/webgl-selection-ring.js';
 import {serviceVisualGround,approachGroundHeight} from '/webgl-service-grounding.js';
@@ -854,12 +854,11 @@ export class SandforgeBattlefield {
    tint(yard,false,.34);
    group.add(yard);group.userData.previewYard=yard;
   }
-  const service=kind==='airfield'?createAirfieldServiceYard(0,{ghost:true}):
-   kind==='factory'?createFactoryServiceYard():null;
+  const service=kind==='airfield'?createAirfieldServiceYard(0,{ghost:true}):null;
   if(service){
    tint(service,true,.38);
-   // Both hangar doors, the service lift and the complete apron are
-   // visible in ghost mode, not just faint foundation silhouettes.
+   // Airfield apron stays visible in the ghost. The factory's redundant
+   // external repair platform is deliberately omitted.
    group.add(service);group.userData.previewService=service;
   }
   const circle=new THREE.Mesh(
@@ -1313,12 +1312,10 @@ export class SandforgeBattlefield {
     }
     if(b.buildRemaining<=0)updateAirfieldServiceYard(entry,b,this.game.units,this.game.time,dt,active);
    }
-   if(b.kind==='factory'){
-    if(!entry.factoryServiceYard){
-     entry.factoryServiceYard=createFactoryServiceYard();entry.node.add(entry.factoryServiceYard);
-    }
-    if(b.buildRemaining<=0)updateFactoryServiceYard(entry,b,this.game.units,this.game.time);
-   }
+   // Integrated workshop model only: no separate exterior factory pad.
+   // Dispose any previously attached visual service yard on older actors.
+   if(b.kind==='factory'&&entry.factoryServiceYard)
+    disposeFactoryServiceYard(entry);
    this.animateBuildingMotion(entry,b,dt,active);
    if(b.buildRemaining<=0&&!this.announcedBuildings.has(b.id)){
     this.announcedBuildings.add(b.id);
