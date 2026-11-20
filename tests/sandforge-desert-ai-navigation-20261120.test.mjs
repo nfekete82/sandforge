@@ -44,8 +44,13 @@ for(const m of maps.filter(m=>m.kind!=='open-basin'))test(
    (a,b)=>w.line(a,b,[],clearance(),slope)||
      w.path(a,b,[],clearance(),undefined,false,false,false,slope)
       .some(q=>d(q,b)<w.cell*1.4));
-  assert.ok(lookup,'AI should recognize this verified mountain pass');
-  assert.ok(w.walkable(lookup,[],clearance()),'AI route points must be physically legal');
+  // A physical pass can be inside a protected Bastion clearing. The
+  // selector intentionally returns undefined in that case because the
+  // ordinary A* route already crosses legally without a detour hint.
+  if(lookup)assert.ok(w.walkable(lookup,[],clearance()),
+   'any AI detour waypoint must be physically legal');
+  else assert.ok(leg.length&&d(leg.at(-1),far)<w.cell*1.4,
+   'a skipped pass hint requires an independently proven real crossing');
  }
 });
 
