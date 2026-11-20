@@ -445,7 +445,9 @@ async function rasterizeBuildingIcon(kind,renderer){
    });
    const authoredHQ=kind==='headquarters'&&hasAuthoredHeadquartersPBR(model);
    const authoredBarracks=kind==='barracks'&&hasFinalBarracksPBR(model);
-   const authoredFactory=kind==='factory'&&Boolean(model.getObjectByName('SF_Factory_PBR_roof')&&model.getObjectByName('FactoryRollupDoor'));
+   const authoredFactory=kind==='factory'&&Boolean(model.getObjectByName('SF_Factory_PBR_roof')&&
+    (model.getObjectByName('SF_Factory_PBR_OpenBay')||model.getObjectByName('FactoryRollupDoor')));
+   const referenceFactory=kind==='factory'&&Boolean(model.getObjectByName('SF_Factory_PBR_ReferenceHangar_v3'));
    const authoredAirfield=kind==='airfield'&&Boolean(model.getObjectByName('SF_Airfield_PBR_Root')&&model.getObjectByName('HangarDoorLeft_0')&&model.getObjectByName('HangarDoorRight_0'));
    const authoredGenerator=kind==='generator'&&Boolean(model.getObjectByName('SF_EnergyCore_PBR_Housing'));
    if(authoredHQ){
@@ -466,7 +468,8 @@ async function rasterizeBuildingIcon(kind,renderer){
    }else if(authoredFactory||authoredAirfield||authoredGenerator){
     // Keep HUD and gameplay in sync: only the external factory/hangar wall
     // gets the barracks palette, with the original roof and gate preserved.
-    if(authoredFactory||authoredAirfield)finishDesertBuildingMaterials(model,kind);
+    if((authoredFactory&&!referenceFactory)||authoredAirfield)
+     finishDesertBuildingMaterials(model,kind);
    }else{
     if(kind==='barracks')finishBarracksSides(model);
     tintFactionMaterials(model,0,kind,'building');
