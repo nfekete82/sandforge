@@ -1,4 +1,4 @@
-import {MESHY_STRUCTURE_ASSETS} from '/webgl-meshy-asset-flags.js';
+import {MESHY_STRUCTURE_ASSETS} from './webgl-meshy-asset-flags.js';
 
 export const MESHY_STRUCTURE_REVISION='sandforge-meshy-pbr-structures-20261121';
 export function meshyStructurePath(kind){
