@@ -156,3 +156,16 @@ export function ai42HqLookout(x:{
   return p;
  }
 }
+
+/** The normal two-leg bomber flank overshoots the actual target's 95-unit
+ * bomb release circle on a tight HQ canyon. A target already confirmed by
+ * current Red vision and all anti-AA/paid-force gates may be flown at
+ * directly instead. The simulation still turns physically, checks sight,
+ * cooldown and real 95-unit release proximity on every combat tick. */
+export function ai42DirectVisibleStrike(x:{
+ airBreakoutAllowed:boolean; bomberDistance:number;
+ existingSameTarget:boolean;retreating:boolean;
+}):boolean{
+ return x.airBreakoutAllowed&&!x.retreating&&
+  x.bomberDistance<=1900&&!x.existingSameTarget;
+}
