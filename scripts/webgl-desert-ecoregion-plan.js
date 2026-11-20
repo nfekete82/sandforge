@@ -28,9 +28,21 @@ export function planDesertEcoregion({
  for(const kind of ['sandstone','saguaro','joshua']){
   const target=lowQuality?Math.ceil(counts[kind]*.48):counts[kind];
   let count=0;
+  // Reuse the SAME sculpted PBR GLBs and instance budget. Small natural
+  // stands of stone/cacti/trees replace an evenly sprinkled point field.
+  // New anchors are accepted real placements, so their patches inherit
+  // existing build-pad, road, slope and black-border exclusion rules.
+  const patchAnchors=[];
   for(let attempt=0;attempt<target*120&&count<target;attempt++){
-   const x=margin+random()*(size-margin*2);
-   const y=margin+random()*(size-margin*2);
+   const cluster=patchAnchors.length&&random()<.68
+    ?patchAnchors[Math.floor(random()*patchAnchors.length)]:null;
+   const direction=random()*Math.PI*2;
+   const radius=kind==='sandstone'?190+random()*250:145+random()*200;
+   const x=cluster?cluster.x+Math.cos(direction)*radius:
+    margin+random()*(size-margin*2);
+   const y=cluster?cluster.y+Math.sin(direction)*radius:
+    margin+random()*(size-margin*2);
+   if(x<=margin||y<=margin||x>=size-margin||y>=size-margin)continue;
    const p={x,y};
    if(avoid.some(site=>distance(site,p)<site.r))continue;
    // Plants and rocks cannot sit on an obvious visual vehicle route or
@@ -51,6 +63,9 @@ export function planDesertEcoregion({
     kind,x,y,angle:random()*Math.PI*2,
     scale,lean:(random()-.5)*.045,mapId
    }));
+   // One independently located anchor per small group (~6 instances).
+   // This avoids huge artificial rows while preserving sparse open areas.
+   if(count%6===0)patchAnchors.push(p);
    count++;
   }
  }
