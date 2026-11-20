@@ -38,7 +38,7 @@ test('Bunker catalog and WebGL PBR model are integrated without missing GLB asse
  const model=readFileSync('scripts/webgl-strategic-buildings.js','utf8');
  const renderer=readFileSync('scripts/webgl-battlefield.js','utf8');
  assert.match(model,/createDefensiveBunker/);
- assert.match(model,/Bunker_Embrasure_/);
+ assert.match(readFileSync('scripts/webgl-fortified-bunker.js','utf8'),/Bunker_Embrasure_/);
  assert.match(renderer,/data-bunker-passenger-id/);
  assert.match(renderer,/data-action="bunker-unload"/);
  assert.match(renderer,/boardBunker\(bunker.id,ids\)/);
