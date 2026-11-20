@@ -18,7 +18,7 @@ const geometryHash=world=>createHash('sha256')
  .update(world.blocked)
  .digest('hex');
 
-test('exactly four named original v4 desert maps, with C&C-inspired doctrines',()=>{
+test('exactly four named classic desert maps, with empirically selected road grading',()=>{
  assert.equal(catalog.maps.length,4);
  assert.deepEqual(catalog.maps.map(x=>x.id),[
   'desert-strike','broken-empire','burning-horizon','last-stronghold']);
@@ -30,7 +30,7 @@ test('exactly four named original v4 desert maps, with C&C-inspired doctrines',(
   'open-basin','broken-escarpment','diagonal-ridge','serpentine-canyon']);
  assert.equal(new Set(catalog.maps.map(x=>x.seed)).size,4);
  for(const map of catalog.maps){
-  assert.equal(map.generatorVersion,5,'fixed desert maps must have driveable v5 pass grading');
+  assert.equal(map.generatorVersion,map.id==='burning-horizon'?4:5,'retain v4 on the measured Burning Horizon regression');
   assert.equal(map.biome,'desert','only original desert graphics');
   assert.ok(Object.isFrozen(map),'locked battlefields are immutable');
   assert.ok(catalog.matches(map,{...map,terrain:map.terrain,kind:map.kind}));
@@ -43,7 +43,7 @@ test('exactly four named original v4 desert maps, with C&C-inspired doctrines',(
 for(const map of catalog.maps)test(map.name+': playable fair deterministic original map and save/load',()=>{
  const game=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion);
  const world=game.world;
- assert.equal(world.generatorVersion,5);
+ assert.equal(world.generatorVersion,map.generatorVersion);
  assert.equal(world.generated.landscapeKind,map.kind);
  assert.equal(world.generated.battlefield.profile,map.terrain);
  assert.equal(world.validation?.valid,true,JSON.stringify(world.validation));
@@ -55,12 +55,12 @@ for(const map of catalog.maps)test(map.name+': playable fair deterministic origi
  assert.equal(geometryHash(world),geometryHash(next),
   'same map seed should reproduce the same scenery and routes');
  const loaded=Simulation.load(game.save());
- assert.equal(loaded.world.generatorVersion,5);
+ assert.equal(loaded.world.generatorVersion,map.generatorVersion);
  assert.equal(geometryHash(loaded.world),geometryHash(world),
   'existing savegame geometry must be byte-for-byte unchanged');
 });
 
-for(const map of catalog.maps.filter(p=>p.kind!=='open-basin'))test(
+for(const map of catalog.maps.filter(p=>p.generatorVersion===5&&p.kind!=='open-basin'))test(
  map.name+': all real mountain passes are physically driveable by paid ground vehicles',()=>{
  const game=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion);
  const world=game.world,ridge=world.generated.ridges[0];
@@ -110,8 +110,12 @@ test('four map-specific AI doctrines are calibrated from paid A/B results',()=>{
   assert.equal(restored.tactical.ai37Mode,expected[i],
    'saving cannot change the same battlefield AI doctrine');
   assert.equal(selectDesertAIDoctrine({...p,seed:p.seed+1,profile:p.terrain}),null);
-  assert.equal(selectDesertAIDoctrine({...p,profile:p.terrain,generatorVersion:4}),null,
-   'old v4 AI and historical battle balance must remain unchanged');
+  if(p.generatorVersion===5)assert.equal(
+   selectDesertAIDoctrine({...p,profile:p.terrain,generatorVersion:4}),null,
+   'historical v4 AI must be unchanged for maps now pinned to v5');
+  else assert.equal(
+   selectDesertAIDoctrine({...p,profile:p.terrain,generatorVersion:4})?.mode,
+   'coordinated','Burning Horizon retains original v4 and default coordinated AI');
  }
 });
 
