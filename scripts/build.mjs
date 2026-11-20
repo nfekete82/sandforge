@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 mkdirSync('dist', { recursive: true });
