@@ -125,6 +125,75 @@ function riverGeometry(r,heightAt,size,lowQuality=false){
  }
  return {positions,uv,indices};
 }
+/** Wet banks reveal the depth gradient without changing the physical sand.
+ * Transparent vertex colors fade back to the original dry PBR ground.
+ * Shore meshes are merged PER body (one additional draw call), render-only.
+ */
+function shorelineMaterial(){
+ return new THREE.MeshStandardMaterial({
+  color:'#dfcbb1',vertexColors:true,roughness:.94,metalness:0,
+  transparent:true,opacity:.68,depthWrite:false,
+  polygonOffset:true,polygonOffsetFactor:-1,side:THREE.DoubleSide
+ });
+}
+function shoreMesh(g,mat,name,root){
+ const geometry=new THREE.BufferGeometry();
+ geometry.setAttribute('position',new THREE.Float32BufferAttribute(g.positions,3));
+ geometry.setAttribute('color',new THREE.Float32BufferAttribute(g.colors,4));
+ geometry.setIndex(g.indices);geometry.computeVertexNormals();geometry.computeBoundingSphere();
+ const mesh=new THREE.Mesh(geometry,mat);
+ mesh.name=name;mesh.renderOrder=2;mesh.castShadow=false;
+ mesh.receiveShadow=true;mesh.raycast=()=>{};
+ mesh.userData={visualOnly:true,nonPlayable:true,nonBlocking:true,wetShore:true};
+ root.add(mesh);return mesh;
+}
+function lagoonShore(o,heightAt,size,lowQuality=false){
+ const positions=[],colors=[],indices=[],half=size*.5,segments=lowQuality?64:96;
+ const rings=[.84,.95,1.025,1.13,1.24],alpha=[.62,.63,.49,.18,0];
+ const co=Math.cos(o.rotation),si=Math.sin(o.rotation);
+ for(let k=0;k<rings.length;k++){
+  for(let i=0;i<=segments;i++){
+   const a=i/segments*Math.PI*2;
+   const shape=1+.095*Math.sin(a*3+o.phase)+.058*Math.sin(a*7-o.phase*1.5)+.026*Math.sin(a*13+o.phase*.9);
+   const dx=Math.cos(a)*o.radius*rings[k]*shape,dz=Math.sin(a)*o.radius*o.aspect*rings[k]*shape;
+   const x=o.x+dx*co-dz*si,z=o.y+dx*si+dz*co;
+   positions.push(x-half,heightAt(x,z)+.26,z-half);
+   const t=k/4;
+   colors.push(.30+.38*t,.29+.32*t,.225+.23*t,alpha[k]);
+   if(k&&i<segments){
+    const a0=(k-1)*(segments+1)+i,b0=k*(segments+1)+i;
+    indices.push(a0,b0,a0+1,a0+1,b0,b0+1);
+   }
+  }
+ }
+ return {positions,colors,indices};
+}
+function riverShore(r,heightAt,size){
+ const positions=[],colors=[],indices=[],points=r.points,half=size*.5;
+ const spans=[.85,1,1.22,1.48],alpha=[.54,.51,.24,0];
+ for(const side of [-1,1]){
+  const first=positions.length/3;
+  for(let i=0;i<points.length;i++){
+   const p=points[i],a=points[Math.max(i-1,0)],b=points[Math.min(points.length-1,i+1)],
+     dx=b.x-a.x,dz=b.y-a.y,len=Math.hypot(dx,dz)||1,nx=-dz/len,nz=dx/len,
+     taper=clamp(i/3,0,1)*clamp((points.length-1-i)/3,0,1),
+     width=r.width*(.77+.23*Math.sin(i*.43+r.phase))*(.60+.40*taper);
+   for(let j=0;j<spans.length;j++){
+    const w=width*spans[j]*side*(1+.055*Math.sin(i*1.36+r.phase+j*.5));
+    const x=p.x+nx*w,z=p.y+nz*w;
+    positions.push(x-half,heightAt(x,z)+.27,z-half);
+    const t=j/(spans.length-1);
+    colors.push(.30+.38*t,.28+.34*t,.225+.23*t,alpha[j]);
+    if(i&&j<spans.length-1){
+     const q=first+(i-1)*spans.length+j,n=first+i*spans.length+j;
+     indices.push(q,n,q+1,q+1,n,n+1);
+    }
+   }
+  }
+ }
+ return {positions,colors,indices};
+}
+
 /** Pure visual layer; deterministic based on the existing fixed map seed. */
 export function createCinematicDesertWaterways({
  scene,world,terrain=world?.generated,heightAt,mapId,
@@ -133,29 +202,34 @@ export function createCinematicDesertWaterways({
  const layout=planDesertWaterways({mapId,world,terrain,seed,oases,lowQuality});
  const root=new THREE.Group();root.name='visual-cinematic-desert-waterways';
  root.userData={visualOnly:true,nonPlayable:true,shallowPassable:true};
- const meshes=[],materials=[];
+ const meshes=[],materials=[],shores=[];
  if(layout.lakes.length||layout.rivers.length){
   const lakeMaterial=cinematicWaterMaterial(false),riverMaterial=cinematicWaterMaterial(true);
   materials.push(lakeMaterial,riverMaterial);
+  const bankMat=shorelineMaterial();materials.push(bankMat);
   for(const o of layout.lakes){
    const g=lagoonGeometry(o,heightAt,world.size,lowQuality);
    const mesh=meshFrom(g.positions,g.uv,g.indices,lakeMaterial,'desert-lagoon-'+o.id,root);
    mesh.userData.lakeId=o.id;meshes.push(mesh);
+   shores.push(shoreMesh(lagoonShore(o,heightAt,world.size,lowQuality),bankMat,
+     'desert-lagoon-wet-bank-'+o.id,root));
   }
   for(const r of layout.rivers){
    const g=riverGeometry(r,heightAt,world.size,lowQuality);
    const mesh=meshFrom(g.positions,g.uv,g.indices,riverMaterial,'desert-river-'+r.id,root);
    mesh.userData.riverId=r.id;meshes.push(mesh);
+   shores.push(shoreMesh(riverShore(r,heightAt,world.size),bankMat,
+     'desert-river-wet-bank-'+r.id,root));
   }
  }
  scene.add(root);
  let disposed=false;
  return {
-  root,layout,meshes,materials,
-  drawCalls:meshes.length,
+  root,layout,meshes,shores,materials,
+  drawCalls:meshes.length+shores.length,
   update(time){if(disposed)return;for(const m of materials)m.userData.waterTime.value=time;},
   dispose(){if(disposed)return;disposed=true;root.removeFromParent();
-   for(const mesh of meshes)mesh.geometry.dispose();
+   for(const mesh of [...meshes,...shores])mesh.geometry.dispose();
    for(const mat of materials)mat.dispose();root.clear();
   }
  };
