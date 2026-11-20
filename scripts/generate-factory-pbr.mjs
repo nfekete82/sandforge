@@ -267,7 +267,7 @@ function exportTeam(owner){
   const pos=accessor(g.p,'VEC3',3,5126,true),norm=accessor(g.n,'VEC3',3,5126),
    uv=accessor(g.uv,'VEC2',2,5126),indices=accessor(g.i,'SCALAR',1,5125);
   const mesh=gltf.meshes.length;
-  const partName=g.name==='door'?'FactoryRollupDoor':'SF_Factory_PBR_'+g.name;
+  const partName='SF_Factory_PBR_'+g.name;
   gltf.meshes.push({name:partName,
    primitives:[{attributes:{POSITION:pos,NORMAL:norm,TEXCOORD_0:uv},indices,material:names.get(g.name)}]});
   const node=gltf.nodes.length;gltf.nodes.push({name:partName,mesh});
