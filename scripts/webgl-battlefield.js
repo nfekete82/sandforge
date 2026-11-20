@@ -62,6 +62,7 @@ import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {unifyModelFactionFlags} from '/webgl-faction-flags.js';
 import {paintMeshyFactoryTeam} from '/webgl-meshy-factory-team.js';
+import {meshyStructurePath,prepareMeshyStructure} from '/webgl-meshy-structure.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
 import {createReconDrone,animateReconDrone} from '/webgl-recon-drone.js';
@@ -288,7 +289,8 @@ export class SandforgeBattlefield {
  }
  asset(kind,owner,type){
   const prefix='/src/assets/reborn/';
-  if(type==='building')return prefix+'buildings-3d/'+kind+'-'+owner+'.glb';
+  if(type==='building')return (['barracks','headquarters','generator'].includes(kind)
+   ?meshyStructurePath(kind):null)??prefix+'buildings-3d/'+kind+'-'+owner+'.glb';
   // Rocket specialists share the fully animated Atlas infantry skeleton.
   // Keep the original prototype rig and clips, replace only its rifle mesh.
   if(type==='unit'&&kind==='rocket')return prefix+'prototype/infantry-'+owner+'.glb';
@@ -466,6 +468,8 @@ export class SandforgeBattlefield {
    this.getModel(task.url).then(data=>{
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
+    const hasMeshySkin=type==='building'&&task.url.includes('/meshy-structures/');
+    if(hasMeshySkin)prepareMeshyStructure(model,entry.kind,entry.owner);
     if(type==='building'&&((entry.kind==='headquarters'&&
       model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
       (entry.kind==='factory'&&model.getObjectByName('SF_Factory_Meshy_ProductionRig'))||
@@ -486,8 +490,8 @@ export class SandforgeBattlefield {
     }
     if(type==='building'&&entry.kind==='factory')
      paintMeshyFactoryTeam(model,entry.owner);
-    if(type==='building'&&entry.kind==='barracks')polishBarracksProps(model);
-    if(type==='building'&&['barracks','headquarters'].includes(entry.kind)){
+    if(type==='building'&&entry.kind==='barracks'&&!hasMeshySkin)polishBarracksProps(model);
+    if(type==='building'&&!hasMeshySkin&&['barracks','headquarters'].includes(entry.kind)){
      paintFactionRoofStripes(model,entry.kind,entry.owner);
      paintFactionEntranceBanners(model,entry.kind,entry.owner);
     }
@@ -872,6 +876,8 @@ export class SandforgeBattlefield {
   this.getModel(this.asset(kind,0,'building')).then(data=>{
    if(this.buildPreview!==group||this.buildKind!==kind)return;
    const model=cloneSkeleton(data.scene);
+   const hasMeshySkin=this.asset(kind,0,'building').includes('/meshy-structures/');
+   if(hasMeshySkin)prepareMeshyStructure(model,kind,0);
    if((kind==='headquarters'&&
      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
      (kind==='factory'&&model.getObjectByName('SF_Factory_Meshy_ProductionRig'))||
@@ -881,8 +887,8 @@ export class SandforgeBattlefield {
      (kind==='generator'&&model.getObjectByName('SF_EnergyCore_PBR_Housing')) )
     model.userData.sandforgeOriginalPBR=true;
    if(kind==='factory')paintMeshyFactoryTeam(model,0);
-   if(kind==='barracks')polishBarracksProps(model);
-   if(kind==='barracks'||kind==='headquarters'){
+   if(kind==='barracks'&&!hasMeshySkin)polishBarracksProps(model);
+   if(!hasMeshySkin&&(kind==='barracks'||kind==='headquarters')){
     paintFactionRoofStripes(model,kind,0);
     paintFactionEntranceBanners(model,kind,0);
    }
@@ -1438,18 +1444,21 @@ export class SandforgeBattlefield {
  async loadBastionModel(entry,owner){
   const version=(entry.version??0)+1;entry.version=version;
   try{
-   const modelPath='/src/assets/reborn/buildings-3d/bastion-'+owner+'.glb';
+   const modelPath=meshyStructurePath('bastion')??
+    '/src/assets/reborn/buildings-3d/bastion-'+owner+'.glb';
    const data=await this.getModel(modelPath);
    if(version!==entry.version||!entry.node.parent)return;
    // Trim the obsolete front shield once from the cached GLB template.
    // All Bastions of this faction share the cleaned geometry.
-   removeBastionFrontShield(data.scene);
+   if(!modelPath.includes('/meshy-structures/'))removeBastionFrontShield(data.scene);
    const detail=cloneSkeleton(data.scene);
+   const hasMeshySkin=modelPath.includes('/meshy-structures/');
+   if(hasMeshySkin)prepareMeshyStructure(detail,'bastion',owner);
    const box=new THREE.Box3().setFromObject(detail),size=box.getSize(new THREE.Vector3());
    const factor=116/Math.max(.0001,size.x,size.z),center=box.getCenter(new THREE.Vector3());
    detail.scale.multiplyScalar(factor);
    detail.position.set(-center.x*factor,-box.min.y*factor,-center.z*factor);
-   this.lightBuildingMeshes(detail);
+   if(!hasMeshySkin)this.lightBuildingMeshes(detail);
    unifyModelFactionFlags(detail,owner);
    limitModelShadowCasters(detail,18);
    // Release per-bastion materials, clips and fallback rotors after each
