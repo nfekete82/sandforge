@@ -102,30 +102,30 @@ export function sharedStoneMaps(lowQuality=false){
 export function applyRockMineralVeins(material,{strength=.55,frequency=1}={}){
  if(!material?.isMeshStandardMaterial)return material;
  const amount=clamp(strength,0,.75),freq=clamp(frequency,.25,3);
- const code=String.raw\`
-  vec3 sfRockP = vSfRockPosition * \${freq.toFixed(3)};
-  float sfWarp = 1.10*sin(sfRockP.x*.043+sfRockP.z*.037)
-               + .36*sin(sfRockP.z*.097-sfRockP.x*.084);
-  float sfBands = sfRockP.y*.185 + sfWarp
-                 + .28*sin(sfRockP.y*.049+sfRockP.z*.061);
-  float sfVein = abs(sin(sfBands));
-  // Irregular charcoal/brown mineral threads, not uniform black stripes.
-  float sfLine = 1.0-smoothstep(.044,.205,sfVein);
-  float sfStain = sin(sfRockP.x*.096-sfRockP.z*.059+sfRockP.y*.031);
-  float sfMottling = smoothstep(.62,.98,sfStain)*.16;
-  float sfPigment = clamp((sfLine*(.80+.2*sfStain)+sfMottling)
-                    * \${amount.toFixed(3)},0.0,.72);
-  diffuseColor.rgb *= (1.0-sfPigment);
- \`;
+ const code=[
+  'vec3 sfRockP = vSfRockPosition * '+freq.toFixed(3)+';',
+  'float sfWarp = 1.10*sin(sfRockP.x*.043+sfRockP.z*.037)',
+  '             + .36*sin(sfRockP.z*.097-sfRockP.x*.084);',
+  'float sfBands = sfRockP.y*.185 + sfWarp',
+  '               + .28*sin(sfRockP.y*.049+sfRockP.z*.061);',
+  'float sfVein = abs(sin(sfBands));',
+  'float sfLine = 1.0-smoothstep(.044,.205,sfVein);',
+  'float sfStain = sin(sfRockP.x*.096-sfRockP.z*.059+sfRockP.y*.031);',
+  'float sfMottling = smoothstep(.62,.98,sfStain)*.16;',
+  'float sfPigment = clamp((sfLine*(.80+.2*sfStain)+sfMottling)',
+  '                  * '+amount.toFixed(3)+',0.0,.72);',
+  'diffuseColor.rgb *= (1.0-sfPigment);'
+ ].join(String.fromCharCode(10));
  const previous=material.onBeforeCompile;
  material.onBeforeCompile=shader=>{
   previous?.(shader);
+  const nl=String.fromCharCode(10);
   shader.vertexShader=shader.vertexShader
-   .replace('#include <common>','#include <common>\\nvarying vec3 vSfRockPosition;')
-   .replace('#include <begin_vertex>','#include <begin_vertex>\\nvSfRockPosition = position;');
+   .replace('#include <common>','#include <common>'+nl+'varying vec3 vSfRockPosition;')
+   .replace('#include <begin_vertex>','#include <begin_vertex>'+nl+'vSfRockPosition = position;');
   shader.fragmentShader=shader.fragmentShader
-   .replace('#include <common>','#include <common>\\nvarying vec3 vSfRockPosition;')
-   .replace('#include <color_fragment>','#include <color_fragment>\\n'+code);
+   .replace('#include <common>','#include <common>'+nl+'varying vec3 vSfRockPosition;')
+   .replace('#include <color_fragment>','#include <color_fragment>'+nl+code);
  };
  const key=material.customProgramCacheKey.bind(material);
  material.customProgramCacheKey=()=>key()+'-sf-mineral-veins-v1-'+amount+'-'+freq;
