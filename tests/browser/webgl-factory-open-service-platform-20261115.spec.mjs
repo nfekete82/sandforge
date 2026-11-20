@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 
-test('authored factory main shutter plus OPEN drive-on service lift render without repair-garage roof/walls',async({page})=>{
+test('authored OPEN vehicle factory plus independent drive-on service lift render without repair-garage roof/walls',async({page})=>{
  test.setTimeout(95000);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const webglErrors=[];page.on('console',msg=>{
@@ -20,6 +20,7 @@ test('authored factory main shutter plus OPEN drive-on service lift render witho
   const data=await new GLTFLoader().loadAsync('/src/assets/reborn/buildings-3d/factory-0.glb');
   const factory=data.scene.clone(true);
   const originalGate=factory.getObjectByName('FactoryRollupDoor');
+  const openExit=factory.getObjectByName('SF_Factory_PBR_OpenBay');
   const bbox=new THREE.Box3().setFromObject(factory);
   const size=bbox.getSize(new THREE.Vector3());
   const center=bbox.getCenter(new THREE.Vector3());
@@ -45,7 +46,7 @@ test('authored factory main shutter plus OPEN drive-on service lift render witho
   renderer.render(scene,camera);
   const glError=renderer.getContext().getError();
   const output={
-   modelGate:!!originalGate,
+   modelGate:!!originalGate,openExit:!!openExit,
    openAir:yard.userData.openAirPlatform,
    hasDeck:!!deck,hasRamp:!!ramp,
    deckTop:deck.position.y+deck.geometry.parameters.height/2,
@@ -60,7 +61,8 @@ test('authored factory main shutter plus OPEN drive-on service lift render witho
   renderer.dispose();
   return output;
  });
- expect(result.modelGate).toBe(true);
+ expect(result.modelGate).toBe(false);
+ expect(result.openExit).toBe(true);
  expect(result.openAir).toBe(true);
  expect(result.hasDeck).toBe(true);
  expect(result.hasRamp).toBe(true);

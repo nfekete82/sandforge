@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {FACTION_PAINT} from './sandforge-faction-palette.js';
+import {factionFlagMaterial,FACTION_FLAG_REVISION} from './webgl-faction-flags.js';
 
 /** Fully original visual-only bunker revision:
  * - solid angular concrete with actual 5 slotted openings (not dark stickers)
@@ -12,7 +13,8 @@ import {FACTION_PAINT} from './sandforge-faction-palette.js';
  * Same footprint and 5 occupant rules. All permanent static architecture
  * is merged per MATERIAL to limit draw calls, not one mesh per rivet.
  */
-export const FORTIFIED_BUNKER_REVISION='sandforge-fortified-pbr-bunker-v2-20261120';
+export const FORTIFIED_BUNKER_REVISION='sandforge-compact-fortified-pbr-bunker-v3-20261120';
+export const BUNKER_VISUAL_SCALE=.72;
 export const BUNKER_VISUAL_PORT_COUNT=5;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const flagClock={value:0};
@@ -76,38 +78,10 @@ function bunkerPbrTextures(){
  });
  return bunkerTextureSet;
 }
-const flags=new Map();
-function flagTexture(owner){
- if(flags.has(owner))return flags.get(owner);
- const n=256,wide=256,high=128,pixels=new Uint8Array(wide*high*4);
- const paint=new THREE.Color(FACTION_PAINT[owner]??FACTION_PAINT[0]);
- const rgb=paint.getHex();
- const c=[(rgb>>>16)&255,(rgb>>>8)&255,rgb&255];
- for(let y=0;y<high;y++)for(let x=0;x<wide;x++){
-  const at=(y*wide+x)*4,u=x/(wide-1),v=y/(high-1),
-   thread=(noise(x,y,owner*19)-.5)*.12+
-    .025*Math.sin(u*110+v*17);
-  const emblem=Math.abs(u-.55)+Math.abs(v-.5)*1.30<.20;
-  const center=Math.abs(u-.55)+Math.abs(v-.5)*1.30<.10;
-  const rim=u<.023||u>.975||v<.025||v>.975;
-  for(let i=0;i<3;i++){
-   const pigment=emblem?(center?c[i]*.52:237+i*2):rim?c[i]*.77:c[i];
-   pixels[at+i]=Math.round(clamp(pigment*(1+thread),0,255));
-  }
-  pixels[at+3]=255;
- }
- const tex=new THREE.DataTexture(pixels,wide,high,THREE.RGBAFormat);
- tex.colorSpace=THREE.SRGBColorSpace;
- tex.magFilter=THREE.LinearFilter;tex.minFilter=THREE.LinearMipmapLinearFilter;
- tex.generateMipmaps=true;tex.anisotropy=8;tex.needsUpdate=true;
- flags.set(owner,tex);return tex;
-}
 function flagMaterial(owner){
- const material=new THREE.MeshStandardMaterial({
-  name:'Bunker faction cloth '+owner,
-  color:'#ffffff',map:flagTexture(owner),side:THREE.DoubleSide,
-  metalness:0,roughness:.97
- });
+ const material=factionFlagMaterial(owner);
+ material.name='Bunker faction cloth '+owner+' white star';
+ material.roughness=.97;
  const compile=material.onBeforeCompile;
  material.onBeforeCompile=function(shader,renderer){
   compile?.call(this,shader,renderer);
@@ -122,7 +96,8 @@ function flagMaterial(owner){
    ].join('\n'));
  };
  material.customProgramCacheKey=()=>FORTIFIED_BUNKER_REVISION+'-cloth-'+owner;
- material.userData={sandforgeBunkerFlag:true,sandforgeAuthoredBunker:true};
+ material.userData={...material.userData,sandforgeBunkerFlag:true,
+  sandforgeAuthoredBunker:true,sandforgeTeamFlagRevision:FACTION_FLAG_REVISION};
  return material;
 }
 export function createFortifiedBunker(owner=0){
@@ -312,5 +287,11 @@ export function createFortifiedBunker(owner=0){
  }
  root.userData.bunkerDrawCalls=root.children.filter(x=>x.isMesh).length;
  root.userData.bunkerPbrTextureResolution=512;
+ // Visual geometry matches the existing ~108-unit physical bunker radius:
+ // old art footprint ~145 units -> 104 units at 72%. No 155-unit bulky
+ // silhouette compared with a 43-unit soldier. Gameplay radius, HP,
+ // garrison, construction, pathfinding and save state remain unchanged.
+ root.scale.setScalar(BUNKER_VISUAL_SCALE);
+ root.userData.bunkerVisualScale=BUNKER_VISUAL_SCALE;
  return root;
 }

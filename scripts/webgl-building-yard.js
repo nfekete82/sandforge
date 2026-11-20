@@ -217,7 +217,10 @@ function perimeterBarracksWire(group,width,{factory=false,generator=false,resear
   research?Math.max(width*.56,cacheBounds?cacheBounds.max.z+18:width*.56):
   silo?Math.max(width*.52,cacheBounds?cacheBounds.max.z+20:width*.52):
   width*.28;
- const gateHalf=width*(generator?.30:research?.28:silo?.24:.23);
+ // The permanently open vehicle factory needs a genuinely broad front
+ // drive corridor. Thin scenery wire must not visually clip the hull of
+ // a 90-unit battle tank while leaving its open 3D production hall.
+ const gateHalf=width*(factory?.36:generator?.30:research?.28:silo?.24:.23);
  if(generator||research||silo)group.userData[
   generator?'generatorFenceBounds':research?'researchFenceBounds':'siloFenceBounds']={
   leftX,rightX,rear,front,gateHalf,

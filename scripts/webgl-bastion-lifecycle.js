@@ -23,6 +23,7 @@ export function releaseBastionRevision(entry){
   entry.detail.removeFromParent();
   materials+=disposeTaggedMaterials(entry.detail,'sandforgeBuildingFill');
   materials+=disposeTaggedMaterials(entry.detail,'sandforgeFactionTint');
+  materials+=disposeTaggedMaterials(entry.detail,'sandforgeOwnedFlagCloth');
   entry.detail=null;
  }
  entry.motion=null;

@@ -3,8 +3,8 @@ import {disposeOwnedMeshes} from './webgl-resource-lifecycle.js';
 import {servicePaint,disposeServicePaint} from './webgl-service-materials.js';
 
 // ONE open-air, drive-on service platform to the RIGHT of the authored
-// vehicle factory. The production exit stays on the GLB's original MAIN gate.
-// No side garage, enclosing walls, roof, shutters or hidden vehicle tunnels.
+// OPEN vehicle factory. Its separate production hall now has no gate or door.
+// No service-side garage, enclosing walls, roof, shutters or hidden tunnels.
 // Decorative visuals only: gameplay, service point (192,45), lift altitude
 // (9.5), collision and the paid repair system remain authoritative elsewhere.
 const mat=(color,metalness=.18,roughness=.81)=>
@@ -36,7 +36,7 @@ export function createFactoryServiceYard(){
  });
  const cx=192;
  // A compact apron (not a second garage or passage). The main-production
- // path remains on the existing factory GLB side of this separate slab.
+ // path remains on the existing open workshop GLB side of this separate slab.
  block(root,'FactoryVehicleRepairApron',[132,.8,184],[cx,.39,76],apron);
  block(root,'VehicleRepairBaySurface_0',[103,.24,116],[cx,1.02,57],sandConcrete);
  // Hydraulic service deck: top = 9.5, the EXACT value used by
