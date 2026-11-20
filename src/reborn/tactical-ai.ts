@@ -35,7 +35,7 @@ import {ai37GarrisonQuota,ai37BastionDefenseValue} from './ai37-fortification-do
 import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
-import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders} from './ai40-rally-recovery.js';
+import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
 export interface Loss extends Point {id:number;at:number;strength:number}
@@ -189,7 +189,7 @@ export class TacticalAI {
  rallyGateTrace:Array<{
   at:number;phase:TacticalPhase;phaseSeconds:number;missionSince:number;
   map:number;generator:number;blockedBy:string[];
-  pool:number;blockedOrders:number;requiredBlocked:number;
+  pool:number;blockedOrders:number;requiredBlocked:number;recoveryWaitRequired:number;
   alreadyAtRally:number;neededAtRally:number;
   cluster330:number;cluster720:number;legal330:number;legal720:number;
   nearestRally:number;remainingToRetry:number;recovered:boolean;
@@ -1594,6 +1594,7 @@ export class TacticalAI {
    const blockedOrders=s.rally?ai40CountBlockedRallyOrders(pool,s.rally):0;
    const requiredBlocked=Math.max(3,Math.ceil(pool.length*.35));
    const neededAtRally=Math.min(4,Math.max(3,Math.ceil(pool.length*.14)));
+   const recoveryWaitRequired=ai40RecoveryWaitThreshold(pool.length,blockedOrders);
    const alreadyAtRally=s.rally?pool.filter(u=>distance(u,s.rally!)<330).length:0;
    const safeBases=this.obstacles();
    const viable=(u:Unit)=>g.world.walkable(u,safeBases,12)&&
@@ -1613,7 +1614,7 @@ export class TacticalAI {
     ...(g.time<this.ai40RallyRetryAt?['retry-cooldown']:[]),
     ...(!s.rally?['no-rally']:[]),
     ...(this.ai40RecoveredMissionSince===mission.since?['mission-already-recovered']:[]),
-    ...(g.time-s.phaseAt<95?['gather-less-than-95s']:[]),
+    ...(g.time-s.phaseAt<recoveryWaitRequired?['gather-not-yet-'+recoveryWaitRequired+'s']:[]),
     ...(pool.length<8?['insufficient-fighters']:[]),
     ...(blockedOrders<requiredBlocked?['not-enough-unpathable-orders']:[]),
     ...(alreadyAtRally>=neededAtRally?['already-assembled']:[]),
@@ -1624,7 +1625,7 @@ export class TacticalAI {
     phaseSeconds:Math.round(g.time-s.phaseAt),
     missionSince:Math.round(mission.since),map:g.world.mapVersion,
     generator:g.world.generatorVersion,blockedBy:reasons,
-    pool:pool.length,blockedOrders,requiredBlocked,
+    pool:pool.length,blockedOrders,requiredBlocked,recoveryWaitRequired,
     alreadyAtRally,neededAtRally,
     cluster330:tight.count,cluster720:loose.count,
     legal330:tight.legal,legal720:loose.legal,
@@ -1644,7 +1645,9 @@ export class TacticalAI {
      this.ai37Mode==='coordinated'&&s.phase==='gather'&&
      g.time>=190&&g.time>=this.ai40RallyRetryAt&&s.rally&&
      this.ai40RecoveredMissionSince!==mission.since){
-    this.ai40RallyRetryAt=g.time+24;
+    // Shorter polling only while the objective really exists and the
+    // rally is blocked; selection itself still requires verified unit paths.
+    this.ai40RallyRetryAt=g.time+9;
     const pool=mainFighters.filter(u=>!guards.has(u.id));
     const safeBases=this.obstacles();
     // A slow but progressing assault must NEVER be redirected. Require
@@ -1669,6 +1672,7 @@ export class TacticalAI {
         generator:g.world.generatorVersion,blockedBy:['RECOVERED'],
         pool:pool.length,blockedOrders:trappedMoveOrders,
         requiredBlocked:Math.max(3,Math.ceil(pool.length*.35)),
+        recoveryWaitRequired:ai40RecoveryWaitThreshold(pool.length,trappedMoveOrders),
         alreadyAtRally:pool.filter(u=>distance(u,replacement)<330).length,
         neededAtRally:Math.min(4,Math.max(3,Math.ceil(pool.length*.14))),
         cluster330:-1,cluster720:-1,legal330:-1,legal720:-1,
