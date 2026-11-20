@@ -1,0 +1,29 @@
+name: Sandforge AI 4.4 canyon pass physical preflight
+on:
+  push:
+    branches:
+      - diag/sandforge-ai44-canyon-terrain-preflight-20261120
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pass-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile navigation and run read-only physical pass audit
+        run: |
+          npx tsc -p tsconfig.json
+          node scripts/diagnose-ai44-canyon-terrain.mjs | tee ai44-canyon-route-census.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sandforge-ai44-canyon-terrain-preflight
+          path: ai44-canyon-route-census.log
+          retention-days: 30
