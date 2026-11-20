@@ -1,0 +1,31 @@
+name: Sandforge four original desert maps
+on:
+  push:
+    branches:
+      - feat/sandforge-four-classic-desert-maps-20261120
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  four-map-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck and syntax of original desert renderer
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-title-menu.js
+          node --check scripts/webgl-preview.js
+          node --check scripts/webgl-desert-maps.js
+      - name: Four original map terrain, balance, save/load and UI regression
+        run: |
+          node --test tests/sandforge-four-desert-maps-20261120.test.mjs
+          node --test tests/sandforge-diverse-landscapes-v4-20261119.test.mjs
+      - name: Verify actual shipping WebGL module graph without local-only PBR assets
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
