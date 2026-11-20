@@ -158,6 +158,8 @@ test('factory reuses thin HQ/barracks wire, opens right side for repairs',()=>{
  const yard=readFileSync('scripts/webgl-building-yard.js','utf8');
  assert.match(yard,/perimeterBarracksWire\(g,width,\{factory:kind==='factory',generator:kind==='generator',research:kind==='research',silo:kind==='silo'\}\)/);
  assert.match(yard,/segment\(rightX,rear,rightX,factory\?-width\*\.13:front\)/);
+ assert.match(yard,/const gateHalf=width\*\(factory\?\.36:/,
+  'open vehicle factory needs room for tanks to leave without wire clipping');
  assert.match(yard,/if\(!factory\)segment\(gateHalf,front,rightX,front\)/);
  assert.match(yard,/BarracksWireFenceStrands/);
  assert.match(yard,/BarracksWireFenceBarbs/);
