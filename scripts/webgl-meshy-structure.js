@@ -34,7 +34,8 @@ export function prepareMeshyStructure(model,kind,owner=0){
      const glow='#include <emissivemap_fragment>';
      shader.fragmentShader=shader.fragmentShader.replace(glow,glow+'\n'+[
       '// Emission only where original Meshy source has vivid cool reactor color.',
-      'float sfCoreGlow=clamp((diffuseColor.b-max(diffuseColor.r,diffuseColor.g)) * 4.8,0.0,1.0);',
+      (owner===1?'float sfCoreGlow=clamp((diffuseColor.r-max(diffuseColor.b,diffuseColor.g)) * 4.8,0.0,1.0);':
+       'float sfCoreGlow=clamp((diffuseColor.b-max(diffuseColor.r,diffuseColor.g)) * 4.8,0.0,1.0);'),
       'totalEmissiveRadiance += diffuseColor.rgb * sfCoreGlow * 0.58;'
      ].join('\n'));
     }
