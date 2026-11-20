@@ -269,7 +269,7 @@ export function createFortifiedBunker(owner=0){
  rivet.dispose();
  // Two shallow steps outside the rear door, no walkway or new collision.
  box('Bunker_DoorExternalThreshold',31,3,15,steel,0,7,-65);
- box('Bunker_DoorStep',36,2.5,18,plaster,0,3.8,-73);
+ box('Bunker_DoorStep',36,2.5,14,plaster,0,3.8,-69);
  box('Bunker_FactionCoatOfArms',29,3,8,faction,0,60,46);
  // Flagpole is behind the parapet, inside the actual physical footprint.
  add('Bunker_FlagMast',new THREE.CylinderGeometry(.85,1.45,34,8),
