@@ -1,0 +1,72 @@
+name: Sandforge real Meshy factory WebGL and original-open-bay comparison
+on:
+  push:
+    branches: [feat/sandforge-meshy-factory-real-glb-20261120]
+  workflow_dispatch:
+concurrency:
+  group: sandforge-meshy-3d-render-candidate-20261120
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  optimized-model-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Validate real PBR geometry and measured optimized triangle count
+        run: |
+          npx tsc -p tsconfig.json
+          node --test tests/sandforge-meshy-reference-optimized-20261120.test.mjs
+      - name: Check WebGL ESM module graph
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+  real-3d-meshy-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install Chromium GPU software rasterizer
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tests/browser --no-audit --no-fund
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Package optimized GLB, current open factory and 3D comparison viewer
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          mkdir -p dist/src
+          cp -a src/assets dist/src/assets
+          rm -f dist/src/assets/reborn/buildings-3d/factory-meshy-source.glb
+          node scripts/prepare-meshy-factory.mjs \
+            src/assets/reborn/buildings-3d/factory-meshy-optimized.glb \
+            dist/src/assets/reborn/buildings-3d
+          node scripts/generate-factory-pbr.mjs dist/src/assets/reborn/buildings-3d
+      - name: Render authentic optimized Meshy 3D from front and rear
+        env:
+          SANDFORGE_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-meshy-factory-real-20261120.spec.mjs --config=playwright.config.mjs
+      - name: Save visual comparison, diagnostics and model screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-meshy71-real-factory-versus-open-game-factory
+          path: |
+            tests/browser/artifacts/screenshots/
+            tests/browser/artifacts/results.json
+            tests/browser/artifacts/report/
+            tests/browser/artifacts/runs/
+          if-no-files-found: warn
+          retention-days: 30
