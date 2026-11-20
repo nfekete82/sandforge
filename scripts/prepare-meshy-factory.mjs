@@ -12,7 +12,10 @@
 import {existsSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import {pathToFileURL} from 'node:url';
-const SOURCE=process.argv[2]??'src/assets/reborn/buildings-3d/factory-meshy-source.glb';
+const SOURCE=process.argv[2]??(
+ existsSync('src/assets/reborn/buildings-3d/factory-meshy-optimized.glb')?
+ 'src/assets/reborn/buildings-3d/factory-meshy-optimized.glb':
+ 'src/assets/reborn/buildings-3d/factory-meshy-source.glb');
 const OUT=process.argv[3]??dirname(SOURCE);
 function parseGLB(buffer){
  if(buffer.length<24||buffer.toString('ascii',0,4)!=='glTF'||
