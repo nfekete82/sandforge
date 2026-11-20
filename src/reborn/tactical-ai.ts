@@ -191,7 +191,11 @@ export class TacticalAI {
  hqPassProbes:Array<{at:number;mission:number;original:{x:number;y:number};
   chosen:{x:number;y:number};candidate:{x:number;y:number}|null;
   distance:number;oldPathCount:number|null;outcome:string;
-  army:number}>=[];
+  army:number;origin:{x:number;y:number};
+  sampledRallies:Array<{id:number;kind:string;x:number;y:number;
+    distance:number;pathCount:number;endDistance:number}>;
+  publicPasses:Array<{x:number;y:number;routeCount:number;kind:string}>;
+ }>=[];
  rallyGateTrace:Array<{
   at:number;phase:TacticalPhase;phaseSeconds:number;missionSince:number;
   map:number;generator:number;blockedBy:string[];
@@ -1596,11 +1600,34 @@ export class TacticalAI {
        outcome=verdict;
      }
      if(this.hqPassTraceEnabled){
+       const samples=fighters.filter(u=>!unitSpec(u).flying)
+        .sort((a,b)=>distance(b,original)-distance(a,original)||a.id-b.id)
+        .slice(0,8);
+       const sampledRallies=samples.map(u=>{
+        const path=this.route(u,original);
+        const end=path.at(-1)??u;
+        return {id:u.id,kind:u.kind,
+         x:Math.round(u.x),y:Math.round(u.y),
+         distance:Math.round(distance(u,original)),pathCount:path.length,
+         endDistance:Math.round(distance(end,original))};
+       });
+       const publicPasses=samples.slice(0,4).flatMap(u=>{
+        const targets=[mission,original];
+        return targets.flatMap((target,i)=>{
+         const p=canyonPassWaypoint(u,target,g.world.generated!.ridges,12);
+         if(!p)return [];
+         const route=this.route(u,p);
+         return [{x:Math.round(p.x),y:Math.round(p.y),
+          routeCount:route.length,kind:i?'old-rally':'known-HQ'}];
+        });
+       });
        this.hqPassProbes.push({at:Math.round(g.time),mission:mission.sector,
          original,chosen:{x:s.rally.x,y:s.rally.y},
          candidate:candidate?{x:candidate.x,y:candidate.y}:null,
          distance:Math.round(distance(origin,original)),
          oldPathCount:far?oldPath.length:null,
+         origin:{x:Math.round(origin.x),y:Math.round(origin.y)},
+         sampledRallies,publicPasses,
          outcome,army:fighters.length});
        if(this.hqPassProbes.length>60)this.hqPassProbes.shift();
      }
