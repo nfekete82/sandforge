@@ -32,6 +32,14 @@ export class SandforgeProductionGates {
  }
  prepare(entry){
   if(entry.gate||!entry.detail)return entry.gate;
+  // A Meshy visual shell does not yet carry authored hinge nodes. Treat its
+  // main frontage as an open infantry exit rather than waiting on a missing rig.
+  if(entry.detail.userData.sandforgeMeshyStructure&&
+     ['barracks','headquarters'].includes(entry.kind)){
+   entry.gate={kind:entry.kind,root:entry.detail,openBay:true,meshyInfantry:true,
+    portal:null,door:null,hall:null,lamp:null,dust:null,ramp:null};
+   return entry.gate;
+  }
   if(entry.kind==='barracks'){
    const portal=prepareBarracksPortal(entry,this.battlefield.renderer);
    if(!portal)return null;
@@ -188,13 +196,15 @@ export class SandforgeProductionGates {
    // New PBR gate sits at z≈4.0; Atlas legacy gate sat at z≈1.5.
    const exit=entry.gate.meshyShutter?
     entry.gate.rolloutExit.getWorldPosition(new THREE.Vector3()):
-    root.localToWorld(entry.gate.openBay?new THREE.Vector3(.18,.16,3.45):
+    root.localToWorld(entry.gate.meshyInfantry?new THREE.Vector3(0,.28,2.0):
+    entry.gate.openBay?new THREE.Vector3(.18,.16,3.45):
     headquarters?new THREE.Vector3(0,.14,6.35):barracks?
     (pbrBarracks?new THREE.Vector3(0,.55,5.20):new THREE.Vector3(-.18,0,2.10)):
     new THREE.Vector3(.18,0,2.9));
    const start=entry.gate.meshyShutter?
     entry.gate.rolloutStart.getWorldPosition(new THREE.Vector3()):
-    root.localToWorld(entry.gate.openBay?new THREE.Vector3(.18,.26,-.24):
+    root.localToWorld(entry.gate.meshyInfantry?new THREE.Vector3(0,.32,.7):
+    entry.gate.openBay?new THREE.Vector3(.18,.26,-.24):
     headquarters?new THREE.Vector3(0,.61,4.12):barracks?
     (pbrBarracks?new THREE.Vector3(0,.58,3.23):new THREE.Vector3(-.18,.275,.9)):
     new THREE.Vector3(.18,.265,-.03));
@@ -250,10 +260,10 @@ export class SandforgeProductionGates {
     this.active.delete(id);continue;
    }
    const gate=entry.gate;
-   if(gate.kind==='barracks'){
+   if(gate.kind==='barracks'&&!gate.openBay){
     updateBarracksPortalPlanes(gate.portal);
     setBarracksDoorOpen(gate.portal,pose.open);
-   }else if(gate.kind==='headquarters')setHeadquartersDoorOpen(gate.portal,pose.open);
+   }else if(gate.kind==='headquarters'&&!gate.openBay)setHeadquartersDoorOpen(gate.portal,pose.open);
    else if(gate.meshyShutter){
     // Collapse the real shutter into a narrow stripe under its lintel;
     // do not float a solid slab through the roof or discard PBR maps.
