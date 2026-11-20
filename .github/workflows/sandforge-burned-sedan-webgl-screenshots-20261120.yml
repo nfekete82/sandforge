@@ -1,0 +1,60 @@
+name: Sandforge burned Sedan actual Chromium WebGL screenshot proof
+on:
+  push:
+    branches:
+      - feat/sandforge-burned-sedan-3d-props-20261120
+    paths:
+      - .github/workflows/sandforge-burned-sedan-webgl-screenshots-20261120.yml
+      - tests/browser/webgl-burned-sedan-3d.spec.mjs
+      - scripts/webgl-burned-sedan-plan.js
+      - scripts/webgl-burned-sedan-3d.js
+      - scripts/webgl-preview.js
+      - scripts/build.mjs
+  workflow_dispatch:
+concurrency:
+  group: sandforge-burnt-sedan-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  screenshot-actual-threejs-mesh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install game and real Chromium screenshot dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tests/browser --no-audit --no-fund
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Compile real game, verify WebGL modules and provision checked-in visual assets
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          mkdir -p dist/src
+          cp -a src/assets dist/src/assets
+          node scripts/generate-oasis-adobe-glbs.mjs dist/src/assets/reborn/oasis-village
+      - name: Real Chromium software-WebGL2 photos and 3D car meshes on four maps
+        env:
+          SANDFORGE_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-burned-sedan-3d.spec.mjs --config=playwright.config.mjs
+      - name: Save exact gameplay and close-up screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-burned-sedan-webgl-four-deserts
+          path: |
+            tests/browser/artifacts/screenshots/
+            tests/browser/artifacts/results.json
+            tests/browser/artifacts/report/
+            tests/browser/artifacts/runs/
+          if-no-files-found: warn
+          retention-days: 30
