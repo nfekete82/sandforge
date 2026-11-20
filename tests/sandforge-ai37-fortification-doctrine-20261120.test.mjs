@@ -119,3 +119,29 @@ test('HUD visibly explains why the base Bastion cannot be upgraded',()=>{
  assert.ok(js.includes("upgrade.hidden=t.owner!==0"));
  assert.ok(js.includes('data-upgrade-bastion'));
 });
+
+
+test('KI learns real bunker weapon range only after detecting an enemy bunker',()=>{
+ const g=new Simulation(824836862,24);
+ const home=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
+ assert.ok(home);
+ const hidden={...home,id:8890,owner:0,kind:'bunker',
+  x:g.world.size-home.x,y:g.world.size-home.y,
+  hp:BUILDINGS.bunker.hp,radius:BUILDINGS.bunker.radius,
+  buildRemaining:0,garrison:[]};
+ g.bases.push(hidden);
+ g.updateVision();g.tactical.observe();
+ assert.equal(g.tactical.state.knownTurrets.some(t=>t.id===hidden.id),false,
+  'no omniscient bunker detection behind fog');
+ const scout=g.spawn(1,{x:hidden.x+100,y:hidden.y+50},'infantry');
+ g.updateVision();
+ assert.equal(g.canSee(1,hidden),true,'scout genuinely discovers the bunker');
+ g.tactical.observe();
+ const intel=g.tactical.state.knownTurrets.find(t=>t.id===hidden.id);
+ assert.ok(intel,'observed bunker joins real fixed-defense intelligence');
+ assert.equal(intel.range,390,'Bunker gets its true 390-unit range, not turret range');
+ g.bases=g.bases.filter(b=>b.id!==hidden.id);
+ g.updateVision();g.tactical.observe();
+ assert.equal(g.tactical.state.knownTurrets.some(t=>t.id===hidden.id),false,
+  'destroyed bunker does not leave a permanent invisible danger zone');
+});
