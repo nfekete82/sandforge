@@ -1,11 +1,13 @@
 name: Sandforge four real textured desert landscapes - Chromium screenshots
 on:
   push:
-    branches: [feat/sandforge-four-authentic-desert-3d-environments-20261120]
+    branches: [feat/sandforge-four-authentic-desert-3d-environments-20261120, feat/sandforge-desert-route-ecology-polish-20261120]
     paths:
       - .github/workflows/sandforge-authentic-desert-webgl-screenshots.yml
       - tests/browser/webgl-authentic-desert-ecoregions.spec.mjs
       - scripts/webgl-desert-ecoregion-3d.js
+      - scripts/webgl-rock-materials.js
+      - tests/sandforge-rock-mineral-veins-20261120.test.mjs
       - scripts/webgl-desert-ground-pbr.js
       - scripts/webgl-preview.js
       - src/assets/reborn/desert-ecoregions/**
@@ -35,6 +37,7 @@ jobs:
       - name: Compile game and copy actual committed high-quality PBR assets
         run: |
           npx tsc -p tsconfig.json
+          node --test tests/sandforge-rock-mineral-veins-20261120.test.mjs
           SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
           mkdir -p dist/src
           cp -a src/assets dist/src/assets
