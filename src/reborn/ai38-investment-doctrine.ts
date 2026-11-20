@@ -9,6 +9,8 @@ export interface Ai38InvestmentInput {
   barracksReady:boolean;factoryReady:boolean;airfieldReady:boolean;headquartersReady:boolean;
   totalBastions:number;
   bunkerCount:number;
+  /** At least one real siege weapon is alive or already in a paid queue. */
+  artilleryReady:boolean;
   hasUpgradeTarget:boolean;
   homeThreat:boolean;
   finishing:boolean;
@@ -28,8 +30,12 @@ export function ai38InfrastructurePlan(x:Ai38InvestmentInput):Ai38Infrastructure
   if(x.homeThreat||x.finishing||!x.headquartersReady||
      !x.barracksReady||!x.factoryReady||x.ownedBastions<2||
      x.fieldFighters<8||x.income<50)return none;
-  if(x.bunkerCount===0&&x.availableInfantry>=3&&x.time>=125){
-    // 650-credit Bunker + 200 credits for the next paid defensive action.
+  // KI 3.9: early bunker saving stalled the offensive in paired battles.
+  // Preserve a genuinely paid siege group before buying permanent defenses.
+  if(x.bunkerCount===0&&x.availableInfantry>=6&&x.time>=310&&
+     x.artilleryReady&&x.fieldFighters>=18&&x.income>=75&&
+     x.ownedBastions>=Math.max(3,Math.ceil(x.totalBastions*.5))){
+    // Paid 650-credit Bunker + 200 operating credits; no free funds.
     return {goal:'bunker',reserve:850,minFreeAfterPurchase:200};
   }
   // Sector reinvestment is optional: unlike the first Bunker, it must NOT

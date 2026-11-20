@@ -51,7 +51,10 @@ export function ai37GarrisonQuota(x:GarrisonReadiness):number{
  const available=Math.min(x.activeInfantry,
   Math.max(0,x.fieldFighters-5),
   Math.max(0,Math.floor(x.fieldFighters/4)));
- const planned=x.homeThreat?Math.min(3,Math.max(2,Math.floor(x.fieldFighters/6))):2;
+ // Keep active assaults staffed: a new pillbox cannot steal two
+ // expensive infantry from the only forward group.
+ const planned=x.homeThreat?Math.min(3,Math.max(2,Math.floor(x.fieldFighters/6))):
+  x.frontlineOrders>=5?1:x.fieldFighters>=18?2:1;
  return Math.max(0,Math.min(available,planned,x.bunkerCount*5));
 }
 

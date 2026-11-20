@@ -9,7 +9,7 @@ import {ai38VehicleRecoveryWaypoint,ai38CanRecoverVehicle}
 import {ai38CommittedProductionReserve} from '../dist/src/reborn/director-production.js';
 
 const macro={
- time:245,income:100,ownedBastions:5,fieldFighters:16,availableInfantry:7,
+ time:350,income:100,ownedBastions:5,fieldFighters:20,availableInfantry:9,artilleryReady:true,
  totalBastions:8,
  headquartersReady:true,barracksReady:true,factoryReady:true,airfieldReady:true,
  bunkerCount:0,hasUpgradeTarget:true,homeThreat:false,finishing:false
@@ -21,6 +21,8 @@ test('KI 3.8 reserves actual earned credits for ONE paid Bunker',()=>{
   {goal:'bastion-upgrade',reserve:0,minFreeAfterPurchase:450});
  for(const small of [
   {...macro,fieldFighters:4},{...macro,availableInfantry:1},
+  {...macro,fieldFighters:14},{...macro,artilleryReady:false},
+  {...macro,time:240},{...macro,income:65},
   {...macro,ownedBastions:1},{...macro,homeThreat:true},
   {...macro,finishing:true},{...macro,factoryReady:false},
   {...macro,income:39}

@@ -31,9 +31,11 @@ test('AI garrison cannot consume a small army; rockets and heavy guards remain p
  assert.equal(ai37GarrisonQuota({
   activeInfantry:9,fieldFighters:6,bunkerCount:1,homeThreat:false,frontlineOrders:3}),0);
  assert.equal(ai37GarrisonQuota({
-  activeInfantry:8,fieldFighters:11,bunkerCount:1,homeThreat:false,frontlineOrders:4}),2);
+  activeInfantry:8,fieldFighters:11,bunkerCount:1,homeThreat:false,frontlineOrders:4}),1);
  assert.equal(ai37GarrisonQuota({
-  activeInfantry:14,fieldFighters:18,bunkerCount:2,homeThreat:false,frontlineOrders:8}),2);
+  activeInfantry:14,fieldFighters:18,bunkerCount:2,homeThreat:false,frontlineOrders:8}),1);
+ assert.equal(ai37GarrisonQuota({
+  activeInfantry:14,fieldFighters:18,bunkerCount:2,homeThreat:false,frontlineOrders:0}),2);
  assert.equal(ai37GarrisonQuota({
   activeInfantry:2,fieldFighters:18,bunkerCount:1,homeThreat:true,frontlineOrders:0}),0);
  assert.equal(ai37GarrisonQuota({
@@ -59,7 +61,7 @@ test('KI 3.7 spends credits for a real build at an explored safe HQ',()=>{
  const g=new Simulation(20261120,24);
  const home=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
  assert.ok(home);
- g.time=160;g.credits[1]=5000;
+ g.time=335;g.credits[1]=5000;
  const barracks={...home,id:8882,kind:'barracks',
   x:home.x+420,y:home.y+320,
   hp:BUILDINGS.barracks.hp,radius:BUILDINGS.barracks.radius,
@@ -71,10 +73,12 @@ test('KI 3.7 spends credits for a real build at an explored safe HQ',()=>{
   hp:BUILDINGS.factory.hp,radius:BUILDINGS.factory.radius,
   queue:[],queueTypes:[],buildRemaining:0};
  g.bases.push(factory);
- const territory=g.territories.find(t=>t.owner===-1);
- assert.ok(territory);territory.owner=1;
- for(let i=0;i<9;i++)g.spawn(1,{x:home.x+(i%3)*30+155,
-  y:home.y+145+Math.floor(i/3)*30},i%3===0?'heavy':'infantry');
+ const territories=g.territories.filter(t=>t.owner===-1).slice(0,3);
+ assert.equal(territories.length,3);
+ for(const territory of territories)territory.owner=1;
+ for(let i=0;i<19;i++)g.spawn(1,{x:home.x+(i%5)*30+155,
+  y:home.y+145+Math.floor(i/5)*30},
+  i===18?'artillery':i%3===0?'heavy':'infantry');
  g.updateVision();
  const originalCredits=g.credits[1],originalUnits=g.units.length;
  g.planStrategicAi();
