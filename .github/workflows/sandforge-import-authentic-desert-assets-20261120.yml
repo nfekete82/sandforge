@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -70,5 +71,10 @@ jobs:
           git add src/assets/reborn/desert-ecoregions src/assets/reborn/terrain/desert-*.webp src/assets/reborn/terrain/desert-ecoregions-cc0-manifest.json
           if ! git diff --cached --quiet; then
             git commit -m "assets(desert): real PBR sculpted Saguaro, Joshua tree and sandstone plus 3 Poly Haven CC0 surfaces"
+            # During asset rendering the feature branch may have received
+            # additional JS commits. Rebase the independent new binary assets
+            # onto the CURRENT branch instead of rejecting a stale checkout.
+            git fetch origin feat/sandforge-four-authentic-desert-3d-environments-20261120
+            git rebase FETCH_HEAD
             git push origin HEAD:feat/sandforge-four-authentic-desert-3d-environments-20261120
           fi
