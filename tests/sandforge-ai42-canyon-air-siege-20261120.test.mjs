@@ -36,3 +36,15 @@ test('only an already authorized visible late-game HQ airstrike can skip the geo
   {existingSameTarget:true},{retreating:true}
  ])assert.equal(ai42DirectVisibleStrike({...allowed,...bad}),false,JSON.stringify(bad));
 });
+
+test('paid canyon air breakout may launch once both bombers exist at 330s',()=>{
+ const x={enabled:true,time:330,controlled:14,total:16,paidBombers:2,
+  missionKind:'structure',missionSector:0,knownHQSector:0,
+  targetKind:'turret',distanceFromHQ:390,targetVisible:true,
+  knownAirDefenses:1,observedAirDefenses:1};
+ assert.equal(ai42BreakoutAllowed(x),true);
+ assert.equal(ai42BreakoutAllowed({...x,time:329.9}),false);
+ assert.equal(ai42BreakoutAllowed({...x,paidBombers:1}),false);
+ assert.equal(ai42BreakoutAllowed({...x,controlled:13}),false);
+ assert.equal(ai42BreakoutAllowed({...x,targetVisible:false}),false);
+});
