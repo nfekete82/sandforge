@@ -50,9 +50,8 @@ export function ai37GarrisonQuota(x:GarrisonReadiness):number{
  if(!x.bunkerCount||x.activeInfantry<3||x.fieldFighters<7)return 0;
  const available=Math.min(x.activeInfantry,
   Math.max(0,x.fieldFighters-5),
-  Math.max(0,Math.floor(x.fieldFighters/3)));
- const planned=x.homeThreat?Math.max(2,Math.floor(x.fieldFighters/4)):
-  x.fieldFighters>=14?4:x.fieldFighters>=10?3:2;
+  Math.max(0,Math.floor(x.fieldFighters/4)));
+ const planned=x.homeThreat?Math.min(3,Math.max(2,Math.floor(x.fieldFighters/6))):2;
  return Math.max(0,Math.min(available,planned,x.bunkerCount*5));
 }
 
