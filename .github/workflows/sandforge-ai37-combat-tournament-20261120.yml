@@ -1,0 +1,56 @@
+name: Sandforge AI 3.7 real combat tournament
+on:
+  push:
+    branches:
+      - test/sandforge-ai37-combat-simulations-20261120
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  combat-simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: 24
+            label: 8-bastions
+          - version: 25
+            label: 12-bastions
+          - version: 26
+            label: 16-bastions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile game and verify combat benchmark module
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/benchmark-sandforge-ai37-combat.mjs
+      - name: Battle Director, AI and garrison deterministic regressions
+        run: |
+          node --test \
+            tests/sandforge-ai37-fortification-doctrine-20261120.test.mjs \
+            tests/sandforge-bunker-bastion-audio-20261119.test.mjs \
+            tests/sandforge-battle-director-mountain-20261119.test.mjs
+      - name: Simulate paired actual 480-second AI wars
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai37-combat.mjs \
+            --maps ${{ matrix.version }} \
+            --seeds 824836862,9999 \
+            --opponents guarded,contesting,bastion-rush \
+            --seconds 480 \
+            --output reports/ai37-combat-${{ matrix.label }}.json
+      - name: Upload JSON benchmark with partial results on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai37-combat-${{ matrix.label }}
+          path: reports/ai37-combat-${{ matrix.label }}.json
+          if-no-files-found: warn
+          retention-days: 30
