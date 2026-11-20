@@ -11,6 +11,19 @@ import {distance,type Point} from './config.js';
 export function ai40RecoveryWaitThreshold(total:number,blocked:number):number{
  return blocked>=Math.max(4,Math.ceil(total*.45))?60:95;
 }
+/** Cheap, exact preflight shared by the runtime and candidate scanner:
+ * only a real, unpathable, under-assembled paid army can start a rescue.
+ * The expensive walkability validation starts AFTER this check, never
+ * arming a retry timer merely because a macro planning pulse happened. */
+export function ai40ShouldAttemptRecovery(x:{
+  fighters:number;blockedOrders:number;elapsed:number;readyAtRally:number;
+}):boolean{
+ const minimum=Math.min(4,Math.max(3,Math.ceil(x.fighters*.14)));
+ return x.fighters>=8&&
+  x.elapsed>=ai40RecoveryWaitThreshold(x.fighters,x.blockedOrders)&&
+  x.blockedOrders>=Math.max(3,Math.ceil(x.fighters*.35))&&
+  x.readyAtRally<minimum;
+}
 export function ai40ClusterRallyRecovery<T extends Point&{
   id:number;hp:number;kind:string;
 }>(x:{
@@ -20,15 +33,14 @@ export function ai40ClusterRallyRecovery<T extends Point&{
 }):Point|undefined{
  // Long rally travel is normal, especially on 16-Bastion maps. A retry
  // requires actual missing paths in the CURRENT unit orders, not just time.
- if(x.units.length<8||x.stalledSeconds<
-    ai40RecoveryWaitThreshold(x.units.length,x.trappedMoveOrders))return undefined;
  const living=x.units.filter(u=>u.hp>0);
- const minimum=Math.min(4,Math.max(3,Math.ceil(living.length*.14)));
- if(living.length<minimum||
-    x.trappedMoveOrders<Math.max(3,Math.ceil(living.length*.35)))return undefined;
- // Do not shift an already assembled wave because of a harmless clock.
+ // Do not shift an already assembled wave, or an army with healthy paths.
  const ready=living.filter(u=>distance(u,x.oldRally)<330).length;
- if(ready>=minimum)return undefined;
+ const minimum=Math.min(4,Math.max(3,Math.ceil(living.length*.14)));
+ if(!ai40ShouldAttemptRecovery({
+  fighters:living.length,blockedOrders:x.trappedMoveOrders,
+  elapsed:x.stalledSeconds,readyAtRally:ready
+ }))return undefined;
  const candidates=living.filter(u=>x.viable(u)).map(u=>{
   const neighbors=living.filter(v=>distance(u,v)<330);
   const siege=neighbors.some(v=>v.kind==='artillery'&&v.hp>0);

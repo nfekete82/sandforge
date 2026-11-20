@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders} from '../dist/src/reborn/ai40-rally-recovery.js';
+import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40ShouldAttemptRecovery} from '../dist/src/reborn/ai40-rally-recovery.js';
 
 const pack=[
  {id:2,x:640,y:950,hp:100,kind:'infantry'},
@@ -92,4 +92,17 @@ test('stalled rally ignores unrelated orders, short distances and empty readines
    orders:[{kind:'move',x:7000,y:7100}]}
  ];
  assert.equal(ai40CountBlockedRallyOrders(list,rally),1);
+});
+
+test('no rally cooldown is armed for ordinary slow or insufficiently blocked marches',()=>{
+ const valid={fighters:22,blockedOrders:11,elapsed:92,readyAtRally:2};
+ assert.equal(ai40ShouldAttemptRecovery(valid),true);
+ assert.equal(ai40ShouldAttemptRecovery({...valid,elapsed:59}),false);
+ assert.equal(ai40ShouldAttemptRecovery({...valid,blockedOrders:4}),false);
+ assert.equal(ai40ShouldAttemptRecovery({...valid,readyAtRally:4}),false);
+ assert.equal(ai40ShouldAttemptRecovery({...valid,fighters:7}),false);
+ // The healthy-map victories retain long marches without any real blockage.
+ assert.equal(ai40ShouldAttemptRecovery({
+  fighters:18,blockedOrders:0,elapsed:210,readyAtRally:0
+ }),false);
 });

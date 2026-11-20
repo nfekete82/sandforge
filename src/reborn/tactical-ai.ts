@@ -35,7 +35,7 @@ import {ai37GarrisonQuota,ai37BastionDefenseValue} from './ai37-fortification-do
 import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
-import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold} from './ai40-rally-recovery.js';
+import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
 export interface Loss extends Point {id:number;at:number;strength:number}
@@ -1645,17 +1645,21 @@ export class TacticalAI {
      this.ai37Mode==='coordinated'&&s.phase==='gather'&&
      g.time>=190&&g.time>=this.ai40RallyRetryAt&&s.rally&&
      this.ai40RecoveredMissionSince!==mission.since){
-    // Shorter polling only while the objective really exists and the
-    // rally is blocked; selection itself still requires verified unit paths.
-    this.ai40RallyRetryAt=g.time+9;
     const pool=mainFighters.filter(u=>!guards.has(u.id));
-    const safeBases=this.obstacles();
-    // A slow but progressing assault must NEVER be redirected. Require
-    // several real paid troops with active orders TO this rally, yet no
-    // computed A* waypoint, physically far from it. The old 43-second
-    // timer alone diverted two otherwise victorious siege columns.
+    // A slow but progressing assault must NEVER be redirected. Demand
+    // genuinely unpathable current orders and a missing assembled wave.
     const trappedMoveOrders=ai40CountBlockedRallyOrders(pool,s.rally);
-    const replacement=ai40ClusterRallyRecovery({
+    const readyAtRally=pool.filter(u=>distance(u,s.rally!)<330).length;
+    if(ai40ShouldAttemptRecovery({
+      fighters:pool.length,blockedOrders:trappedMoveOrders,
+      elapsed:g.time-s.phaseAt,readyAtRally
+    })){
+      // Previous KI4.1 trial restarted this timer on EVERY gather pulse,
+      // including ones with zero blocked orders or an underage gather.
+      // Only a genuine recovery attempt may start its nine-second cooldown.
+      this.ai40RallyRetryAt=g.time+9;
+      const safeBases=this.obstacles();
+      const replacement=ai40ClusterRallyRecovery({
       units:pool,oldRally:s.rally,mission,
       trappedMoveOrders,stalledSeconds:g.time-s.phaseAt,
       siegeRequired:intel?.kind==='turret',
@@ -1678,6 +1682,7 @@ export class TacticalAI {
         cluster330:-1,cluster720:-1,legal330:-1,legal720:-1,
         nearestRally:0,remainingToRetry:0,recovered:true
       });
+      }
     }
   }
   const selected=mainFighters.filter(u=>!guards.has(u.id)).sort((a,b)=>Number(s.group.includes(b.id))-Number(s.group.includes(a.id))||distance(a,s.rally!)-distance(b,s.rally!)||a.id-b.id).slice(0,18);
