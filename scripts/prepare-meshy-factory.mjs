@@ -1,0 +1,94 @@
+#!/usr/bin/env node
+/** Sandforge Meshy import bridge.
+ * The original 69 MB high-poly Meshy sculpt is retained in the Meshy account
+ * (task 01a1fb1b-22a2-727f-be8c-3f68d47ae6a0) and source Git history.
+ * The optimized 5.3 MB actual Meshy GLB is the versioned build source.
+ * It is NEVER overwritten by the procedural Sandforge factory generator.
+ *
+ * This script wraps the exact Meshy geometry/materials into candidate models.
+ * The photographed shutter is NOT misrepresented as an open doorway:
+ * current playable production still uses the verified open-bay factory.
+ */
+import {existsSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
+import {dirname,join} from 'node:path';
+import {pathToFileURL} from 'node:url';
+const SOURCE=process.argv[2]??(
+ existsSync('src/assets/reborn/buildings-3d/factory-meshy-optimized.glb')?
+ 'src/assets/reborn/buildings-3d/factory-meshy-optimized.glb':
+ 'src/assets/reborn/buildings-3d/factory-meshy-source.glb');
+const OUT=process.argv[3]??dirname(SOURCE);
+function parseGLB(buffer){
+ if(buffer.length<24||buffer.toString('ascii',0,4)!=='glTF'||
+    buffer.readUInt32LE(4)!==2||buffer.readUInt32LE(8)!==buffer.length)
+  throw new Error('Not a valid glTF 2.0 binary file');
+ const chunks=[];let offset=12;
+ while(offset+8<=buffer.length){
+  const length=buffer.readUInt32LE(offset);
+  const type=buffer.toString('ascii',offset+4,offset+8);
+  if(length%4!==0||offset+8+length>buffer.length)
+   throw new Error('Corrupted glTF chunk length');
+  chunks.push({type,bytes:buffer.subarray(offset+8,offset+8+length)});
+  offset+=8+length;
+ }
+ if(offset!==buffer.length||chunks[0]?.type!=='JSON')throw new Error('glTF JSON chunk missing');
+ const doc=JSON.parse(chunks[0].bytes.toString('utf8'));
+ if(doc.asset?.version!=='2.0'||!doc.scenes?.length||!doc.nodes?.length||
+    !doc.meshes?.length||!doc.materials?.length)
+  throw new Error('Meshy source is not a textured 3D building');
+ return {doc,chunks};
+}
+function encodeGLB(doc,chunks){
+ const json=Buffer.from(JSON.stringify(doc)),pad=(4-json.length%4)%4;
+ const payloads=[{type:'JSON',bytes:Buffer.concat([json,Buffer.alloc(pad,32)])},
+  ...chunks.slice(1)];
+ const len=12+payloads.reduce((sum,c)=>sum+8+c.bytes.length,0);
+ const glb=Buffer.alloc(len);glb.write('glTF',0,4,'ascii');
+ glb.writeUInt32LE(2,4);glb.writeUInt32LE(len,8);
+ let ptr=12;
+ for(const {type,bytes} of payloads){
+  glb.writeUInt32LE(bytes.length,ptr);glb.write(type,ptr+4,4,'ascii');
+  bytes.copy(glb,ptr+8);ptr+=8+bytes.length;
+ }
+ return glb;
+}
+export function prepareMeshyFactory(src,output){
+ if(!existsSync(src))return {status:'source-missing'};
+ const raw=readFileSync(src);
+ if(raw.length>80_000_000||raw.length<20_000)
+  throw new Error('Unsafe factory Meshy asset size');
+ const {doc,chunks}=parseGLB(raw);
+ if(doc.materials.every(m=>!m.pbrMetallicRoughness?.baseColorTexture))
+  throw new Error('Meshy output missing authentic base-color textures');
+ mkdirSync(output,{recursive:true});
+ const result=[];
+ for(const owner of [0,1]){
+  const model=structuredClone(doc);
+  const scene=model.scenes[model.scene??0];
+  const oldRootNodes=scene.nodes??[];
+  const wrapper=model.nodes.length;
+  model.nodes.push({name:'SF_Factory_Meshy_ReferenceSource',
+   children:[...oldRootNodes],
+   extras:{meshyGenerated:true,
+    defaultGameFactory:false,owner,source:'Meshy 7.1 Image to 3D'}});
+  const orientation=model.nodes.length;
+  model.nodes.push({name:'SF_Factory_Meshy_ProductionOrientation',
+   extras:{requiresOpenDoorValidation:true,team:owner}});
+  model.nodes[wrapper].children.push(orientation);
+  const profile=model.nodes.length;
+  model.nodes.push({name:'SF_Factory_PBR_ReferenceHangar_v3',
+   extras:{authoredPBR:true,meshyCandidate:true}});
+  model.nodes[wrapper].children.push(profile);
+  scene.nodes=[wrapper];
+  model.asset.generator='sandforge-meshy-reference-factory-adapter-v1';
+  const name='factory-meshy-'+owner+'.glb';
+  const file=join(output,name);
+  writeFileSync(file,encodeGLB(model,chunks));
+  result.push({name,path:file,meshes:model.meshes.length,materials:model.materials.length,
+   textures:model.textures?.length??0,bytes:raw.length});
+ }
+ return {status:'prepared',result};
+}
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+ const out=prepareMeshyFactory(SOURCE,OUT);
+ console.log('Sandforge Meshy candidate:',JSON.stringify(out));
+}
