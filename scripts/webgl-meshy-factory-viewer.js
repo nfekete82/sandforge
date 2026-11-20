@@ -37,7 +37,9 @@ const paths={
 function resetCamera(){
  const height=bounds?bounds.getSize(new THREE.Vector3()).y:160;
  controls.target.set(0,height*.39,0);
- camera.position.set(355,275,465);camera.lookAt(controls.target);
+ const meshy=document.getElementById('model').value==='meshy';
+ camera.position.set(meshy?-310:330,255,meshy?-360:395);
+ camera.lookAt(controls.target);
  controls.update();
 }
 function geometryInfo(group){
