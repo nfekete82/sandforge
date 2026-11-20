@@ -6,6 +6,7 @@ import {Simulation} from '../dist/src/reborn/simulation.js';
 import '../scripts/webgl-desert-maps.js';
 import {CANYON_GEOLOGY,GEOLOGICAL_RINGS,buildGeologicalMesaSurface} from '../scripts/webgl-authentic-canyon-geology.js';
 import {createLandscapeMeshes} from '../scripts/webgl-landscape-network.js';
+import {planCanyonPbrOutcrops} from '../scripts/webgl-canyon-pbr-outcrops.js';
 import {planDesertWaterways,desertWaterExclusion} from '../scripts/webgl-desert-water-plan.js';
 import {planDesertLakeVegetation} from '../scripts/webgl-desert-lake-vegetation-plan.js';
 import {planBurnedSedans} from '../scripts/webgl-burned-sedan-plan.js';
@@ -62,6 +63,14 @@ for(const map of maps)test(map.name+': canyons, dry planted lagoons and small wr
   assert.ok(ridge.geometry.getAttribute('color').count>50);
   assert.ok(ridge.material.map?.isTexture&&ridge.material.normalMap?.isTexture);
  }
+ const outcrops=planCanyonPbrOutcrops({world,terrain,seed:map.seed,mapId:map.id});
+ const again=planCanyonPbrOutcrops({world,terrain,seed:map.seed,mapId:map.id});
+ assert.deepEqual(outcrops,again,'PBR rock clusters must be repeatable');
+ if(['burning-horizon','last-stronghold'].includes(map.id)){
+  assert.ok(outcrops.length>0,'genuine small rock models should appear on mountain cliff faces');
+  assert.ok(outcrops.every(p=>!world.walkable(p,[],28)),
+   'large cliff rocks must remain on originally impassable terrain');
+ }else assert.equal(outcrops.length,0);
  assert.ok(painted.every(mesh=>mesh.userData.visualOnly===true));
  for(const mesh of painted){
   mesh.geometry.dispose();mesh.material.dispose();
@@ -101,5 +110,7 @@ test('large canyon and small-rock PBR materials share authentic geological visua
  assert.match(scene,/createDesertLakeVegetation/);
  assert.match(scene,/lakeVegetation\?\.dispose\(\)/);
  assert.match(scene,/lakeVegetation\?\.update/);
+ assert.match(scene,/createCanyonPbrOutcrops/);
+ assert.match(scene,/canyonOutcrops\?\.dispose/);
  assert.match(scene,/waterLayout:plannedDesertWater/);
 });
