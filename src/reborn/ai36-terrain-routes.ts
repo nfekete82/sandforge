@@ -75,7 +75,7 @@ export function terrainAwareTravelEstimate(from:Point,to:Point,
  * No knowledge of enemy units, bases or Fog of War is required.
  */
 export function canyonPassWaypoint(from:Point,to:Point,
- ridges:readonly CanyonRidge[],clearance=0):Point|undefined{
+ ridges:readonly CanyonRidge[],clearance=0,passTraversable?:((near:Point,far:Point)=>boolean)):Point|undefined{
  let best:{point:Point;cost:number}|undefined;
  for(const ridge of ridges){
   if(ridge.spine.length<2||!ridge.ramps.length)continue;
@@ -95,7 +95,10 @@ export function canyonPassWaypoint(from:Point,to:Point,
   const first=ridge.spine[0].x,last=ridge.spine[ridge.spine.length-1].x;
   // Crossing around a ridge tip or already through a pass is legitimate.
   if(x<first-ridge.width||x>last+ridge.width||
-    ridge.ramps.some(pass=>Math.abs(x-pass.x)<pass.width*.42))continue;
+    // The old heuristic assumes a visually drawn pass is drivable.
+    // When actual collision/slope validation is supplied, it decides.
+    (!passTraversable&&ridge.ramps.some(pass=>Math.abs(x-pass.x)<pass.width*.42)))
+   continue;
   const crossing={x,y:ridgeHeightAtX(ridge,x)};
   if(ridge.clearings?.some(zone=>length(crossing,zone.point)<zone.radius+ridge.width))continue;
   const side=Math.sign(a),offset=ridge.width*.5+Math.max(105,clearance+65);
@@ -103,6 +106,9 @@ export function canyonPassWaypoint(from:Point,to:Point,
    const y=ridgeHeightAtX(ridge,pass.x);
    const near={x:pass.x,y:y+side*offset};
    const far={x:pass.x,y:y-side*offset};
+   // Reject attractive but physically undriveable passes. The check
+   // uses the same World.line/groundVehicleStepSafe as real movement.
+   if(passTraversable&&!passTraversable(near,far))continue;
    // First reach a flat pass entrance, then cross the ramp. Once the unit
    // is beyond it, a new call goes straight to its original target.
    const goal=length(from,near)>Math.max(52,clearance+42)?near:far;
