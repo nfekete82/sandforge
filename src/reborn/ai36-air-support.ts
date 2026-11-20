@@ -169,3 +169,14 @@ export function ai42DirectVisibleStrike(x:{
  return x.airBreakoutAllowed&&!x.retreating&&
   x.bomberDistance<=1900&&!x.existingSameTarget;
 }
+
+/** Once a legitimate two-bomber raid has started, damage to one surviving
+ * bomber must not revoke the OTHER paid aircraft's permission to finish.
+ * An already dead craft or a plane in the hangar never counts. At initial
+ * mission selection the original >=55%-HP ready force gate still applies. */
+export function ai42LivingAirRaiders<T extends {
+ kind:string;hp:number;airfieldService?:unknown;returnToHangar?:boolean;
+}>(units:readonly T[]):number{
+ return units.filter(u=>u.kind==='bomber'&&u.hp>0&&
+  !u.airfieldService&&!u.returnToHangar).length;
+}

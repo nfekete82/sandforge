@@ -24,7 +24,7 @@ import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad,canyonPassWaypoint} from './ai36-terrain-routes.js';
-import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage,ai42BreakoutAllowed,ai42HqLookout,ai42DirectVisibleStrike} from './ai36-air-support.js';
+import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage,ai42BreakoutAllowed,ai42HqLookout,ai42DirectVisibleStrike,ai42LivingAirRaiders} from './ai36-air-support.js';
 import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
 import {preserveAI36Assault,ai36JoinActiveFront,maintainAI36FrontOnRetarget} from './ai36-assault-continuity.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
@@ -1028,8 +1028,10 @@ export class TacticalAI {
     this.mode==='director'&&this.ai37Mode==='coordinated',
    time:g.time,controlled:g.territories.filter(t=>t.owner===1).length,
    total:g.territories.length,
-   paidBombers:g.units.filter(u=>u.owner===1&&u.kind==='bomber'&&
-    u.hp>unitSpec(u).hp*.55&&!u.airfieldService&&!u.returnToHangar).length,
+   // Two *paid living* bombers remain committed once fighting begins.
+   // Previously a turret hit that reduced one from 560 to 349 HP caused
+   // BOTH aircraft's 20 Hz release authorization to vanish mid-raid.
+   paidBombers:ai42LivingAirRaiders(g.units.filter(u=>u.owner===1)),
    missionKind:mission?.kind,missionSector:mission?.sector,
    knownHQSector:knownHQ.territory,
    targetKind:target.kind,distanceFromHQ:distance(target,knownHQ),
