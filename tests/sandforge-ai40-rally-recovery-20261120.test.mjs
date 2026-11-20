@@ -111,6 +111,14 @@ test('rally rescue cannot divert a turret/HQ siege or override the defender poli
  const capture={kind:'capture',homePressure:false,time:415,notBefore:300};
  assert.equal(ai41RallyMissionPermitsRescue(capture),true);
  assert.equal(ai41RallyMissionPermitsRescue({...capture,kind:'structure'}),false);
+ assert.equal(ai41RallyMissionPermitsRescue({...capture,kind:'structure',
+  validatedSiegeApproach:true}),true);
+ assert.equal(ai41RallyMissionPermitsRescue({...capture,kind:'structure',
+  validatedSiegeApproach:false}),false);
+ assert.equal(ai41RallyMissionPermitsRescue({...capture,kind:'structure',
+  validatedSiegeApproach:true,homePressure:true}),false);
+ assert.equal(ai41RallyMissionPermitsRescue({...capture,kind:'structure',
+  validatedSiegeApproach:true,time:281}),false);
  assert.equal(ai41RallyMissionPermitsRescue({...capture,kind:'hunt'}),false);
  assert.equal(ai41RallyMissionPermitsRescue({...capture,homePressure:true}),false);
  assert.equal(ai41RallyMissionPermitsRescue({...capture,time:281,notBefore:300}),false);
