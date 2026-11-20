@@ -20,9 +20,9 @@ export function cinematicWaterMaterial(flowing=false){
   const nl=String.fromCharCode(10),mode=flowing?1:0;
   shader.vertexShader=shader.vertexShader
    .replace('#include <common>','#include <common>'+nl+
-    'uniform float sfWaterTime; varying vec2 vSFWaterXZ; varying vec2 vSFWaterUV;')
+    'uniform float sfWaterTime; attribute vec2 sfWaterCoordinates; varying vec2 vSFWaterXZ; varying vec2 vSFWaterUV;')
    .replace('#include <begin_vertex>','#include <begin_vertex>'+nl+
-    'vSFWaterXZ=position.xz; vSFWaterUV=uv;'+nl+
+    'vSFWaterXZ=position.xz; vSFWaterUV=sfWaterCoordinates;'+nl+
     'transformed.y += .12*sin(position.x*.10+sfWaterTime*.85)'+
     '+.09*sin(position.z*.135-position.x*.044+sfWaterTime*.61);');
   const header=[
@@ -65,6 +65,8 @@ function meshFrom(vertices,uv,indices,material,name,root){
  const geometry=new THREE.BufferGeometry();
  geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+ // Custom attribute is always available, even when the PBR material has no UV texture.
+ geometry.setAttribute('sfWaterCoordinates',new THREE.Float32BufferAttribute(uv,2));
  geometry.setIndex(indices);
  geometry.computeVertexNormals();
  geometry.computeBoundingSphere();
