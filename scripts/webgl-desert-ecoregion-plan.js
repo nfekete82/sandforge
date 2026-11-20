@@ -37,10 +37,10 @@ export function planDesertEcoregion({
    const patchCenter=patchAnchors.length&&random()<.68
     ?patchAnchors[Math.floor(random()*patchAnchors.length)]:null;
    const direction=random()*Math.PI*2;
-   const radius=kind==='sandstone'?190+random()*250:145+random()*200;
-   const x=patchCenter?patchCenter.x+Math.cos(direction)*radius:
+   const patchRadius=kind==='sandstone'?190+random()*250:145+random()*200;
+   const x=patchCenter?patchCenter.x+Math.cos(direction)*patchRadius:
     margin+random()*(size-margin*2);
-   const y=patchCenter?patchCenter.y+Math.sin(direction)*radius:
+   const y=patchCenter?patchCenter.y+Math.sin(direction)*patchRadius:
     margin+random()*(size-margin*2);
    if(x<=margin||y<=margin||x>=size-margin||y>=size-margin)continue;
    const p={x,y};
