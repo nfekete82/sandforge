@@ -14,29 +14,35 @@ import {Simulation as NativeSimulation} from '../dist/src/reborn/simulation.js';
 import {UNITS} from '../dist/src/reborn/catalog.js';
 import {ai38InfrastructurePlan} from '../dist/src/reborn/ai38-investment-doctrine.js';
 import {runMatch} from './benchmark-reborn-ai.mjs';
+import './webgl-desert-maps.js';
 
 class SimulationV4 extends NativeSimulation {
- constructor(seed,mapVersion){
-  // Same real v4 biome/canyon procedural generator as the browser's network maps.
-  super(seed,mapVersion,false,false,undefined,4);
+ constructor(seed,mapVersion,profile=undefined,generator=4){
+  // Use the exact v4 terrain profile of a selected browser battlefield.
+  super(seed,mapVersion,false,false,profile,generator);
  }
 }
 const round=(n,d=2)=>Number(n.toFixed(d));
 const avg=(rows,key)=>rows.length?round(rows.reduce((s,r)=>s+r[key],0)/rows.length):null;
 const sum=(rows,key)=>rows.reduce((s,r)=>s+(r[key]??0),0);
 const opts={maps:[24,25,26],seeds:[824836862,9999],opponents:['guarded','contesting','bastion-rush'],
- seconds:420,output:resolve('reports/ai38-combat.json')};
+ seconds:420,output:resolve('reports/ai38-combat.json'),presets:[]};
 function parse(argv){
  for(let i=0;i<argv.length;i+=2){
   const key=argv[i],v=argv[i+1];
   if(!v)throw Error('Missing value after '+key);
-  if(key==='--maps')opts.maps=v.split(',').map(Number);
+  if(key==='--presets')opts.presets=v.split(',');
+  else if(key==='--maps')opts.maps=v.split(',').map(Number);
   else if(key==='--seeds')opts.seeds=v.split(',').map(Number);
   else if(key==='--opponents')opts.opponents=v.split(',');
   else if(key==='--seconds')opts.seconds=Number(v);
   else if(key==='--output')opts.output=resolve(v);
   else throw Error('Unknown option '+key);
  }
+ const chosen=opts.presets.map(id=>globalThis.SandforgeDesertMaps?.byId(id));
+ if(chosen.some(m=>!m)||new Set(opts.presets).size!==opts.presets.length)
+  throw Error('Unknown or repeated desert map: '+opts.presets);
+ if(chosen.length){opts.maps=chosen.map(x=>x.mapVersion);opts.seeds=chosen.map(x=>x.seed);}
  if(!opts.maps.length||opts.maps.some(x=>![24,25,26].includes(x))||
    !opts.seeds.length||opts.seeds.some(x=>!Number.isInteger(x)||x<0)||
    !opts.opponents.length||opts.opponents.some(x=>!['guarded','contesting','bastion-rush'].includes(x))||
@@ -260,7 +266,11 @@ function paired(runs){
 async function main(){
  parse(process.argv.slice(2));
  const runs=[],begin=performance.now();
- const total=opts.maps.length*opts.seeds.length*opts.opponents.length*2;
+ const cases=opts.presets.length
+   ?opts.presets.map(id=>{const p=globalThis.SandforgeDesertMaps.byId(id);
+      return {map:p.mapVersion,seed:p.seed,preset:p};})
+   :opts.maps.flatMap(map=>opts.seeds.map(seed=>({map,seed,preset:null})));
+ const total=cases.length*opts.opponents.length*2;
  const persist=complete=>{
   mkdirSync(dirname(opts.output),{recursive:true});
   writeFileSync(opts.output,JSON.stringify({
@@ -269,23 +279,26 @@ async function main(){
    summary:summary(runs),pairs:paired(runs),runs},null,2)+'\n');
  };
  persist(false);
- for(const map of opts.maps)for(const seed of opts.seeds)for(const opponent of opts.opponents)
+ for(const {map,seed,preset} of cases)for(const opponent of opts.opponents)
   for(const variant of ['ai36','ai38']){
    const recorder=observeFactory();
    const Simulation=class extends SimulationV4{
-    constructor(a,b){super(a,b);this.tactical.ai37Mode=variant==='ai38'?'coordinated':'off';
+    constructor(a,b){super(a,b,preset?.terrain,preset?.generatorVersion??4);this.tactical.ai37Mode=variant==='ai38'?'coordinated':'off';
       this.tactical.rallyGateTraceEnabled=variant==='ai38';}
    };
    const result=runMatch({Simulation,UNITS},{opponent,seconds:opts.seconds,
     ai33:'adaptive',ai35:'control',ai36:'coordinated',observe:recorder.observe,
     label:variant},seed,'director',map);
-   const world=new SimulationV4(seed,map);
+   const world=new SimulationV4(seed,map,preset?.terrain,preset?.generatorVersion??4);
    const run={...result,...recorder.finish(),variant,map,seed,opponent,
+    presetId:preset?.id??null,terrain:world.world.generated?.battlefield?.profile,
     landscape:world.world.generated?.landscapeKind??'unknown',
     generatorVersion:world.world.generatorVersion};
-   if(run.generatorVersion!==4)throw Error('Not a current v4 WebGL landscape');
+   if(run.generatorVersion!==(preset?.generatorVersion??4)||preset&&(run.landscape!==preset.kind||
+     run.terrain!==preset.terrain||world.territories.length!==preset.bastions))
+    throw Error('Named map differs from authoritative v4 browser topology');
    runs.push(run);persist(false);
-   console.log('AI38_SIM '+JSON.stringify(compact(run)));
+   console.log('AI38_SIM '+JSON.stringify({...compact(run),presetId:preset?.id??null}));
   }
  persist(true);
  console.log('AI38_SUMMARY '+JSON.stringify(summary(runs)));

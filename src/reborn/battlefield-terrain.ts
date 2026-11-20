@@ -1,10 +1,11 @@
 import {campaignLayout, type MapVersion, type Point} from './config.js';
 import type {CanyonRidge} from './canyon-front.js';
+import {ridgeCenterY} from './canyon-height.js';
 
 /** Revision 2: roomier buildable pads around bastions / headquarters.
  * Revision 1 remains reproducible for existing saves. */
 export const BATTLEFIELD_GENERATOR = 2;
-export type BattlefieldGeneratorVersion=1|2|3|4;
+export type BattlefieldGeneratorVersion=1|2|3|4|5;
 export const TERRAIN_GRADING_V2={
  bastionFlatRadius:540,bastionShoulder:360,
  homeFlatRadius:775,homeShoulder:460,
@@ -132,6 +133,38 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
  }
  for(let j=n-1;j>=0;j--)for(let i=n-1;i>=0;i--){
   const k=j*n+i;let h=heights[k];if(i<segments)h=Math.min(h,heights[k+1]+delta);if(j<segments)h=Math.min(h,heights[k+n]+delta);heights[k]=h;
+ }
+ // Versioned desert-route repair for the four authored battlefields.
+ // The old V4 mountains and sand materials remain identical everywhere
+ // except the actual vehicle pass shoulders. Old V4 saves stay unchanged.
+ // Existing .22 per-axis Lipschitz grading permits .31 diagonal slopes,
+ // above paid rover (.195), tank (.215), artillery (.185) driving limits.
+ // A LOWER-ONLY envelope at the drawn gaps brings every triangle below .15.
+ if(generatorVersion===5&&ridges.some(r=>r.ramps.length)){
+  const passCells=new Uint8Array(n*n);
+  for(const ridge of ridges)for(const ramp of ridge.ramps){
+   const left=Math.max(0,Math.floor((ramp.x-ramp.width*.5-115)/step));
+   const right=Math.min(segments,Math.ceil((ramp.x+ramp.width*.5+115)/step));
+   for(let i=left;i<=right;i++){
+    const x=i*step,center=ridgeCenterY(ridge,x);
+    for(let j=0;j<n;j++)if(Math.abs(j*step-center)<=1450)
+     passCells[j*n+i]=1;
+   }
+  }
+  const regularEdge=step*.22,roadEdge=step*.105;
+  const edge=(a:number,b:number)=>passCells[a]||passCells[b]?roadEdge:regularEdge;
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+   const k=j*n+i;let h=heights[k];
+   if(i)h=Math.min(h,heights[k-1]+edge(k,k-1));
+   if(j)h=Math.min(h,heights[k-n]+edge(k,k-n));
+   heights[k]=h;
+  }
+  for(let j=n-1;j>=0;j--)for(let i=n-1;i>=0;i--){
+   const k=j*n+i;let h=heights[k];
+   if(i<segments)h=Math.min(h,heights[k+1]+edge(k,k+1));
+   if(j<segments)h=Math.min(h,heights[k+n]+edge(k,k+n));
+   heights[k]=h;
+  }
  }
  let minHeight=Infinity,maxHeight=-Infinity;
  for(const h of heights){minHeight=Math.min(minHeight,h);maxHeight=Math.max(maxHeight,h);}

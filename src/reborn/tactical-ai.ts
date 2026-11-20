@@ -35,6 +35,7 @@ import {ai37GarrisonQuota,ai37BastionDefenseValue} from './ai37-fortification-do
 import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
+import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
@@ -166,6 +167,16 @@ export class TacticalAI {
  private get ai36Enabled():boolean{
   return this.mode==='director'&&this.ai36Mode==='coordinated'&&
    this.ai35Enabled;
+ }
+ private get lateAirSupportEnabled():boolean{
+  const w=this.g.world;
+  const doctrine=selectDesertAIDoctrine({
+   seed:this.g.seed,mapVersion:w.mapVersion,
+   profile:w.generated?.battlefield?.profile,
+   kind:w.generated?.landscapeKind,
+   generatorVersion:w.generatorVersion
+  });
+  return fixedDesertLateAirSupport(doctrine,this.ai37Mode==='coordinated');
  }
  private get ai35Enabled():boolean{
   return this.ai35Mode==='control'&&this.ai33Mode==='adaptive'&&
@@ -749,7 +760,7 @@ export class TacticalAI {
    // physically attacking bomber complete successive release passes.
    if(this.ai36Enabled&&u.kind==='drone'&&
       g.world.mapVersion===26&&g.world.generatorVersion>=4&&
-      this.ai37Mode==='coordinated'&&g.time>=330&&
+      this.lateAirSupportEnabled&&g.time>=330&&
       g.territories.length>=16&&
       g.territories.filter(t=>t.owner===1).length>=g.territories.length-2&&
       g.units.filter(v=>v.owner===1&&v.kind==='bomber'&&
@@ -1045,7 +1056,7 @@ export class TacticalAI {
   const isAA=(u:Unit|Base)=>['rocket','turret','interceptor','scout'].includes(u.kind);
   return ai42BreakoutAllowed({
    enabled:g.world.mapVersion===26&&g.world.generatorVersion>=4&&
-    this.mode==='director'&&this.ai37Mode==='coordinated',
+    this.mode==='director'&&this.lateAirSupportEnabled,
    time:g.time,controlled:g.territories.filter(t=>t.owner===1).length,
    total:g.territories.length,
    paidBombers:g.units.filter(u=>u.owner===1&&u.kind==='bomber'&&
@@ -1189,7 +1200,7 @@ export class TacticalAI {
      m.kind==='headquarters');
    const paid=bombers.filter(u=>u.hp>unitSpec(u).hp*.55);
    if(hq&&g.world.mapVersion===26&&g.world.generatorVersion>=4&&
-      this.ai37Mode==='coordinated'&&g.time>=330&&
+      this.lateAirSupportEnabled&&g.time>=330&&
       g.territories.length>=16&&
       g.territories.filter(t=>t.owner===1).length>=g.territories.length-2&&
       paid.length>=2&&
@@ -1215,7 +1226,7 @@ export class TacticalAI {
   const airAA=(v:Unit|Base)=>['rocket','turret','interceptor','scout'].includes(v.kind);
   const lateAirAllowed=!!rememberedHQ&&ai42BreakoutAllowed({
    enabled:g.world.mapVersion===26&&g.world.generatorVersion>=4&&
-    this.ai37Mode==='coordinated'&&this.mode==='director',
+    this.lateAirSupportEnabled&&this.mode==='director',
    time:g.time,controlled:g.territories.filter(t=>t.owner===1).length,
    total:g.territories.length,paidBombers:bomberCount,
    missionKind:mission?.kind,missionSector:mission?.sector,

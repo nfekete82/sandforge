@@ -1,0 +1,48 @@
+name: Sandforge four deserts AI battle laboratory
+on:
+  push:
+    branches:
+      - feat/sandforge-four-desert-ai-tuning-20261120
+    paths:
+      - .github/workflows/sandforge-four-desert-ai-battle-lab.yml
+      - scripts/benchmark-sandforge-ai38-combat.mjs
+      - src/reborn/world.ts
+      - src/reborn/ai36-terrain-routes.ts
+      - src/reborn/battlefield-terrain.ts
+      - src/reborn/tactical-ai.ts
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  paid-battle-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [desert-strike, broken-empire, burning-horizon, last-stronghold]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile exact original v4 world geometry
+        run: npx tsc -p tsconfig.json
+      - name: Real 480s AI vs three paid opponent doctrines, reproducible per map
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai38-combat.mjs \
+            --presets ${{ matrix.preset }} \
+            --opponents guarded,contesting,bastion-rush \
+            --seconds 480 \
+            --output reports/four-deserts-${{ matrix.preset }}.json
+      - name: Store detailed battle metrics for comparable regression tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-four-deserts-${{ matrix.preset }}
+          path: reports/four-deserts-${{ matrix.preset }}.json
+          retention-days: 60
+          if-no-files-found: warn

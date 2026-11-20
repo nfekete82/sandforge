@@ -25,6 +25,7 @@ import {BUNKER_CAPACITY,bunkerApproach,bunkerCanBoard,bunkerGarrisonedUnits,bunk
 import {BASTION_UPGRADE_COST,bastionEffectiveIncome,bastionUpgradable,validBastionUpgradeState} from './bastion-upgrades.js';
 import {ai37FortificationChoice,ai37UpgradeScore} from './ai37-fortification-doctrine.js';
 import {ai38InfrastructurePlan} from './ai38-investment-doctrine.js';
+import {selectDesertAIDoctrine} from './desert-ai-doctrine.js';
 import {ai38VehicleRecoveryWaypoint,ai38CanRecoverVehicle,ai39NoPathRecoveryWaypoint} from './ai38-vehicle-navigation.js';
 import {TacticalAI,type TacticalState,type TacticalOrder} from './tactical-ai.js';
 import { MAP_VERSION, randomMapSeed } from './world-generation.js';
@@ -786,6 +787,15 @@ export class Simulation {
     // Bastions replace finite neutral stockpiles as the income objectives.
     // All modern maps now earn credits through bastions, not neutral depots.
 
+    // Select a tested public-map doctrine only on an EXACT fixed-map
+    // match. Benchmarks may still override it per run for genuine A/B.
+    const fixedDoctrines=selectDesertAIDoctrine({
+      seed:this.seed,mapVersion:this.world.mapVersion,
+      profile:this.world.generated?.battlefield?.profile,
+      kind:this.world.generated?.landscapeKind,
+      generatorVersion:this.world.generatorVersion
+    });
+    if(fixedDoctrines)this.tactical.ai37Mode=fixedDoctrines.mode;
     this.spatial.rebuild(this.units);this.updateVision();
   }
   static campaign(seed=randomMapSeed(),version:MapVersion=MAP_VERSION,profile?:TerrainProfile,generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR):Simulation {return new Simulation(seed,version,false,true,profile,generatorVersion);}
@@ -3058,7 +3068,7 @@ export class Simulation {
     const researchFor=(u:{owner:Faction;kind?:UnitKind})=>
       researchModifiers(research[u.owner],u.kind??'infantry');
     const burst=(b:Burst|undefined,rounds:number)=>b===undefined||(b!==null&&Number.isInteger(b.target)&&Number.isInteger(b.remaining)&&b.remaining>0&&b.remaining<=rounds&&b.remaining+b.index===rounds&&Number.isInteger(b.index)&&b.index>=0&&b.index<4&&finite(b.at)&&b.at>=s.time-.11&&b.at<=s.time+.11);
-    if(!s||s.version!==2||((s.mapVersion??0)>=23&&(!isTerrainProfile(s.terrainProfile)||![1,2,3,4].includes(s.generatorVersion as number)))||((s.mapVersion??0)<23&&(s.terrainProfile!==undefined||s.generatorVersion!==undefined))||(s.bootstrapVersion!==undefined&&s.bootstrapVersion!==1)||(s.weatherVersion!==undefined&&s.weatherVersion!==1)||(s.productionVersion!==undefined&&s.productionVersion!==1)||(s.mapVersion!==undefined&&![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26].includes(s.mapVersion))||!TacticalAI.valid(s.ai,s.time,point,mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows)||!finite(s.seed)||!finite(s.time)||s.time<0||!finite(s.incomeClock)||s.incomeClock<0||s.incomeClock>=10||
+    if(!s||s.version!==2||((s.mapVersion??0)>=23&&(!isTerrainProfile(s.terrainProfile)||![1,2,3,4,5].includes(s.generatorVersion as number)))||((s.mapVersion??0)<23&&(s.terrainProfile!==undefined||s.generatorVersion!==undefined))||(s.bootstrapVersion!==undefined&&s.bootstrapVersion!==1)||(s.weatherVersion!==undefined&&s.weatherVersion!==1)||(s.productionVersion!==undefined&&s.productionVersion!==1)||(s.mapVersion!==undefined&&![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26].includes(s.mapVersion))||!TacticalAI.valid(s.ai,s.time,point,mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows)||!finite(s.seed)||!finite(s.time)||s.time<0||!finite(s.incomeClock)||s.incomeClock<0||s.incomeClock>=10||
       (s.supplyCaches!==undefined&&(!Array.isArray(s.supplyCaches)||
         s.supplyCaches.length>16||s.supplyCaches.some(c=>!c||
          !Number.isSafeInteger(c.id)||c.id<0||!finite(c.remaining)||

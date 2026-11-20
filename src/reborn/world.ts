@@ -302,6 +302,26 @@ export class World {
   private pathWorkspace?:{costs:Float64Array;prev:Int32Array;closed:Uint32Array;
     walkable:Int8Array;seen:Uint32Array;walkEpoch:Uint32Array};
   private pathEpoch=0;
+  /** Static, per-vehicle physical pass viability. Calculated at most once
+   * for each direction/footprint/slope; unlike runtime movement it ignores
+   * transient buildings and enemy units, which the actual route still checks.
+   * No precomputed artificial route or Fog-of-War information is shared.
+   */
+  private passRouteCache=new Map<string,boolean>();
+  private physicalPassAvailable(near:Point,far:Point,clearance:number,maxSlope:number):boolean{
+    const key=[Math.round(near.x),Math.round(near.y),
+      Math.round(far.x),Math.round(far.y),clearance,maxSlope].join(':');
+    const cached=this.passRouteCache.get(key);
+    if(cached!==undefined)return cached;
+    // World.line is a fast positive proof. A failed direct line is NOT a
+    // failed pass: a legal mountain crossing may need a slight bend.
+    const feasible=this.line(near,far,[],clearance,maxSlope)||
+      this.findPath(near,far,[],clearance,undefined,false,false,false,maxSlope)
+       .some(p=>Math.hypot(p.x-far.x,p.y-far.y)<this.cell*1.4);
+    this.passRouteCache.set(key,feasible);
+    return feasible;
+  }
+
   private findPath(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false,maxSlope=Infinity): Point[] {
     const precise=exact&&this.mapVersion>=3&&!air;
     const walk=(p:Point)=>air?(p.x>=10&&p.y>=10&&p.x<=this.size-10&&p.y<=this.size-10):this.walkable(p,obstacles,clearance)&&this.groundVehicleSlopeSafe(p,maxSlope,clearance+10);
@@ -320,7 +340,13 @@ export class World {
     // Strategic reachability calls (allowPartial=false) are unchanged.
     const pass=allowPartial&&!air&&this.generatorVersion>=3&&
       this.generated?.ridges.length
-      ?canyonPassWaypoint(start,target,this.generated.ridges,clearance):undefined;
+      ?canyonPassWaypoint(start,target,this.generated.ridges,clearance,
+        this.generatorVersion===5&&Number.isFinite(maxSlope)
+         // Validate the ENTIRE entry→exit segment with the very same
+         // unit footprint, collision geometry and max slope as A*.
+         // Do not enable the extra work on historical v3/v4 saves.
+         ?(near,far)=>this.physicalPassAvailable(near,far,clearance,maxSlope):undefined)
+      :undefined;
     const routingTarget=pass??target;
     const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(routingTarget,obstacles,[],start,clearance,maxSlope);
     if(!end)return [];
