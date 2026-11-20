@@ -27,6 +27,7 @@ for(const map of maps)test(map.name+': fixed terrain props, real 3D shapes, no p
  const lite=planBurnedSedans({...opts,lowQuality:true});
  assert.ok(lite.length<=planned.length&&lite.length>=2);
  for(const p of planned){
+  assert.ok(p.scale>=.79&&p.scale<.97,'sedan is visibly smaller without losing detached debris');
   assert.ok(w.walkable(p,[],38),'wreck is placed where game can still drive');
   assert.ok(w.terrainSlope(p.x,p.y)<=.135);
   assert.ok(p.x>240&&p.y>240&&p.x<w.size-240&&p.y<w.size-240);
