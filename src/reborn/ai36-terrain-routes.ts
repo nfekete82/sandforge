@@ -122,3 +122,43 @@ export function rankTerrainRecaptureSquad<T extends Point&{id:number}>(
   length(a,target)-length(b,target)||a.id-b.id
  ).slice(0,Math.max(0,Math.floor(count)));
 }
+
+
+/** KI 4.3: verify both legs of a real canyon ramp before relocating a stalled
+ * paid HQ-siege column. The caller must use the same terrain/slope/collision
+ * pathfinder as physical movement, with allowPartial=false. No speculative
+ * routes, teleports, hidden enemy data or fallback through a rock face.
+ * Return the near-side rally; the ground army still drives there itself.
+ */
+export function ai43VerifiedSiegePassApproach(input:{
+ from:Point;target:Point;ridges:readonly CanyonRidge[];
+ traversable:(from:Point,to:Point)=>boolean;
+ clear:(point:Point)=>boolean;
+}):Point|undefined{
+ const {from,target,ridges,traversable,clear}=input;
+ const candidates:{near:Point;far:Point;cost:number}[]=[];
+ for(const ridge of ridges){
+  if(ridge.spine.length<2||!ridge.ramps.length)continue;
+  const startSide=from.y-ridgeHeightAtX(ridge,from.x);
+  const goalSide=target.y-ridgeHeightAtX(ridge,target.x);
+  const margin=Math.max(32,ridge.width*.6);
+  if(startSide*goalSide>=0||
+    Math.abs(startSide)<margin||Math.abs(goalSide)<margin)continue;
+  const sign=Math.sign(startSide),offset=Math.max(270,ridge.width*.5+145);
+  for(const ramp of ridge.ramps){
+   const y=ridgeHeightAtX(ridge,ramp.x);
+   const near={x:ramp.x,y:y+sign*offset};
+   const far={x:ramp.x,y:y-sign*offset};
+   const cost=length(from,near)+length(near,far)+length(far,target);
+   candidates.push({near,far,cost});
+  }
+ }
+ candidates.sort((a,b)=>a.cost-b.cost||
+  a.near.x-b.near.x||a.near.y-b.near.y);
+ for(const candidate of candidates){
+  if(!clear(candidate.near)||!clear(candidate.far))continue;
+  if(traversable(from,candidate.near)&&
+     traversable(candidate.near,candidate.far))return candidate.near;
+ }
+ return undefined;
+}
