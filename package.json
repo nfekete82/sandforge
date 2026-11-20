@@ -29,6 +29,7 @@
     "test:ai-director": "npm run build && node --test tests/reborn-ai-director.test.mjs tests/reborn-map-ai.test.mjs tests/reborn-control-retreat.test.mjs",
     "benchmark:ai": "npm run build && node scripts/benchmark-reborn-ai.mjs",
     "benchmark:desert-ai": "npx tsc -p tsconfig.json && for map in desert-strike broken-empire burning-horizon last-stronghold; do node scripts/benchmark-sandforge-ai38-combat.mjs --presets $map --opponents guarded,contesting,bastion-rush --seconds 480 --output reports/desert-ai-$map.json || exit 1; done",
+    "benchmark:ai43": "npx tsc -p tsconfig.json && for map in desert-strike broken-empire burning-horizon last-stronghold; do node scripts/benchmark-sandforge-ai38-combat.mjs --presets $map --variants baseline,calibrated --opponents guarded,contesting,bastion-rush --seconds 480 --output reports/ai43-$map.json || exit 1; done",
     "assets:transport": "node scripts/build-transport-helicopter.mjs && node scripts/render-unit-atlases.mjs --hd scout",
     "assets:rocket-launcher": "node scripts/build-rocket-launcher.mjs && node scripts/render-unit-atlases.mjs --hd artillery",
     "benchmark:arena": "npm run build && node scripts/ai-test-arena.mjs",
