@@ -1,0 +1,74 @@
+name: Vendor authentic 3D desert PBR assets ONCE
+on:
+  push:
+    branches: [feat/sandforge-four-authentic-desert-3d-environments-20261120]
+    paths:
+      - .github/workflows/sandforge-import-authentic-desert-assets-20261120.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  one-time-asset-vendor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      SAGUARO_URL: "https://assets.meshy.ai/uploads/converted/01a1f9ac-0525-7053-baa9-08875209189b/01a1f9ad-e539-73b5-8ca3-99cada1eb78e/Meshy_AI_Game_ready_realistic__1120155805_texture.glb?Expires=1795305600&Signature=DjgbsRThOsZ-fGq09oikjU~-YKXQv-HuPzczI3z8eFKlW6TL~te6HJ25IzsTMKgSKYWMQpytiYT2PjmruDaFE6j9rekz6yz6-nfpDs~BvRlScHWx0vh7Z08xuE3XjrbYAiGmeLkfrmWoA6ngdbvP3lPWw9xEKORCTr5PiOXsVNkVmWK-oKrMqA1WtJZt4YLg06B61dxZgc4Uwb2J3vNbUXgC9JYDdTdAgj7nqhaGUiaJrHAwpEPXVzwjfsKcIKVmYfYDGMyw~Qoxxaq8YtTv4h17JRuFlEp9KedjBQmCEW-EeAJOzc9dPlh-Cjy3NZNsCPWGujfC~D~YhQJSb-B63A__&Key-Pair-Id=K1VGYTHIYLM9UM"
+      SANDSTONE_URL: "https://assets.meshy.ai/uploads/converted/01a1f9aa-de96-721b-aaa9-7d49f1345b07/01a1f9ad-f291-7652-892c-8f251b67f6bf/Meshy_AI_Game_ready_premium_ph_1120155809_texture.glb?Expires=1795305600&Signature=AyV-Q19zdi6kRXfkMkxKz6TOLp7RIIz~GFIW65Rb2DA3fa3Gzp-CP2aDK6N8uSUEOK7HnixnlvHJBKojskb7Q3HbBAeySd3LfBwFYEfvtlEm1b2gWhZhCl6pQu1zY3bLo8hHl0sz0G~xGeE~PUDcsHllmZQpwACaz7x224n5PlTZo1XLEaFBuH5tXyq4MAUcq6mx458KkC~Tlq6d7gXdemAzIwIeBcUatAqHBeFzF9AtthMt21sfxUAA0O0wcOhWPd5pIog06Up~rUKOHVkjt-VAPnUBslnha~614nxE6KBHk6JePHDsowPEVeciBpIW8QsGsMbe-s15DT~cQa5UBQ__&Key-Pair-Id=K1VGYTHIYLM9UM"
+      JOSHUA_URL: "https://assets.meshy.ai/uploads/converted/01a1f9ac-3e7d-76f6-9b80-70d7eb517365/01a1f9ad-ff44-721b-92fd-bbace203a425/Meshy_AI_Game_ready_realistic__1120155812_texture.glb?Expires=1795305600&Signature=hlGIXPjzEy-80dqpTusJjAuUEv69McPPw72MeaDjLeOPlKCI7PgVMMxKM536H0ktg~wd9979CbawDsq7fRQI8JcCoyo6LVuBG9kJvajIG~aRo8ngyS0ep4ryxuw6jUO39LLgwAljLSLzDEDgeqLhNZCZxu7hCeWDl0CrAQFqlvS2rHtO6WRyntSPwPnrsrwU9XjHcgnaAzEZQvm2c6zyvYhbTF4xAbNlS2nKYcWTdjcjinW7WPKomdXo8S6QmyEUCzTbAE63hvlBo9Ya6jAeV2QVHj9iM47ne2VT3oADdFA5j~FmIWC4V29xr68T3cljy4qiMO9LPLpckqF5YsQ0nA__&Key-Pair-Id=K1VGYTHIYLM9UM"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Python image library and glTF PBR optimizer
+        run: |
+          python3 -m pip install --user Pillow==11.3.0
+          npm install -g @gltf-transform/cli@4.5.1
+      - name: Vendor real CC0 sand/red-stone/gravel albedo+normal+rough maps
+        run: python3 scripts/ci/import-desert-cc0-textures.py
+      - name: Download real meshy-7 sculpted PBR GLB meshes and downscale GPU textures to 1K
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p src/assets/reborn/desert-ecoregions
+          for type in saguaro sandstone joshua; do
+            case "$type" in
+              saguaro) url="$SAGUARO_URL"; label="saguaro";;
+              sandstone) url="$SANDSTONE_URL"; label="sandstone";;
+              joshua) url="$JOSHUA_URL"; label="joshua-tree";;
+            esac
+            curl --fail --location --retry 3 --max-time 130 "$url" --output "/tmp/$type-source.glb"
+            gltf-transform resize "/tmp/$type-source.glb"               "src/assets/reborn/desert-ecoregions/$label-pbr.glb"               --width 1024 --height 1024
+          done
+      - name: Verify actual sculpt geometry, embedded UV PBR and source bytes
+        run: |
+          python3 - <<'PY'
+          import json,struct,pathlib
+          for file in sorted(pathlib.Path('src/assets/reborn/desert-ecoregions').glob('*.glb')):
+              with file.open('rb') as f:
+                  magic,version,total=struct.unpack('<4sII',f.read(12))
+                  assert magic==b'glTF' and version==2 and total==file.stat().st_size
+                  size,t=struct.unpack('<I4s',f.read(8))
+                  assert t==b'JSON'
+                  doc=json.loads(f.read(size))
+              assert doc['meshes'] and doc['materials'] and doc['textures'] and doc['images']
+              assert any(m.get('pbrMetallicRoughness',{}).get('baseColorTexture') for m in doc['materials'])
+              assert file.stat().st_size<80_000_000,'No huge unoptimized hero props'
+              print(file.name,'MB',round(file.stat().st_size/1e6,2),'meshes',len(doc['meshes']),'materials',len(doc['materials']))
+          assert len(list(pathlib.Path('src/assets/reborn/desert-ecoregions').glob('*.glb')))==3
+          for region in ('sonoran','mojave','badlands'):
+              for typ in ('albedo','normal','rough'):
+                  assert (pathlib.Path('src/assets/reborn/terrain')/
+                    f'desert-{region}-{typ}.webp').stat().st_size>1000
+          PY
+      - name: Commit actual optimized binary GLB and CC0 PBR map assets to this feature branch
+        run: |
+          git config user.name "sandforge-ci-art"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/assets/reborn/desert-ecoregions src/assets/reborn/terrain/desert-*.webp src/assets/reborn/terrain/desert-ecoregions-cc0-manifest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "assets(desert): real PBR sculpted Saguaro, Joshua tree and sandstone plus 3 Poly Haven CC0 surfaces"
+            git push origin HEAD:feat/sandforge-four-authentic-desert-3d-environments-20261120
+          fi
