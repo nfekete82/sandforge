@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {FACTION_PAINT} from './sandforge-faction-palette.js';
+import {FACTION_FLAG_COLORS,FACTION_FLAG_WHITE} from './webgl-faction-flags.js';
 
 /** Two small, matte faction pennants fixed to the AUTHORED facade beside
  * the actual PBR door. Never attach them to animated door leaves.
@@ -7,7 +7,7 @@ import {FACTION_PAINT} from './sandforge-faction-palette.js';
  * so the same code works for both final blue/red building assets and HUD.
  */
 export const ENTRANCE_BANNER_REVISION='facade-faction-star-plaques-v2-20261116';
-export const ENTRANCE_BANNER_COLORS=FACTION_PAINT;
+export const ENTRANCE_BANNER_COLORS=FACTION_FLAG_COLORS;
 const MARK='SF_FactionEntranceBanners';
 const FRONT_OFFSET=.028;
 
@@ -121,7 +121,7 @@ export function paintFactionEntranceBanners(model,kind,owner){
  const cloth=new THREE.MeshBasicMaterial({
   color:ENTRANCE_BANNER_COLORS[owner],toneMapped:false,side:THREE.DoubleSide
  });
- const ivory=new THREE.MeshBasicMaterial({color:'#e5d2a5',side:THREE.DoubleSide,
+ const ivory=new THREE.MeshBasicMaterial({color:FACTION_FLAG_WHITE,side:THREE.DoubleSide,
   toneMapped:false});
  const steel=new THREE.MeshStandardMaterial({color:'#4e5750',roughness:.77,metalness:.28});
  const pennantGeometry=new THREE.ShapeGeometry(pennantShape(width,height));
