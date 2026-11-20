@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /** Deterministic 8/12/16-Bastion KI36 versus KI38, in one build with one
  * world and one paid BLUE opponent. Simulations are HEADLESS; not GPU FPS.
- * Usage: node scripts/benchmark-sandforge-ai37-combat.mjs
+ * Usage: node scripts/benchmark-sandforge-ai38-combat.mjs
  *   --maps 24 --seeds 824836862,9999
  *   --opponents guarded,contesting,bastion-rush --seconds 480
- *   --output reports/ai37-map24.json
+ *   --output reports/ai38-map24.json
  */
 import {performance} from 'node:perf_hooks';
 import {mkdirSync,writeFileSync} from 'node:fs';
@@ -12,6 +12,7 @@ import {dirname,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {Simulation as NativeSimulation} from '../dist/src/reborn/simulation.js';
 import {UNITS} from '../dist/src/reborn/catalog.js';
+import {ai38InfrastructurePlan} from '../dist/src/reborn/ai38-investment-doctrine.js';
 import {runMatch} from './benchmark-reborn-ai.mjs';
 
 class SimulationV4 extends NativeSimulation {
@@ -48,7 +49,9 @@ function observeFactory(){
   upgradeSeconds=0,upgradesPeak=0,
   stationaryCommandSeconds=0,stationaryVehicles=0,
   lastSample=-1,vehiclePositions=new Map(),oldPositions=new Map(),immobileTimes=new Map(),
-  mobileCount=0,pointCount=0,redIncomeSeconds=0,blueIncomeSeconds=0,contactTicks=0;
+  mobileCount=0,pointCount=0,redIncomeSeconds=0,blueIncomeSeconds=0,contactTicks=0,
+  eligibleBunkerSeconds=0,eligibleUpgradeSeconds=0,maxFreeCredits=0,
+  maxCreditsWhileBunkerEligible=0,firstBunkerAt=null,firstUpgradeAt=null;
  const observe=g=>{
   // Record only REAL weapon events. No effects fabricated by the telemetry.
   for(const s of g.shots)if(s.owner===1&&s.at!==undefined&&Math.abs(s.at-g.time)<.0001){
@@ -60,6 +63,31 @@ function observeFactory(){
   if(sec===lastSample)return;
   lastSample=sec;
   const bunkers=g.bases.filter(b=>b.hp>0&&b.kind==='bunker'&&b.owner===1);
+  maxFreeCredits=Math.max(maxFreeCredits,g.credits[1]);
+  if(bunkers.length&&firstBunkerAt===null)firstBunkerAt=g.time;
+  const fighters=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier&&
+   !['medic','engineer','scout','supply','drone'].includes(u.kind));
+  const buildings=g.bases.filter(b=>b.owner===1&&b.hp>0);
+  const observedRaiders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u));
+  const investment=ai38InfrastructurePlan({
+   time:g.time,income:g.income(1),
+   ownedBastions:g.territories.filter(t=>t.owner===1).length,
+   fieldFighters:fighters.length,
+   availableInfantry:fighters.filter(u=>UNITS[u.kind].group==='Infanterie').length,
+   headquartersReady:buildings.some(b=>b.kind==='headquarters'&&b.buildRemaining<=0),
+   barracksReady:buildings.some(b=>b.kind==='barracks'&&b.buildRemaining<=0),
+   factoryReady:buildings.some(b=>b.kind==='factory'&&b.buildRemaining<=0),
+   bunkerCount:bunkers.length,
+   hasUpgradeTarget:g.territories.some(t=>t.owner===1&&t.upgradeLevel!==2&&
+    !buildings.some(b=>b.kind==='headquarters'&&b.territory===t.id)),
+   homeThreat:observedRaiders.some(u=>buildings.some(b=>Math.hypot(u.x-b.x,u.y-b.y)<650)),
+   finishing:g.tactical.state.commander?.enemyHQEliminatedAt!==undefined
+  });
+  if(investment.goal==='bunker'){
+   eligibleBunkerSeconds++;
+   maxCreditsWhileBunkerEligible=Math.max(maxCreditsWhileBunkerEligible,g.credits[1]);
+  }
+  if(investment.goal==='bastion-upgrade')eligibleUpgradeSeconds++;
   const completed=bunkers.filter(b=>b.buildRemaining<=0);
   const seats=completed.reduce((s,b)=>s+(b.garrison?.length??0),0);
   bunkerMax=Math.max(bunkerMax,seats);
@@ -67,13 +95,13 @@ function observeFactory(){
   bunkerBuildingSeconds+=completed.length;
   const upgrades=g.territories.filter(t=>t.owner===1&&t.upgradeLevel===2).length;
   upgradesPeak=Math.max(upgradesPeak,upgrades);
+  if(upgrades>0&&firstUpgradeAt===null)firstUpgradeAt=g.time;
   upgradeSeconds+=upgrades;
   redIncomeSeconds+=g.income(1);blueIncomeSeconds+=g.income(0);pointCount++;
   const previous=vehiclePositions;vehiclePositions=new Map();
-  const fighters=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier&&
-   ['tank','rover','artillery'].includes(u.kind));
-  mobileCount=Math.max(mobileCount,fighters.length);
-  for(const u of fighters){
+  const vehicles=fighters.filter(u=>['tank','rover','artillery'].includes(u.kind));
+  mobileCount=Math.max(mobileCount,vehicles.length);
+  for(const u of vehicles){
    vehiclePositions.set(u.id,{x:u.x,y:u.y});
    if(!u.orders.length||u.hold||u.defendUntil>g.time)continue;
    const goal=u.orders[0];
@@ -93,7 +121,11 @@ function observeFactory(){
   longStationaryVehicleSeconds:stationaryCommandSeconds,stationaryVehicleIncidents:stationaryVehicles,
   maxMobileVehicles:mobileCount,
   meanRedIncome:pointCount?round(redIncomeSeconds/pointCount):0,
-  meanBlueIncome:pointCount?round(blueIncomeSeconds/pointCount):0})};
+  meanBlueIncome:pointCount?round(blueIncomeSeconds/pointCount):0,
+  eligibleBunkerSeconds,eligibleUpgradeSeconds,maxFreeCredits,
+  maxCreditsWhileBunkerEligible,
+  firstBunkerAt:firstBunkerAt===null?null:round(firstBunkerAt),
+  firstUpgradeAt:firstUpgradeAt===null?null:round(firstUpgradeAt)})};
 }
 function compact(run){
  return {map:run.map,seed:run.seed,opponent:run.opponent,variant:run.variant,
@@ -106,6 +138,9 @@ function compact(run){
   produced:run.redProducedByKind,
   paidBuildings:run.paidBuildingsByKind,
   garrisonPeak:run.peakGarrisonOccupants,upgradesPeak:run.peakUpgradedBastions,
+  eligibleBunkerSeconds:run.eligibleBunkerSeconds,
+  maxCreditsWhileBunkerEligible:run.maxCreditsWhileBunkerEligible,
+  firstBunkerAt:run.firstBunkerAt,firstUpgradeAt:run.firstUpgradeAt,
   stuckVehicleSeconds:run.longStationaryVehicleSeconds,
   stalledMissions:run.stalledMissions,abortedMissions:run.abortedMissions,
   attackingSeconds:run.attackingSeconds,p95TickMs:round(run.cpu.stepMs.p95,3)};
