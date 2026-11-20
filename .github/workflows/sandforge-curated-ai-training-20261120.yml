@@ -1,0 +1,56 @@
+name: Sandforge curated map AI tournament 480s
+on:
+  push:
+    branches:
+      - feat/sandforge-three-curated-maps-ai-training-20261120
+  workflow_dispatch:
+concurrency:
+  group: sandforge-curated-training-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  independent-map-training:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - preset: staubkrone
+            label: open-arena
+          - preset: frostpforte
+            label: fortified-pass
+          - preset: schlangenfeste
+            label: triple-pass
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile and validate all curated map identities
+        run: |
+          npx tsc -p tsconfig.json
+          node --test tests/sandforge-curated-maps-20261120.test.mjs
+      - name: Real 480-second AI-vs-AI A/B (three opponent doctrines)
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai38-combat.mjs \
+            --presets ${{ matrix.preset }} \
+            --opponents guarded,contesting,bastion-rush \
+            --seconds 480 \
+            --output reports/curated-${{ matrix.preset }}.json
+      - name: Score actual wins, paid damage, Bastion control and no-path stalls
+        run: |
+          node scripts/score-sandforge-curated-training.mjs \
+            reports/curated-${{ matrix.preset }}.json \
+            reports/curated-${{ matrix.preset }}-scorecard.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sandforge-ai-training-${{ matrix.preset }}
+          path: reports/curated-${{ matrix.preset }}*.json
+          if-no-files-found: warn
+          retention-days: 90
