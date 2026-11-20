@@ -64,7 +64,7 @@ export function ai37BastionDefenseValue(x:{
  return Math.max(0,x.income)*(x.upgradeLevel===2?2:1)*9+
   (x.upgradeLevel===2?250:0)+
   Math.min(5,Math.max(0,x.visibleRaiders))*210+
-  Math.max(0,x.contestProgress)*65+
+  (x.contestProgress>0?1100+Math.min(8,x.contestProgress)*65:0)+
   (x.enemyAdjacent?220:0);
 }
 
