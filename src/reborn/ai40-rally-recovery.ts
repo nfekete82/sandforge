@@ -5,6 +5,12 @@ import {distance,type Point} from './config.js';
  * all soldiers must still walk to the point using their ordinary routes.
  * The caller passes only friendly living fighters and real terrain/gun data.
  */
+/** A majority of paid soldiers is physically unable to reach the rally:
+ * shorten only THAT impossible gathering phase. Ordinary slow/healthy
+ * marching retains the longer 95-second recovery threshold. */
+export function ai40RecoveryWaitThreshold(total:number,blocked:number):number{
+ return blocked>=Math.max(4,Math.ceil(total*.45))?60:95;
+}
 export function ai40ClusterRallyRecovery<T extends Point&{
   id:number;hp:number;kind:string;
 }>(x:{
@@ -14,7 +20,8 @@ export function ai40ClusterRallyRecovery<T extends Point&{
 }):Point|undefined{
  // Long rally travel is normal, especially on 16-Bastion maps. A retry
  // requires actual missing paths in the CURRENT unit orders, not just time.
- if(x.stalledSeconds<95||x.units.length<8)return undefined;
+ if(x.units.length<8||x.stalledSeconds<
+    ai40RecoveryWaitThreshold(x.units.length,x.trappedMoveOrders))return undefined;
  const living=x.units.filter(u=>u.hp>0);
  const minimum=Math.min(4,Math.max(3,Math.ceil(living.length*.14)));
  if(living.length<minimum||

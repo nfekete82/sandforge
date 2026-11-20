@@ -1,0 +1,64 @@
+name: Sandforge AI 4.1 blocked-army earlier rally recovery trial
+on:
+  push:
+    branches:
+      - feat/sandforge-ai41-rally-timer-20261120
+  workflow_dispatch:
+concurrency:
+  group: sandforge-ai41-rally-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  canyon-offense:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - map: 26
+            seed: 824836862
+            label: 16-canyon-trap
+          - map: 25
+            seed: 824836862
+            label: 12-canyon-trap
+          - map: 26
+            seed: 9999
+            label: 16-canyon-control
+          - map: 25
+            seed: 9999
+            label: 12-canyon-control
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile and verify rally/canyon/fog regression
+        run: |
+          npx tsc -p tsconfig.json
+          node --test tests/sandforge-ai39-no-path-detour-20261120.test.mjs
+          node --test tests/sandforge-ai40-canyon-mission-20261120.test.mjs
+          node --test tests/sandforge-ai41-rally-recovery-20261120.test.mjs
+      - name: Real 480-second paired canyon battles
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai38-combat.mjs \
+            --maps ${{ matrix.map }} \
+            --seeds ${{ matrix.seed }} \
+            --opponents guarded,contesting,bastion-rush \
+            --seconds 480 \
+            --output reports/ai41-rally-${{ matrix.label }}.json
+      - name: Verify real economy, navigation and prior KI4.0 wins
+        run: |
+          node scripts/check-sandforge-ai39-canyon-report.mjs reports/ai41-rally-${{ matrix.label }}.json
+          node scripts/check-sandforge-ai40-offense-results.mjs reports/ai41-rally-${{ matrix.label }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sandforge-ai41-rally-${{ matrix.label }}
+          path: reports/ai41-rally-${{ matrix.label }}.json
+          if-no-files-found: warn
+          retention-days: 30

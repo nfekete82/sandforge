@@ -22,8 +22,20 @@ test('after a 105s genuinely blocked gather, relocate to REAL friendly artillery
  assert.ok(pack.filter(u=>u.id!==7).some(u=>u.x===p.x&&u.y===p.y));
  assert.ok(Math.hypot(p.x-720,p.y-995)<330);
 });
-test('no premature rally relocation, even with many paid units',()=>{
- assert.equal(ai40ClusterRallyRecovery({...base,stalledSeconds:94}),undefined);
+test('early recovery requires a majority of truly missing unit paths',()=>{
+ assert.equal(ai40ClusterRallyRecovery({...base,stalledSeconds:59}),undefined);
+ const rescued=ai40ClusterRallyRecovery({...base,stalledSeconds:60});
+ assert.ok(rescued);
+ assert.equal(ai40ClusterRallyRecovery({...base,stalledSeconds:85,
+  trappedMoveOrders:3}),undefined);
+ assert.ok(ai40ClusterRallyRecovery({...base,stalledSeconds:95,
+  trappedMoveOrders:3}));
+});
+test('strict blocked threshold and already assembled safety remain active',()=>{
+ assert.equal(ai40ClusterRallyRecovery({...base,stalledSeconds:100,
+  trappedMoveOrders:2}),undefined);
+ assert.equal(ai40ClusterRallyRecovery({...base,stalledSeconds:60,
+  oldRally:{x:720,y:950}}),undefined);
 });
 test('a fully functioning siege with zero blocked movement orders is never rerouted',()=>{
  assert.equal(ai40ClusterRallyRecovery({...base,trappedMoveOrders:0}),undefined);
