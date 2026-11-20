@@ -335,6 +335,8 @@ export class Simulation {
         b.hp>0&&b.buildRemaining<=0),
       airfieldReady:this.bases.some(b=>b.owner===ai&&b.kind==='airfield'&&
         b.hp>0&&b.buildRemaining<=0),
+      artilleryReady:active.some(u=>u.kind==='artillery')||
+        this.bases.some(b=>b.owner===ai&&b.queueTypes.includes('artillery')),
       totalBastions:this.territories.length,
       bunkerCount:this.bases.filter(b=>b.owner===ai&&b.kind==='bunker'&&b.hp>0).length,
       hasUpgradeTarget:this.territories.some(t=>bastionUpgradable(t,ai,this.bases,

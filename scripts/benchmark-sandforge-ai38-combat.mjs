@@ -80,6 +80,8 @@ function observeFactory(){
    airfieldReady:buildings.some(b=>b.kind==='airfield'&&b.buildRemaining<=0),
    totalBastions:g.territories.length,
    bunkerCount:bunkers.length,
+   artilleryReady:fighters.some(u=>u.kind==='artillery')||
+     buildings.some(b=>b.queueTypes.includes('artillery')),
    hasUpgradeTarget:g.territories.some(t=>t.owner===1&&t.upgradeLevel!==2&&
     !buildings.some(b=>b.kind==='headquarters'&&b.territory===t.id)),
    homeThreat:observedRaiders.some(u=>buildings.some(b=>Math.hypot(u.x-b.x,u.y-b.y)<650)),

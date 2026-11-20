@@ -86,6 +86,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
     !['medic','engineer'].includes(u.kind)).length,
    headquartersReady:complete('headquarters'),barracksReady:complete('barracks'),
    factoryReady:complete('factory'),airfieldReady:complete('airfield'),
+   artilleryReady:count('artillery')>0,
    totalBastions:g.territories.length,
    bunkerCount:own.filter(b=>b.kind==='bunker').length,
    hasUpgradeTarget:g.territories.some(t=>t.owner===1&&t.upgradeLevel!==2&&
