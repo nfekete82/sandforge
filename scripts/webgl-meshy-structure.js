@@ -15,7 +15,7 @@ export function prepareMeshyStructure(model,kind,owner=0){
  model.traverse(node=>{
   if(!node.isMesh)return;
   node.castShadow=true;node.receiveShadow=true;
-  if(owner!==1)return;
+  if(owner!==1&&kind!=='generator')return;
   const paint=source=>{
    if(!source?.isMeshStandardMaterial||!source.map)return source;
    if(recolored.has(source))return recolored.get(source);
@@ -25,13 +25,21 @@ export function prepareMeshyStructure(model,kind,owner=0){
     previous?.call(this,shader,renderer);
     const marker='#include <map_fragment>';
     if(!shader.fragmentShader.includes(marker))return;
-    shader.fragmentShader=shader.fragmentShader.replace(marker,marker+'\n'+[
+    if(owner===1)shader.fragmentShader=shader.fragmentShader.replace(marker,marker+'\n'+[
      'float sfBlue=clamp((diffuseColor.b-max(diffuseColor.r,diffuseColor.g)) * 5.0,0.0,1.0);',
      'vec3 sfTeamRed=vec3(max(0.20,diffuseColor.b*1.40),diffuseColor.b*0.11,diffuseColor.b*0.08);',
      'diffuseColor.rgb=mix(diffuseColor.rgb,sfTeamRed,sfBlue);'
     ].join('\n'));
+    if(kind==='generator'){
+     const glow='#include <emissivemap_fragment>';
+     shader.fragmentShader=shader.fragmentShader.replace(glow,glow+'\n'+[
+      '// Emission only where original Meshy source has vivid cool reactor color.',
+      'float sfCoreGlow=clamp((diffuseColor.b-max(diffuseColor.r,diffuseColor.g)) * 4.8,0.0,1.0);',
+      'totalEmissiveRadiance += diffuseColor.rgb * sfCoreGlow * 0.58;'
+     ].join('\n'));
+    }
    };
-   mat.customProgramCacheKey=()=>oldKey()+'|sf-meshy-structure-'+kind+'-red';
+   mat.customProgramCacheKey=()=>oldKey()+'|sf-meshy-structure-'+kind+'-'+owner;
    mat.userData={...mat.userData,sandforgeMeshyTeamOwned:true};
    mat.needsUpdate=true;recolored.set(source,mat);return mat;
   };
