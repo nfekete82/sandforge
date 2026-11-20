@@ -169,3 +169,21 @@ export function ai42DirectVisibleStrike(x:{
  return x.airBreakoutAllowed&&!x.retreating&&
   x.bomberDistance<=1900&&!x.existingSameTarget;
 }
+
+/** Paid R-01 provides real continuous sight on the previously observed HQ
+ * while direct bomber flights are staged. The HQ memory is a MOVE waypoint
+ * only; no hidden unit, sensor or attack ever appears by fiat. */
+export function ai42DroneOverwatchPoint(x:{
+ home:Point;hq:Point;size:number;sight:number;
+ guns:readonly (Point&{range:number})[];
+}):Point|undefined{
+ const radius=Math.min(910,x.sight-150);
+ if(radius<310)return undefined;
+ const heading=Math.atan2(x.home.y-x.hq.y,x.home.x-x.hq.x);
+ for(const delta of [0,-Math.PI/4,Math.PI/4,-Math.PI/2,Math.PI/2,-3*Math.PI/4,3*Math.PI/4,Math.PI]){
+  const a=heading+delta,p={x:x.hq.x+Math.cos(a)*radius,y:x.hq.y+Math.sin(a)*radius};
+  if(p.x<50||p.y<50||p.x>x.size-50||p.y>x.size-50)continue;
+  if(x.guns.some(g=>distance(g,p)<g.range+140))continue;
+  return p;
+ }
+}
