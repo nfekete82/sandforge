@@ -274,7 +274,8 @@ async function main(){
    const recorder=observeFactory();
    const Simulation=class extends SimulationV4{
     constructor(a,b){super(a,b);this.tactical.ai37Mode=variant==='ai38'?'coordinated':'off';
-      this.tactical.rallyGateTraceEnabled=variant==='ai38';}
+      this.tactical.rallyGateTraceEnabled=variant==='ai38';
+      this.tactical.ai42TraceEnabled=variant==='ai38';}
    };
    const result=runMatch({Simulation,UNITS},{opponent,seconds:opts.seconds,
     ai33:'adaptive',ai35:'control',ai36:'coordinated',observe:recorder.observe,
