@@ -42,6 +42,8 @@ for(const mapId of ['burning-horizon','last-stronghold'])
     ridgePBR:Boolean(ridge?.material.map?.isTexture&&ridge?.material.normalMap?.isTexture),
     tint:avg,
     rockyOutcropDraws:a.scene.children.filter(o=>o.userData?.rockOutcrops).length,
+    genuineGlbDraws:a.canyonOutcrops?.drawCalls??0,
+    genuinePbrGlb:a.canyonOutcrops?.meshes.every(m=>m.userData?.realPbrMaterialShared&&m.material.map?.isTexture)??false,
     blockedCount:a.game.world.blocked.filter(x=>x>0).length
    };
   });
@@ -54,6 +56,8 @@ for(const mapId of ['burning-horizon','last-stronghold'])
   if(report.mesaVertices)expect(report.mesaPBR).toBe(true);
   expect(report.realFoW&&report.noCloudHalos).toBe(true);
   expect(report.rockyOutcropDraws).toBeGreaterThanOrEqual(0);
+  expect(report.genuineGlbDraws).toBeGreaterThan(0);
+  expect(report.genuinePbrGlb).toBe(true);
   if(mapId==='last-stronghold'){
    expect(report.tint[0]).toBeLessThan(.28);
    expect(report.tint[1]).toBeLessThan(.29);
