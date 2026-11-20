@@ -29,6 +29,9 @@ import {fineSandPattern} from '/src/reborn/fine-sand.js';
 import {cinematicSandSample,addDesertWashStones} from '/webgl-desert-art.js';
 import {DESERT_SCENIC_STYLE as desertStyle} from '/webgl-desert-style.js';
 import {installDesertSandPBR,SANDFORGE_SAND_PBR} from '/webgl-sand-pbr.js';
+import {desertEcoregion} from '/webgl-desert-ecoregions.js';
+import {installDesertRegionalPBR,DESERT_REGIONAL_PBR_REVISION} from '/webgl-desert-ground-pbr.js';
+import {loadAuthenticDesertScenery} from '/webgl-desert-ecoregion-3d.js';
 import {createDesertVillages} from '/webgl-desert-village.js';
 import {installMatchResultOverlay} from '/webgl-match-result.js';
 import {installBattleDebrief} from '/webgl-battle-debrief.js';
@@ -111,6 +114,7 @@ const desertMap=globalThis.SandforgeDesertMaps?.matches(selectedDesertMap,{
  terrain:terrain.battlefield?.profile,biome,kind:terrain.landscapeKind,
  bastions:game.territories.length
 })?selectedDesertMap:null;
+const desertRegion=desertMap?desertEcoregion(desertMap.id):null;
 const gradingHomes=terrain.battlefield?.generatorVersion>=2
  ?campaignLayout(world.mapVersion,seed).headquarters.map(i=>battlefieldStart(terrain.sites[i],size))
  :[];
@@ -327,8 +331,9 @@ function buildTerrain(){
  // visible fallback until this small WebP has loaded; no extra art layers.
  // Every one of the 16 ground chunks shares this single material.
  if(biome==='desert'&&terrain.battlefield){
-  installDesertSandPBR(material,renderer).then(ok=>{
-   if(ok)console.info('Sandforge 3D terrain PBR: '+SANDFORGE_SAND_PBR.revision);
+  installDesertRegionalPBR(material,renderer,desertRegion?.id).then(ok=>{
+   if(ok)console.info('Sandforge 3D terrain PBR: '+
+    (desertRegion?.ground?DESERT_REGIONAL_PBR_REVISION:SANDFORGE_SAND_PBR.revision));
    else console.warn('Sandforge 3D terrain PBR source unavailable: procedural fallback retained');
   });
  }
@@ -377,6 +382,10 @@ function buildTerrain(){
  // terrain's vertex colours only; game buildings and props are untouched.
  const subtleSandLift=new THREE.Color(desertStyle.warmLift);
  const vertexColor=new THREE.Color();
+ const regionalSand=desertRegion?new THREE.Color(desertRegion.palette.sand):null,
+  regionalLight=desertRegion?new THREE.Color(desertRegion.palette.highlight):null,
+  regionalStone=desertRegion?new THREE.Color(desertRegion.palette.stone):null,
+  regionalWash=desertRegion?new THREE.Color(desertRegion.palette.wash):null;
  const biomeGroundBase=new THREE.Color(biomeStyle.groundBase);
  const biomeGroundLight=new THREE.Color(biomeStyle.groundLight);
  const biomeGroundRock=new THREE.Color(biomeStyle.groundRock);
@@ -393,9 +402,15 @@ function buildTerrain(){
    const nval=.96+.055*Math.sin(x*.013+z*.009)+.025*Math.cos(x*.071-z*.032);
    if(spacious&&terrain.battlefield){
     const art=cinematicSandSample({x,z,size,seed,profile:terrain.battlefield.profile,slope,height:h});
-    vertexColor.copy(sandGold).lerp(sandLight,(art.dune+1)*.28)
-      .lerp(sandstone,Math.min(.82,art.strata*.72))
-      .lerp(riverSediment,art.wadi*.49).multiplyScalar(art.shade);
+    if(desertRegion){
+      vertexColor.copy(regionalSand).lerp(regionalLight,(art.dune+1)*.22)
+       .lerp(regionalStone,Math.min(.43,art.strata*.43))
+       .lerp(regionalWash,art.wadi*.19).multiplyScalar(.98+art.shade*.026);
+     }else{
+      vertexColor.copy(sandGold).lerp(sandLight,(art.dune+1)*.28)
+       .lerp(sandstone,Math.min(.82,art.strata*.72))
+       .lerp(riverSediment,art.wadi*.49).multiplyScalar(art.shade);
+     }
    }else{
     const bands=(Math.sin(h*.19+x*.003+z*.002)*.5+.5)*rocky;
     vertexColor.set(spacious?'#e9dcc6':'#faf1e0')
@@ -414,17 +429,18 @@ function buildTerrain(){
    }
    // Warm pale dune sand only. Building GLBs and everything else
    // have their own materials and therefore retain exactly their old look.
-   if(biome==='desert')vertexColor.lerp(subtleSandLift,desertStyle.warmLiftStrength);
+   if(biome==='desert'&&!desertRegion)vertexColor.lerp(subtleSandLift,desertStyle.warmLiftStrength);
    // The authored albedo now provides the actual sand pigment. Retain
    // subtle terrain-gradation shading but avoid double-multiplying the
    // full old orange/gold vertex palette into the real photo texture.
-   if(biome==='desert'&&terrain.battlefield)
+   if(biome==='desert'&&terrain.battlefield&&!desertRegion)
     vertexColor.lerp(new THREE.Color(desertStyle.authoredSandVertex),desertStyle.authoredSandVertexBlend);
    colors[n]=vertexColor.r;colors[n+1]=vertexColor.g;colors[n+2]=vertexColor.b;
    // A 512px photographic sand tile stretched over 2.2km loses all
    // fine detail. Repeat it at a realistic RTS surface scale instead.
-   uv[k*2]=x/(spacious&&biome==='desert'?900:spacious?2200:1500);
-   uv[k*2+1]=z/(spacious&&biome==='desert'?900:spacious?2200:1500);
+   const uvSpan=desertRegion?.uvMeters??(spacious&&biome==='desert'?900:spacious?2200:1500);
+    uv[k*2]=x/uvSpan;
+   uv[k*2+1]=z/uvSpan;
    // Sample normals from the continuous field, not triangle tessellation:
    // border ring and playable terrain now have identical lighting at seams.
    const eps=1.6,dx=(heightAt(x+eps,z)-heightAt(x-eps,z))/(2*eps);
@@ -1083,6 +1099,14 @@ const burnedSedans=desertMap&&biome==='desert'
 // Desert corridors are navigation-only; no permanent tracks leading to Bastions.
 const biomeVegetation=addBiomeVegetation({THREE,scene,world,terrain,game,heightAt,seed,biome,
  lowQuality:query.get('lite')==='1'});
+// Load hand-modeled organic PBR GLBs, no primitive-geometry stand-ins.
+let authenticDesertArt=null,authenticDesertReady=false;
+const authenticDesertLoad=desertRegion?loadAuthenticDesertScenery({
+ loader,scene,world,terrain,seed,mapId:desertRegion.id,heightAt,
+ lowQuality:query.get('lite')==='1'
+}).then(a=>{authenticDesertArt=a;return a;}).catch(error=>{
+ console.warn('Authentic 3D desert scenery unavailable:',error);return null;
+}).finally(()=>{authenticDesertReady=true;}):Promise.resolve(null);
 // Small ground-level stones accent the winding dry wash from the reference.
 // One visual-only instanced draw call; no gameplay pathing or collision edits.
 const washStones=spacious&&biome==='desert'?addDesertWashStones({scene,world,size,seed,heightAt,
@@ -1187,8 +1211,8 @@ function setShowcase(enabled){
 }
 showcaseButton.onclick=()=>setShowcase(!showcaseActive);
 if(query.get('showcase')==='1')setShowcase(true);
-const desertArt=new DesertArtPass({scene,world,terrain,heightAt,pos,loader,biome,lowQuality:query.get('lite')==='1'});
-const oases=new DesertOases({scene,game,heightAt,groundMeshes,lowQuality:query.get('lite')==='1',enabled:biome==='desert'&&query.get('oases')!=='off'});
+const desertArt=new DesertArtPass({scene,world,terrain,heightAt,pos,loader,biome,mapId:desertRegion?.id??null,lowQuality:query.get('lite')==='1'});
+const oases=new DesertOases({scene,game,heightAt,groundMeshes,lowQuality:query.get('lite')==='1',enabled:biome==='desert'&&query.get('oases')!=='off'&&(!desertRegion||desertRegion.key==='erg')});
 battlefield.oases=oases;
 // Generator v3: six unique, locally generated UV-textured adobe house GLBs.
 // Older maps keep their established sparse two-GLTF hamlets, unchanged.
@@ -1207,6 +1231,7 @@ if(oasisFocus){
 }
 window.addEventListener('pagehide',event=>{if(!event.persisted){
  burnedSedans?.dispose();
+ authenticDesertArt?.dispose();
  oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
 }});
 let desertArtReady=false;
@@ -1411,6 +1436,9 @@ function animate(now){
 renderer.setAnimationLoop(animate);
 window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,battlefield,effects,atmosphere,sound,constructionRecovery,visualPerimeter,boundaryCliffs,panKeys,groundTracks,oases,biome,biomeVegetation,
  desertMapId:desertMap?.id??null,
+ desertRegion:desertRegion?.key??null,
+ get authenticDesertArt(){return authenticDesertArt;},
+ get authenticDesertReady(){return authenticDesertReady;},
  burnedSedans,
  get burnedSedanCount(){return burnedSedans?.placements.length??0;},
  performance:performanceWatch,
@@ -1431,6 +1459,10 @@ async function main(){
  try{
   setStatus('Lade echte 3D-Ruinen …');
   const ruins=await addRuins();
+  authenticDesertLoad.then(a=>{
+   if(a)console.info('3D desert ecoregion: '+desertRegion.title+' · '+
+    a.drawCalls+' shared PBR draws / '+a.placements.length+' sites');
+  });
   desertArt.load().then(count=>{
    console.info('3D environment props',count);
   }).catch(error=>console.warn('Desert detail fallback',error))

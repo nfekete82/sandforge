@@ -1,0 +1,62 @@
+{
+  "sonoran": {
+    "albedo": {
+      "sha256": "0d8190efb759762eba8bad5f8ce1f496eb328c6eaf0f8ca3b31cd4fbe195e451",
+      "size": 25446,
+      "source": "https://polyhaven.com/a/red_sand",
+      "license": "CC0"
+    },
+    "normal": {
+      "sha256": "13f7cb30ccc3037dcfd62a49d324fb06f3baa6d4b080f06ea1f49a6dd1f62b0e",
+      "size": 428240,
+      "source": "https://polyhaven.com/a/red_sand",
+      "license": "CC0"
+    },
+    "rough": {
+      "sha256": "26698ab32e7a5d00d06ce982a02dfa9f40a22173cb6c6ae2c464a4b19ef86ba5",
+      "size": 63724,
+      "source": "https://polyhaven.com/a/red_sand",
+      "license": "CC0"
+    }
+  },
+  "mojave": {
+    "albedo": {
+      "sha256": "e583d55ee4348cb75d7eb7aeb50bd7e1b30e42fe01b503c352d3f2c374f7c86e",
+      "size": 230736,
+      "source": "https://polyhaven.com/a/sandy_gravel",
+      "license": "CC0"
+    },
+    "normal": {
+      "sha256": "1b550aaef5f498ac1762a1f2e21963376d044c817888e6d0742826346d382ae7",
+      "size": 479750,
+      "source": "https://polyhaven.com/a/sandy_gravel",
+      "license": "CC0"
+    },
+    "rough": {
+      "sha256": "ca22a658f20922fa3651fc80cd36da2ab3da443c757e5332c76965369ae42e30",
+      "size": 9622,
+      "source": "https://polyhaven.com/a/sandy_gravel",
+      "license": "CC0"
+    }
+  },
+  "badlands": {
+    "albedo": {
+      "sha256": "8b0d5169e294e6bef926f74c7431247909524a176eb1b1be01e2e79f88b46875",
+      "size": 450762,
+      "source": "https://polyhaven.com/a/rock_ground",
+      "license": "CC0"
+    },
+    "normal": {
+      "sha256": "e7c7ac07b1299f0442d336d2ecd1c826258a220e77e2fd6e26fbde487dfd5c1a",
+      "size": 595424,
+      "source": "https://polyhaven.com/a/rock_ground",
+      "license": "CC0"
+    },
+    "rough": {
+      "sha256": "2f2ce8ad6c83074f2016efe7ab287ac6b7743f9d99d3dbccc851de5ebe409291",
+      "size": 308634,
+      "source": "https://polyhaven.com/a/rock_ground",
+      "license": "CC0"
+    }
+  }
+}
