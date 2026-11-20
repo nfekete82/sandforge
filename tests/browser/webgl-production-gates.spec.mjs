@@ -57,18 +57,19 @@ test('real factory GLBs: production, four rotations, two factions, pause, orders
   });
   expect(release.count).toBe(1);expect(release.active).toBe(1);expect(release.orders[0]?.kind).toBe('attackMove');
   await page.waitForFunction(()=>{const f=gateFixture;return window.__sandforgeWebGL.battlefield.units.get(f.unit.id)?.detail;},null,{timeout:30000});
-  for(const [stage,age,open]of [['closed',0,0],['half',.75,.5],['open',1.25,1],['drive',2.7,1],['clear',1.25+release.duration,1],['closed-again',2.25+release.duration,0]]){
+  for(const [stage,age] of [['start',0],['drive',Math.min(1.5,release.duration*.3)],
+   ['mid',release.duration*.65],['clear',release.duration],['after',release.duration+.18]]){
    const pose=await page.evaluate(age=>{
     const w=window.__sandforgeWebGL,g=w.game,bf=w.battlefield,{event,unit,base}=gateFixture;
     g.time=event.at+age;bf.sync(true,0,false);const actor=bf.units.get(unit.id),gate=bf.bases.get(base.id).gate;
     w.renderer.render(w.scene,w.camera);
-    return {open:(1-gate.door.scale.y)/.96,position:actor.node.position.toArray(),actual:bf.entityPosition(unit).toArray(),visible:actor.node.visible,count:g.units.length,active:bf.productionGates.active.size,
-     hall:gate.hall.visible,orders:unit.orders};
+    return {open:gate.openBay===true&&gate.door===null,position:actor.node.position.toArray(),actual:bf.entityPosition(unit).toArray(),visible:actor.node.visible,count:g.units.length,active:bf.productionGates.active.size,
+     hall:gate.hall?.visible??true,orders:unit.orders};
    },age);
-   expect(pose.open).toBeCloseTo(open,5);expect(pose.count).toBe(1);
-   if(stage==='closed')expect(pose.visible).toBe(false);
+   expect(pose.open).toBe(true);expect(pose.count).toBe(1);
+   if(stage==='start')expect(pose.visible).toBe(true);
    if(stage==='clear')expect(Math.hypot(...pose.position.map((n,i)=>n-pose.actual[i]))).toBeLessThan(.001);
-   if(stage==='closed-again')expect(pose.active).toBe(0);
+   if(stage==='after')expect(pose.active).toBe(0);
    if(captureScreenshots&&owner===0&&facing===0)await page.screenshot({path:`artifacts/production-gates/${stage}.png`});
    if(captureScreenshots&&stage==='drive')await page.screenshot({path:`artifacts/production-gates/drive-faction-${owner}-facing-${facing}.png`});
   }
@@ -86,7 +87,7 @@ test('real factory GLBs: production, four rotations, two factions, pause, orders
    const T=await import('three'),w=__sandforgeWebGL,{event,unit,base}=gateFixture;
    w.game.time=event.at+2.7;w.battlefield.sync(true,.05,true);
    const actor=w.battlefield.units.get(unit.id),entry=w.battlefield.bases.get(base.id);
-   const roof=entry.gate.door.parent.localToWorld(new T.Vector3(.18,1.48*.96+.25*.04,1.5));
+   const roof=entry.gate.root.localToWorld(new T.Vector3(.18,2.34,1.5));
    const box=new T.Box3().setFromObject(actor.detail);
    return {top:box.max.y,lintel:roof.y,active:w.battlefield.productionGates.active.size};
   });
@@ -102,8 +103,8 @@ test('real factory GLBs: production, four rotations, two factions, pause, orders
   g.units=[];bf.sync(true);base.queue=[.05];base.queueTypes=['tank'];base.queueCosts=[550];base.rally=null;
   g.paused=false;g.status='playing';g.step(.05);g.paused=true;bf.sync(true);
   const event=g.productionReleases.at(-1),u=g.units.find(u=>u.id===event.unitId);g.time=event.at+.75;bf.sync(true);
-  const gate=bf.bases.get(base.id).gate,paused=gate.door.position.y;bf.sync(true,.1,false);
-  const pauseStable=gate.door.position.y===paused;
+  const gate=bf.bases.get(base.id).gate;
+  const pauseStable=gate.openBay===true&&gate.door===null;
   g.command([u.id],{kind:'move',x:u.x+100,y:u.y+100});bf.sync(true);
   const commandRecovered=bf.productionGates.active.size===0&&bf.units.get(u.id).node.position.distanceTo(bf.entityPosition(u))<.001;
   const save=g.save();const formatUnchanged=!('productionReleases'in save);
