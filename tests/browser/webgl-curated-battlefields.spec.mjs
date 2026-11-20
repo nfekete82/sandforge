@@ -46,6 +46,13 @@ for(const id of ['staubkrone','frostpforte','schlangenfeste']){
   mkdirSync('artifacts/screenshots',{recursive:true});
   // First record the REAL gameplay view with native HUD/fog and lighting.
   await page.screenshot({path:'artifacts/screenshots/'+id+'-playfield.png'});
+  // Render-only screenshot gallery: hide the HUD, NOT the battlefield,
+  // for unobstructed map art. Normal gameplay view above remains unchanged.
+  await page.evaluate(()=>{
+   for(const el of document.body.children)
+    if(el.id!=='stage'&&el.tagName!=='SCRIPT')
+     el.style.setProperty('display','none','important');
+  });
   // Then frame an authored landmark for a close-up geometry/material audit.
   await page.evaluate(()=>{
    const a=window.__sandforgeWebGL,p=a.curatedMapArt.plan.landmarks[0];
@@ -65,6 +72,29 @@ for(const id of ['staubkrone','frostpforte','schlangenfeste']){
   });
   await page.waitForTimeout(900);
   await page.screenshot({path:'artifacts/screenshots/'+id+'-landmark.png'});
+  // Also record a true overhead strategic map, with visible cliff passages.
+  // This is a screenshot-only camera change (no pathing/fog changes).
+  await page.evaluate(()=>{
+   const a=window.__sandforgeWebGL;
+   a.controls.target.set(0,25,0);
+   a.camera.position.set(0,4600,0.01);
+   a.camera.zoom=.12;
+   a.camera.updateProjectionMatrix();
+   a.controls.update();
+  });
+  await page.waitForTimeout(400);
+  await page.screenshot({path:'artifacts/screenshots/'+id+'-overview.png'});
+  // Return to the landmark so its actual modeled geometry is visible
+  // in a tiny CI-log JPEG, not buried beneath the full-width HUD.
+  await page.evaluate(()=>{
+   const a=window.__sandforgeWebGL,p=a.curatedMapArt.plan.landmarks[0];
+   const x=p.x-a.game.world.size/2,z=p.y-a.game.world.size/2,y=a.heightAt(p.x,p.y);
+   a.controls.target.set(x,y+55,z);
+   a.camera.position.set(x+420,y+390,z+550);
+   a.camera.zoom=1.15;
+   a.camera.updateProjectionMatrix();
+   a.controls.update();
+  });
   // Tiny diagnostic JPEG in CI logs allows actual image review without
   // downloading large screenshots; full-size PNGs remain in artifacts.
   await page.setViewportSize({width:480,height:270});
