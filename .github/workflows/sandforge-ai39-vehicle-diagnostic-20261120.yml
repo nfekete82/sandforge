@@ -43,6 +43,8 @@ jobs:
           node --check scripts/check-sandforge-ai39-canyon-report.mjs
       - name: KI 3.9 safe empty-path detour unit tests
         run: node --test tests/sandforge-ai39-no-path-detour-20261120.test.mjs
+      - name: KI 4.0 HQ canyon mission and fog-of-war tests
+        run: node --test tests/sandforge-ai40-canyon-mission-20261120.test.mjs
       - name: Paired KI 3.6 vs KI 3.9 canyon vehicle telemetry
         run: |
           mkdir -p reports

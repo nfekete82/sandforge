@@ -23,7 +23,7 @@ import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefens
 import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,type AI33Mode} from './ai33-map-doctrine.js';
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
-import {rankTerrainRecaptureSquad} from './ai36-terrain-routes.js';
+import {rankTerrainRecaptureSquad,canyonPassWaypoint} from './ai36-terrain-routes.js';
 import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage} from './ai36-air-support.js';
 import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
 import {preserveAI36Assault,ai36JoinActiveFront,maintainAI36FrontOnRetarget} from './ai36-assault-continuity.js';
@@ -1428,13 +1428,36 @@ export class TacticalAI {
    const clear=g.world.path(origin,p,obstacles,5);
    if(clear.length)return this.sampleRoute(clear,origin);
    const partial=g.world.path(origin,p,obstacles,5,undefined,false,false,true);
-   if(!partial.length)return undefined;
-   const remaining=distance(partial[partial.length-1],p);
-   if(distance(origin,p)-remaining<Math.max(80,g.world.cell*2))return undefined;
-   const measured=this.sampleRoute(partial,origin);
-   // The untraversed suffix is a cost, NOT an invented reachable path.
-   // Unit movement remains subject to the normal collision/path validator.
-   return {length:measured.length+remaining*1.5,risk:measured.risk+1};
+   if(partial.length){
+    const remaining=distance(partial[partial.length-1],p);
+    if(distance(origin,p)-remaining>=Math.max(80,g.world.cell*2)){
+     const measured=this.sampleRoute(partial,origin);
+     // The untraversed suffix is a cost, NOT an invented reachable path.
+     return {length:measured.length+remaining*1.5,risk:measured.risk+1};
+    }
+   }
+   // KI 4.0: A cliff-side objective may require travelling AWAY from the
+   // final destination to reach an authentic mountain pass. The previous
+   // straight-line progress test discarded every such genuine path.
+   // Validate a short real path towards a public terrain checkpoint.
+   // Never assume the unknown remainder is passable or expose fog enemies.
+   if(g.world.generatorVersion>=3&&g.world.generated?.ridges.length){
+    const pass=canyonPassWaypoint(origin,p,g.world.generated.ridges,5);
+    if(pass){
+     const leg=g.world.path(origin,pass,obstacles,5,undefined,
+      false,false,true);
+     if(leg.length){
+      const end=leg[leg.length-1],advance=distance(origin,pass)-distance(end,pass);
+      if(advance>=Math.max(80,g.world.cell*2)){
+       const measured=this.sampleRoute(leg,origin);
+       return {length:measured.length+
+        distance(end,pass)*1.5+distance(pass,p)*1.5,
+        risk:measured.risk+2};
+      }
+     }
+    }
+   }
+   return undefined;
   }:undefined;
   const observedEnemyHQ=g.memories[1].some(m=>m.owner===0&&m.kind==='headquarters'&&m.hp>0);
   const breakthrough=this.ai37Mode==='coordinated'&&ai38DecisiveAssault({
