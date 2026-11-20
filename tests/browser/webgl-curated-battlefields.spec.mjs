@@ -50,6 +50,10 @@ for(const id of ['staubkrone','frostpforte','schlangenfeste']){
   await page.evaluate(()=>{
    const a=window.__sandforgeWebGL,p=a.curatedMapArt.plan.landmarks[0];
    if(!p)return;
+   // Gallery-only visual audit: reveal the scene so a distant landmark is
+   // actually visible. Gameplay/Fog state and game rules remain unchanged.
+   a.battlefield.fogEnabled=false;
+   a.battlefield.updateFog();
    const target=a.controls.target;
    const x=p.x-a.game.world.size/2,z=p.y-a.game.world.size/2;
    const y=a.heightAt(p.x,p.y);
@@ -61,6 +65,12 @@ for(const id of ['staubkrone','frostpforte','schlangenfeste']){
   });
   await page.waitForTimeout(900);
   await page.screenshot({path:'artifacts/screenshots/'+id+'-landmark.png'});
+  // Tiny diagnostic JPEG in CI logs allows actual image review without
+  // downloading large screenshots; full-size PNGs remain in artifacts.
+  await page.setViewportSize({width:480,height:270});
+  await page.waitForTimeout(350);
+  const preview=await page.screenshot({type:'jpeg',quality:25});
+  console.log('CURATED_VISUAL_THUMBNAIL '+id+' '+preview.toString('base64'));
   console.log('CURATED_WEBGL_VISUAL '+JSON.stringify(state));
  });
 }
