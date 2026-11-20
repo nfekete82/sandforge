@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Reproducible game-ready Sandforge vehicle factory: 2 authored-desert PBR GLBs,
-// single REAL FactoryRollupDoor, fixed team roofs/flags and no second side garage.
+// Reproducible full 3D, photo-reference architectural vehicle factory,
+// physically textured roof, vent equipment, utility wing and open exit.
 // The open-air repair platform remains a separate existing gameplay object.
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
@@ -12,14 +12,18 @@ const PI=Math.PI,TAU=2*PI;
 // Geometry stays in factory GLB model metres. Simulation collision and the
 // independent open-air repair platform remain unchanged.
 export const FACTORY_WIDTH_FACTOR=1.10;
+export const FACTORY_REFERENCE_REVISION='sandforge-industrial-reference-factory-v3-20261120';
 export const FACTORY_OPEN_BAY_WIDTH=3.36;
 export const FACTORY_OPEN_BAY_HEIGHT=2.14;
 export const FACTORY_ROOF_VENT_GAP=Object.freeze([-1.35,-.18]);
 const colors={
- camo:[198,177,137],sand:[211,193,157],sand_light:[224,204,170],
- khaki:[148,144,113],olive:[92,107,82],roof:[90,95,77],
+ camo:[160,164,151],sand:[188,187,168],sand_light:[213,207,184],
+ wall_weather:[155,158,148],metal_cladding:[137,145,141],
+ roof_rib:[110,118,112],roof_glazing:[63,86,87],pipe:[113,121,115],
+ stack:[147,154,149],hazard_white:[208,207,189],hazard_rust:[185,92,58],
+ khaki:[148,144,113],olive:[92,107,82],roof:[142,145,137],
  concrete:[132,130,111],stone:[177,165,138],
- steel:[91,98,91],steel_dark:[45,51,50],steel_light:[142,146,128],
+ steel:[104,112,107],steel_dark:[51,58,57],steel_light:[160,168,162],
  door:[73,81,76],vent:[41,49,48],glass:[42,60,62],
  warning:[201,161,89],team:factionRgb8(0),white:[226,216,184]
 };
@@ -61,6 +65,128 @@ function beam(mat,a,b,width=.09,rotor=false){
  const offset=(p,x,z)=>add(add(p,mul(right,x)),mul(forward,z)),w=width/2;
  const low=[offset(a,-w,-w),offset(a,w,-w),offset(a,w,w),offset(a,-w,w)],high=[offset(b,-w,-w),offset(b,w,-w),offset(b,w,w),offset(b,-w,w)],g=material(mat,rotor);
  for(let i=0;i<4;i++){const j=(i+1)%4;quad(g,low[i],low[j],high[j],high[i]);}quad(g,...low.slice().reverse());quad(g,...high);
+}
+// Architectural trapezoidal panels are REAL non-planar GLB geometry.
+// Unlike dozens of rectangular roof blocks, they create a true silhouette
+// with lighting, visible thickness and baked UVs for high-res PBR maps.
+function roofPlate(mat,points,thickness=.065){
+ const g=material(mat),upper=points.map(p=>[p[0]*FACTORY_WIDTH_FACTOR,p[1],p[2]]),
+ lower=upper.map(p=>[p[0],p[1]-thickness,p[2]]);
+ quad(g,upper[0],upper[1],upper[2],upper[3]);
+ quad(g,lower[3],lower[2],lower[1],lower[0]);
+ for(let i=0;i<4;i++){const n=(i+1)%4;quad(g,upper[i],lower[i],lower[n],upper[n]);}
+}
+function roofY(x){return 2.55+(x<-.10?(x+2.50)/2.40*.66:(2.50-x)/2.60*.66);}
+function roofLine(mat,x0,x1,z0,z1,lift=.015){
+ roofPlate(mat,[[x0,roofY(x0)+lift,z0],[x1,roofY(x1)+lift,z0],
+  [x1,roofY(x1)+lift,z1],[x0,roofY(x0)+lift,z1]],.012);
+}
+function roofSystem(){
+ // The original game image has a heavy, sloping metal hangar roof with
+ // separate raised recessed HVAC/skylight racks, a colored long ridge,
+ // strong painted eaves and exposed industrial brackets.
+ for(const [z0,z1] of [[-2.30,-1.65],[-1.65,-1.00],[-1.00,-.35],[-.35,.30],
+  [.30,.95],[.95,1.60],[1.60,2.31]]){
+  roofPlate('roof',[[-2.50,2.55,z0],[-.10,3.21,z0],
+   [-.10,3.21,z1],[-2.50,2.55,z1]],.07);
+  roofPlate('roof',[[ -.10,3.21,z0],[2.50,2.55,z0],
+   [2.50,2.55,z1],[-.10,3.21,z1]],.07);
+ }
+ // Thick fascia on every side, contrasting riveted black metal.
+ for(const x of [-2.50,2.50])
+  box('roof_rib',[x,2.52,0],[.145,.21,4.84]);
+ for(const z of [-2.36,2.36])
+  beam('roof_rib',[-2.53,2.53,z],[2.53,2.53,z],.105);
+ beam('metal_cladding',[-.10,3.24,-2.37],[-.10,3.24,2.37],.13);
+ // Raised factory-made roof glass and three well-defined framed equipment
+ // trays: front-to-back modules are visible from the tactical camera.
+ for(const [z0,z1] of [[-1.92,-1.27],[-.77,-.12],[.46,1.11]]){
+  roofLine('steel_dark',-2.13,-.55,z0-.055,z1+.055,.080);
+  roofLine('roof_glazing',-2.06,-.62,z0,z1,.100);
+  for(const z of [z0+.05,z1-.05])
+   beam('steel_light',[-2.08,roofY(-2.08)+.13,z],[-.59,roofY(-.59)+.13,z],.055);
+  for(const x of [-2.05,-1.70,-1.36,-1.02,-.64])
+   roofLine('roof_rib',x,x+.03,z0,z1,.125);
+ }
+ // Built-in corrugated roof and pitched narrow raised panels.
+ for(let x=-2.40;x<2.47;x+=.165){
+  if(Math.abs(x)<.15)continue;
+  roofLine('roof_rib',x,x+.026,-2.27,2.27,.022);
+ }
+ // Two blue/red faction marks, split around ventilation support zone.
+ for(const x of [-1.55,1.55])for(const [z0,z1] of [
+  [-1.71,FACTORY_ROOF_VENT_GAP[0]],[FACTORY_ROOF_VENT_GAP[1],1.51]
+ ])roofLine('team',x-.072,x+.072,z0,z1,.17);
+ // Long architectural stripe at the right roofline, as on the screenshot.
+ roofLine('team',2.38,2.48,-2.24,2.24,.066);
+ // HVAC array: 4 genuinely inset fan-blowers, panel-by-panel grilles.
+ for(const [x,z] of [[.69,.38],[1.23,.40],[.72,1.08],[1.26,1.08]]){
+  const y=roofY(x)+.14;
+  box('metal_cladding',[x,y,z],[.40,.11,.44]);
+  box('steel_dark',[x,y+.067,z],[.29,.016,.33]);
+  for(let k=0;k<5;k++)
+   box('steel_light',[x-.123+k*.061,y+.081,z],[.024,.013,.31]);
+  box('roof_rib',[x,y+.10,z-.17],[.40,.06,.045]);
+ }
+ // Angled external roof supports and collector / coolant piping.
+ for(const z of [-2.10,2.10])for(const x of [-2.0,-1.15,.65,1.65]){
+  const y=roofY(x);
+  beam('steel_light',[x,y-.34,z],[x,y-.01,z],.056);
+ }
+ beam('pipe',[-.32,3.31,-1.95],[1.35,3.43,-1.95],.064);
+}
+function factoryUtilityWing(){
+ // Raised right-rear mechanical assembly, visually separate from the
+ // sloped main hangar. Two blue/red capped exhaust towers and one large
+ // vertical louver block match the distinctive reference silhouette.
+ box('steel_dark',[1.48,3.35,-1.36],[1.78,.30,1.70]);
+ box('wall_weather',[1.50,3.83,-1.40],[1.58,.90,1.43]);
+ box('metal_cladding',[1.48,4.36,-1.40],[1.80,.17,1.65]);
+ box('steel_light',[1.47,4.49,-1.40],[1.57,.09,1.39]);
+ // Large front-facing black radiator / intake grille and horizontal fins.
+ box('steel_dark',[1.48,3.76,-.633],[1.29,.63,.053]);
+ for(let i=0;i<7;i++)
+  box('steel_light',[1.48,3.49+i*.092,-.594],[1.27,.024,.040]);
+ for(const x of [.78,2.20])
+  box('roof_rib',[x,3.73,-.59],[.085,.82,.075]);
+ // Two tall individually machined exhaust stacks with faction-color caps.
+ for(const x of [1.06,1.85]){
+  box('steel_dark',[x,4.51,-1.66],[.36,.34,.37]);
+  box('stack',[x,5.12,-1.66],[.26,.92,.26]);
+  box('metal_cladding',[x,5.61,-1.66],[.32,.09,.32]);
+  box('team',[x,5.68,-1.66],[.35,.075,.35]);
+  box('vent',[x,5.73,-1.66],[.24,.026,.24]);
+  for(const z of [-1.82,-1.50])
+   box('steel_dark',[x,5.10,z],[.29,.03,.022]);
+ }
+ // Lower exhaust return / accessory transformer on the rear right.
+ box('concrete',[2.02,.32,-.86],[.50,.60,.62]);
+ box('metal_cladding',[2.02,.72,-.86],[.55,.13,.68]);
+ for(let k=0;k<4;k++)box('vent',[2.24,.48,-1.04+k*.12],[.04,.22,.075]);
+ // Industrial utility cables stay above the roof or OUTSIDE the exit lane.
+ beam('pipe',[.84,4.09,-.84],[.84,3.28,-.24],.075);
+ beam('pipe',[2.21,4.06,-1.75],[2.42,2.65,-1.91],.065);
+}
+// Stenciled warnings and real independent thin plates, not an opaque gate.
+function openFactoryApron(){
+ box('concrete',[.18,.105,2.71],[3.36,.16,1.34]);
+ for(let i=-6;i<=6;i++){
+  const x=.18+i*.230;
+  // Painted diagonal hazard chevrons running across the full access ramp.
+  const a=[x-.11,.194,2.82],b=[x+.015,.194,2.82],
+   c=[x+.25,.194,3.33],d=[x+.11,.194,3.33];
+  const g=material(i%2===0?'hazard_white':'hazard_rust');
+  quad(g,a.map((v,j)=>j===0?v*FACTORY_WIDTH_FACTOR:v),
+   b.map((v,j)=>j===0?v*FACTORY_WIDTH_FACTOR:v),
+   c.map((v,j)=>j===0?v*FACTORY_WIDTH_FACTOR:v),
+   d.map((v,j)=>j===0?v*FACTORY_WIDTH_FACTOR:v));
+ }
+ for(const x of [-1.28,1.62]){
+  box('steel_dark',[x,.199,2.78],[.04,.024,1.02]);
+  // Stepped cable and ramp drainage grates.
+  for(const z of [2.39,2.65,3.12])
+   box('steel_light',[x,.208,z],[.13,.015,.11]);
+ }
 }
 function star(x,y,z,r=.105){
  const g=material('white'),center=[x*FACTORY_WIDTH_FACTOR,y,z],points=[];
@@ -135,43 +261,13 @@ function buildParts(){
   box('steel_dark',[x,.81,z],[.36,.07,.76]);
   box('glass',[x,1.02,z],[.036,.22,.31]);
  }
- // Painted exterior tracks and broad roll-out apron connect the hall to
- // the legal simulation spawn; this is NOT the external repair platform.
- box('concrete',[.18,.135,2.72],[3.25,.12,1.25]);
- for(const x of [-.89,1.25]){
-  box('steel_dark',[x,.209,2.78],[.060,.022,1.07]);
- }
- // Loading gantry, robust side ledges and roof exhaust remain visible.
- // Stacked roof slab, weathered grey-green flat finish and real overhang.
- box('steel_dark',[0,2.40,0],[5.22,.19,4.85]);
- box('roof',[0,2.52,0],[5.08,.10,4.70]);
- for(const x of [-2.40,2.40])
-  box('steel_light',[x,2.56,0],[.12,.17,4.81]);
- for(const z of [-2.31,2.31])
-  box('steel_light',[0,2.56,z],[4.96,.16,.12]);
- // Exactly two team roof stripes, with a split around the raised skylight /
- // ventilation housings. Four short paint sections total, NEVER under vents.
- // Keep both strips symmetric; the same gaps persist for blue and red GLBs.
- for(const x of [-1.55,1.55])for(const [z0,z1] of [
-  [-1.71,FACTORY_ROOF_VENT_GAP[0]],[FACTORY_ROOF_VENT_GAP[1],1.51]
- ]){
-  const length=z1-z0;
-  box('team',[x,2.586,(z0+z1)/2],[.16,.018,length]);
- }
- // Broad exhaust plenums and dark angled ventilation grilles.
- box('stone',[-.88,2.70,-.66],[1.13,.28,.95]);
- box('steel_dark',[-.88,2.85,-.66],[.97,.11,.81]);
- for(let i=0;i<6;i++)
-  box('vent',[-1.29+i*.16,2.915,-.66],[.074,.026,.64]);
- box('stone',[1.34,2.68,-.77],[1.05,.25,.77]);
- box('steel',[1.34,2.86,-.77],[.90,.14,.61]);
- for(let i=0;i<5;i++)box('vent',[.99+i*.18,2.955,-.77],[.075,.026,.50]);
- // Two modest industrial exhaust stacks, separate from exit vehicle path.
- for(const [x,z,h] of [[-1.92,-1.48,.65],[1.91,-1.46,.84]]){
-  box('steel_dark',[x,2.69+h*.5,z],[.22,h,.22]);
-  box('steel_light',[x,2.70+h,z],[.34,.12,.33]);
-  box('vent',[x,2.77+h,z],[.21,.065,.20]);
- }
+ // Open ramp is authored separately at the end of this 3D build.
+ // The reference-inspired sloped sheet-metal roof replaces the old flat
+ // primitive top. Machinery remains legible and entirely beyond exit height.
+ roofSystem();
+ factoryUtilityWing();
+ // The ramp has authentic diagonally striped concrete instead of a shutter.
+ openFactoryApron();
  // Side wall cooling ribs, conduit pipes and functional windows.
  for(const x of [-2.49,2.49]){
   for(const z of [-1.54,-.92,-.30,.32,.95])
@@ -184,7 +280,7 @@ function buildParts(){
  for(const x of [-.78,1.16]){
   box('warning',[x,1.71,2.43],[.12,.20,.03]);
  }
- box('steel_dark',[.18,2.40,2.30],[3.39,.10,.10]);
+ box('steel_dark',[.18,2.47,2.30],[3.39,.10,.10]);
  for(const x of [-1.35,1.69]){
   box('steel_dark',[x,1.43,2.27],[.65,.94,.16]);
   box('team',[x,1.46,2.363],[.40,.60,.022]);
@@ -232,7 +328,7 @@ function exportTeam(owner){
  
  
  buildParts();
- const gltf={asset:{version:'2.0',generator:'sandforge-open-vehicle-factory-v2-20261120'},
+ const gltf={asset:{version:'2.0',generator:FACTORY_REFERENCE_REVISION},
  extensionsUsed:['KHR_materials_unlit'],scene:0,
  scenes:[{nodes:[0]}],nodes:[{name:'SF_Factory_PBR_Root',children:[]}],
  meshes:[],materials:[],images:[],textures:[],samplers:[{magFilter:9729,minFilter:9987,wrapS:10497,wrapT:10497}],
