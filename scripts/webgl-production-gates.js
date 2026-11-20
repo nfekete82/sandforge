@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {buildingFacingAngle} from './webgl-scale.js';
 import {rolloutWheelsShouldRoll} from './webgl-wheel-motion.js';
+import {meshyFactoryPortal} from './webgl-meshy-factory-team.js';
 import {prepareBarracksPortal,updateBarracksPortalPlanes,setBarracksDoorOpen,disposeBarracksPortal} from './webgl-barracks-portal.js';
 import {prepareHeadquartersPortal,setHeadquartersDoorOpen,disposeHeadquartersPortal} from './webgl-headquarters-portal.js';
 
@@ -57,6 +58,28 @@ export class SandforgeProductionGates {
    setHeadquartersDoorOpen(portal,0);
    return entry.gate;
   }
+  // Split from original Meshy PBR triangles at GLB export. Keep this actual
+  // corrugated door on its original geometry, animate to roll above the bay.
+  const meshy=entry.kind==='factory'?meshyFactoryPortal(entry.detail):null;
+  if(meshy){
+   const {door,start,exit}=meshy,hall=new THREE.Group();
+   hall.name='MeshyFactoryWorkshopInterior';
+   const floor=new THREE.Mesh(new THREE.BoxGeometry(.47,.013,.85),floorMaterial);
+   floor.name='MeshyFactoryInteriorFloor';floor.position.set(-.425,-.345,.02);
+   floor.receiveShadow=true;hall.add(floor);
+   const back=new THREE.Mesh(new THREE.BoxGeometry(.49,.31,.012),hallMaterial);
+   back.name='MeshyFactoryRearBay';back.position.set(-.425,-.178,-.39);
+   back.receiveShadow=true;hall.add(back);
+   for(const x of [-.686,-.165]){
+    const rail=new THREE.Mesh(new THREE.BoxGeometry(.018,.28,.57),hallMaterial);
+    rail.name='MeshyFactoryDoorTrack';rail.position.set(x,-.187,.42);hall.add(rail);
+   }
+   entry.detail.add(hall);hall.visible=false;
+   entry.gate={kind:'factory',root:entry.detail,meshyShutter:true,
+    door,rolloutStart:start,rolloutExit:exit,hall,lamp:null,dust:null,ramp:null,
+    doorClosedY:door.position.y,doorScaleY:door.scale.y,doorLiftHeight:.330};
+   return entry.gate;
+  }
   // New authored vehicle factory has a broad permanently OPEN workshop.
   // There is no shutter, warning lamp, opening sound, or closing pause.
   const openBay=entry.detail.getObjectByName('SF_Factory_PBR_OpenBay');
@@ -94,6 +117,12 @@ export class SandforgeProductionGates {
  reset(entry){
   const gate=entry?.gate;if(!gate)return;
   if(gate.openBay)return; // Nothing on the open factory to close.
+  if(gate.meshyShutter){
+   gate.door.position.y=gate.doorClosedY;
+   gate.door.scale.y=gate.doorScaleY;
+   if(gate.hall)gate.hall.visible=false;
+   return;
+  }
   if(gate.kind==='barracks')setBarracksDoorOpen(gate.portal,0);
   else if(gate.kind==='headquarters')setHeadquartersDoorOpen(gate.portal,0);
   else {gate.door.position.y=0;gate.door.scale.y=1;}
@@ -157,11 +186,15 @@ export class SandforgeProductionGates {
    const infantry=barracks||headquarters,root=entry.gate.root;
    const pbrBarracks=barracks&&entry.gate.portal?.pbrDoor===true;
    // New PBR gate sits at z≈4.0; Atlas legacy gate sat at z≈1.5.
-   const exit=root.localToWorld(entry.gate.openBay?new THREE.Vector3(.18,.16,3.45):
+   const exit=entry.gate.meshyShutter?
+    entry.gate.rolloutExit.getWorldPosition(new THREE.Vector3()):
+    root.localToWorld(entry.gate.openBay?new THREE.Vector3(.18,.16,3.45):
     headquarters?new THREE.Vector3(0,.14,6.35):barracks?
     (pbrBarracks?new THREE.Vector3(0,.55,5.20):new THREE.Vector3(-.18,0,2.10)):
     new THREE.Vector3(.18,0,2.9));
-   const start=root.localToWorld(entry.gate.openBay?new THREE.Vector3(.18,.26,-.24):
+   const start=entry.gate.meshyShutter?
+    entry.gate.rolloutStart.getWorldPosition(new THREE.Vector3()):
+    root.localToWorld(entry.gate.openBay?new THREE.Vector3(.18,.26,-.24):
     headquarters?new THREE.Vector3(0,.61,4.12):barracks?
     (pbrBarracks?new THREE.Vector3(0,.58,3.23):new THREE.Vector3(-.18,.275,.9)):
     new THREE.Vector3(.18,.265,-.03));
@@ -221,11 +254,17 @@ export class SandforgeProductionGates {
     updateBarracksPortalPlanes(gate.portal);
     setBarracksDoorOpen(gate.portal,pose.open);
    }else if(gate.kind==='headquarters')setHeadquartersDoorOpen(gate.portal,pose.open);
-   else if(!gate.openBay){
+   else if(gate.meshyShutter){
+    // Collapse the real shutter into a narrow stripe under its lintel;
+    // do not float a solid slab through the roof or discard PBR maps.
+    gate.door.position.y=gate.doorClosedY+gate.doorLiftHeight*pose.open;
+    gate.door.scale.y=gate.doorScaleY*(1-pose.open*.94);
+   }else if(!gate.openBay){
     gate.door.scale.y=1-pose.open*.96;
     gate.door.position.y=(gate.doorLiftHeight??1.48)*pose.open*.96;
    }
-   if(gate.hall)gate.hall.visible=age>=GATE_TIMING.warning&&pose.open>.01;
+   if(gate.hall)gate.hall.visible=gate.meshyShutter?pose.open>.015:
+    age>=GATE_TIMING.warning&&pose.open>.01;
    if(gate.lamp){
     gate.lamp.visible=true;
     gate.lamp.material.emissiveIntensity=(Math.sin(age*22)>0?3:.25);
@@ -265,12 +304,14 @@ export class SandforgeProductionGates {
    const headquarters=gate.kind==='headquarters';
    const infantry=gate.kind==='barracks'||headquarters;
    const pbrBarracks=gate.kind==='barracks'&&gate.portal?.pbrDoor===true;
-   const outside=gate.openBay?new THREE.Vector3(.18,.16,3.45):
+   const outside=gate.meshyShutter?
+    gate.rolloutExit.getWorldPosition(new THREE.Vector3()):
+    gate.openBay?new THREE.Vector3(.18,.16,3.45):
     headquarters?new THREE.Vector3(0,.14,6.35):infantry?
     (pbrBarracks?new THREE.Vector3(0,.55,5.20):new THREE.Vector3(-.18,0,2.10)):
     new THREE.Vector3(.18,0,2.9);
    const root=gate.root;
-   root.localToWorld(outside);
+   if(!gate.meshyShutter)root.localToWorld(outside);
    // Stable AUTHORITATIVE release point. Reading actor.node.position here
    // used our *previous animated frame* as the next target and produced the
    // observed jerking/fast-then-slow feedback loop.
@@ -284,7 +325,7 @@ export class SandforgeProductionGates {
    let p,yaw;
    const facing=buildingFacingAngle(base.facing);
    if(fraction<clearFraction){
-    if(state.directFoot||gate.openBay){
+    if(state.directFoot||gate.openBay||gate.meshyShutter){
      // Physical distance divided by authoritative foot speed, without
      // the previous acceleration/deceleration at the portal.
      p=state.walkStart.clone().lerp(state.walkExit,clamp(fraction/clearFraction));
@@ -382,7 +423,11 @@ export class SandforgeProductionGates {
    entry.gate.ramp?.removeFromParent();
    if(entry.gate.kind==='barracks')disposeBarracksPortal(entry);
    else if(entry.gate.kind==='headquarters')disposeHeadquartersPortal(entry);
-   else entry.gate.hall?.removeFromParent();
+   else{
+    entry.gate.hall?.removeFromParent();
+    if(entry.gate.meshyShutter&&entry.gate.hall)
+     entry.gate.hall.traverse(m=>{if(m.isMesh&&m.geometry!==box)m.geometry.dispose();});
+   }
    delete entry.gate;
   }
  }

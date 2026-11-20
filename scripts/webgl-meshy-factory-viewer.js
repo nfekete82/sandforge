@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {paintMeshyFactoryTeam} from './webgl-meshy-factory-team.js';
 const canvasRoot=document.getElementById('render');
 const metadata=document.getElementById('metadata');
 const status=document.getElementById('status');
@@ -30,15 +31,18 @@ const ground=new THREE.Mesh(new THREE.PlaneGeometry(1750,1750),
 ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
 const loader=new GLTFLoader();
 let root=null;let bounds=null;let generation=0;
+let door=null,doorClosedY=0,doorBaseScale=1,doorTarget=0,doorOpen=0;
+const clock=new THREE.Clock();
 const paths={
- meshy:'/src/assets/reborn/buildings-3d/factory-meshy-0.glb',
- authored:'/src/assets/reborn/buildings-3d/factory-0.glb'
+ meshy:'/src/assets/reborn/buildings-3d/factory-0.glb',
+ 'meshy-red':'/src/assets/reborn/buildings-3d/factory-1.glb',
+ authored:'/src/assets/reborn/buildings-3d/factory-procedural-0.glb'
 };
 function resetCamera(){
  const height=bounds?bounds.getSize(new THREE.Vector3()).y:160;
  controls.target.set(0,height*.39,0);
- const meshy=document.getElementById('model').value==='meshy';
- camera.position.set(meshy?-310:330,255,meshy?-360:395);
+ const meshy=document.getElementById('model').value!=='authored';
+ camera.position.set(meshy?330:330,255,meshy?395:395);
  camera.lookAt(controls.target);
  controls.update();
 }
@@ -63,6 +67,12 @@ async function openModel(kind){
   if(current!==generation)return;
   if(root){root.removeFromParent();root.traverse(n=>{if(n.isMesh)n.geometry?.dispose();});}
   root=data.scene;
+  if(kind==='meshy-red')paintMeshyFactoryTeam(root,1);
+  door=root.getObjectByName('FactoryRollupDoor');
+  doorClosedY=door?.position.y??0;doorBaseScale=door?.scale.y??1;
+  doorTarget=0;doorOpen=0;
+  document.getElementById('door').disabled=!door;
+  document.getElementById('door').textContent='Rolltor öffnen';
   const box=new THREE.Box3().setFromObject(root),size=box.getSize(new THREE.Vector3());
   const scale=220/Math.max(size.x,size.z);
   const c=box.getCenter(new THREE.Vector3());
@@ -75,9 +85,10 @@ async function openModel(kind){
   metadata.textContent=info.triangles.toLocaleString('de-DE')+
    ' Dreiecke · '+info.draws+' Meshes · Albedo '+info.albedo+
    ' / Normal '+info.normal+' / ORM '+info.orm;
-  status.textContent=kind==='meshy'?
-   'Meshy-Kandidat · Einfahrt/Teamfarben vor Freigabe prüfen':
-   'Bisherige gatefreie Sandforge-Fabrik';
+  status.textContent=kind==='authored'?
+   'Bisherige offene Fabrik – nur Vergleich':
+   'Echte Meshy-PBR-Fabrik · '+(kind==='meshy'?'Blau':'Rot')+
+   ' · Rolltor aus originalen Meshy-Dreiecken';
   window.__sandforgeMeshyFactoryReady={kind,info,model:root,renderer,camera};
  }catch(error){
   console.error('Sandforge candidate GLB:',error);
@@ -86,10 +97,26 @@ async function openModel(kind){
  }
 }
 document.getElementById('model').addEventListener('change',e=>openModel(e.target.value));
+document.getElementById('door').addEventListener('click',()=>{
+ if(!door)return;
+ doorTarget=1-doorTarget;
+ document.getElementById('door').textContent=doorTarget?'Rolltor schließen':'Rolltor öffnen';
+});
 document.getElementById('reset').addEventListener('click',resetCamera);
 addEventListener('resize',()=>{
  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
  renderer.setSize(innerWidth,innerHeight);
 });
-function draw(){requestAnimationFrame(draw);controls.update();renderer.render(scene,camera);}
+function draw(){
+ requestAnimationFrame(draw);
+ const dt=Math.min(.08,clock.getDelta());
+ if(door){
+  doorOpen+=(doorTarget-doorOpen)*Math.min(1,dt*4.2);
+  door.position.y=doorClosedY+.330*doorOpen;
+  door.scale.y=doorBaseScale*(1-.94*doorOpen);
+ }
+ controls.update();renderer.render(scene,camera);
+ if(window.__sandforgeMeshyFactoryReady)
+  window.__sandforgeMeshyFactoryReady.doorOpen=doorOpen;
+}
 draw();openModel('meshy');

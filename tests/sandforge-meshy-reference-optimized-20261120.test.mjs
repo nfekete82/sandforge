@@ -25,33 +25,32 @@ test('actual Meshy 7.1 reference model is present and optimized for interactive 
  assert.equal(doc.extensionsUsed?.includes('EXT_meshopt_compression'),false,
   'do not require extra decoder not configured in existing GLTFLoader');
 });
-test('Meshy candidate preserves source textures but deliberately cannot fabricate an open vehicle exit',()=>{
+test('Meshy now becomes the real player and enemy factory with a removable 3D shutter',()=>{
  const output=mkdtempSync(join(tmpdir(),'sandforge-meshy-qa-'));
  try{
   const result=prepareMeshyFactory(path,output);
-  assert.equal(result.status,'prepared');
-  assert.equal(result.result.length,2);
+  assert.equal(result.status,'ready');
+  assert.equal(result.output.length,2);
   for(let team=0;team<2;team++){
-   const {doc,triangles}=inspect(readFileSync(join(output,'factory-meshy-'+team+'.glb')));
+   const {doc,triangles}=inspect(readFileSync(join(output,'factory-'+team+'.glb')));
    assert.ok(triangles>35000);
-   assert.ok(doc.nodes.some(n=>n.name==='SF_Factory_Meshy_ReferenceSource'));
-   assert.ok(doc.nodes.some(n=>n.name==='SF_Factory_Meshy_ProductionOrientation'));
-   assert.equal(doc.nodes.some(n=>n.name==='SF_Factory_PBR_OpenBay'),false,
-    'do not allow tanks to clip through Meshy door before collision QA');
-   assert.equal(doc.materials.length>0,true);
-   const root=doc.nodes.find(n=>n.name==='SF_Factory_Meshy_ReferenceSource');
-   assert.equal(root.extras.defaultGameFactory,false);
+   assert.ok(doc.nodes.some(n=>n.name==='SF_Factory_Meshy_ProductionRig'));
+   assert.ok(doc.nodes.some(n=>n.name==='FactoryRollupDoor'));
+   assert.ok(doc.nodes.some(n=>n.name==='SF_Factory_Meshy_RolloutExit'));
+   assert.equal(doc.nodes.some(n=>n.name==='SF_Factory_PBR_OpenBay'),false);
+   assert.equal(doc.asset.extras.owner,team);
   }
  }finally{rmSync(output,{recursive:true,force:true});}
 });
-test('the actual game stays on reliable open-bay factory, Meshy viewer is explicitly separate',()=>{
+test('the actual game now selects real Meshy shutter GLBs and keeps procedural backup',()=>{
  const build=readFileSync('scripts/build.mjs','utf8');
  const battle=readFileSync('scripts/webgl-battlefield.js','utf8');
  const viewer=readFileSync('scripts/webgl-meshy-factory-viewer.js','utf8');
  assert.match(build,/prepare-meshy-factory\.mjs/);
  assert.match(build,/factory-meshy-source\.glb.*force:true/);
- assert.match(battle,/SF_Factory_PBR_OpenBay/);
- assert.match(viewer,/factory-meshy-0\.glb/);
+ assert.match(battle,/SF_Factory_Meshy_ProductionRig/);
+ assert.match(battle,/paintMeshyFactoryTeam/);
+ assert.match(viewer,/factory-procedural-0\.glb/);
  assert.match(viewer,/factory-0\.glb/);
  assert.match(build,/webgl-meshy-factory\.html/);
 });

@@ -75,7 +75,7 @@ export function visualUnitScale(kind){
  // Only the rendered mesh changes; navigation/collision/save width stays 76.
  if(kind==='rover'||kind==='supply')return 1.34;
  if(kind==='artillery')return 1.42; // +7.6% for the 6x6 rocket launcher, render-only
- if(kind==='tank')return 1.44;
+ if(kind==='tank')return 1.23; // another ~5% smaller; render-only; keep collision, pathing and saves
  if(kind==='scout')return 1.34;
  if(kind==='bomber')return 1.03;
  return .94;

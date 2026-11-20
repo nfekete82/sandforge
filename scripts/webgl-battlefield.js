@@ -24,7 +24,7 @@ import {addBarracksContactShadows} from '/webgl-barracks-contact-shadows.js';
 import {createAirfieldServiceYard,conformAirfieldSurface,updateAirfieldServiceYard,hideOldAirfieldHangar,disposeAirfieldServiceYard} from '/webgl-airfield-service.js';
 import {detachAirfieldPbr} from '/webgl-airfield-pbr.js';
 import {removeRunwaySkidArtifacts} from '/webgl-airfield-runway-clearance.js';
-import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '/webgl-factory-service.js';
+import {disposeFactoryServiceYard} from '/webgl-factory-service.js';
 import {disposeServicePaint,previewServiceMaterial} from '/webgl-service-materials.js';
 import {createSegmentedSelectionRing} from '/webgl-selection-ring.js';
 import {serviceVisualGround,approachGroundHeight} from '/webgl-service-grounding.js';
@@ -61,6 +61,7 @@ import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building
 import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette.js';
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {unifyModelFactionFlags} from '/webgl-faction-flags.js';
+import {paintMeshyFactoryTeam} from '/webgl-meshy-factory-team.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
 import {createReconDrone,animateReconDrone} from '/webgl-recon-drone.js';
@@ -461,12 +462,13 @@ export class SandforgeBattlefield {
  pumpModelQueue(){
   while(this.loadingCount<2&&this.modelQueue.length){
    const task=this.modelQueue.shift();this.loadingCount++;
+   const {entry,type}=task;
    this.getModel(task.url).then(data=>{
-    const {entry,type}=task;
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
     if(type==='building'&&((entry.kind==='headquarters'&&
       model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
+      (entry.kind==='factory'&&model.getObjectByName('SF_Factory_Meshy_ProductionRig'))||
       (entry.kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
        model.getObjectByName('SF_Factory_PBR_OpenBay'))||
       (entry.kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root'))||
@@ -482,6 +484,8 @@ export class SandforgeBattlefield {
       mesh.receiveShadow=true;
      }});
     }
+    if(type==='building'&&entry.kind==='factory')
+     paintMeshyFactoryTeam(model,entry.owner);
     if(type==='building'&&entry.kind==='barracks')polishBarracksProps(model);
     if(type==='building'&&['barracks','headquarters'].includes(entry.kind)){
      paintFactionRoofStripes(model,entry.kind,entry.owner);
@@ -500,7 +504,7 @@ export class SandforgeBattlefield {
     // width-normalization: collision, pathing and the repair pad do not grow.
     const finalFactoryArt=type==='building'&&entry.kind==='factory'&&
       Boolean(model.getObjectByName('SF_Factory_PBR_roof'));
-    const artScale=finalFactoryArt?1.06:1;
+    const artScale=finalFactoryArt?1.06:1; // Meshy factory keeps its measured original footprint
     if(extent>.0001){
      const scale=calibratedScale(entry.kind,type,dims,desired)*
        (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
@@ -537,6 +541,11 @@ export class SandforgeBattlefield {
     if(type==='building'&&entry.kind==='airfield'&&
        model.getObjectByName('SF_Airfield_PBR_Root'))model.visible=false;
     entry.node.add(model);entry.detail=model;
+    if(type==='building'&&entry.kind==='factory'&&
+       model.getObjectByName('SF_Factory_Meshy_ProductionRig')){
+     const extraFence=entry.yard?.getObjectByName('BasePerimeter_factory');
+     if(extraFence)extraFence.visible=false; // Meshy already has its own detailed fencing
+    }
     const visualScale=calibratedScale(entry.kind,type,dims,desired)*
       (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
     entry.modelHeight=dims.y*visualScale*(type==='unit'&&entry.kind==='bomber'?BOMBER_VISUAL_STRETCH.vertical:1);
@@ -845,12 +854,11 @@ export class SandforgeBattlefield {
    tint(yard,false,.34);
    group.add(yard);group.userData.previewYard=yard;
   }
-  const service=kind==='airfield'?createAirfieldServiceYard(0,{ghost:true}):
-   kind==='factory'?createFactoryServiceYard():null;
+  const service=kind==='airfield'?createAirfieldServiceYard(0,{ghost:true}):null;
   if(service){
    tint(service,true,.38);
-   // Both hangar doors, the service lift and the complete apron are
-   // visible in ghost mode, not just faint foundation silhouettes.
+   // Airfield apron stays visible in the ghost. The factory's redundant
+   // external repair platform is deliberately omitted.
    group.add(service);group.userData.previewService=service;
   }
   const circle=new THREE.Mesh(
@@ -866,11 +874,13 @@ export class SandforgeBattlefield {
    const model=cloneSkeleton(data.scene);
    if((kind==='headquarters'&&
      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
+     (kind==='factory'&&model.getObjectByName('SF_Factory_Meshy_ProductionRig'))||
      (kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
       model.getObjectByName('SF_Factory_PBR_OpenBay'))||
      (kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root'))||
      (kind==='generator'&&model.getObjectByName('SF_EnergyCore_PBR_Housing')) )
     model.userData.sandforgeOriginalPBR=true;
+   if(kind==='factory')paintMeshyFactoryTeam(model,0);
    if(kind==='barracks')polishBarracksProps(model);
    if(kind==='barracks'||kind==='headquarters'){
     paintFactionRoofStripes(model,kind,0);
@@ -892,7 +902,7 @@ export class SandforgeBattlefield {
    if(kind!=='airfield'||!model.getObjectByName('SF_Airfield_PBR_Root'))
     tint(model,false,.50);
    if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksDesertPalette(model);
-   if(!model.userData.sandforgeOriginalPBR||kind==='factory')
+   if(!model.userData.sandforgeOriginalPBR)
     finishDesertBuildingMaterials(model,kind);
    model.visible=!(kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root')); // no duplicate hangar
    group.remove(placeholder);disposeOwnedMeshes(placeholder);
@@ -1302,12 +1312,10 @@ export class SandforgeBattlefield {
     }
     if(b.buildRemaining<=0)updateAirfieldServiceYard(entry,b,this.game.units,this.game.time,dt,active);
    }
-   if(b.kind==='factory'){
-    if(!entry.factoryServiceYard){
-     entry.factoryServiceYard=createFactoryServiceYard();entry.node.add(entry.factoryServiceYard);
-    }
-    if(b.buildRemaining<=0)updateFactoryServiceYard(entry,b,this.game.units,this.game.time);
-   }
+   // Integrated workshop model only: no separate exterior factory pad.
+   // Dispose any previously attached visual service yard on older actors.
+   if(b.kind==='factory'&&entry.factoryServiceYard)
+    disposeFactoryServiceYard(entry);
    this.animateBuildingMotion(entry,b,dt,active);
    if(b.buildRemaining<=0&&!this.announcedBuildings.has(b.id)){
     this.announcedBuildings.add(b.id);
@@ -1329,7 +1337,8 @@ export class SandforgeBattlefield {
      disposeTaggedMaterials(e.detail,'sandforgeBuildingFacadeOwned');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingFill');
      disposeTaggedMaterials(e.detail,'sandforgeMilitaryMicroPBROwned');
-     disposeTaggedMaterials(e.detail,'sandforgeOwnedFlagCloth');}
+     disposeTaggedMaterials(e.detail,'sandforgeOwnedFlagCloth');
+     disposeTaggedMaterials(e.detail,'sandforgeMeshyFactionOwned');}
     if(e.motion?.mixer){
      e.motion.mixer.stopAllAction();
      if(e.detail)e.motion.mixer.uncacheRoot(e.detail);
@@ -1613,7 +1622,9 @@ export class SandforgeBattlefield {
   for(const entry of this.bases.values()){
    const decor=entry.yard?.getObjectByName('BasePerimeter_'+entry.kind);
    if(!decor)continue;
-   decor.visible=this.siteDecorEnabled;
+   const embeddedFence=entry.kind==='factory'&&
+    Boolean(entry.detail?.getObjectByName('SF_Factory_Meshy_ProductionRig'));
+   decor.visible=this.siteDecorEnabled&&!embeddedFence;
    affected++;
   }
   return affected;

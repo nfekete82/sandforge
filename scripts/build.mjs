@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 mkdirSync('dist', { recursive: true });
@@ -29,6 +29,7 @@ cpSync('desert-look-lab.html','dist/desert-look-lab.html');
 cpSync('scripts/desert-look-lab.js','dist/desert-look-lab.js');
 cpSync('scripts/webgl-preview.js','dist/webgl-preview.js');
 cpSync('scripts/webgl-meshy-factory-viewer.js','dist/webgl-meshy-factory-viewer.js');
+cpSync('scripts/webgl-meshy-factory-team.js','dist/webgl-meshy-factory-team.js');
 cpSync('scripts/webgl-biomes.js','dist/webgl-biomes.js');
 cpSync('scripts/webgl-golden-hour.js','dist/webgl-golden-hour.js');
 cpSync('scripts/webgl-match-result.js','dist/webgl-match-result.js');
@@ -166,11 +167,15 @@ execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs'],{stdio:
 // generated from its committed procedural mesh source on every build.
 execFileSync(process.execPath,['scripts/generate-bastion-radar.mjs'],{stdio:'inherit'});
 // Factory GLBs are deterministic, checked-in as a generator rather than 10MB binaries.
-// Both teams share the same PBR topology and real animated FactoryRollupDoor.
+// Preserve the open procedural backup in the GLB viewer; live game uses
+// the new genuine, textured Meshy model and its animated factory shutter.
 execFileSync(process.execPath,['scripts/generate-factory-pbr.mjs'],{stdio:'inherit'});
-// Keep the verified, gate-free in-game factory as the default. If a real
-// Meshy original is committed, package it as a fully textured, inspectable
-// alternative WITHOUT regenerating or overwriting the Meshy source asset.
+// The procedurally sculpted factory is a tested reference/fallback only.
+// Production art is now the original optimized Meshy 7.1 PBR building with
+// actual extracted shutter geometry and four-cardinal exit markers.
+for(const team of [0,1])cpSync(
+ `src/assets/reborn/buildings-3d/factory-${team}.glb`,
+ `src/assets/reborn/buildings-3d/factory-procedural-${team}.glb`);
 if(existsSync('src/assets/reborn/buildings-3d/factory-meshy-optimized.glb')||
    existsSync('src/assets/reborn/buildings-3d/factory-meshy-source.glb'))
  execFileSync(process.execPath,['scripts/prepare-meshy-factory.mjs'],{stdio:'inherit'});
