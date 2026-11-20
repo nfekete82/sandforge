@@ -46,6 +46,7 @@ import {tracerWindow} from '/webgl-hit-response.js';
 import {applyFactionAccents} from '/webgl-faction-accents.js';
 import {finishBuildingFacadeShading} from '/webgl-building-shading.js';
 import {finishDesertBuildingMaterials} from '/webgl-building-pbr.js';
+import {enhanceMilitaryMicroPBR} from '/webgl-military-micro-pbr.js';
 import {attachTeamMarkings,detachTeamMarkings} from '/webgl-team-markings.js';
 import {finishBarracksSides,finishBarracksDesertPalette,disposeBarracksSides} from '/webgl-barracks-shell.js';
 import {SandforgeConstructionPresentation} from '/webgl-construction.js';
@@ -551,6 +552,11 @@ export class SandforgeBattlefield {
     if(type==='building'&&entry.kind==='barracks')addBarracksContactShadows(model);
     if(type==='unit')
      attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
+    // Preserve every authored GLB albedo, real Normal/ORM texture, markings
+    // and cockpit glass. Add only sub-centimeter pores, metallic scratches,
+    // chipped paint and surface roughness to compatible shell materials.
+    // Actor-owned materials are enhanced in-place to prevent orphan clones.
+    entry.microSurface=enhanceMilitaryMicroPBR(model,{kind:entry.kind,type});
     // Only the biggest model surfaces need shadow-map passes. Small
     // bolts, rivets and vents keep their complete PBR visual render.
     // Reduces shadow draw calls without disabling sun or unit shadows.
@@ -1200,6 +1206,7 @@ export class SandforgeBattlefield {
      disposeTaggedMaterials(e.detail,'sandforgeHelicopterOwnedPaint');
      disposeTaggedMaterials(e.detail,'sandforgeArmourOwnedPaint');
      disposeTaggedMaterials(e.detail,'sandforgeFactionTint');
+     disposeTaggedMaterials(e.detail,'sandforgeMilitaryMicroPBROwned');
      if(e.kind==='rocket')disposeRocketLauncher(e.detail);
     }
     if(e.kind==='scout')detachScoutRocketPods(e);
@@ -1308,7 +1315,8 @@ export class SandforgeBattlefield {
      disposeTaggedMaterials(e.detail,'sandforgeBarracksPalette');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingPBROwned');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingFacadeOwned');
-     disposeTaggedMaterials(e.detail,'sandforgeBuildingFill');}
+     disposeTaggedMaterials(e.detail,'sandforgeBuildingFill');
+     disposeTaggedMaterials(e.detail,'sandforgeMilitaryMicroPBROwned');}
     if(e.motion?.mixer){
      e.motion.mixer.stopAllAction();
      if(e.detail)e.motion.mixer.uncacheRoot(e.detail);
