@@ -1,0 +1,75 @@
+name: Sandforge - Bunker, dark-red mountains, no glowing FoW disks, dry cacti
+on:
+  push:
+    branches: [fix/sandforge-bunker-water-fow-polish-20261120]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  model-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and updated browser module syntax
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-preview.js
+          node --check scripts/webgl-desert-water-3d.js
+          node --check scripts/webgl-desert-water-plan.js
+          node --check scripts/webgl-desert-ecoregion-plan.js
+          node --check scripts/webgl-atmosphere-3d.js
+          node --check scripts/webgl-battlefield.js
+      - name: No cactus in water, no glowing FoW halos, Bunker RMB and Sonoran palette
+        run: |
+          node --test tests/sandforge-desert-visual-regression-20261120.test.mjs
+          node --test tests/sandforge-bunker-bastion-audio-20261119.test.mjs
+          node --test tests/sandforge-cinematic-desert-water-20261120.test.mjs
+      - name: All WebGL ES modules present without private external building GLBs
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+  real-gpu-screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install Chromium and Sandforge
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tests/browser --no-audit --no-fund
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Build and ship all real PBR scenery
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          mkdir -p dist/src
+          cp -a src/assets dist/src/assets
+          node scripts/generate-oasis-adobe-glbs.mjs dist/src/assets/reborn/oasis-village
+      - name: Check real Last Stronghold and Broken Empire WebGL
+        env:
+          SANDFORGE_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-desert-visual-feedback-20261120.spec.mjs --config=playwright.config.mjs
+      - name: Real 3D screenshots and browser traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-3d-visual-feedback-fixes-20261120
+          path: |
+            tests/browser/artifacts/screenshots/
+            tests/browser/artifacts/results.json
+            tests/browser/artifacts/report/
+            tests/browser/artifacts/runs/
+          if-no-files-found: warn
+          retention-days: 30
