@@ -1056,7 +1056,7 @@ export class TacticalAI {
   const isAA=(u:Unit|Base)=>['rocket','turret','interceptor','scout'].includes(u.kind);
   return ai42BreakoutAllowed({
    enabled:g.world.mapVersion===26&&g.world.generatorVersion>=4&&
-    this.mode==='director'&&this.ai37Mode==='coordinated',
+    this.mode==='director'&&this.lateAirSupportEnabled,
    time:g.time,controlled:g.territories.filter(t=>t.owner===1).length,
    total:g.territories.length,
    paidBombers:g.units.filter(u=>u.owner===1&&u.kind==='bomber'&&
