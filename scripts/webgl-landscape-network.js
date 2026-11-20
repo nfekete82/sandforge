@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {sharedStoneMaps,stoneMaterial,weatheredStoneGeometry} from './webgl-rock-materials.js';
 import {DESERT_SCENIC_STYLE as desertStyle} from './webgl-desert-style.js';
+import {CANYON_GEOLOGY} from './webgl-authentic-canyon-geology.js';
 
 /** Render-only v3 geography. The authoritative terrain and World.blocked
  * remain responsible for heights, navigation, combat, and buildability.
@@ -13,14 +14,16 @@ const clamp01=v=>Math.min(1,Math.max(0,v));
 const smooth=v=>{const t=clamp01(v);return t*t*(3-2*t);};
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 
-export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],biome='desert',lowQuality=false,showOutcrops=true}){
+export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],biome='desert',mapId=null,lowQuality=false,showOutcrops=true}){
  const half=size/2,meshes=[];
  const protectedZones=ridges.flatMap(r=>r.clearings??[]);
  const distanceFromBuildPad=(x,z)=>protectedZones.reduce((closest,zone)=>
    Math.min(closest,Math.hypot(x-zone.point.x,z-zone.point.y)-zone.radius),Infinity);
  const point=(x,z,y=.25)=>[x-half,heightAt(x,z)+y,z-half];
  const roadShade={desert:'#aa8b61',snow:'#8e8e83',jungle:'#938061'}[biome]??'#aa8b61';
- const rockColors=({desert:[desertStyle.mesa,desertStyle.mesaShade,desertStyle.looseStones[0],desertStyle.looseStones[2]],
+ const geology=biome==='desert'?CANYON_GEOLOGY[mapId]:null;
+ const rockColors=geology?[geology.base,geology.dark,geology.accent,geology.base]:
+ ({desert:[desertStyle.mesa,desertStyle.mesaShade,desertStyle.looseStones[0],desertStyle.looseStones[2]],
    snow:['#9ca2a0','#707b7e','#c3c6bf','#e1ddd3'],
    jungle:['#9a9871','#64694e','#afa982','#c9b78f']})[biome]??['#b99c75','#8e7153','#d2b38c','#e0c29b'];
 
@@ -94,10 +97,15 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
  const rockPalette=rockColors.map(c=>new THREE.Color(c));
  // Stratified ledges and asymmetrical fractured crowns, shaped like the
  // existing Sandforge mesas. Keep a broad foot over the physical cliff cells.
- const offsets=[-1.55,-1.32,-1.13,-1.01,-.89,-.77,-.59,-.40,-.23,0,
-                 .19,.36,.52,.66,.79,.96,1.10,1.32,1.55];
- const silhouette=[0,.028,.085,.16,.29,.32,.49,.68,.79,1,
-                    .91,.83,.67,.58,.39,.33,.15,.055,0];
+ // Uneven shelves form dramatic high cliff faces and natural eroded
+ // slot canyons instead of a single round mountain wave. Each sample is
+ // confined to the same blocked ridge spine; passes still fade to zero.
+ const offsets=[-1.55,-1.35,-1.22,-1.12,-1.045,-.995,-.94,-.87,
+                -.78,-.64,-.47,-.28,-.10,.06,.25,.43,.60,.76,
+                .90,1.02,1.12,1.27,1.52];
+ const silhouette=[0,.014,.038,.082,.17,.34,.49,.53,
+                   .64,.70,.78,.85,.91,.94,.82,.78,.68,.59,
+                   .51,.35,.18,.06,0];
  for(const ridge of ridges){
   const spine=ridge.spine;
   if(spine.length<2)continue;
@@ -137,14 +145,15 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
     const padTaper=smooth((distanceFromBuildPad(x,z)-ridge.width*.58)/135);
     // Fractured shelves replace a rounded, uniformly smooth dune.
     const fractures=.89+.12*Math.sin(phase*.88+offset*5.5)+
-      .06*Math.sin(phase*2.47-offset*9.4);
+      .06*Math.sin(phase*2.47-offset*9.4)+
+      .038*Math.cos(phase*4.6+offset*17.2);
     const height=ridge.height*silhouette[j]*ridgeRoll*fractures*
       edgeTaper*passTaper*padTaper;
     const position=point(x,z,.16+Math.max(0,height));
     const grains=.13*Math.sin(center.along*.02+offset*7)+
       .055*Math.sin(center.along*.066+offset*13);
     const color=rockPalette[0].clone()
-      .lerp(rockPalette[1],clamp01(.25+Math.abs(offset)*.34+grains))
+      .lerp(rockPalette[1],clamp01(.30+Math.abs(offset)*.34+grains))
       .lerp(rockPalette[2],clamp01(.15+silhouette[j]*.24))
       .lerp(rockPalette[3],clamp01(.035+Math.max(0,grains)*.25));
     return {position,color,rise:Math.max(0,height)};
@@ -208,11 +217,12 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
   geometry.computeVertexNormals();
   const rockMaps=sharedStoneMaps(lowQuality);
   const material=new THREE.MeshStandardMaterial({
-   color:'#ffffff',vertexColors:true,side:THREE.DoubleSide,flatShading:true,
+   color:'#ffffff',vertexColors:true,side:THREE.DoubleSide,flatShading:false,
    // Identical PBR atlas to the existing mesas and loose Sandforge stones.
    map:biome==='desert'?rockMaps.map:null,normalMap:rockMaps.normalMap,
    roughnessMap:rockMaps.roughnessMap,
-   normalScale:new THREE.Vector2(.38,.38),roughness:.98,metalness:0
+   normalScale:new THREE.Vector2(geology?.veins??.48,geology?.veins??.48),
+   roughness:.98,metalness:0
   });
   const mesh=new THREE.Mesh(geometry,material);
   mesh.name='procedural-v3-eroded-sandstone';
@@ -225,7 +235,8 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
  // existing weathered stones, scaled to read like natural stratified outcrops.
  if(outcropMatrices.some(group=>group.length)){
   const stoneGeometry=weatheredStoneGeometry(lowQuality);
-  const palette=biome==='desert'?desertStyle.looseStones:rockColors.slice(0,3);
+  const palette=geology?[geology.base,geology.accent,geology.dark]:
+   biome==='desert'?desertStyle.looseStones:rockColors.slice(0,3);
   for(let group=0;group<outcropMatrices.length;group++){
    const matrices=outcropMatrices[group];
    if(!matrices.length)continue;
