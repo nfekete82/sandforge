@@ -24,8 +24,10 @@ jobs:
           node --check scripts/webgl-production-gates.js
           node --check scripts/webgl-battlefield.js
           node --check scripts/generate-factory-pbr.mjs
-      - name: Re-export and validate blue/red genuinely open factory GLBs
-        run: node scripts/generate-factory-pbr.mjs
+      - name: Re-export and validate both Bastion and open factory GLBs
+        run: |
+          node scripts/generate-bastion-radar.mjs
+          node scripts/generate-factory-pbr.mjs
       - name: Deterministic star, bunker scale, factory opening and direct vehicle driveout
         run: |
           node --test tests/sandforge-open-factory-star-flags-compact-bunker-20261120.test.mjs
