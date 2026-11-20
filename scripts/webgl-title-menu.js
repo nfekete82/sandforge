@@ -7,6 +7,15 @@
  const savedKey='sandforge:webgl:v1';
  const optionKey='sandforge:webgl:options';
  const savedBiomeKey='sandforge:webgl:save-biome';
+ const desertMaps=globalThis.SandforgeDesertMaps;
+ const chosenMap=()=>desertMaps?.byId($('sf3d-desert-map')?.value);
+ const describeMap=()=>{
+  const map=chosenMap();
+  $('sf3d-desert-map-description').textContent=map
+   ?map.description+' · Inspiration: '+map.inspiration+'.'
+   :'Bitte eine Wüstenkarte auswählen.';
+  $('sf3d-new-status').textContent='';
+ };
  const validBiome=value=>['desert','snow','jungle'].includes(value)?value:'desert';
  // The 3D game may run at / (release candidate) or /webgl-preview.html
  // (existing QA/deep links). Stay on the active entry during navigation.
@@ -67,7 +76,7 @@
  let pauseCheatProgress=0;
  let suppressSpaceRelease=false;
  const saved=readSave();
- const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert',landscape='network'}={})=>{
+ const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert',landscape='network',mapId=null}={})=>{
   const params=new URLSearchParams({bastions:String(count),seed:String(seed>>>0),play:'1'});
   // Keep local A/B policy selection while navigating from the main menu.
   if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
@@ -83,6 +92,11 @@
   if(options.fog===false)params.set('fog','0');
   if(!resume&&!legacy){params.set('terrain',terrain);params.set('landscape',landscape==='classic'?'classic':'network');}
   if(!legacy)params.set('biome',validBiome(biome));
+  // The name is just metadata; only show it when the real world matches.
+  const named=desertMaps?.byId(mapId);
+  if(named&&named.seed===(seed>>>0)&&named.bastions===count&&
+   named.terrain===terrain&&biome===named.biome)params.set('map',named.id);
+  else if(resume&&mapId)params.set('map',mapId);
   location.assign(gameRoute()+'?'+params);
  };
  function continueSave(){
@@ -96,7 +110,11 @@
   try{visual=JSON.parse(localStorage.getItem(savedBiomeKey)||'null');}catch{}
   const biome=visual?.seed===data.seed&&visual?.mapVersion===data.mapVersion
    ?validBiome(visual.biome):'desert';
-  play(bastions,data.seed,{resume:true,legacy:data.mapVersion<=18,biome});
+  const map=desertMaps?.byId(visual?.mapId);
+  const mapId=map&&visual?.seed===data.seed&&
+   map.mapVersion===data.mapVersion&&map.generatorVersion===data.generatorVersion&&
+   map.terrain===data.terrainProfile&&map.biome===biome?map.id:null;
+  play(bastions,data.seed,{resume:true,legacy:data.mapVersion<=18,biome,mapId});
  }
  function randomSeed(){
   if(window.crypto?.getRandomValues){
@@ -164,16 +182,14 @@
  function goMain(){
   location.assign(gameRoute());
  }
+ $('sf3d-desert-map').addEventListener('change',describeMap);
  $('sf3d-new').addEventListener('click',()=>{
-  const source=$('bastions');
-  $('sf3d-map-size').value=source?.value??'8';
-  $('sf3d-seed').value='';
-  $('sf3d-terrain').value='random';
-  $('sf3d-landscape').value='network';
-  $('sf3d-biome').value='desert';
-  newDialog.showModal();
+  $('sf3d-desert-map').value='desert-strike';
+  describeMap();newDialog.showModal();
  });
- $('sf3d-campaign').addEventListener('click',()=>newDialog.showModal());
+ $('sf3d-campaign').addEventListener('click',()=>{
+  describeMap();newDialog.showModal();
+ });
  $('sf3d-continue').addEventListener('click',continueSave);
  $('sf3d-main-load').addEventListener('click',continueSave);
  $('sf3d-main-options').addEventListener('click',openOptions);
@@ -208,13 +224,12 @@
   }
  });
  $('sf3d-new-confirm').addEventListener('click',()=>{
-  const count=Number($('sf3d-map-size').value);
-  const text=$('sf3d-seed').value.trim();
-  const n=text.length?Number(text):randomSeed();
-  if(!Number.isSafeInteger(n)||n<0||n>4294967295){
-   $('sf3d-new-status').textContent='Seed muss zwischen 0 und 4294967295 liegen.';return;
+  const map=chosenMap();
+  if(!map){
+   $('sf3d-new-status').textContent='Bitte eine der vier Wüstenkarten auswählen.';return;
   }
-  play(count,n,{terrain:$('sf3d-terrain').value,biome:$('sf3d-biome').value,landscape:$('sf3d-landscape').value});
+  play(map.bastions,map.seed,{terrain:map.terrain,biome:'desert',
+   landscape:'network',mapId:map.id});
  });
  $('sf3d-pause-resume').addEventListener('click',resumeGame);
  $('sf3d-pause-save').addEventListener('click',()=>{
@@ -223,7 +238,8 @@
   if(saved)try{
    localStorage.setItem(savedBiomeKey,JSON.stringify({
     seed:game.game.seed,mapVersion:game.world.mapVersion,
-    biome:validBiome(window.__sandforgeWebGL?.biome)
+    biome:validBiome(window.__sandforgeWebGL?.biome),
+    mapId:window.__sandforgeWebGL?.desertMapId??null
    }));
   }catch(error){console.warn('Biom-Einstellung konnte nicht gespeichert werden:',error);}
   $('sf3d-pause-status').textContent=saved
@@ -233,7 +249,7 @@
  $('sf3d-pause-load').addEventListener('click',continueSave);
  $('sf3d-pause-options').addEventListener('click',openOptions);
  $('sf3d-pause-new').addEventListener('click',()=>{
-  pauseDialog.close();newDialog.showModal();
+  pauseDialog.close();describeMap();newDialog.showModal();
  });
  $('sf3d-pause-main').addEventListener('click',goMain);
  for(const el of document.querySelectorAll('[data-sf3d-close]')){
@@ -298,6 +314,7 @@
  window.addEventListener('blur',()=>{suppressSpaceRelease=false;});
  window.Sandforge3DMenu={openPause,goMain,continueSave,play,readSave,readOptions,gameRoute};
  const options=readOptions();
+ describeMap();
  $('sf3d-continue').hidden=!Boolean(saved&&modes[saved.mapVersion]);
  $('sf3d-main-load').disabled=!Boolean(saved&&modes[saved.mapVersion]);
  if(query.has('play')||query.has('bastions')||query.has('seed')||query.has('resume')){
