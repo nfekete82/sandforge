@@ -1,5 +1,6 @@
 import {campaignLayout, type MapVersion, type Point} from './config.js';
 import type {CanyonRidge} from './canyon-front.js';
+import {ridgeCenterY} from './canyon-height.js';
 
 /** Revision 2: roomier buildable pads around bastions / headquarters.
  * Revision 1 remains reproducible for existing saves. */
@@ -132,6 +133,39 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
  }
  for(let j=n-1;j>=0;j--)for(let i=n-1;i>=0;i--){
   const k=j*n+i;let h=heights[k];if(i<segments)h=Math.min(h,heights[k+1]+delta);if(j<segments)h=Math.min(h,heights[k+n]+delta);heights[k]=h;
+ }
+ // Generator v4 only: painted, open canyon ramps inherited normal .22
+ // per-axis terrain; diagonal triangles could reach .31, while a paid
+ // rover/tank/artillery legally climbs only .185-.215. Grade only the
+ // physical ramp corridors, never relax movement or collision checks.
+ if(generatorVersion>=4&&ridges.some(r=>r.ramps.length)){
+  const passCells=new Uint8Array(n*n);
+  for(const ridge of ridges)for(const ramp of ridge.ramps){
+   const left=Math.max(0,Math.floor((ramp.x-ramp.width*.5-115)/step));
+   const right=Math.min(segments,Math.ceil((ramp.x+ramp.width*.5+115)/step));
+   for(let i=left;i<=right;i++){
+    const x=i*step,center=ridgeCenterY(ridge,x);
+    for(let j=0;j<n;j++)if(Math.abs(j*step-center)<=1450)
+     passCells[j*n+i]=1;
+   }
+  }
+  // A .105 edge gradient gives <.15 across diagonal triangles. The
+  // original .22 envelope still applies everywhere else, including hills.
+  // Lower-only sweeps keep flat HQ/Bastion pads flat and never add terrain.
+  const normal=step*.22,graded=step*.105;
+  const edge=(a:number,b:number)=>passCells[a]||passCells[b]?graded:normal;
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+   const k=j*n+i;let h=heights[k];
+   if(i)h=Math.min(h,heights[k-1]+edge(k,k-1));
+   if(j)h=Math.min(h,heights[k-n]+edge(k,k-n));
+   heights[k]=h;
+  }
+  for(let j=n-1;j>=0;j--)for(let i=n-1;i>=0;i--){
+   const k=j*n+i;let h=heights[k];
+   if(i<segments)h=Math.min(h,heights[k+1]+edge(k,k+1));
+   if(j<segments)h=Math.min(h,heights[k+n]+edge(k,k+n));
+   heights[k]=h;
+  }
  }
  let minHeight=Infinity,maxHeight=-Infinity;
  for(const h of heights){minHeight=Math.min(minHeight,h);maxHeight=Math.max(maxHeight,h);}
