@@ -10,6 +10,7 @@ import {canyonGroundSampler,rampAtX,ridgeCenterY} from '/src/reborn/canyon-heigh
 import {SandforgeBattlefield} from '/webgl-battlefield.js';
 import {DesertOases} from '/webgl-oases.js';
 import {createCinematicDesertWaterways} from '/webgl-desert-water-3d.js';
+import {createDesertLakeVegetation} from '/webgl-desert-lake-vegetation-3d.js';
 import {planDesertWaterways} from '/webgl-desert-water-plan.js';
 import {generateOases} from '/webgl-oasis-generation.js';
 import {createLandscapeMeshes} from '/webgl-landscape-network.js';
@@ -1257,6 +1258,12 @@ const desertWater=spacious&&biome==='desert'&&query.get('water')!=='off'
    mapId:desertRegion?.id??null,oases:oases.layout,
    layout:plannedDesertWater,lowQuality:query.get('lite')==='1'})
  :null;
+// Sculpted, wind-animated palms/reeds grow in irregular clusters beyond
+// each lake's wet shoreline, without adding real-world collision obstacles.
+const lakeVegetation=desertWater?.layout.lakes.length
+ ?createDesertLakeVegetation({scene,world,terrain,heightAt,seed,
+   mapId:desertRegion?.id??null,layout:desertWater.layout,
+   lowQuality:query.get('lite')==='1'}):null;
 // Generator v3: six unique, locally generated UV-textured adobe house GLBs.
 // Older maps keep their established sparse two-GLTF hamlets, unchanged.
 // Render-only scenery; never creates terrain obstacles or changes saved games.
@@ -1273,7 +1280,7 @@ if(oasisFocus){
  camera.zoom=1.55;camera.updateProjectionMatrix();controls.update();
 }
 window.addEventListener('pagehide',event=>{if(!event.persisted){
- burnedSedans?.dispose();
+ lakeVegetation?.dispose();burnedSedans?.dispose();
  authenticDesertArt?.dispose();
  groundBlending?.dispose();desertWater?.dispose();oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
 }});
@@ -1453,6 +1460,7 @@ function animate(now){
  atmosphere.update(visualDt);
  oases.update(now*.001);
  desertWater?.update(now*.001);
+ lakeVegetation?.update(now*.001);
  // Authored palms use the same visual clock and real weather transitions.
  desertArt.update(now*.001,game.weather.intensity);
  if(performanceWatch.enabled)performanceWatch.auxiliary(performance.now()-beforeAux);
@@ -1478,7 +1486,7 @@ function animate(now){
  }
 }
 renderer.setAnimationLoop(animate);
-window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,battlefield,effects,atmosphere,sound,constructionRecovery,visualPerimeter,boundaryCliffs,panKeys,groundTracks,oases,desertWater,biome,biomeVegetation,
+window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,battlefield,effects,atmosphere,sound,constructionRecovery,visualPerimeter,boundaryCliffs,panKeys,groundTracks,oases,desertWater,lakeVegetation,biome,biomeVegetation,
  get groundBlending(){return groundBlending;},
  get groundBlendReady(){return groundBlendReady;},
  desertMapId:desertMap?.id??null,
