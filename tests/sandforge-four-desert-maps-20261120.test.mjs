@@ -5,6 +5,8 @@ import {createHash} from 'node:crypto';
 import '../scripts/webgl-desert-maps.js';
 import {World} from '../dist/src/reborn/world.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
+import {UNITS} from '../dist/src/reborn/catalog.js';
+import {ridgeHeightAtX} from '../dist/src/reborn/ai36-terrain-routes.js';
 
 const catalog=globalThis.SandforgeDesertMaps;
 const geometryHash=world=>createHash('sha256')
@@ -27,7 +29,7 @@ test('exactly four named original v4 desert maps, with C&C-inspired doctrines',(
   'open-basin','broken-escarpment','diagonal-ridge','serpentine-canyon']);
  assert.equal(new Set(catalog.maps.map(x=>x.seed)).size,4);
  for(const map of catalog.maps){
-  assert.equal(map.generatorVersion,4,'do not switch to the earlier v5 experimental terrain');
+  assert.equal(map.generatorVersion,5,'fixed desert maps must have driveable v5 pass grading');
   assert.equal(map.biome,'desert','only original desert graphics');
   assert.ok(Object.isFrozen(map),'locked battlefields are immutable');
   assert.ok(catalog.matches(map,{...map,terrain:map.terrain,kind:map.kind}));
@@ -40,7 +42,7 @@ test('exactly four named original v4 desert maps, with C&C-inspired doctrines',(
 for(const map of catalog.maps)test(map.name+': playable fair deterministic original map and save/load',()=>{
  const game=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion);
  const world=game.world;
- assert.equal(world.generatorVersion,4);
+ assert.equal(world.generatorVersion,5);
  assert.equal(world.generated.landscapeKind,map.kind);
  assert.equal(world.generated.battlefield.profile,map.terrain);
  assert.equal(world.validation?.valid,true,JSON.stringify(world.validation));
@@ -52,9 +54,44 @@ for(const map of catalog.maps)test(map.name+': playable fair deterministic origi
  assert.equal(geometryHash(world),geometryHash(next),
   'same map seed should reproduce the same scenery and routes');
  const loaded=Simulation.load(game.save());
- assert.equal(loaded.world.generatorVersion,4);
+ assert.equal(loaded.world.generatorVersion,5);
  assert.equal(geometryHash(loaded.world),geometryHash(world),
   'existing savegame geometry must be byte-for-byte unchanged');
+});
+
+for(const map of catalog.maps.filter(p=>p.kind!=='open-basin'))test(
+ map.name+': all real mountain passes are physically driveable by paid ground vehicles',()=>{
+ const game=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion);
+ const world=game.world,ridge=world.generated.ridges[0];
+ assert.ok(ridge?.ramps.length,'missing fixed mountain crossings');
+ for(const pass of ridge.ramps)for(const kind of ['rover','tank','artillery']){
+  const clearance=Math.max(0,UNITS[kind].radius-10);
+  const slope=kind==='tank'?.215:kind==='artillery'?.185:.195;
+  const crossing={x:pass.x,y:ridgeHeightAtX(ridge,pass.x)};
+  assert.ok(world.walkable(crossing,[],clearance),
+   map.name+' '+kind+' impassable ramp '+pass.x);
+  assert.ok(world.groundVehicleSlopeSafe(crossing,slope,clearance+10),
+   map.name+' '+kind+' has an undriveable visual pass '+pass.x);
+  const offset=ridge.width*.5+210;
+  const before={x:crossing.x,y:crossing.y-offset};
+  const after={x:crossing.x,y:crossing.y+offset};
+  const route=world.path(before,after,[],clearance,undefined,false,false,false,slope);
+  assert.ok(route.length&&Math.hypot(route.at(-1).x-after.x,
+    route.at(-1).y-after.y)<world.cell*1.4,
+   map.name+' '+kind+' physically cannot cross pass '+pass.x);
+ }
+});
+
+test('historical v4 saves remain untouched after grading only new v5 fixed maps',()=>{
+ const p=catalog.maps.at(-1),old=Simulation.campaign(p.seed,p.mapVersion,p.terrain,4);
+ const version5=Simulation.campaign(p.seed,p.mapVersion,p.terrain,5);
+ assert.equal(old.world.generatorVersion,4);
+ assert.equal(version5.world.generatorVersion,5);
+ assert.notEqual(geometryHash(old.world),geometryHash(version5.world),
+  'v5 must actually correct old mountain ramp slopes');
+ const oldLoad=Simulation.load(old.save());
+ assert.equal(oldLoad.world.generatorVersion,4);
+ assert.equal(geometryHash(oldLoad.world),geometryHash(old.world));
 });
 
 test('main menu contains only the four desert maps, locked to the existing renderer',()=>{
