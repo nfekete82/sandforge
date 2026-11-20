@@ -18,6 +18,7 @@ export const FACTORY_OPEN_BAY_HEIGHT=2.14;
 export const FACTORY_ROOF_VENT_GAP=Object.freeze([-1.35,-.18]);
 const colors={
  camo:[160,164,151],sand:[188,187,168],sand_light:[213,207,184],
+ roof_team:factionRgb8(0),
  wall_weather:[155,158,148],metal_cladding:[137,145,141],
  roof_rib:[110,118,112],roof_glazing:[63,86,87],pipe:[113,121,115],
  stack:[147,154,149],hazard_white:[208,207,189],hazard_rust:[185,92,58],
@@ -118,7 +119,7 @@ function roofSystem(){
   [-1.71,FACTORY_ROOF_VENT_GAP[0]],[FACTORY_ROOF_VENT_GAP[1],1.51]
  ])roofLine('team',x-.072,x+.072,z0,z1,.17);
  // Long architectural stripe at the right roofline, as on the screenshot.
- roofLine('team',2.38,2.48,-2.24,2.24,.066);
+ roofLine('roof_team',2.38,2.48,-2.24,2.24,.066);
  // HVAC array: 4 genuinely inset fan-blowers, panel-by-panel grilles.
  for(const [x,z] of [[.69,.38],[1.23,.40],[.72,1.08],[1.26,1.08]]){
   const y=roofY(x)+.14;
@@ -176,10 +177,9 @@ function openFactoryApron(){
   const a=[x-.11,.194,2.82],b=[x+.015,.194,2.82],
    c=[x+.25,.194,3.33],d=[x+.11,.194,3.33];
   const g=material(i%2===0?'hazard_white':'hazard_rust');
-  quad(g,a.map((v,j)=>j===0?v*FACTORY_WIDTH_FACTOR:v),
-   b.map((v,j)=>j===0?v*FACTORY_WIDTH_FACTOR:v),
-   c.map((v,j)=>j===0?v*FACTORY_WIDTH_FACTOR:v),
-   d.map((v,j)=>j===0?v*FACTORY_WIDTH_FACTOR:v));
+  const transform=p=>p.map((v,j)=>j===0?v*FACTORY_WIDTH_FACTOR:v);
+  // Up-facing surface normal so hazard coating receives genuine sunlight.
+  quad(g,transform(d),transform(c),transform(b),transform(a));
  }
  for(const x of [-1.28,1.62]){
   box('steel_dark',[x,.199,2.78],[.04,.024,1.02]);
@@ -281,10 +281,11 @@ function buildParts(){
   box('warning',[x,1.71,2.43],[.12,.20,.03]);
  }
  box('steel_dark',[.18,2.47,2.30],[3.39,.10,.10]);
- for(const x of [-1.35,1.69]){
-  box('steel_dark',[x,1.43,2.27],[.65,.94,.16]);
-  box('team',[x,1.46,2.363],[.40,.60,.022]);
-  star(x,1.46,2.381,.13);
+ for(const x of [-2.00,2.24]){
+  // Keep team-sign pedestals OUTSIDE the 3.36-metre drive-out corridor.
+  box('steel_dark',[x,1.43,2.27],[.36,.94,.16]);
+  box('team',[x,1.46,2.363],[.29,.60,.022]);
+  star(x,1.46,2.381,.12);
  }
  // One outside utility cabinet and small crates, away from the right-hand
  // repair platform. All are fixed visual meshes with no gameplay collision.
@@ -382,7 +383,7 @@ function png(color,key,kind='albedo'){
 }
 function exportTeam(owner){
  const pal=JSON.parse(JSON.stringify(colors));
- if(owner===1)pal.team=factionRgb8(1);
+ if(owner===1){pal.team=factionRgb8(1);pal.roof_team=factionRgb8(1);}
  
  
  buildParts();
@@ -417,7 +418,7 @@ function exportTeam(owner){
  for(const g of groups.values()){
   if(!names.has(g.name)){
    const mat=gltf.materials.length,color=pal[g.name],
-    factionSurface=g.name==='team'||g.name==='white';
+    factionSurface=['team','roof_team','white'].includes(g.name);
    const base=authoredTexture(g.name,color,'albedo');
    const normal=factionSurface?null:authoredTexture(g.name,color,'normal');
    const orm=factionSurface?null:authoredTexture(g.name,color,'orm');
