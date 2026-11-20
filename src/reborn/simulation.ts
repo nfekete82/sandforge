@@ -25,6 +25,7 @@ import {BUNKER_CAPACITY,bunkerApproach,bunkerCanBoard,bunkerGarrisonedUnits,bunk
 import {BASTION_UPGRADE_COST,bastionEffectiveIncome,bastionUpgradable,validBastionUpgradeState} from './bastion-upgrades.js';
 import {ai37FortificationChoice,ai37UpgradeScore} from './ai37-fortification-doctrine.js';
 import {ai38InfrastructurePlan} from './ai38-investment-doctrine.js';
+import {ai38VehicleRecoveryWaypoint,ai38CanRecoverVehicle} from './ai38-vehicle-navigation.js';
 import {TacticalAI,type TacticalState,type TacticalOrder} from './tactical-ai.js';
 import { MAP_VERSION, randomMapSeed } from './world-generation.js';
 import {beginBomberOrbit,advanceBomberOrbit,validBomberOrbit,BOMBER_ORBIT_SPEED,preservesCaptureBoundary,safeOrbitApproach,isOnBomberOrbit,bastionCaptureOrbit,approachBastionCaptureOrbit,type BomberOrbit} from './bomber-orbit.js';
@@ -836,6 +837,10 @@ export class Simulation {
   private readonly vehicleProgress=new WeakMap<Unit,{
     x:number;y:number;since:number;retryAt:number;
     nextX:number;nextY:number;bestDistance:number;
+  }>();
+  private readonly ai38VehicleEscapes=new WeakMap<Unit,{
+    targetX:number;targetY:number;lastX:number;lastY:number;
+    attempts:number;
   }>();
   /** Temporary, deliberately non-serialized combat position for AI rockets. */
   private readonly rocketStandoff=new WeakMap<Unit,{targetId:number;point:Point;expires:number}>();
@@ -2029,6 +2034,11 @@ export class Simulation {
        !order||!['move','attackMove'].includes(order.kind)||
        u.hold||u.defendUntil>this.time||u.combatTarget!=null||
        distance(order,target)>2||distance(u,target)<25)return false;
+    if(unitSpec(u).group==='Fahrzeuge'&&
+       ((u.transport?.cargo.length??0)>0||u.factoryService||
+        (u.kind==='tank'&&(u.driveSpeed??0)<2&&
+         Math.abs(angleDifference(u.hullAngle??u.angle,
+          Math.atan2(target.y-u.y,target.x-u.x)))>.24)))return false;
     let s=this.aiRouteProgress.get(u);
     if(!s||s.order!==order){
       s={order,x:u.x,y:u.y,since:this.time,retries:0};
@@ -2040,7 +2050,8 @@ export class Simulation {
     if(this.time-s.since<6)return false;
     s.since=this.time;s.retries++;
     u.path=[];u.repath=0;u.exactPath=true;
-    if(s.retries>=3&&order.kind==='attackMove'){
+    if(s.retries>=3&&(order.kind==='attackMove'||
+      unitSpec(u).group==='Fahrzeuge'&&this.tactical.ai37Mode==='coordinated')){
       u.orders.shift();u.combatTarget=null;u.pursuitOrigin=null;
       this.aiRouteProgress.delete(u);
       return true;
@@ -2076,7 +2087,8 @@ export class Simulation {
       :Infinity;
     // Support units are controlled by their explicit work order; protect them
     // from the separate battlefield-movement watchdog.
-    if(ground&&!vehicle&&u.kind!=='engineer'&&u.kind!=='medic'&&
+    if(ground&&u.kind!=='engineer'&&u.kind!=='medic'&&
+       (!vehicle||this.tactical.ai37Mode==='coordinated')&&
        this.recoverStalledAiRoute(u,target))return;
     const cached=this.movingColliders(),open=cached.byOwner[u.owner];
     const {buildings}=open;
@@ -2200,7 +2212,32 @@ export class Simulation {
             u.repath=.7;
             u.exactPath=true;
           }else{
-            u.path=[];u.repath=0;u.exactPath=true;
+            // KI 3.8: a mountain face may block the intended waypoint
+            // without another vehicle in the lane. Physically try a legal
+            // side corridor; never walk through cliffs or collision objects.
+            const old=this.ai38VehicleEscapes.get(u);
+            const attempts=old&&
+              Math.hypot(old.targetX-target.x,old.targetY-target.y)<110&&
+              Math.hypot(old.lastX-u.x,old.lastY-u.y)<200
+              ?old.attempts+1:1;
+            const side=ai38CanRecoverVehicle({
+              ai:u.owner===1&&this.tactical.ai37Mode==='coordinated',
+              modernMap:this.world.mapVersion>=23,
+              orderKind:u.orders[0]?.kind??'',
+              turning,hasCargo:(u.transport?.cargo.length??0)>0,
+              inCombat:u.combatTarget!==null&&u.combatTarget!==undefined,
+              sinceProgress:3.4,attempt:attempts
+            })?ai38VehicleRecoveryWaypoint({
+              from:u,goal:next,unitId:u.id,attempt:attempts,
+              clear:p=>this.world.walkable(p,collisionObstacles,clearance)&&
+               this.world.line(u,p,collisionObstacles,clearance,slopeLimit)&&
+               nearby.every(v=>distance(p,v)>vehicleSpacingGap(u,v).hard+12)
+            }):undefined;
+            this.ai38VehicleEscapes.set(u,{
+              targetX:target.x,targetY:target.y,lastX:u.x,lastY:u.y,attempts
+            });
+            u.path=side?[side]:[];
+            u.repath=side?.75:0;u.exactPath=true;
           }
           return;
         }
