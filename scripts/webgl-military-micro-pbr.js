@@ -11,11 +11,13 @@ import * as THREE from 'three';
  */
 export const MILITARY_MICRO_PBR_REVISION='sandforge-military-micro-pbr-v1-20261120';
 const VEHICLES=new Set(['rover','tank','artillery','scout','bomber']);
-const STRUCTURES=new Set(['barracks','headquarters','factory','airfield','generator']);
+// Building GLBs have independent, already authored PBR and faction shader
+// stacks. Vehicle-only until a separately reviewed building material pass.
 const EXCLUDE=/wheel|tire|tyre|track|tread|roadwheel|sprocket|rubber|window|windscreen|windshield|glass|canopy|visor|mirror|optic|sensor|lens|light|lamp|emissive|glow|beacon|flag|team|faction|emblem|badge|roundel|stripe|marking|antenna|mast|rotor|blade|propeller|weapon|gun|cannon|barrel|muzzle|missile|rocket|exhaust|smoke|shadow|invisible|collider|transparent|interior|instrument|screen|radar|ladder|hinge|handle|hydraulic|seat|seatbelt|cable|grill|grille|louver|louvre|door|gate|shutter/i;
 const STRUCTURAL=/hull|shell|body|fuselage|armour|armor|plate|camo|camouflage|paint|steel|metal|panel|side|roof|front|rear|frame|chassis|concrete|plaster|sandstone|stone|cement|wall|facade|structure|cladding|building|base|factory|hangar|housing/i;
 export function militarySurfaceRole(kind,type,meshName='',materialName='',material=null){
- if(type==='unit'&&!VEHICLES.has(kind)||type==='building'&&!STRUCTURES.has(kind))return null;
+ // Never amend HQ, barracks or other buildings: it caused black facades.
+ if(type!=='unit'||!VEHICLES.has(kind))return null;
  if(material&&!material.isMeshStandardMaterial)return null;
  if(material?.transparent&&material.opacity<.96)return null;
  if(material?.emissiveIntensity>.25&&material.emissive?.getHex?.()!==0)return null;
@@ -27,10 +29,7 @@ export function militarySurfaceRole(kind,type,meshName='',materialName='',materi
   if(type==='unit'&&!material?.map)return null;
   if(type==='building')return null;
  }
- if(type==='building'){
-  if(/metal|steel|armour|armor|plate|trim|frame|rib|strut/i.test(name))return 'metal';
-  return 'concrete';
- }
+
  if(/matte|paint|camo|camouflage|hull|fuselage|armour|armor|panel|body/i.test(name))
   return 'armour';
  return 'metal';
@@ -91,8 +90,8 @@ export function enhanceMilitaryMicroPBR(root,{kind,type}={}){
     return source;
    const key=source.uuid+'|'+role;
    if(clones.has(key))return clones.get(key);
-   // Faction, building-facade and troop-paint materials already belong
-   // to this instance. Decorate IN PLACE, never orphan a per-actor clone.
+   // Faction and armour-paint materials already belong to this actor.
+   // Decorate IN PLACE, never orphan a per-actor clone.
    const alreadyOwned=Boolean(source.userData?.sandforgeFactionTint||
     source.userData?.sandforgeArmourOwnedPaint||source.userData?.sandforgeHelicopterOwnedPaint||
     source.userData?.sandforgeBuildingPBROwned||source.userData?.sandforgeBuildingFill||
