@@ -1,0 +1,33 @@
+name: Sandforge curated map PBR art and environment QA
+on:
+  push:
+    branches:
+      - feat/sandforge-three-curated-maps-ai-training-20261120
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  physical-and-visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Syntax-check and typecheck rendered 3D scene modules
+        run: |
+          node --check scripts/webgl-curated-map-art.js
+          node --check scripts/webgl-curated-map-layout.js
+          node --check scripts/webgl-preview.js
+          node --check scripts/webgl-title-menu.js
+          npx tsc -p tsconfig.json
+      - name: Evaluate real world-space landmark placement and GPU mesh budgets
+        run: |
+          node --test tests/sandforge-curated-map-art-20261120.test.mjs
+          node --test tests/sandforge-curated-maps-20261120.test.mjs
+      - name: Ensure all 3D module imports ship in source and preview builds
+        run: |
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
