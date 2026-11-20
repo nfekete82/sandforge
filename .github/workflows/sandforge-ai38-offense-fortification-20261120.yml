@@ -1,0 +1,63 @@
+name: Sandforge KI 3.8 breakthrough, Bunker and navigation A-B
+on:
+  push:
+    branches:
+      - feat/sandforge-ai38-reliable-offense-fortification-20261120
+  workflow_dispatch:
+concurrency:
+  group: sandforge-ai38-smoke-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  ai38-war-simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: 24
+            label: 8-bastions
+          - version: 25
+            label: 12-bastions
+          - version: 26
+            label: 16-bastions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile game and validate benchmark
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/benchmark-sandforge-ai38-combat.mjs
+          node --check scripts/webgl-battlefield.js
+      - name: AI38 economy, real Bunker, terrain and attack regression tests
+        run: |
+          node --test \
+            tests/sandforge-ai38-reliability-20261120.test.mjs \
+            tests/sandforge-ai37-fortification-doctrine-20261120.test.mjs \
+            tests/sandforge-bunker-bastion-audio-20261119.test.mjs \
+            tests/sandforge-battle-director-mountain-20261119.test.mjs \
+            tests/sandforge-diverse-landscapes-v4-20261119.test.mjs \
+            tests/sandforge-ai36-terrain-routes-20261119.test.mjs
+      - name: Reproducible paired smoke AI wars
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai38-combat.mjs \
+            --maps ${{ matrix.version }} \
+            --seeds 824836862 \
+            --opponents guarded,contesting \
+            --seconds 180 \
+            --output reports/ai38-smoke-${{ matrix.label }}.json
+      - name: Save results including partial results on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai38-smoke-${{ matrix.label }}
+          path: reports/ai38-smoke-${{ matrix.label }}.json
+          if-no-files-found: warn
+          retention-days: 30

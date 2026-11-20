@@ -21,15 +21,17 @@ export interface FortificationEconomy {
 export type FortificationChoice='bunker'|'turret'|null;
 export function ai37FortificationChoice(s:FortificationEconomy):FortificationChoice{
  if(!s.completedHeadquarters||!s.completedBarracks||s.builders<1||
-    s.mobileFighters<6||s.ownedBastions<2||s.time<90||
-    s.underAttack||s.income<55)return null;
- // First a genuinely staffed pillbox, then at most one additional
- // local turret. Keep meaningful funds for production and upgrades.
- if(s.bunkers<1&&s.activeInfantry>=5&&s.credits>=1520)return 'bunker';
- if(s.time>=230&&s.bunkers>=1&&s.turrets<2&&
-    s.mobileFighters>=9&&s.credits>=1650&&s.income>=70)return 'turret';
- if(s.time>=330&&s.bunkers<2&&s.mobileFighters>=13&&
-    s.activeInfantry>=8&&s.credits>=2350&&s.income>=95)return 'bunker';
+    s.mobileFighters<8||s.ownedBastions<2||s.time<125||
+    s.underAttack||s.income<50)return null;
+ // KI 3.8: an affordable *paid* Bunker must be reachable in normal
+ // income games. The old 1,520-credit threshold never fired because macro
+ // recruitment spent all income as soon as it was earned.
+ if(s.bunkers<1&&s.activeInfantry>=3&&s.credits>=850)return 'bunker';
+ // Further fortifications are optional, behind paid forward army and cores.
+ if(s.time>=250&&s.bunkers>=1&&s.turrets<2&&
+    s.mobileFighters>=11&&s.credits>=950&&s.income>=70)return 'turret';
+ if(s.time>=330&&s.bunkers<2&&s.mobileFighters>=14&&
+    s.activeInfantry>=6&&s.credits>=1300&&s.income>=100)return 'bunker';
  return null;
 }
 
@@ -48,9 +50,8 @@ export function ai37GarrisonQuota(x:GarrisonReadiness):number{
  if(!x.bunkerCount||x.activeInfantry<3||x.fieldFighters<7)return 0;
  const available=Math.min(x.activeInfantry,
   Math.max(0,x.fieldFighters-5),
-  Math.max(0,Math.floor(x.fieldFighters/3)));
- const planned=x.homeThreat?Math.max(2,Math.floor(x.fieldFighters/4)):
-  x.fieldFighters>=14?4:x.fieldFighters>=10?3:2;
+  Math.max(0,Math.floor(x.fieldFighters/4)));
+ const planned=x.homeThreat?Math.min(3,Math.max(2,Math.floor(x.fieldFighters/6))):2;
  return Math.max(0,Math.min(available,planned,x.bunkerCount*5));
 }
 

@@ -22,7 +22,7 @@ export function bastionSurplusArmyStage(input:{
 }
 interface ProductionContext {
  own:Base[]; army:Unit[]; seen:Unit[]; income:number; underAttack:boolean;
- knownTurrets:number; knownEnemyHQ:boolean; reserve:number; siegeReserve?:number; maxArmy:number;
+ knownTurrets:number; knownEnemyHQ:boolean; reserve:number; siegeReserve?:number; infrastructureReserve?:number; maxArmy:number;
  scores:Record<UnitKind,number>;defenseNeedsWorker:boolean;finishing:boolean;
 }
 /** A paid early rocket after the first scout vehicle covers the eventual tower
@@ -36,6 +36,21 @@ export function earlyArtilleryWindow(input:{
   &&input.fighters>=5&&input.income>=65&&input.time>=60&&input.time<210
   &&!input.underAttack&&!input.visibleEnemyAir;
 }
+/** Keep a committed Bunker budget even when an urgent barracks would
+ * otherwise spend nearly every incoming credit on 100-credit riflemen.
+ * Real home-defense emergencies release this budget upstream.
+ */
+export function ai38CommittedProductionReserve(input:{
+ urgentBarracks:boolean;plannedArtillery:boolean;
+ reserve:number;siegeReserve:number;infrastructureReserve:number;
+}):number{
+ const x=input;
+ return x.urgentBarracks
+  ?Math.max(x.infrastructureReserve,Math.min(125,x.reserve)):
+  x.plannedArtillery
+   ?Math.max(x.infrastructureReserve,x.reserve-x.siegeReserve):x.reserve;
+}
+
 /** Purchase priorities are persistent composition deficits, not affordable-unit scores.
  * Counts include paid queues, so one factory never reserves money for a unit it
  * has already ordered. Every purchase still goes through Simulation.recruit. */
@@ -232,10 +247,14 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   const protection=need&&!isPlanned&&!urgentBarracks?UNITS[need].cost:0;
   // On the offensive, an idle barracks may spend real earned credits on
   // infantry instead of protecting an entire *optional* expensive queue.
-  // The first siege artillery reserve is never waived.
-  const committedReserve=urgentBarracks?Math.min(125,c.reserve):
-   isPlanned&&need==='artillery'
-   ?Math.max(0,c.reserve-(c.siegeReserve??0)):c.reserve;
+  // KI 3.8: optional factory/artillery reservations can be released to an
+  // urgent infantry screen, but a deliberately funded 650-credit Bunker
+  // must not be starved by repeated 100-credit rifle purchases.
+  const committedReserve=ai38CommittedProductionReserve({
+    urgentBarracks,plannedArtillery:isPlanned&&need==='artillery',
+    reserve:c.reserve,siegeReserve:c.siegeReserve??0,
+    infrastructureReserve:c.infrastructureReserve??0
+  });
   const budget=g.credits[1]-(workerLost?0:committedReserve)-protection;
   let choices=isPlanned?[need!,...ranks(producer).filter(k=>k!==need)]:ranks(producer);
   // Barracks and airfields are independent production facilities. A high
