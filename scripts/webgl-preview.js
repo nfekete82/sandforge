@@ -32,6 +32,7 @@ import {DESERT_SCENIC_STYLE as desertStyle} from '/webgl-desert-style.js';
 import {installDesertSandPBR,SANDFORGE_SAND_PBR} from '/webgl-sand-pbr.js';
 import {desertEcoregion} from '/webgl-desert-ecoregions.js';
 import {installDesertRegionalPBR,DESERT_REGIONAL_PBR_REVISION} from '/webgl-desert-ground-pbr.js';
+import {installAuthenticDesertGroundBlending} from '/webgl-desert-ground-blending.js';
 import {loadAuthenticDesertScenery} from '/webgl-desert-ecoregion-3d.js';
 import {createDesertVillages} from '/webgl-desert-village.js';
 import {installMatchResultOverlay} from '/webgl-match-result.js';
@@ -213,7 +214,8 @@ const models=new Map(),ruinMeshes=[];
 // A player campaign starts LIVE, as in the original Canvas RTS. Orders must
 // never appear accepted while an unannounced preview-level pause blocks ticks.
 game.paused=false;
-let groundMeshes=[],running=query.get('pause')!=='1',accumulator=0,elapsed=0;
+let groundMeshes=[],groundBlending=null,groundBlendReady=false,
+ running=query.get('pause')!=='1',accumulator=0,elapsed=0;
 let simulationSpeed=1;
 const speedControl=$('simulation-speed');
 function setSimulationSpeed(value){
@@ -332,11 +334,17 @@ function buildTerrain(){
  // visible fallback until this small WebP has loaded; no extra art layers.
  // Every one of the 16 ground chunks shares this single material.
  if(biome==='desert'&&terrain.battlefield){
-  installDesertRegionalPBR(material,renderer,desertRegion?.id).then(ok=>{
+  installDesertRegionalPBR(material,renderer,desertRegion?.id).then(async ok=>{
    if(ok)console.info('Sandforge 3D terrain PBR: '+
     (desertRegion?.ground?DESERT_REGIONAL_PBR_REVISION:SANDFORGE_SAND_PBR.revision));
    else console.warn('Sandforge 3D terrain PBR source unavailable: procedural fallback retained');
-  });
+   // Primary PBR loads first; preserve the already installed oasis + sand shaders.
+   groundBlending=await installAuthenticDesertGroundBlending(material,renderer,{
+    mapId:desertRegion?.id??null,seed,mapSize:size,
+    lowQuality:query.get('lite')==='1'});
+   if(groundBlending)console.info('Sandforge: four authentic desert ground layers',desertRegion.id);
+  }).catch(error=>console.warn('Ground blending fallback retained:',error))
+    .finally(()=>{groundBlendReady=true;});
  }
  // The old 2K sand-ripples-v2 artwork contains broad PAINTED bright patches.
  // Putting those over an independently lit 3D heightfield produces the
@@ -1243,7 +1251,7 @@ if(oasisFocus){
 window.addEventListener('pagehide',event=>{if(!event.persisted){
  burnedSedans?.dispose();
  authenticDesertArt?.dispose();
- desertWater?.dispose();oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
+ groundBlending?.dispose();desertWater?.dispose();oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
 }});
 let desertArtReady=false;
 const effects=new SandforgeCombatEffects({scene,camera,game,world,heightAt,pos,battlefield,biome,lowQuality:query.get('lite')==='1',vehicleDust:query.get('dust')!=='off'});
@@ -1447,6 +1455,8 @@ function animate(now){
 }
 renderer.setAnimationLoop(animate);
 window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,battlefield,effects,atmosphere,sound,constructionRecovery,visualPerimeter,boundaryCliffs,panKeys,groundTracks,oases,desertWater,biome,biomeVegetation,
+ get groundBlending(){return groundBlending;},
+ get groundBlendReady(){return groundBlendReady;},
  desertMapId:desertMap?.id??null,
  desertRegion:desertRegion?.key??null,
  get authenticDesertArt(){return authenticDesertArt;},
