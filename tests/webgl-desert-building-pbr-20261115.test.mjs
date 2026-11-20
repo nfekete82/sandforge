@@ -141,7 +141,8 @@ test('factory and hangar share organic HQ/barracks-style camouflage without bake
  const battle=readFileSync('scripts/webgl-battlefield.js','utf8');
  assert.match(battle,/finishDesertBuildingMaterials\(model,'factory'\)/);
  const hud=readFileSync('scripts/webgl-portraits.js','utf8');
- assert.match(hud,/if\(authoredFactory\|\|authoredAirfield\)finishDesertBuildingMaterials\(model,kind\)/);
+ assert.match(hud,/if\(\(authoredFactory&&!referenceFactory\)\|\|authoredAirfield\)/);
+ assert.match(battle,/!model\.getObjectByName\('SF_Factory_PBR_ReferenceHangar_v3'\)/);
 });
 
 test('generated factory and airfield walls no longer bake low-resolution checker camouflage',()=>{
@@ -149,7 +150,8 @@ test('generated factory and airfield walls no longer bake low-resolution checker
  const airfield=readFileSync('scripts/generate-airfield-pbr.mjs','utf8');
  assert.doesNotMatch(factory,/if\(key==='camo'\)\{const blob=Math\.sin/);
  assert.doesNotMatch(airfield,/if\(key==='camo'\)\{const blob=Math\.sin/);
- assert.match(factory,/\['roof','camo'\]\.includes\(key\)\?5:17/);
+ assert.match(factory,/key==='roof'\?1024/,'authored reference roof needs actual 1K PBR');
+ assert.match(factory,/metallicRoughnessTexture/);
 });
 
 test('construction ghost keeps its material pointer and invalid site tint',()=>{
