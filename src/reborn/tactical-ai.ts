@@ -23,7 +23,7 @@ import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefens
 import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,type AI33Mode} from './ai33-map-doctrine.js';
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
-import {rankTerrainRecaptureSquad,canyonPassWaypoint} from './ai36-terrain-routes.js';
+import {rankTerrainRecaptureSquad,canyonPassWaypoint,verifiedCanyonApproachRally} from './ai36-terrain-routes.js';
 import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage} from './ai36-air-support.js';
 import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
 import {preserveAI36Assault,ai36JoinActiveFront,maintainAI36FrontOnRetarget} from './ai36-assault-continuity.js';
@@ -1546,6 +1546,29 @@ export class TacticalAI {
    s.rally=g.world.nearest({x:rear.x+(home.x-rear.x)*.08,y:rear.y+(home.y-rear.y)*.08},this.obstacles(),[],undefined,12)??rear;
    // Stand outside an observed gun's reach; never infer an unseen gun.
    if(towers.some(t=>distance(t,s.rally!)<t.range+50))s.rally=this.rally(fighters,home);
+   // KI 4.1: On the giant canyon, a FRONT Bastion closest to the observed
+   // enemy HQ can lie across an impassable ridge. A physically unreachable
+   // staging point makes 25 paid attackers spend minutes with no A* path.
+   // Move the RALLY (never the units) to a real reachable public pass
+   // entrance on our side. The next attack still uses ordinary navigation.
+   // Existing reachable staging points and all other mission types remain.
+   if(g.world.mapVersion===26&&g.world.generatorVersion>=3&&
+      this.ai37Mode==='coordinated'&&intel?.kind==='headquarters'&&
+      g.world.generated?.ridges.length&&distance(origin,s.rally)>500&&
+      !this.route(origin,s.rally).length){
+     const obstacles=this.obstacles();
+     const entrance=verifiedCanyonApproachRally({
+       from:origin,target:mission,ridges:g.world.generated.ridges,
+       clearance:12,
+       walkable:p=>g.world.walkable(p,obstacles,12),
+       safe:p=>!s.knownTurrets.some(t=>distance(p,t)<t.range+90),
+       reachable:p=>{
+         const route=this.route(origin,p);
+         return route.length>0&&this.sampleRoute(route,origin).risk<8;
+       }
+     });
+     if(entrance)s.rally=entrance;
+   }
   }
   // Cleanup holds the paid army together rather than sending two fighters to
  // a secondary neutral bastion while enemy production is still standing.
