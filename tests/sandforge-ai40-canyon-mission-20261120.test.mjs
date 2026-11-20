@@ -33,6 +33,14 @@ test('proven known HQ siege uses validated partial canyon route despite routable
  assert.equal(m?.kind,'structure');
  assert.equal(m?.objective,hq.id);
 });
+test('do not abandon a contested Bastion frontier for an early partial HQ path',()=>{
+ const {g,hq}=scenario(true);
+ // 11/16 is the classic two-thirds breakthrough threshold, but insufficient
+ // for a PARTIAL route that takes the entire force away from active captures.
+ for(let i=11;i<14;i++)g.territories[i].owner=0;
+ const mission=chooseMission(g,newCampaign(),{x:1000,y:1600},options(hq));
+ assert.equal(mission?.kind,'capture');
+});
 test('no premature HQ rush when the army lacks real breakthrough authorization',()=>{
  const {g,hq}=scenario(true);
  const m=chooseMission(g,newCampaign(),{x:1000,y:1600},options(hq,{breakthrough:false}));
