@@ -333,6 +333,9 @@ export class Simulation {
         b.hp>0&&b.buildRemaining<=0),
       factoryReady:this.bases.some(b=>b.owner===ai&&b.kind==='factory'&&
         b.hp>0&&b.buildRemaining<=0),
+      airfieldReady:this.bases.some(b=>b.owner===ai&&b.kind==='airfield'&&
+        b.hp>0&&b.buildRemaining<=0),
+      totalBastions:this.territories.length,
       bunkerCount:this.bases.filter(b=>b.owner===ai&&b.kind==='bunker'&&b.hp>0).length,
       hasUpgradeTarget:this.territories.some(t=>bastionUpgradable(t,ai,this.bases,
         campaignLayout(this.world.mapVersion,this.seed).headquarters)),
@@ -354,7 +357,7 @@ export class Simulation {
     const pressured=visibleRaiders.some(u=>this.bases.some(b=>
       b.owner===ai&&b.hp>0&&distance(u,b)<650));
     const investment=this.ai38Investment();
-    const needed:BuildingKind|null=investment?.goal?null:
+    const needed:BuildingKind|null=investment?.goal==='bunker'?null:
       !has('research')&&this.credits[ai]>=1450&&this.time>140?'research':
       INTERCEPTOR_ENABLED&&!has('interceptor')&&this.memories[ai].some(b=>b.owner===0&&b.kind==='silo'&&b.hp>0)&&
         this.credits[ai]>=3100?'interceptor':
@@ -2973,7 +2976,7 @@ export class Simulation {
       // Reserve a healthy army and budget before investing in long-term income.
       if(this.world.mapVersion>=23&&this.time>=170&&this.count(1)>=8&&
         (investment?.goal==='bastion-upgrade'?
-         this.credits[1]>=investment.reserve:
+         this.credits[1]>=BASTION_UPGRADE_COST+investment.minFreeAfterPurchase:
          this.tactical.ai37Mode==='off'&&this.credits[1]>=BASTION_UPGRADE_COST+1450)){
         const candidate=this.territories.filter(t=>
           bastionUpgradable(t,1,this.bases,
