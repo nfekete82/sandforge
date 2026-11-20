@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Mes​hy 7.1 --> Sandforge. Split the real corrugated door triangles from
+/** Meshy 7.1 --> Sandforge. Split the real corrugated door triangles from
  * the original quantized PBR GLB without repainting or remeshing the roof.
  * The game-facing factory-0/1.glb preserve the original Meshy UVs, basecolor,
  * normal and metallic/roughness textures byte-for-byte.
@@ -114,7 +114,7 @@ export function prepareMeshyFactory(src=SOURCE,output=OUT){
  if(!doc.materials?.some(m=>m.normalTexture&&
   m.pbrMetallicRoughness?.baseColorTexture&&
   m.pbrMetallicRoughness?.metallicRoughnessTexture))
-  throw new Error('Missing real Mes​hy PBR texture maps');
+  throw new Error('Missing real Meshy PBR texture maps');
  mkdirSync(output,{recursive:true});const out=[];
  for(let owner=0;owner<2;owner++){
   const model=structuredClone(doc),bin=Buffer.from(parsed.bin);
@@ -124,7 +124,7 @@ export function prepareMeshyFactory(src=SOURCE,output=OUT){
   // exactly like Sandforge barracks and 4-cardinal vehicle production.
   model.nodes.push({name:'SF_Factory_Meshy_ProductionRig',
    rotation:[0,Math.SQRT1_2,0,Math.SQRT1_2],children:[...roots],
-   extras:{source:'Mes​hy 7.1',realMeshyProduction:true,owner,
+   extras:{source:'Meshy 7.1',realMeshyProduction:true,owner,
     frontLocalPlusZ:true,realShutter:true}});
   for(const [name,translation] of [
    ['SF_Factory_Meshy_RolloutStart',[-.425,-.292,.16]],
@@ -135,7 +135,7 @@ export function prepareMeshyFactory(src=SOURCE,output=OUT){
   }
   model.scenes[model.scene??0].nodes=[wrapper];
   model.asset.generator=MESHY_FACTORY_VERSION;
-  model.asset.extras={originalMes​hyPBR:true,owner,teamPaintShader:owner===1,
+  model.asset.extras={originalMeshyPBR:true,owner,teamPaintShader:owner===1,
    productionGateway:true,...stats};
   const file=join(output,'factory-'+owner+'.glb'),glb=saveGLB(model,bin);
   writeFileSync(file,glb);
