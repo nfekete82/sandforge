@@ -1,0 +1,26 @@
+name: Sandforge AI 4.5 terrain-aware physical pass selection
+on:
+  push:
+    branches:
+      - feat/sandforge-ai45-physical-pass-selection-20261120
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-passes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile and verify physical two-leg route under slope rules
+        run: |
+          npx tsc -p tsconfig.json
+          node --test tests/sandforge-ai45-physical-pass-selection-20261120.test.mjs
+          node --test tests/sandforge-ai44-graded-canyon-passes-20261120.test.mjs
+          node --test tests/sandforge-ai36-terrain-routes-20261119.test.mjs
+          node --test tests/sandforge-ai39-no-path-detour-20261120.test.mjs
