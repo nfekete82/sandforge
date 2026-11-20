@@ -95,10 +95,20 @@ game.infantryVisionBonus=1.15; // modest +15% infantry sight in 3D only
 game.highGroundEnabled=true; // tactical +20% outgoing / -10% incoming only in 3D
 game.updateVision();
 const world=game.world,terrain=world.generated,size=world.size,half=size/2;
+// A URL label alone never defines the real generated map. Validate the
+// authoritative terrain kind, generator, biome, profile, size and seed.
+const selectedDesertMap=globalThis.SandforgeDesertMaps?.byId(query.get('map'));
+const desertMap=globalThis.SandforgeDesertMaps?.matches(selectedDesertMap,{
+ seed:game.seed,mapVersion:world.mapVersion,
+ generatorVersion:world.generatorVersion,
+ terrain:terrain.battlefield?.profile,biome,kind:terrain.landscapeKind,
+ bastions:game.territories.length
+})?selectedDesertMap:null;
 const gradingHomes=terrain.battlefield?.generatorVersion>=2
  ?campaignLayout(world.mapVersion,seed).headquarters.map(i=>battlefieldStart(terrain.sites[i],size))
  :[];
-if(terrain.battlefield)document.title='Sandforge · '+biomeStyle.label+' · '+
+if(desertMap)document.title='Sandforge · '+desertMap.name+' · Wüste · '+seed;
+else if(terrain.battlefield)document.title='Sandforge · '+biomeStyle.label+' · '+
  (terrain.landscapeKind?({
   'open-basin':'Weites Dünenmeer','broken-escarpment':'Felsdurchbruch',
   'diagonal-ridge':'Diagonalkamm','serpentine-canyon':'Schlangenpass'
@@ -890,6 +900,8 @@ $('load').onclick=()=>{
  const text=$('seed').value.trim();
  const q=new URLSearchParams({bastions:$('bastions').value,seed:String(text===''?randomMapSeed():Number(text)>>>0),terrain:terrain.battlefield?.profile??'random',biome,
   landscape:world.generatorVersion===2?'classic':world.generatorVersion===3?'network-v3':'network'});
+ if(desertMap&&Number(q.get('seed'))===desertMap.seed&&
+   Number(q.get('bastions'))===desertMap.bastions)q.set('map',desertMap.id);
  location.href=(window.Sandforge3DMenu?.gameRoute?.()??'/webgl-preview.html')+'?'+q;
 };
 // Camera navigation is independent of the simulation. WASD and cursor keys
@@ -1381,6 +1393,7 @@ function animate(now){
 }
 renderer.setAnimationLoop(animate);
 window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,battlefield,effects,atmosphere,sound,constructionRecovery,visualPerimeter,boundaryCliffs,panKeys,groundTracks,oases,biome,biomeVegetation,
+ desertMapId:desertMap?.id??null,
  performance:performanceWatch,
  // Console diagnostic: compare FPS/draw calls with site props on/off live.
  setSiteDecorEnabled:enabled=>battlefield.setSiteDecorEnabled(enabled),
@@ -1406,7 +1419,7 @@ async function main(){
   // The 3D battlefield is live immediately; heavyweight PBR assets stream in.
   battlefield.sync(true);
   status.dataset.ready='true';
-  setStatus((terrain.battlefield?(terrain.landscapeKind?document.title.split(' · ')[2]+' · ':'')+
+  setStatus((desertMap?desertMap.name+' · ':terrain.battlefield?(terrain.landscapeKind?document.title.split(' · ')[2]+' · ':'')+
   TERRAIN_LABELS[terrain.battlefield.profile]+' · Seed '+seed+' · ':'')+
   'WebGL2 aktiv · '+chunks+' Terrain-Chunks · '+stones+' Felsen · '+ruins+' 3D-Ruinen · 3D-Spielmechanik aktiv.');
  }catch(error){
