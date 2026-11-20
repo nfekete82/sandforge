@@ -23,7 +23,7 @@ import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefens
 import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,type AI33Mode} from './ai33-map-doctrine.js';
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
-import {rankTerrainRecaptureSquad,canyonPassWaypoint} from './ai36-terrain-routes.js';
+import {rankTerrainRecaptureSquad,canyonPassWaypoint,ai43VerifiedSiegePassApproach} from './ai36-terrain-routes.js';
 import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage,ai42BreakoutAllowed,ai42HqLookout,ai42DirectVisibleStrike,ai42DroneOverwatchPoint} from './ai36-air-support.js';
 import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
 import {preserveAI36Assault,ai36JoinActiveFront,maintainAI36FrontOnRetarget} from './ai36-assault-continuity.js';
@@ -1746,10 +1746,9 @@ export class TacticalAI {
   // waiting, relocate the staging point to a legal, existing troop cluster.
   // No teleports, unobserved enemy positions or free units.
   if(g.world.mapVersion>=25&&g.world.generatorVersion>=3&&
-     ai41RallyMissionPermitsRescue({
-       kind:mission.kind,homePressure:observedHomePressure,
-       time:g.time,notBefore:policy?.notBefore??0
-     })&&
+     (mission.kind==='capture'||mission.kind==='structure'&&
+      g.world.mapVersion===26&&g.world.generatorVersion>=4)&&
+     !observedHomePressure&&g.time>=(policy?.notBefore??0)&&
      this.ai37Mode==='coordinated'&&s.phase==='gather'&&
      g.time>=190&&g.time>=this.ai40RallyRetryAt&&s.rally&&
      this.ai40RecoveredMissionSince!==mission.since){
@@ -1774,8 +1773,39 @@ export class TacticalAI {
       viable:p=>g.world.walkable(p,safeBases,12)&&
        !s.knownTurrets.some(t=>distance(t,p)<t.range+90)
     });
-    if(replacement){
-      s.rally=replacement;
+    // KI 4.3: an HQ siege can relocate its unreachable rally only when
+    // a PAID ground vehicle can physically reach and cross a real canyon ramp.
+    const verifiedSiegePass=replacement&&mission.kind==='structure'&&
+      g.world.generated?.ridges.length?(()=>{
+      const lead=pool.filter(u=>['tank','rover','artillery'].includes(u.kind)&&
+        u.hp>0&&!u.carrier&&!u.factoryService&&!u.airfieldService&&
+        distance(u,replacement)<330)
+       .sort((a,b)=>distance(a,replacement)-distance(b,replacement)||
+        a.id-b.id)[0];
+      if(!lead)return undefined;
+      const obstacles=this.obstacles();
+      const clearance=Math.max(0,unitSpec(lead).radius-10);
+      const maxSlope=lead.kind==='tank'?.215:lead.kind==='artillery'?.185:.195;
+      const clear=(p:Point)=>g.world.walkable(p,obstacles,clearance)&&
+       g.world.groundVehicleSlopeSafe(p,maxSlope,clearance+10)&&
+       !s.knownTurrets.some(t=>distance(t,p)<t.range+90);
+      const traversable=(from:Point,to:Point)=>{
+       const route=g.world.path(from,to,obstacles,clearance,undefined,
+        false,false,false,maxSlope);
+       return route.length>0&&distance(route[route.length-1],to)<
+         Math.max(35,g.world.cell*1.4);
+      };
+      return ai43VerifiedSiegePassApproach({
+        from:lead,target:mission,ridges:g.world.generated!.ridges,
+        clear,traversable
+      });
+    })():undefined;
+    if(replacement&&ai41RallyMissionPermitsRescue({
+      kind:mission.kind,homePressure:observedHomePressure,
+      time:g.time,notBefore:policy?.notBefore??0,
+      validatedSiegeApproach:!!verifiedSiegePass
+    })){
+      s.rally=verifiedSiegePass??replacement;
       this.ai40RecoveredMissionSince=mission.since;
       if(this.rallyGateTraceEnabled)this.rallyGateTrace.push({
         at:Math.round(g.time),phase:s.phase,
@@ -1788,7 +1818,8 @@ export class TacticalAI {
         alreadyAtRally:pool.filter(u=>distance(u,replacement)<330).length,
         neededAtRally:Math.min(4,Math.max(3,Math.ceil(pool.length*.14))),
         cluster330:-1,cluster720:-1,legal330:-1,legal720:-1,
-        nearestRally:0,remainingToRetry:0,recovered:true
+        nearestRally:Math.round(Math.min(...pool.map(u=>
+         distance(u,s.rally!)))),remainingToRetry:0,recovered:true
       });
       }
     }
