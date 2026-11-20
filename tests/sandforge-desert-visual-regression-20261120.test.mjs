@@ -25,9 +25,10 @@ test('All four desert maps suppress decorative FoW glows, NOT true visibility',(
 });
 test('Broken Empire has its own charcoal/red slate mountain palette without touching collisions',()=>{
  const preview=readFileSync('scripts/webgl-preview.js','utf8');
- assert.match(preview,/brokenEmpireRedSlate=desertRegion\?\.id==='broken-empire'/);
- assert.match(preview,/#855653/);
- assert.match(preview,/#39333b/);
+ assert.match(preview,/buildGeologicalMesaSurface/);
+ const geology=readFileSync('scripts/webgl-authentic-canyon-geology.js','utf8');
+ assert.match(geology,/#82534f/);
+ assert.match(geology,/#34343a/);
  assert.match(preview,/applyRockMineralVeins\(mat/);
  assert.match(preview,/mesh\.name='physical-battlefield-rocks'/);
  assert.match(preview,/const geometry=new THREE\.BufferGeometry\(\)/);
