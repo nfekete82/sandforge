@@ -34,13 +34,13 @@ export function planDesertEcoregion({
   // existing build-pad, road, slope and black-border exclusion rules.
   const patchAnchors=[];
   for(let attempt=0;attempt<target*120&&count<target;attempt++){
-   const cluster=patchAnchors.length&&random()<.68
+   const patchCenter=patchAnchors.length&&random()<.68
     ?patchAnchors[Math.floor(random()*patchAnchors.length)]:null;
    const direction=random()*Math.PI*2;
    const radius=kind==='sandstone'?190+random()*250:145+random()*200;
-   const x=cluster?cluster.x+Math.cos(direction)*radius:
+   const x=patchCenter?patchCenter.x+Math.cos(direction)*radius:
     margin+random()*(size-margin*2);
-   const y=cluster?cluster.y+Math.sin(direction)*radius:
+   const y=patchCenter?patchCenter.y+Math.sin(direction)*radius:
     margin+random()*(size-margin*2);
    if(x<=margin||y<=margin||x>=size-margin||y>=size-margin)continue;
    const p={x,y};
