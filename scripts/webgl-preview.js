@@ -9,6 +9,7 @@ import {rollingHillHeight} from '/src/reborn/rolling-hills.js';
 import {canyonGroundSampler,rampAtX,ridgeCenterY} from '/src/reborn/canyon-height.js';
 import {SandforgeBattlefield} from '/webgl-battlefield.js';
 import {DesertOases} from '/webgl-oases.js';
+import {createCinematicDesertWaterways} from '/webgl-desert-water-3d.js';
 import {createLandscapeMeshes} from '/webgl-landscape-network.js';
 import {normalizeSimulationSpeed,simulationFrameBudget} from '/webgl-simulation-speed.js';
 import {DesertArtPass} from '/webgl-environment.js';
@@ -1217,6 +1218,13 @@ if(query.get('showcase')==='1')setShowcase(true);
 const desertArt=new DesertArtPass({scene,world,terrain,heightAt,pos,loader,biome,mapId:desertRegion?.id??null,lowQuality:query.get('lite')==='1'});
 const oases=new DesertOases({scene,game,heightAt,groundMeshes,lowQuality:query.get('lite')==='1',enabled:biome==='desert'&&query.get('oases')!=='off'&&(!desertRegion||desertRegion.key==='erg')});
 battlefield.oases=oases;
+// Shallow animated lagoons and winding river reaches on fixed desert maps.
+// Purely visual; authoritative roads, pathing and saved battles are unchanged.
+const desertWater=spacious&&biome==='desert'&&query.get('water')!=='off'
+ ?createCinematicDesertWaterways({scene,world,terrain,heightAt,seed,
+   mapId:desertRegion?.id??null,oases:oases.layout,
+   lowQuality:query.get('lite')==='1'})
+ :null;
 // Generator v3: six unique, locally generated UV-textured adobe house GLBs.
 // Older maps keep their established sparse two-GLTF hamlets, unchanged.
 // Render-only scenery; never creates terrain obstacles or changes saved games.
@@ -1235,7 +1243,7 @@ if(oasisFocus){
 window.addEventListener('pagehide',event=>{if(!event.persisted){
  burnedSedans?.dispose();
  authenticDesertArt?.dispose();
- oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
+ desertWater?.dispose();oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
 }});
 let desertArtReady=false;
 const effects=new SandforgeCombatEffects({scene,camera,game,world,heightAt,pos,battlefield,biome,lowQuality:query.get('lite')==='1',vehicleDust:query.get('dust')!=='off'});
@@ -1412,6 +1420,7 @@ function animate(now){
  sun.position.add(reusableShadowShift);sun.target.position.add(reusableShadowShift);
  atmosphere.update(visualDt);
  oases.update(now*.001);
+ desertWater?.update(now*.001);
  // Authored palms use the same visual clock and real weather transitions.
  desertArt.update(now*.001,game.weather.intensity);
  if(performanceWatch.enabled)performanceWatch.auxiliary(performance.now()-beforeAux);
@@ -1437,7 +1446,7 @@ function animate(now){
  }
 }
 renderer.setAnimationLoop(animate);
-window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,battlefield,effects,atmosphere,sound,constructionRecovery,visualPerimeter,boundaryCliffs,panKeys,groundTracks,oases,biome,biomeVegetation,
+window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,battlefield,effects,atmosphere,sound,constructionRecovery,visualPerimeter,boundaryCliffs,panKeys,groundTracks,oases,desertWater,biome,biomeVegetation,
  desertMapId:desertMap?.id??null,
  desertRegion:desertRegion?.key??null,
  get authenticDesertArt(){return authenticDesertArt;},
