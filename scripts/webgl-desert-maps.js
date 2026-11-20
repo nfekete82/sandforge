@@ -7,28 +7,28 @@
  'use strict';
  const maps=Object.freeze([
   Object.freeze({
-   id:'duenenmeer',name:'Weites Dünenmeer',kind:'open-basin',
+   id:'desert-strike',name:'Desert Strike',inspiration:'Tournament Desert',kind:'open-basin',
    bastions:8,mapVersion:24,seed:9999,terrain:'oasis',biome:'desert',generatorVersion:4,
-   subtitle:'Offene Wüste · 8 Bastionen',
-   description:'Weite Dünen, Oasen und freie Angriffswege. Klassischer Basisbau und schnelle Panzeroffensiven.'
+   subtitle:'Offenes Gelände · 8 Bastionen',
+   description:'Offenes Gelände, sanfte Hügel und mehrere Angriffswege. Schnelle Expansion und klassische Panzeroffensiven.'
   }),
   Object.freeze({
-   id:'felsdurchbruch',name:'Felsdurchbruch',kind:'broken-escarpment',
+   id:'broken-empire',name:'Broken Empire',inspiration:'Fallen Empire',kind:'broken-escarpment',
    bastions:12,mapVersion:25,seed:2026,terrain:'rocky',biome:'desert',generatorVersion:4,
-   subtitle:'Felsige Wüste · 12 Bastionen',
-   description:'Ein mächtiger Felskamm mit einem Engpass: verteidigen, einigeln und den Durchbruch erzwingen.'
+   subtitle:'Felsen und Engpässe · 12 Bastionen',
+   description:'Engpässe, Felsen und taktische Höhenzüge. Verteidigen, einigeln und den Durchbruch erzwingen.'
   }),
   Object.freeze({
-   id:'diagonalkamm',name:'Diagonalkamm',kind:'diagonal-ridge',
-   bastions:12,mapVersion:25,seed:1907,terrain:'dunes',biome:'desert',generatorVersion:4,
-   subtitle:'Dünen und Gebirge · 12 Bastionen',
-   description:'Diagonale Höhenzüge mit zwei Passwegen. Raum für Verteidigung und überraschende Flankenwechsel.'
+   id:'burning-horizon',name:'Burning Horizon',inspiration:'Twilight Flame',kind:'diagonal-ridge',
+   bastions:16,mapVersion:26,seed:1907,terrain:'dunes',biome:'desert',generatorVersion:4,
+   subtitle:'Große Wüste · 16 Bastionen',
+   description:'Große Karte mit viel Platz für Basisbau und Verteidigung. Diagonale Höhenzüge ermöglichen zusätzliche Flankenwege.'
   }),
   Object.freeze({
-   id:'schlangenpass',name:'Schlangenpass',kind:'serpentine-canyon',
+   id:'last-stronghold',name:'Last Stronghold',inspiration:'Defcon 6',kind:'serpentine-canyon',
    bastions:16,mapVersion:26,seed:314159,terrain:'mixed',biome:'desert',generatorVersion:4,
-   subtitle:'Schluchtenwüste · 16 Bastionen',
-   description:'Eine gewundene Schlucht mit drei Pässen: lange Gefechte, große Armeen und Kontrolle der Bastionen.'
+   subtitle:'Mehrfrontengefecht · 16 Bastionen',
+   description:'Mehrere Zugänge, zentrale Bastionen und intensive Gefechte. Drei Pässe verbinden die großen Fronten.'
   })
  ]);
  const byId=id=>maps.find(map=>map.id===id)||null;
