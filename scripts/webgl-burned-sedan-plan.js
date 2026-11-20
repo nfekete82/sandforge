@@ -52,7 +52,7 @@ export function planBurnedSedans({world,terrain=world?.generated,seed=world?.see
   const lean=(random()-.5)*.045;
   out.push(Object.freeze({
    x,y,angle:random()*Math.PI*2,
-   scale:.87+random()*.20,lean,
+   scale:.79+random()*.18,lean,
    variant:(out.length+(Math.floor(random()*3)===0?1:0))%2,
    ruinAdjacent:Boolean(ruin)
   }));
