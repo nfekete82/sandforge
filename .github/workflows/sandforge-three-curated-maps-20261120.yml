@@ -1,0 +1,30 @@
+name: Sandforge curated map selection and game physics
+on:
+  push:
+    branches:
+      - feat/sandforge-three-curated-maps-ai-training-20261120
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  curated-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Syntax check browser entry and typecheck
+        run: |
+          node --check scripts/webgl-map-presets.js
+          node --check scripts/webgl-title-menu.js
+          node --check scripts/webgl-preview.js
+          npx tsc -p tsconfig.json
+      - name: Fixed maps, vehicles, economy, savegame and menu regression
+        run: |
+          node --test tests/sandforge-curated-maps-20261120.test.mjs
+          node --test tests/sandforge-diverse-landscapes-v4-20261119.test.mjs
+          node --test tests/sandforge-ai36-terrain-routes-20261119.test.mjs
