@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ai42BreakoutAllowed,ai42HqLookout} from '../dist/src/reborn/ai36-air-support.js';
+import {ai42BreakoutAllowed,ai42HqLookout,ai42DirectVisibleStrike} from '../dist/src/reborn/ai36-air-support.js';
 test('observed late HQ siege requires two paid bombers, strong bastion control, at most one AA',()=>{
  const x={enabled:true,time:385,controlled:15,total:16,paidBombers:2,
   missionKind:'structure',missionSector:0,knownHQSector:0,
@@ -24,4 +24,15 @@ test('bomber sight waypoint avoids previously observed AA and never targets via 
  assert.ok(x.guns.every(t=>Math.hypot(t.x-p.x,t.y-p.y)>t.range+94));
  assert.equal(ai42HqLookout({...x,sight:180}),undefined);
  assert.equal(ai42HqLookout({...x,guns:[{x:1300,y:1200,range:760}]}),undefined);
+});
+
+test('only an already authorized visible late-game HQ airstrike can skip the geometric flank',()=>{
+ const allowed={airBreakoutAllowed:true,bomberDistance:1400,
+  existingSameTarget:false,retreating:false};
+ assert.equal(ai42DirectVisibleStrike(allowed),true);
+ assert.equal(ai42DirectVisibleStrike({...allowed,bomberDistance:1900}),true);
+ for(const bad of [
+  {airBreakoutAllowed:false},{bomberDistance:2100},
+  {existingSameTarget:true},{retreating:true}
+ ])assert.equal(ai42DirectVisibleStrike({...allowed,...bad}),false,JSON.stringify(bad));
 });

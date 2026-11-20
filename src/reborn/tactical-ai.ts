@@ -24,7 +24,7 @@ import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad,canyonPassWaypoint} from './ai36-terrain-routes.js';
-import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage,ai42BreakoutAllowed,ai42HqLookout} from './ai36-air-support.js';
+import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage,ai42BreakoutAllowed,ai42HqLookout,ai42DirectVisibleStrike} from './ai36-air-support.js';
 import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
 import {preserveAI36Assault,ai36JoinActiveFront,maintainAI36FrontOnRetarget} from './ai36-assault-continuity.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
@@ -1185,10 +1185,40 @@ export class TacticalAI {
    }
    return;
   }
+  // A confirmed late-game HQ/turret does NOT require a 450-unit lateral
+  // flank before the plane may turn towards its 95-unit bomb release zone.
+  // All fog, paid-air, AA and known-target checks are exactly those already
+  // enforced by ai42BreakoutAllowed and bomberStrikeSafe.
+  const mission=s.commander?.mission;
+  const rememberedHQ=g.memories[1].find(m=>m.owner===0&&m.hp>0&&
+   m.kind==='headquarters'&&m.territory===mission?.sector);
+  const bomberCount=bombers.filter(u=>u.hp>unitSpec(u).hp*.55).length;
+  const airAA=(v:Unit|Base)=>['rocket','turret','interceptor','scout'].includes(v.kind);
+  const lateAirAllowed=!!rememberedHQ&&ai42BreakoutAllowed({
+   enabled:g.world.mapVersion===26&&g.world.generatorVersion>=4&&
+    this.ai37Mode==='coordinated'&&this.mode==='director',
+   time:g.time,controlled:g.territories.filter(t=>t.owner===1).length,
+   total:g.territories.length,paidBombers:bomberCount,
+   missionKind:mission?.kind,missionSector:mission?.sector,
+   knownHQSector:rememberedHQ?.territory,
+   targetKind:target.kind,distanceFromHQ:distance(target,rememberedHQ),
+   targetVisible:g.canSee(1,target),
+   knownAirDefenses:s.knownTurrets.filter(v=>distance(v,target)<650).length,
+   observedAirDefenses:observed.filter(v=>airAA(v)&&distance(v,target)<650).length
+  });
   for(const [index,u] of bombers.entries()){
    if(recalled.has(u.id))continue;
+   const alreadyTargeted=u.orders.some(o=>o.kind==='attack'&&o.target===target.id);
    if(u.orders.some(o=>o.kind==='attack'&&
     observed.some(v=>v.id===o.target)))continue;
+   if(ai42DirectVisibleStrike({
+      airBreakoutAllowed:lateAirAllowed,bomberDistance:distance(u,target),
+      existingSameTarget:alreadyTargeted,retreating:u.defendUntil>g.time
+   })){
+    if(g.command([u.id],{kind:'attack',x:target.x,y:target.y,target:target.id}))
+     for(const o of u.orders)o.tactical={group:s.groupId,mode:'assault'};
+    continue;
+   }
    const fx=target.x-front.x,fy=target.y-front.y;
    // A front-centroid sitting exactly at the observed HQ provides no
    // valid flank direction. Use the actual bomber approach instead.
