@@ -462,8 +462,8 @@ export class SandforgeBattlefield {
  pumpModelQueue(){
   while(this.loadingCount<2&&this.modelQueue.length){
    const task=this.modelQueue.shift();this.loadingCount++;
+   const {entry,type}=task;
    this.getModel(task.url).then(data=>{
-    const {entry,type}=task;
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
     if(type==='building'&&((entry.kind==='headquarters'&&
