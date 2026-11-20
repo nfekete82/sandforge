@@ -9,8 +9,8 @@ import {planDesertWaterways} from './webgl-desert-water-plan.js';
 export function cinematicWaterMaterial(flowing=false){
  const time={value:0};
  const mat=new THREE.MeshPhysicalMaterial({
-  color:'#6bafad',roughness:.24,metalness:.055,clearcoat:.52,
-  clearcoatRoughness:.16,transparent:true,opacity:.88,depthWrite:false,
+  color:'#6c9b91',roughness:.43,metalness:0,clearcoat:.30,
+  clearcoatRoughness:.32,transparent:true,opacity:.66,depthWrite:false,
   side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2
  });
  mat.userData.waterTime=time;
@@ -33,20 +33,20 @@ export function cinematicWaterMaterial(flowing=false){
   const color=[
     'float sfShore=clamp(vSFWaterUV.y,0.0,1.0);',
     'float sfFlow='+mode+'.0;',
-    'float sfW1=sin(vSFWaterXZ.x*.081+vSFWaterXZ.y*.043+sfWaterTime*.76);',
-    'float sfW2=sin(vSFWaterXZ.y*.128-vSFWaterXZ.x*.058+sfWaterTime*1.11);',
-    'float sfRipple=sfW1*.5+sfW2*.5;',
+    'float sfW1=sin(vSFWaterXZ.x*.049+vSFWaterXZ.y*.074+sfWaterTime*.46);',
+    'float sfW2=sin(vSFWaterXZ.y*.091-vSFWaterXZ.x*.037+sfWaterTime*.71);',
+    'float sfRipple=sfW1*.46+sfW2*.32+.22*sin(vSFWaterXZ.x*.17+vSFWaterXZ.y*.083+sfWaterTime*.33);',
     // Medium-distance blue/green water, sand shallows at the edges.
-    'vec3 sfDeep=vec3(.025,.19,.195);',
-    'vec3 sfShallow=vec3(.22,.335,.285);',
+    'vec3 sfDeep=vec3(.052,.18,.16);',
+    'vec3 sfShallow=vec3(.25,.31,.265);',
     'vec3 sfWater=mix(sfDeep,sfShallow,smoothstep(.19,.93,sfShore));',
-    'sfWater+=vec3(.014,.032,.031)*sfRipple;',
-    'float sfFoam=(1.0-smoothstep(.018,.12,abs(sfShore-.87)));',
-    'sfFoam*=.17+.10*sin(sfWaterTime*.9+vSFWaterXZ.x*.14-vSFWaterXZ.y*.11);',
-    'float sfCurrent=sin(vSFWaterUV.x*.088-sfWaterTime*1.35+sfW2*1.1);',
-    'float sfGlint=pow(max(0.0,sfCurrent),15.0)*(.052+.048*sfFlow);',
-    'diffuseColor.rgb=sfWater+vec3(.10,.16,.15)*sfFoam+vec3(sfGlint);',
-    'diffuseColor.a*=1.0-smoothstep(.91,1.0,sfShore);'
+    'sfWater+=vec3(.009,.015,.014)*sfRipple;',
+    'float sfFoam=(1.0-smoothstep(.02,.10,abs(sfShore-.945)));',
+    'sfFoam*=.045+.025*sin(sfWaterTime*.45+vSFWaterXZ.x*.061-vSFWaterXZ.y*.047);',
+    'float sfCurrent=sin(vSFWaterXZ.x*.053+vSFWaterXZ.y*.073-sfWaterTime*.72+sfW2*.47);',
+    'float sfGlint=pow(max(0.0,sfCurrent),24.0)*(.011+.007*sfFlow);',
+    'diffuseColor.rgb=sfWater+vec3(.055,.065,.045)*sfFoam+vec3(sfGlint);',
+    'diffuseColor.a*=1.0-smoothstep(.82,1.0,sfShore);'
   ].join(nl);
   shader.fragmentShader=shader.fragmentShader
    .replace('#include <common>','#include <common>'+nl+header)
@@ -79,8 +79,11 @@ function meshFrom(vertices,uv,indices,material,name,root){
  return mesh;
 }
 function lagoonGeometry(o,heightAt,size,lowQuality=false){
- const positions=[],uv=[],indices=[],segments=lowQuality?64:96;
- const rings=[.002,.12,.26,.40,.55,.70,.81,.90,.96,1];
+ const positions=[],uv=[],indices=[],segments=lowQuality?96:160;
+ // Dense concentric tessellation tracks the genuine terrain heightfield.
+ // The old 10 wide rings cut through the ground and produced striped
+ // z-fighting artefacts visible as diagonal white bands on the lake.
+ const rings=Array.from({length:lowQuality?22:36},(_,i)=>Math.max(.002,i/(lowQuality?21:35)));
  const half=size*.5,co=Math.cos(o.rotation),si=Math.sin(o.rotation);
  for(let k=0;k<rings.length;k++){
   const radius=rings[k];
@@ -91,7 +94,7 @@ function lagoonGeometry(o,heightAt,size,lowQuality=false){
    const dx=Math.cos(a)*o.radius*radius*contour;
    const dz=Math.sin(a)*o.radius*o.aspect*radius*contour;
    const x=o.x+dx*co-dz*si,z=o.y+dx*si+dz*co;
-   positions.push(x-half,heightAt(x,z)+.42,z-half);
+   positions.push(x-half,heightAt(x,z)+.65,z-half);
    uv.push(i/segments,radius);
    if(k&&i<segments){
     const a0=(k-1)*(segments+1)+i,b0=k*(segments+1)+i;
@@ -117,7 +120,7 @@ function riverGeometry(r,heightAt,size,lowQuality=false){
   for(let j=0;j<rows.length;j++){
    const s=rows[j],edgy=1+.055*Math.sin(i*1.36+r.phase+j*1.3);
    const x=p.x+nx*width*s*edgy,z=p.y+nz*width*s*edgy;
-   positions.push(x-half,heightAt(x,z)+.47,z-half);
+   positions.push(x-half,heightAt(x,z)+.65,z-half);
    uv.push(traveled,Math.abs(s));
    if(i&&j<last-1){
     const a=(i-1)*last+j,b=i*last+j;
