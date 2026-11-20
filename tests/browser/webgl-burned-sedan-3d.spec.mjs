@@ -20,11 +20,15 @@ for(const id of ['desert-strike','broken-empire','burning-horizon','last-strongh
     preset:a.desertMapId,
     scene3d:Boolean(a.renderer.capabilities.isWebGL2),
     cars:b?.placements.length??0,
+    debris:b?.debris.length??0,
+    debrisDrawCalls:b?.debrisDrawCalls??0,
     drawCalls:b?.drawCalls??0,
     triangles:b?.triangles??0,
     visualOnly:meshes.every(m=>m.userData.visualOnly&&
      m.userData.nonPlayable&&m.userData.nonBlocking),
     allInstanced:meshes.every(m=>m.isInstancedMesh),
+    debrisMeshes:meshes.filter(m=>m.userData.burnedSedanDebris).length,
+    debrisParts:[...new Set(meshes.filter(m=>m.userData.burnedSedanDebris).map(m=>m.userData.part))],
     materials:[...new Set(meshes.map(m=>m.userData.material))],
     realPBR:meshes.some(m=>m.userData.material==='shell'&&
      m.material.map?.isTexture&&m.material.normalMap?.isTexture),
@@ -38,7 +42,13 @@ for(const id of ['desert-strike','broken-empire','burning-horizon','last-strongh
   expect(state.scene3d).toBe(true);
   expect(state.cars).toBeGreaterThanOrEqual(2);
   expect(state.drawCalls).toBeGreaterThanOrEqual(5);
-  expect(state.drawCalls).toBeLessThanOrEqual(10);
+  expect(state.drawCalls).toBeLessThanOrEqual(18);
+  expect(state.debris).toBeGreaterThanOrEqual(state.cars*2);
+  expect(state.debrisDrawCalls).toBeGreaterThanOrEqual(5);
+  expect(state.debrisDrawCalls).toBeLessThanOrEqual(8);
+  expect(state.debrisMeshes).toBe(state.debrisDrawCalls);
+  expect(state.debrisParts).toEqual(expect.arrayContaining([
+   'wheelRubber','wheelIron','door']));
   expect(state.triangles).toBeGreaterThan(800);
   expect(state.allInstanced&&state.visualOnly).toBe(true);
   expect(state.materials).toEqual(expect.arrayContaining([
@@ -66,6 +76,16 @@ for(const id of ['desert-strike','broken-empire','burning-horizon','last-strongh
   });
   await page.waitForTimeout(700);
   await page.screenshot({path:'artifacts/screenshots/'+id+'-sedan-closeup.png'});
+  // Additional angle clearly frames the wreck and its fallen parts together.
+  await page.evaluate(()=>{
+   const a=window.__sandforgeWebGL,p=a.burnedSedans.placements[0],size=a.game.world.size;
+   const x=p.x-size*.5,z=p.y-size*.5,y=a.heightAt(p.x,p.y);
+   a.controls.target.set(x,y+8,z);
+   a.camera.position.set(x+220,y+208,z+255);
+   a.camera.zoom=2.65;a.camera.updateProjectionMatrix();a.controls.update();
+  });
+  await page.waitForTimeout(380);
+  await page.screenshot({path:'artifacts/screenshots/'+id+'-sedan-and-scattered-parts.png'});
   await page.setViewportSize({width:640,height:360});
   await page.waitForTimeout(350);
   const jpeg=await page.screenshot({type:'jpeg',quality:36});
