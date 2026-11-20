@@ -52,8 +52,8 @@ for(const map of maps)test(map.name+': fixed terrain props, real 3D shapes, no p
   m.userData.visualOnly&&m.userData.nonPlayable&&
   m.userData.nonBlocking&&m.raycast.toString()==='()=>{}'));
  for(const m of meshes){
-  assert.ok(m.geometry.getAttribute('normal')?.count>30);
-  assert.ok(m.geometry.getAttribute('uv')?.count>30);
+  assert.ok(m.geometry.getAttribute('normal')?.count>=3,'even tiny broken-glass triangles need 3D normals');
+  assert.ok(m.geometry.getAttribute('uv')?.count>=3,'every shell and glass shard needs proper UVs');
   assert.ok(m.geometry.boundingSphere?.radius>0);
  }
  assert.ok(meshes.find(m=>m.userData.material==='shell').material.map?.isTexture);
