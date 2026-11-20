@@ -8,8 +8,13 @@ test('observed late HQ siege requires two paid bombers, strong bastion control, 
   knownAirDefenses:1,observedAirDefenses:1};
  assert.equal(ai42BreakoutAllowed(x),true);
  assert.equal(ai42BreakoutAllowed({...x,targetKind:'turret',distanceFromHQ:380}),true);
+ // A physically visible HQ remains a target while a neutral Bastion is captured.
+ assert.equal(ai42BreakoutAllowed({...x,missionKind:'capture',missionSector:3}),true);
+ assert.equal(ai42BreakoutAllowed({...x,missionKind:'capture',missionSector:3,targetKind:'turret'}),false);
+ assert.equal(ai42BreakoutAllowed({...x,missionKind:'capture',missionSector:3,targetVisible:false}),false);
  for(const bad of [{enabled:false},{time:290},{controlled:12},{total:12},
-  {paidBombers:1},{missionKind:'capture'},{missionSector:3},
+  {paidBombers:1},{missionKind:'capture',targetKind:'turret'},
+  {missionSector:3,targetKind:'turret'},
   {knownHQSector:undefined},{targetKind:'tank'},
   {targetKind:'turret',distanceFromHQ:900},{targetVisible:false},
   {knownAirDefenses:2},{observedAirDefenses:2}])

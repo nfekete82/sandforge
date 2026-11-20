@@ -135,9 +135,13 @@ export function ai42BreakoutAllowed(x:{
  knownAirDefenses:number;observedAirDefenses:number;
 }):boolean{
  return x.enabled&&x.time>=330&&x.total>=16&&x.controlled>=x.total-2&&
-  x.paidBombers>=2&&x.missionKind==='structure'&&
-  x.knownHQSector!==undefined&&x.missionSector===x.knownHQSector&&
-  (x.targetKind==='headquarters'||x.targetKind==='turret'&&x.distanceFromHQ<700)&&
+  x.paidBombers>=2&&x.knownHQSector!==undefined&&
+  // A currently observed enemy HQ remains a legitimate finishing target
+  // even while ground command is completing a separate capture mission.
+  // Turret suppression still belongs to the validated HQ siege mission.
+  (x.targetKind==='headquarters'||
+   x.missionKind==='structure'&&x.missionSector===x.knownHQSector&&
+   x.targetKind==='turret'&&x.distanceFromHQ<700)&&
   x.targetVisible&&x.knownAirDefenses<=1&&x.observedAirDefenses<=1;
 }
 /** Never lock a bomb onto memory: only find a safe vantage where the
