@@ -25,7 +25,8 @@ for(const map of maps)test(map.name+': large shallow water is seeded, local and 
  const wet=map.id==='desert-strike'||map.id==='broken-empire';
  if(wet)assert.ok(full.lakes.length>=1,map.id+' should have visible major water');
  else assert.equal(full.lakes.length,0,'dry highlands and badlands remain dry');
- assert.ok(full.lakes.length<=2&&full.rivers.length<=1);
+ assert.ok(full.lakes.length<=2);
+ assert.equal(full.rivers.length,0,'no artificial ribbon rivers on any desert map');
  for(const lake of full.lakes){
   assert.ok(lake.radius>=155&&lake.radius<=255);
   assert.ok(lake.x>300&&lake.y>300);
