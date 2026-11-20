@@ -35,7 +35,9 @@ function stagedScenario(known=true){
   id,owner:id<14?1:0,neighbors:id===0?[1]:[id-1,Math.min(15,id+1)],
   point:{x:200+id*300,y:1000},income:25
  }));
- const hq={id:222,x:4700,y:1200,territory:15,hp:1200,
+ // HQ's physical sector is ALREADY held, while unrelated Bastions
+ // remain blue. This reproduces the old mission-reset bug precisely.
+ const hq={id:222,x:4700,y:1200,territory:0,hp:1200,
   owner:0,kind:'headquarters'};
  const g={time:235,world:{mapVersion:26},territories,units:[],
   memories:[[],known?[hq]:[]],canSee:()=>false,
