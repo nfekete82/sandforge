@@ -87,12 +87,16 @@ export function planCuratedMapArt({preset,world,terrain,oases=[]}){
   if(ridge)for(const [passIndex,pass] of ridge.ramps.entries()){
    for(const side of [-1,1]){
     let anchor=null;
-    for(const extra of [90,130,185,230,310]){
+    for(const extra of [90,135,200,270,350,450,560,690,820]){
+     if(anchor)break;
      const x=pass.x+side*(pass.width*.5+ridge.width*.7+extra);
-     const p={x,y:ridgeAt(ridge,x)};
-     if(!within(p)||!buildFree(p,670)||ruinDistance(p)<130||
-      !roadFree(p,125)||world.walkable(p))continue;
-     anchor=p;break;
+     for(const bank of [0,-38,38,-68,68,-98,98]){
+      const p={x,y:ridgeAt(ridge,x)+bank};
+      if(!within(p)||!buildFree(p,670)||ruinDistance(p)<130||
+       !roadFree(p,120)||world.walkable(p)||
+       landmarks.some(l=>dist(l,p)<220))continue;
+      anchor=p;break;
+     }
     }
     if(!anchor)continue; // Never plant an impassable monument on a real pass.
     landmarks.push({...anchor,
