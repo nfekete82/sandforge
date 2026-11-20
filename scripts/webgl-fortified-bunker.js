@@ -122,7 +122,7 @@ function flagMaterial(owner){
    ].join('\n'));
  };
  material.customProgramCacheKey=()=>FORTIFIED_BUNKER_REVISION+'-cloth-'+owner;
- material.userData.sandforgeBunkerFlag=true;
+ material.userData={sandforgeBunkerFlag:true,sandforgeAuthoredBunker:true};
  return material;
 }
 export function createFortifiedBunker(owner=0){
@@ -166,6 +166,10 @@ export function createFortifiedBunker(owner=0){
   name:'Bunker blasted rivet heads',color:'#777b73',
   roughness:.54,metalness:.78
  });
+ // Keep authored 512px normal/ORM and correct team cloth intact; generic
+ // world-space khaki repainting must never flatten these PBR surfaces.
+ for(const mat of [concrete,plaster,steel,trim,interior,doorway,faction,boltMat])
+  mat.userData.sandforgeAuthoredBunker=true;
  const staticMeshes=[];
  const add=(name,geometry,material,x,y,z,ry=0)=>{
   const m=new THREE.Mesh(geometry,material);
