@@ -7,6 +7,7 @@ import {learnedMissionBias,type Experience} from './battle-learning.js';
 import type {Loss} from './tactical-ai.js';
 import {replanAfterLoss} from './ai25-doctrine.js';
 import {publicBastionDeficit} from './ai35-bastion-doctrine.js';
+import {ai43KeepKnownHqMission} from './ai43-hq-breakthrough.js';
 
 export type CampaignPhase='opening'|'expansion'|'buildup'|'offensive'|'siege'|'endgame'|'emergencyDefense';
 export interface WarMission extends Point {kind:'capture'|'structure'|'hunt';sector:number;objective:number|null;since:number;progressAt:number;distance:number;hp:number}
@@ -77,7 +78,13 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
   const remembered=old.objective===null?undefined:buildings.find(b=>b.id===old.objective);
   const enemy=old.kind==='hunt'?g.units.find(u=>u.id===old.objective&&u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)):undefined;
   const valid=old.kind==='capture'?g.territories[old.sector]?.owner!==1:
-   old.kind==='structure'?!!remembered&&(!securingBastions||canKeepBlockingObjective(old,remembered)):
+   old.kind==='structure'?!!remembered&&(
+    !securingBastions||canKeepBlockingObjective(old,remembered)||
+    ai43KeepKnownHqMission({
+     breakthrough:!!context?.breakthrough,
+     rememberedKind:remembered.kind,rememberedId:remembered.id,
+     activeObjective:old.objective
+    })):
    !securingBastions&&!!enemy;
   const failed=context?.fronts.filter(f=>f.sector===old.sector).sort((a,b)=>b.at-a.at)[0];
   const nearbyLosses=context?.losses.filter(l=>g.time-l.at<60&&distance(l,old)<700).length??0;

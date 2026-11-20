@@ -1,0 +1,48 @@
+name: Sandforge KI43 four-desert HQ siege A/B battles
+on:
+  push:
+    branches:
+      - feat/sandforge-ai-hq-breakthrough-20261120
+    paths:
+      - .github/workflows/sandforge-ai43-four-deserts-ab-battles.yml
+      - src/reborn/ai43-hq-breakthrough.ts
+      - src/reborn/campaign-commander.ts
+      - src/reborn/tactical-ai.ts
+      - scripts/benchmark-sandforge-ai38-combat.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-480s-battles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [desert-strike, broken-empire, burning-horizon, last-stronghold]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile real paid simulation
+        run: npx tsc -p tsconfig.json
+      - name: Identical seed, credits, units and fog - baseline vs calibrated HQ commitment
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai38-combat.mjs \
+            --presets ${{ matrix.preset }} \
+            --variants baseline,calibrated \
+            --opponents guarded,contesting,bastion-rush \
+            --seconds 480 \
+            --output reports/ai43-${{ matrix.preset }}.json
+      - name: Upload every match, HQ damage and mission transitions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai43-${{ matrix.preset }}-480s
+          path: reports/ai43-${{ matrix.preset }}.json
+          if-no-files-found: warn
+          retention-days: 60
