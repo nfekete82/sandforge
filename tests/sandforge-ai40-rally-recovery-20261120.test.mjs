@@ -69,7 +69,7 @@ test('stalled rally ignores unrelated orders, short distances and empty readines
  const rally={x:2000,y:2100};
  const list=[
   {x:50,y:50,path:[],repath:2,
-   orders:[{kind:'move',x:1800,y:1900}]},
+   orders:[{kind:'move',x:1900,y:2000}]},
   {x:50,y:50,path:[],repath:2,
    orders:[{kind:'attack',x:2000,y:2100}]},
   {x:50,y:50,path:[],repath:0,
