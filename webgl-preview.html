@@ -55,6 +55,8 @@ a:hover{text-decoration:underline}
 #sf3d-options-dialog .sf3d-slider span{display:flex;justify-content:space-between;align-items:center;margin:0 0 5px}
 #sf3d-options-dialog .sf3d-slider input{display:block;width:100%;height:25px;min-height:25px;padding:0;accent-color:#d3ab66;border:0;background:transparent}
 #sf3d-options-dialog .sf3d-slider output{font:700 12px ui-monospace,monospace;color:#f1d39f}
+#sf3d-random-controls[hidden]{display:none!important}
+#sf3d-map-description{padding:11px 12px;border-left:3px solid #cf9c59;background:#1b2d2c;color:#decaa8;line-height:1.5;font:12px/1.5 system-ui}
 #sf3d-new-dialog .dialog-actions,#sf3d-options-dialog .dialog-actions{display:flex;justify-content:space-between;gap:8px}
 #sf3d-new-dialog .dialog-actions button,#sf3d-options-dialog .dialog-actions button{min-width:125px}
 #sf3d-boot{position:fixed;z-index:90;bottom:16px;left:16px;color:#f0c782;background:#172526d9;border:1px solid #92734e;padding:10px 14px}
@@ -116,7 +118,17 @@ a:hover{text-decoration:underline}
 </dialog>
 <dialog id="sf3d-new-dialog" aria-label="Neue 3D-Kampagne">
  <small>SANDFORGE / NEUE KAMPAGNE</small><h1>Schlachtfeld wählen</h1>
- <p>Neue Landschaft, neue Wege. Derselbe Seed, derselbe Kartentyp und dasselbe Geländeprofil erzeugen wieder dasselbe Schlachtfeld.</p>
+ <p>Wähle eines von drei festen, taktisch unterschiedlichen Schlachtfeldern. Zum Experimentieren gibt es weiterhin Zufallskarten.</p>
+ <label class="sf3d-field" for="sf3d-map-preset">Schlachtfeld
+  <select id="sf3d-map-preset">
+   <option value="staubkrone" selected>STAUBKRONE · 8 Bastionen · Wüste</option>
+   <option value="frostpforte">FROSTPFORTE · 12 Bastionen · Schnee</option>
+   <option value="schlangenfeste">SCHLANGENFESTE · 16 Bastionen · Dschungel</option>
+   <option value="random">ZUFALLSKARTE · Einstellungen wählen</option>
+  </select>
+ </label>
+ <p id="sf3d-map-description" aria-live="polite" class="sf3d-map-description"></p>
+ <div id="sf3d-random-controls" hidden>
  <label class="sf3d-field" for="sf3d-landscape">Kartengenerator
   <select id="sf3d-landscape"><option value="network" selected>Natürliche Karte · Gebirge, Pässe und Straßen</option><option value="classic">Klassische Zufallskarte · offene Wüste</option></select>
  </label>
@@ -132,6 +144,7 @@ a:hover{text-decoration:underline}
  <label class="sf3d-field" for="sf3d-seed">Karten-Seed (optional)
   <input id="sf3d-seed" type="number" min="0" max="4294967295" placeholder="Zufällige Karte" autocomplete="off">
  </label>
+ </div>
  <p id="sf3d-new-status" role="status"></p>
  <div class="dialog-actions">
   <button type="button" data-sf3d-close>ABBRECHEN</button>
