@@ -1,0 +1,41 @@
+name: Sandforge AI 4.1 HQ canyon rally gate audit
+on:
+  push:
+    branches:
+      - diag/sandforge-ai41-hq-rally-gate-20261120
+  workflow_dispatch:
+concurrency:
+  group: sandforge-ai41-hq-rally-gate-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile and verify public canyon routing
+        run: |
+          npx tsc -p tsconfig.json
+          node --test tests/sandforge-ai40-canyon-mission-20261120.test.mjs
+      - name: Profile observed HQ stage on stubborn 16-Bastion canyon seed
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai38-combat.mjs \
+            --maps 26 --seeds 824836862 \
+            --opponents guarded \
+            --seconds 480 \
+            --output reports/ai41-hq-pass-gate-guarded.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai41-hq-pass-gate-guarded
+          path: reports/ai41-hq-pass-gate-guarded.json
+          if-no-files-found: error
+          retention-days: 21
