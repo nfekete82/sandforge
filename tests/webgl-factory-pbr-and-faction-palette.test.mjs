@@ -71,7 +71,8 @@ test('factory is authored PBR open-hall with a truly empty drive-through for bot
    assert.ok(nodes.has(name),'open factory '+owner+' missing '+name);
   assert.ok(!nodes.has('FactoryRollupDoor'),'no visible or hidden sliding shutter');
   assert.ok(doc.nodes.find(n=>n.name==='SF_Factory_PBR_OpenBay')?.extras?.openProductionExit);
-  assert.ok(doc.meshes.length>=11&&doc.meshes.length<=22);
+  assert.ok(doc.meshes.length>=21&&doc.meshes.length<=38,
+   'reference factory still batches all 3D detail by 23-38 authored PBR material meshes');
   assert.ok(file.data.length<18_000_000,'1024px PBR reference factory must remain GPU-friendly');
   assert.deepEqual(texturePixel(file,'Sandforge_Factory_team'),factionRgb8(owner));
   assert.ok(doc.materials.every(m=>!m.name.startsWith('Sandforge_Bastion_')));
