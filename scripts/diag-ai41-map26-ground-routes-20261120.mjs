@@ -54,10 +54,37 @@ const routes=samples.map(x=>{
  return {at:x.at,id:x.id,kind:x.kind,x:x.x,y:x.y,radius,clearance,slope:Number.isFinite(slope)?slope:null,
   startDistance:Math.round(dist(start,rally)),results};
 });
+// Replan from each ACTUALLY reached legal partial-path endpoint, never from
+// a fictitious off-mesh straight-line point. This isolates A* horizon
+// exhaustion from a permanent physical ridge/vehicle-slope obstruction.
+const chains=samples.filter(s=>s.at===287).map(u=>{
+ const clearance=Math.max(0,UNITS[u.kind].radius-10);
+ const vehicle=UNITS[u.kind].group==='Fahrzeuge';
+ const slope=vehicle?(u.kind==='tank'?.215:u.kind==='artillery'?.185:.195):Infinity;
+ const legs=[];let from={x:u.x,y:u.y};let done=false,stop='horizon';
+ for(let hop=0;hop<6;hop++){
+  const before=dist(from,rally);
+  const path=world.path(from,rally,[],clearance,undefined,false,false,true,slope);
+  const last=path.at(-1);
+  if(!last){stop='no-path';break;}
+  const after=dist(last,rally),moved=dist(from,last);
+  legs.push({hop,points:path.length,x:Math.round(last.x),y:Math.round(last.y),
+   remaining:Math.round(after),advance:Math.round(before-after),
+   travelled:Math.round(moved)});
+  if(after<90){done=true;stop='reached';break;}
+  if(moved<8){stop='no-progress';break;}
+  if(legs.slice(0,-1).some(l=>Math.hypot(l.x-last.x,l.y-last.y)<45)){
+   stop='loop';break;
+  }
+  from=last;
+ }
+ return {at:u.at,id:u.id,kind:u.kind,done,stop,legs};
+});
+for(const c of chains)console.log('STATIC_CHAIN '+JSON.stringify(c));
 const report={seed:824836862,map:26,generator:4,size:world.size,
  generatedRidges:world.generated?.ridges.length??0,
  warning:'Static public terrain, NOT full live collision/risk state; never feed to AI.',
- rally,rows:routes};
+ rally,rows:routes,chains};
 mkdirSync('reports',{recursive:true});
 writeFileSync('reports/ai41-ground-route-static.json',JSON.stringify(report,null,2)+'\n');
 for(const r of routes)console.log('GROUND_STATIC '+JSON.stringify(r));
