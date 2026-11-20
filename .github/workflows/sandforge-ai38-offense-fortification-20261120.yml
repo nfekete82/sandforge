@@ -4,6 +4,9 @@ on:
     branches:
       - feat/sandforge-ai38-reliable-offense-fortification-20261120
   workflow_dispatch:
+concurrency:
+  group: sandforge-ai38-smoke-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
