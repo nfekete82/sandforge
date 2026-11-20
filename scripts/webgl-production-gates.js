@@ -57,8 +57,15 @@ export class SandforgeProductionGates {
    setHeadquartersDoorOpen(portal,0);
    return entry.gate;
   }
-  // Production fixtures and legacy factory presenters may omit entry.kind.
-  // Detect an actual factory via its authored FactoryRollupDoor instead.
+  // New authored vehicle factory has a broad permanently OPEN workshop.
+  // There is no shutter, warning lamp, opening sound, or closing pause.
+  const openBay=entry.detail.getObjectByName('SF_Factory_PBR_OpenBay');
+  if(openBay&&(!entry.kind||entry.kind==='factory')){
+   entry.gate={kind:'factory',root:entry.detail,openBay:true,
+    door:null,hall:null,lamp:null,dust:null,ramp:null};
+   return entry.gate;
+  }
+  // Legacy factory model retains its old rollup-shutter presenter.
   // HQ and barracks have their own portal branches above.
   if(entry.kind&&entry.kind!=='factory')return null;
   const door=entry.detail.getObjectByName('FactoryRollupDoor');
@@ -86,6 +93,7 @@ export class SandforgeProductionGates {
  }
  reset(entry){
   const gate=entry?.gate;if(!gate)return;
+  if(gate.openBay)return; // Nothing on the open factory to close.
   if(gate.kind==='barracks')setBarracksDoorOpen(gate.portal,0);
   else if(gate.kind==='headquarters')setHeadquartersDoorOpen(gate.portal,0);
   else {gate.door.position.y=0;gate.door.scale.y=1;}
@@ -149,10 +157,12 @@ export class SandforgeProductionGates {
    const infantry=barracks||headquarters,root=entry.gate.root;
    const pbrBarracks=barracks&&entry.gate.portal?.pbrDoor===true;
    // New PBR gate sits at z≈4.0; Atlas legacy gate sat at z≈1.5.
-   const exit=root.localToWorld(headquarters?new THREE.Vector3(0,.14,6.35):barracks?
+   const exit=root.localToWorld(entry.gate.openBay?new THREE.Vector3(.18,.16,3.45):
+    headquarters?new THREE.Vector3(0,.14,6.35):barracks?
     (pbrBarracks?new THREE.Vector3(0,.55,5.20):new THREE.Vector3(-.18,0,2.10)):
     new THREE.Vector3(.18,0,2.9));
-   const start=root.localToWorld(headquarters?new THREE.Vector3(0,.61,4.12):barracks?
+   const start=root.localToWorld(entry.gate.openBay?new THREE.Vector3(.18,.26,-.24):
+    headquarters?new THREE.Vector3(0,.61,4.12):barracks?
     (pbrBarracks?new THREE.Vector3(0,.58,3.23):new THREE.Vector3(-.18,.275,.9)):
     new THREE.Vector3(.18,.265,-.03));
    const target=bf.entityPosition(unit),center=entry.node.position;
@@ -183,15 +193,21 @@ export class SandforgeProductionGates {
    // its paid rally order. At the exact portal hand-off it resumes ordinary
    // 20 Hz movement from the same lawful spawn with no visual teleport.
    const visualAt=age>.15&&game.stageWebGLProduction===true?game.time:event.at;
-   game.extendProductionDeparture?.(unit.id,visualAt+GATE_TIMING.warning+GATE_TIMING.opening+duration+.05);
-   this.active.set(base.id,{event,visualAt,duration,directFoot,directRollout,doorLength,
+   const openBay=entry.gate.openBay===true;
+   game.extendProductionDeparture?.(unit.id,visualAt+
+    (openBay?0:GATE_TIMING.warning+GATE_TIMING.opening)+duration+.05);
+   this.active.set(base.id,{event,visualAt,duration,openBay,directFoot,directRollout,doorLength,
     exteriorLength,target:target.clone(),walkStart:start.clone(),walkExit:exit.clone(),
     hasRally:unit.orders?.some(o=>o.kind==='move'||o.kind==='attackMove')===true,
     orders:orderKey(unit),hp:unit.hp,baseHp:base.hp});
   }
   for(const [id,state] of this.active){
    const {event}=state,base=bases.get(id),entry=bf.bases.get(id),u=entities.get(event.unitId),actor=bf.units.get(event.unitId);
-   const age=Math.max(0,time-(state.visualAt??event.at)),pose=productionGatePose(age,state.duration);
+   const age=Math.max(0,time-(state.visualAt??event.at));
+   const pose=state.openBay?{
+    open:1,drive:smooth(age/state.duration),
+    moving:age<state.duration,done:age>=state.duration+.05
+   }:productionGatePose(age,state.duration);
    // The actor is intentionally invisible before the shutter opens; hiding
    // it must NOT abort its own departure on the following render frame.
    if(!base||base.hp<=0||!u||u.hp<=0||!actor||!entry?.node.visible||
@@ -205,18 +221,20 @@ export class SandforgeProductionGates {
     updateBarracksPortalPlanes(gate.portal);
     setBarracksDoorOpen(gate.portal,pose.open);
    }else if(gate.kind==='headquarters')setHeadquartersDoorOpen(gate.portal,pose.open);
-   else{
+   else if(!gate.openBay){
     gate.door.scale.y=1-pose.open*.96;
     gate.door.position.y=(gate.doorLiftHeight??1.48)*pose.open*.96;
    }
-   gate.hall.visible=age>=GATE_TIMING.warning&&pose.open>.01;
-   gate.lamp.visible=true;
-   gate.lamp.material.emissiveIntensity=(Math.sin(age*22)>0?3:.25);
+   if(gate.hall)gate.hall.visible=age>=GATE_TIMING.warning&&pose.open>.01;
+   if(gate.lamp){
+    gate.lamp.visible=true;
+    gate.lamp.material.emissiveIntensity=(Math.sin(age*22)>0?3:.25);
+   }
    if(gate.dust){gate.dust.visible=pose.moving;gate.dust.scale.x=1.2+pose.drive*.4;}
-   if(!state.sounded&&age>=GATE_TIMING.warning){
+   if(!gate.openBay&&!state.sounded&&age>=GATE_TIMING.warning){
     if(entry.node.visible)bf.sound?.productionGate?.(gate.kind);state.sounded=true;
    }
-   const driveStart=GATE_TIMING.warning+GATE_TIMING.opening;
+   const driveStart=gate.openBay?0:GATE_TIMING.warning+GATE_TIMING.opening;
    const fraction=clamp((age-driveStart)/state.duration);
    if(fraction>=1){
     // Finish at the exact Simulation spawn and release the paid rally
@@ -247,7 +265,8 @@ export class SandforgeProductionGates {
    const headquarters=gate.kind==='headquarters';
    const infantry=gate.kind==='barracks'||headquarters;
    const pbrBarracks=gate.kind==='barracks'&&gate.portal?.pbrDoor===true;
-   const outside=headquarters?new THREE.Vector3(0,.14,6.35):infantry?
+   const outside=gate.openBay?new THREE.Vector3(.18,.16,3.45):
+    headquarters?new THREE.Vector3(0,.14,6.35):infantry?
     (pbrBarracks?new THREE.Vector3(0,.55,5.20):new THREE.Vector3(-.18,0,2.10)):
     new THREE.Vector3(.18,0,2.9);
    const root=gate.root;
@@ -265,7 +284,7 @@ export class SandforgeProductionGates {
    let p,yaw;
    const facing=buildingFacingAngle(base.facing);
    if(fraction<clearFraction){
-    if(state.directFoot){
+    if(state.directFoot||gate.openBay){
      // Physical distance divided by authoritative foot speed, without
      // the previous acceleration/deceleration at the portal.
      p=state.walkStart.clone().lerp(state.walkExit,clamp(fraction/clearFraction));
@@ -350,17 +369,20 @@ export class SandforgeProductionGates {
    // Keep the rolling wheels/track clip for the first 0.12 s of the
    // authoritative rally transition, preventing an idle-frame flicker.
    if(state.hasRally)state.lastMotion=actor.productionMotion;
-   actor.node.visible=age>=GATE_TIMING.warning; // hidden only during warning
+   actor.node.visible=gate.openBay||age>=GATE_TIMING.warning;
+   // Never hide a vehicle while waiting for a shutter that no longer exists.
   }
  }
  detach(entry){
   this.reset(entry);
   if(entry?.gate){
-   entry.gate.lamp.material.dispose();entry.gate.lamp.removeFromParent();
+   if(entry.gate.lamp){
+    entry.gate.lamp.material.dispose();entry.gate.lamp.removeFromParent();
+   }
    entry.gate.ramp?.removeFromParent();
    if(entry.gate.kind==='barracks')disposeBarracksPortal(entry);
    else if(entry.gate.kind==='headquarters')disposeHeadquartersPortal(entry);
-   else entry.gate.hall.removeFromParent();
+   else entry.gate.hall?.removeFromParent();
    delete entry.gate;
   }
  }
