@@ -21,6 +21,7 @@ jobs:
           npx tsc -p tsconfig.json
           node --check scripts/webgl-authentic-canyon-geology.js
           node --check scripts/webgl-landscape-network.js
+          node --check scripts/webgl-canyon-pbr-outcrops.js
           node --check scripts/webgl-preview.js
           node --check scripts/webgl-desert-lake-vegetation-plan.js
           node --check scripts/webgl-desert-lake-vegetation-3d.js
