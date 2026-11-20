@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 
-test('actual factory GLB serializes tank, Humvee and rocket truck through its single rolling door',async({page})=>{
+test('actual OPEN factory GLB serializes tank, Humvee and rocket truck without any door',async({page})=>{
  test.setTimeout(85000);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/__sf_factory_rollout_qa__.html',route=>route.fulfill({
@@ -45,21 +45,20 @@ test('actual factory GLB serializes tank, Humvee and rocket truck through its si
   };
   const sequence=[],holds=[];
   step(0);
-  const door=entry.gate?.door;
-  if(!door)throw Error('Real factory asset has no moving FactoryRollupDoor');
+  const openBay=entry.gate?.openBay===true;
+  if(!openBay)throw Error('Modern factory must have permanently open drive-out');
   for(let turn=0,clock=0;turn<units.length;turn++){
    if(turn)step(clock);
    const active=controller.active.get(base.id);
    sequence.push(active?.event.unitId);
    if(!active)throw Error('Missing active rollout on turn '+turn);
    step(clock+1.45);
-   holds.push(door.position.y>.1);
-   const finish=clock+GATE_TIMING.warning+GATE_TIMING.opening+
-    active.duration+GATE_TIMING.closing+.23;
+   holds.push(actorMap.get(active.event.unitId)?.node.visible===true);
+   const finish=clock+active.duration+.23;
    step(finish);
    clock=finish+.06;
   }
-  const closed=controller.active.size===0&&door.scale.y===1;
+  const closed=controller.active.size===0&&entry.gate.openBay&&entry.gate.door===null;
   const sameCount=units.length===3;
   controller.dispose();
   return {sequence,holds,closed,sameCount};
