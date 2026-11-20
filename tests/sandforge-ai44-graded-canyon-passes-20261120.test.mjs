@@ -38,7 +38,7 @@ for(const kind of ['rover','tank','artillery'])test(
   across.at(-1).y-gate.far.y)<world.cell*1.4);
  assert.ok(world.groundVehicleSlopeSafe(
   {x:ramp.x,y:ridgeHeightAtX(ridge,ramp.x)},gate.slope,gate.clearance+10));
-}));
+});
 test('the ramp fix does not turn all cliffs into drivable terrain',()=>{
  const ramp=ridge.ramps.at(-1);
  const farFromPass=ridge.spine.filter(p=>ridge.ramps.every(g=>
