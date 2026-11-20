@@ -6,7 +6,7 @@ const ridge={width:68,height:116,
  spine:[{x:0,y:1000},{x:1500,y:1000},{x:3000,y:1000}],
  ramps:[{x:700,width:250},{x:2300,width:250}]};
 const base={
- from:{x:2700,y:2600},target:{x:350,y:200},
+ from:{x:2700,y:2600},target:{x:2650,y:200},
  ridges:[ridge],
  clear:()=>true,
  traversable:()=>true
