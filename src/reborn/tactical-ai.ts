@@ -197,6 +197,9 @@ export class TacticalAI {
     waveReason:string;guardBuildup:boolean;minimumReady:number};
  }>=[];
  private lastRallyGateTraceAt=-1e6;
+ /** Off by default; headless-only read-only console diagnosis. */
+ ai42TraceEnabled=false;
+ private ai42LastTraceAt=-1e5;
  constructor(private readonly g:Simulation){}
  /** Only known front-line choices are shown to the optional language model. */
  strategicBrief():StrategicBrief|null{
@@ -211,7 +214,7 @@ export class TacticalAI {
   this.sectorPreference={sectorId,until:this.g.time+35};return true;
  }
  restore(state:TacticalState|undefined):void{
-  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
+  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;this.ai42LastTraceAt=-1e5;
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
   if(!state)for(const m of this.g.memories[1])if(m.owner===0&&
     (m.kind==='turret'||m.kind==='bunker')&&m.hp>0)
@@ -1162,6 +1165,26 @@ export class TacticalAI {
     observed.filter(v=>['headquarters','turret'].includes(v.kind)&&
      this.bomberStrikeSafe(v)).sort((a,b)=>
       (a.kind==='turret'?0:1)-(b.kind==='turret'?0:1)||a.id-b.id)[0]:undefined);
+  if(this.ai42TraceEnabled&&g.time>=335&&g.time-this.ai42LastTraceAt>=12){
+   this.ai42LastTraceAt=g.time;
+   const hq=g.memories[1].find(m=>m.owner===0&&m.hp>0&&m.kind==='headquarters');
+   const visibleBases=g.bases.filter(b=>b.owner===0&&b.hp>0&&g.canSee(1,b));
+   const visibleUnits=g.units.filter(u=>u.owner===0&&u.hp>0&&g.canSee(1,u));
+   const aa=(v:{kind?:string})=>['turret','rocket','interceptor','scout'].includes(v.kind??'');
+   console.log('AI42_TRACE '+JSON.stringify({
+    at:Math.round(g.time),phase:s.phase,mission:s.commander?.mission?.kind??'none',
+    sector:s.commander?.mission?.sector??-1,
+    activeBomberCount:bombers.length,
+    hqMem:hq?.id??null,hqVisible:visibleBases.some(b=>b.kind==='headquarters'),
+    knownAA:hq?s.knownTurrets.filter(v=>distance(v,hq)<650).length:0,
+    observedAA:hq?[...visibleBases,...visibleUnits].filter(v=>aa(v)&&distance(v,hq)<650).length:0,
+    visibleBuildings:visibleBases.map(b=>b.kind),
+    selectedTarget:target?target.kind+':'+target.id:null,
+    closestBomberToHQ:hq&&bombers.length?Math.round(Math.min(...bombers.map(u=>distance(u,hq)))):null,
+    bombers:bombers.map(u=>({id:u.id,x:Math.round(u.x),y:Math.round(u.y),hp:Math.round(u.hp),
+     orders:u.orders.map(o=>o.kind+':'+(o.target??'') )}))
+   }));
+  }
   if(!target){
    // One existing bomber may obtain fresh sight of an ALREADY observed HQ.
    // The remembered coordinate is only a move goal; no invisible attack.

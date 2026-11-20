@@ -1,0 +1,35 @@
+name: Sandforge AI42 live bomber gate diagnostic
+on:
+  push:
+    branches:
+      - diag/sandforge-ai42-air-gates-20261120
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: |
+          npx tsc -p tsconfig.json
+          node --test tests/sandforge-ai42-canyon-air-siege-20261120.test.mjs
+      - name: A/B guarded 16 Bastion battle, with read-only AI42 gate logs
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai38-combat.mjs \
+            --maps 26 --seeds 824836862 --opponents guarded --seconds 480 \
+            --output reports/ai42-guarded-air-gates.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sandforge-ai42-guarded-air-gates
+          path: reports/ai42-guarded-air-gates.json
+          if-no-files-found: error
+          retention-days: 21
