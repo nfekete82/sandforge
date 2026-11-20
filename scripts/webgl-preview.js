@@ -42,6 +42,7 @@ import {installMatchResultOverlay} from '/webgl-match-result.js';
 import {installBattleDebrief} from '/webgl-battle-debrief.js';
 import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry,applyRockMineralVeins} from '/webgl-rock-materials.js';
 import {CANYON_GEOLOGY,buildGeologicalMesaSurface} from '/webgl-authentic-canyon-geology.js';
+import {createCanyonPbrOutcrops} from '/webgl-canyon-pbr-outcrops.js';
 import {makeSmallRuinFragments,isSmallRuin} from '/webgl-ruin-fragments.js';
 import {chooseRareScenicHouseIndex,createScenicDesertHouse} from '/webgl-scenic-desert-houses.js';
 import {createBurnedSedanWrecks} from '/webgl-burned-sedan-3d.js';
@@ -1112,11 +1113,20 @@ const plannedDesertWater=spacious&&biome==='desert'&&query.get('water')!=='off'
  ?planDesertWaterways({world,terrain,seed,mapId:desertRegion?.id??null,
    oases:oasisPlanForWater,lowQuality:query.get('lite')==='1'}):null;
 // Load hand-modeled organic PBR GLBs, no primitive-geometry stand-ins.
-let authenticDesertArt=null,authenticDesertReady=false;
+let authenticDesertArt=null,canyonOutcrops=null,authenticDesertReady=false;
 const authenticDesertLoad=desertRegion?loadAuthenticDesertScenery({
  loader,scene,world,terrain,seed,mapId:desertRegion.id,heightAt,
  waterLayout:plannedDesertWater,lowQuality:query.get('lite')==='1'
-}).then(a=>{authenticDesertArt=a;return a;}).catch(error=>{
+}).then(a=>{
+ authenticDesertArt=a;
+ // Embed the actual SMALL authentic sandstone GLBs into the large
+ // rocky canyons. These are the same original UV-mapped PBR geometries,
+ // shared in a handful of GPU instanced draws and never placed on passes.
+ if(['burning-horizon','last-stronghold'].includes(desertRegion?.id))
+  canyonOutcrops=createCanyonPbrOutcrops({scene,world,terrain,heightAt,seed,
+   mapId:desertRegion.id,sourceScenery:a,lowQuality:query.get('lite')==='1'});
+ return a;
+}).catch(error=>{
  console.warn('Authentic 3D desert scenery unavailable:',error);return null;
 }).finally(()=>{authenticDesertReady=true;}):Promise.resolve(null);
 // Small ground-level stones accent the winding dry wash from the reference.
@@ -1259,7 +1269,7 @@ if(oasisFocus){
 }
 window.addEventListener('pagehide',event=>{if(!event.persisted){
  lakeVegetation?.dispose();burnedSedans?.dispose();
- authenticDesertArt?.dispose();
+ canyonOutcrops?.dispose();authenticDesertArt?.dispose();
  groundBlending?.dispose();desertWater?.dispose();oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
 }});
 let desertArtReady=false;
@@ -1470,6 +1480,7 @@ window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,ba
  desertMapId:desertMap?.id??null,
  desertRegion:desertRegion?.key??null,
  get authenticDesertArt(){return authenticDesertArt;},
+ get canyonOutcrops(){return canyonOutcrops;},
  get authenticDesertReady(){return authenticDesertReady;},
  burnedSedans,
  get burnedSedanCount(){return burnedSedans?.placements.length??0;},
