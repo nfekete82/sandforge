@@ -37,7 +37,7 @@ test('one sRGB team paint is shared across 3D models and HUD',()=>{
  assert.notDeepEqual(factionRgb8(0),factionRgb8(1));
  const files=[
   ['webgl-building-roof-stripes.js','FACTION_PAINT'],
-  ['webgl-entrance-banners.js','FACTION_PAINT'],
+  ['webgl-entrance-banners.js','FACTION_FLAG_COLORS'],
   ['webgl-team-markings.js','FACTION_PAINT'],
   ['webgl-faction-accents.js','FACTION_PAINT'],
   ['webgl-bastion-capture.js','FACTION_BLUE'],
@@ -61,32 +61,29 @@ test('Bastion banner and signal base color match exact blue/red faction RGB',()=
  }
 });
 
-test('factory is a complete procedural authored-style PBR model for both teams',()=>{
+test('factory is authored PBR open-hall with a truly empty drive-through for both teams',()=>{
  for(const owner of [0,1]){
   const file=glb('factory-'+owner),doc=file.doc;
-  assert.equal(doc.asset.generator,'sandforge-factory-pbr-v1-20261116');
-  const names=new Set(doc.nodes.map(n=>n.name));
-  for(const part of ['FactoryRollupDoor','SF_Factory_PBR_roof',
-   'SF_Factory_PBR_camo','SF_Factory_PBR_vent','SF_Factory_PBR_team'])
-   assert.ok(names.has(part),'factory '+owner+' missing '+part);
-  assert.ok(doc.meshes.length>=12&&doc.meshes.length<=22);
-  assert.ok(file.data.length<1_200_000,'factory GLB must remain compact');
+  assert.equal(doc.asset.generator,'sandforge-open-vehicle-factory-v2-20261120');
+  const nodes=new Set(doc.nodes.map(n=>n.name));
+  for(const name of ['SF_Factory_PBR_OpenBay','SF_Factory_PBR_roof',
+    'SF_Factory_PBR_camo','SF_Factory_PBR_vent','SF_Factory_PBR_team'])
+   assert.ok(nodes.has(name),'open factory '+owner+' missing '+name);
+  assert.ok(!nodes.has('FactoryRollupDoor'),'no visible or hidden sliding shutter');
+  assert.ok(doc.nodes.find(n=>n.name==='SF_Factory_PBR_OpenBay')?.extras?.openProductionExit);
+  assert.ok(doc.meshes.length>=11&&doc.meshes.length<=22);
+  assert.ok(file.data.length<1_200_000,'open factory remains GPU-friendly');
   assert.deepEqual(texturePixel(file,'Sandforge_Factory_team'),factionRgb8(owner));
-  assert.ok(doc.materials.every(m=>!m.name.startsWith('Sandforge_Bastion_')),
-   'factory must never ship material names copied from Bastion');
-  const door=doc.nodes.find(n=>n.name==='FactoryRollupDoor');
-  const mesh=doc.meshes[door.mesh];
-  const accessor=doc.accessors[mesh.primitives[0].attributes.POSITION];
-  assert.ok(accessor.min[1]>=-.01&&accessor.min[1]<.07);
-  assert.ok(accessor.max[1]>=1.68&&accessor.max[1]<1.75,
-   'new shutter must be ~12% taller than first factory');
-  assert.ok(accessor.max[0]-accessor.min[0]>2.05,
-   'new shutter must be ~15% wider than first factory');
-  assert.ok(accessor.max[2]>2.25,'door must face +Z production rollout');
-  assert.ok(doc.meshes.some(m=>m.name==='SF_Factory_PBR_white'),'two facade stars');
+  assert.ok(doc.materials.every(m=>!m.name.startsWith('Sandforge_Bastion_')));
+  const facade=meshPositions(file,'SF_Factory_PBR_camo');
+  assert.ok(facade.length>50);
+  const blocked=facade.filter(([x,y,z])=>Math.abs(z-2.10)<.15&&
+   x> -1.50*1.10&&x<1.85*1.10&&y>.4&&y<1.95);
+  assert.equal(blocked.length,0,'no structural triangles block the wide central portal');
+  assert.ok(doc.meshes.some(m=>m.name==='SF_Factory_PBR_white'),'facade has team-identification details');
   const roof=doc.nodes.find(n=>n.name==='SF_Factory_PBR_roof');
   const roofAcc=doc.accessors[doc.meshes[roof.mesh].primitives[0].attributes.POSITION];
-  assert.ok(roofAcc.max[0]-roofAcc.min[0]>5.5,'factory body must be ~10% wider');
+  assert.ok(roofAcc.max[0]-roofAcc.min[0]>5.5);
  }
 });
 
@@ -98,7 +95,8 @@ test('build regenerates factory GLBs before copying assets, not user-local binar
  assert.match(build,/cpSync\('scripts\/sandforge-faction-palette\.js','dist\/sandforge-faction-palette\.js'\)/);
  const gen=readFileSync('scripts/generate-factory-pbr.mjs','utf8');
  assert.match(gen,/for\(const owner of \[0,1\]\)exportTeam\(owner\)/);
- assert.match(gen,/FactoryRollupDoor/);
+ assert.match(gen,/SF_Factory_PBR_OpenBay/);
+ assert.doesNotMatch(gen,/FactoryRollupDoor/);
  assert.match(gen,/width=key==='roof'\?256:48/,'roof should have fine PBR paint, not magnified 48px grooves');
  assert.doesNotMatch(gen,/sandforge-pbr-gesamt-test/);
  const game=readFileSync('scripts/webgl-battlefield.js','utf8');
@@ -111,18 +109,18 @@ test('build regenerates factory GLBs before copying assets, not user-local binar
  assert.match(hud,/DESERT_BUILDING_KINDS\.includes\(kind\)\|\|kind==='airfield'/);
 });
 
-test('factory has one production gate; repair is still a separate OPEN platform',()=>{
+test('open vehicle factory does not wait for a shutter; repair deck is independent',()=>{
  const gate=readFileSync('scripts/webgl-production-gates.js','utf8');
  const service=readFileSync('scripts/webgl-factory-service.js','utf8');
- assert.match(gate,/getObjectByName\('FactoryRollupDoor'\)/);
- assert.match(gate,/gate\.door\.scale\.y=1-pose\.open\*\.96/);
- assert.match(gate,/doorLiftHeight=finalFactory\?1\.70:1\.48/);
- assert.match(gate,/garageWidth=finalFactory\?2\.20:1\.52/);
+ assert.match(gate,/getObjectByName\('SF_Factory_PBR_OpenBay'\)/);
+ assert.match(gate,/openBay:true/);
+ assert.match(gate,/const driveStart=gate\.openBay\?0/);
+ assert.match(gate,/if\(gate\.openBay\)return/);
  assert.match(service,/FactoryOpenAirRepairPlatform/);
  assert.match(service,/ONE open-air, drive-on service platform/);
  const gen=readFileSync('scripts/generate-factory-pbr.mjs','utf8');
- assert.match(gen,/single REAL FactoryRollupDoor/);
- assert.match(gen,/Leave the real doorway EMPTY/);
+ assert.match(gen,/permanently OPEN vehicle exit/);
+ assert.match(gen,/Vehicle-facing PBR interior/);
 });
 
 /** Read authored GLB local geometry directly, without requiring WebGL. */
@@ -167,5 +165,5 @@ test('factory reuses thin HQ/barracks wire, opens right side for repairs',()=>{
  assert.match(scene,/kind==='factory'&&model\.getObjectByName\('SF_Factory_PBR_roof'\)\?1\.06:1/);
  const gen=readFileSync('scripts/generate-factory-pbr.mjs','utf8');
  assert.match(gen,/FACTORY_WIDTH_FACTOR=1\.10/);
- assert.match(gen,/FACTORY_GATE_OPEN_HEIGHT=1\.70/);
+ assert.match(gen,/FACTORY_OPEN_BAY_HEIGHT=2\.14/);
 });
