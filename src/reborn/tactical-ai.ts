@@ -1216,7 +1216,7 @@ export class TacticalAI {
  private staffBunkers(army:Unit[],home:Point):Set<number>{
   const g=this.g;
   const already=new Set(army.filter(u=>u.orders[0]?.kind==='garrison').map(u=>u.id));
-  if(!this.ai36Enabled||g.world.mapVersion<23)return already;
+  if(this.mode!=='director'||g.world.mapVersion<23)return already;
   const bunkers=g.bases.filter(b=>b.owner===1&&b.kind==='bunker'&&
     b.hp>0&&b.buildRemaining<=0)
     .sort((a,b)=>distance(a,home)-distance(b,home)||a.id-b.id);
