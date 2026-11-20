@@ -89,10 +89,10 @@ function roofSystem(){
  // strong painted eaves and exposed industrial brackets.
  for(const [z0,z1] of [[-2.30,-1.65],[-1.65,-1.00],[-1.00,-.35],[-.35,.30],
   [.30,.95],[.95,1.60],[1.60,2.31]]){
-  roofPlate('roof',[[-2.50,2.55,z0],[-.10,3.21,z0],
-   [-.10,3.21,z1],[-2.50,2.55,z1]],.07);
-  roofPlate('roof',[[ -.10,3.21,z0],[2.50,2.55,z0],
-   [2.50,2.55,z1],[-.10,3.21,z1]],.07);
+  roofPlate('roof',[[-2.58,2.53,z0],[-.10,3.21,z0],
+   [-.10,3.21,z1],[-2.58,2.53,z1]],.07);
+  roofPlate('roof',[[ -.10,3.21,z0],[2.58,2.53,z0],
+   [2.58,2.53,z1],[-.10,3.21,z1]],.07);
  }
  // Thick fascia on every side, contrasting riveted black metal.
  for(const x of [-2.50,2.50])
@@ -138,6 +138,13 @@ function roofSystem(){
  beam('pipe',[-.32,3.31,-1.95],[1.35,3.43,-1.95],.064);
 }
 function factoryUtilityWing(){
+ // Vertical steel stanchions load the raised technical plant into the real
+ // foundation, rather than letting the two-stack annex float over a roof.
+ // The four posts stay BEHIND the origin of the open factory drive lane.
+ for(const x of [.73,2.22])for(const z of [-1.92,-.75]){
+  box('metal_cladding',[x,1.90,z],[.19,3.48,.19]);
+  box('steel_dark',[x,3.60,z],[.36,.18,.36]);
+ }
  // Raised right-rear mechanical assembly, visually separate from the
  // sloped main hangar. Two blue/red capped exhaust towers and one large
  // vertical louver block match the distinctive reference silhouette.
