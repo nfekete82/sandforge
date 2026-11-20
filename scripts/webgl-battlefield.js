@@ -2925,7 +2925,8 @@ export class SandforgeBattlefield {
   // Board BEFORE the terrain ray and other click commands.
   if(event.button===2&&this.selected.size&&!this.attackMode&&this.selectedBase===null){
    const hit=this.friendlyAtPointer(event);
-   const bunker=hit?.type==='building'&&hit.entity.kind==='bunker'?
+   const bunker=hit?.type==='base'&&hit.entity.kind==='bunker'&&
+    hit.entity.owner===0&&hit.entity.hp>0&&hit.entity.buildRemaining<=0?
     hit.entity:null;
    if(bunker){
     const ids=this.game.units.filter(u=>this.selected.has(u.id)&&u.owner===0&&
