@@ -1213,7 +1213,8 @@ export class TacticalAI {
     observed.some(v=>v.id===o.target)))continue;
    if(ai42DirectVisibleStrike({
       airBreakoutAllowed:lateAirAllowed,bomberDistance:distance(u,target),
-      existingSameTarget:alreadyTargeted,retreating:u.defendUntil>g.time
+      existingSameTarget:alreadyTargeted,
+      retreating:!!u.returnToHangar||!!u.airfieldService
    })){
     if(g.command([u.id],{kind:'attack',x:target.x,y:target.y,target:target.id}))
      for(const o of u.orders)o.tactical={group:s.groupId,mode:'assault'};
