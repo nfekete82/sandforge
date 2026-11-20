@@ -1,0 +1,30 @@
+name: Sandforge HQ PBR texture preservation and bunker infantry boarding QA
+on:
+  push:
+    branches: [fix/sandforge-hq-materials-bunker-boarding-20261120]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gameplay-and-shader-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Validate TypeScript and real WebGL JS syntax
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-battlefield.js
+          node --check scripts/webgl-military-micro-pbr.js
+      - name: HQ PBR immutability and near/far mixed-infantry bunker garrisons
+        run: |
+          node --test tests/sandforge-hq-bunker-regression-20261120.test.mjs
+          node --test tests/sandforge-bunker-bastion-audio-20261119.test.mjs
+          node --test tests/sandforge-bunker-micro-pbr-20261120.test.mjs
+      - name: Verify all 3D build modules
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
