@@ -122,3 +122,20 @@ export function rankTerrainRecaptureSquad<T extends Point&{id:number}>(
   length(a,target)-length(b,target)||a.id-b.id
  ).slice(0,Math.max(0,Math.floor(count)));
 }
+
+/** Return a public canyon pass approach ONLY if a real friendly ground
+ * path reaches it. A geometric nearest point is not proof that a cliff,
+ * bridge or forward Bastion is accessible. Real World.path, slope and known
+ * turret safety must be provided by the caller. Never use hidden enemies.
+ */
+export function verifiedCanyonApproachRally(x:{
+ from:Point;target:Point;ridges:readonly CanyonRidge[];
+ clearance:number;
+ walkable:(p:Point)=>boolean;
+ safe:(p:Point)=>boolean;
+ reachable:(p:Point)=>boolean;
+}):Point|undefined{
+ const pass=canyonPassWaypoint(x.from,x.target,x.ridges,x.clearance);
+ if(!pass||!x.walkable(pass)||!x.safe(pass)||!x.reachable(pass))return undefined;
+ return pass;
+}

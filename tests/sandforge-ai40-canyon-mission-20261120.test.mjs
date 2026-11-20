@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {chooseMission,newCampaign} from '../dist/src/reborn/campaign-commander.js';
-import {canyonPassWaypoint} from '../dist/src/reborn/ai36-terrain-routes.js';
+import {canyonPassWaypoint,verifiedCanyonApproachRally} from '../dist/src/reborn/ai36-terrain-routes.js';
 
 function scenario(known=true){
  const territories=Array.from({length:16},(_,id)=>({
@@ -66,4 +66,28 @@ test('physical canyon pass has a real checkpoint on the origin side',()=>{
  assert.ok(checkpoint);
  assert.ok(checkpoint.y>2000);
  assert.ok(Math.hypot(checkpoint.x-from.x,checkpoint.y-from.y)>100);
+});
+
+test('known canyon HQ rally uses ONLY an A*-reachable real pass entrance',()=>{
+ const ridge={spine:[{x:0,y:2000},{x:2500,y:2000},{x:5000,y:2000}],
+   width:125,ramps:[{x:800,width:320},{x:4200,width:320}],clearings:[]};
+ const from={x:3200,y:2800},target={x:4500,y:1500};
+ const input={from,target,ridges:[ridge],clearance:12,
+  walkable:()=>true,safe:()=>true,reachable:()=>true};
+ const entrance=verifiedCanyonApproachRally(input);
+ assert.ok(entrance);
+ assert.equal(entrance.x,4200);
+ assert.ok(entrance.y>2000);
+ assert.equal(verifiedCanyonApproachRally({...input,reachable:()=>false}),undefined);
+ assert.equal(verifiedCanyonApproachRally({...input,walkable:()=>false}),undefined);
+ assert.equal(verifiedCanyonApproachRally({...input,safe:()=>false}),undefined);
+});
+test('pass-approach rally never invents a crossing for same-side objectives',()=>{
+ const ridge={spine:[{x:0,y:2000},{x:5000,y:2000}],
+   width:125,ramps:[{x:2500,width:300}],clearings:[]};
+ const p=verifiedCanyonApproachRally({
+  from:{x:1000,y:2800},target:{x:3300,y:2600},ridges:[ridge],
+  clearance:12,walkable:()=>true,safe:()=>true,reachable:()=>true
+ });
+ assert.equal(p,undefined);
 });
