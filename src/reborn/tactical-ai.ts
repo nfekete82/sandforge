@@ -1185,8 +1185,7 @@ export class TacticalAI {
   if(!target){
    // One existing bomber may obtain fresh sight of an ALREADY observed HQ.
    // The remembered coordinate is only a move goal; no invisible attack.
-   const mission=s.commander?.mission,
-    hq=g.memories[1].find(m=>m.owner===0&&m.hp>0&&
+   const hq=g.memories[1].find(m=>m.owner===0&&m.hp>0&&
      m.kind==='headquarters');
    const paid=bombers.filter(u=>u.hp>unitSpec(u).hp*.55);
    if(hq&&g.world.mapVersion===26&&g.world.generatorVersion>=4&&
