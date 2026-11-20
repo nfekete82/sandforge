@@ -166,6 +166,11 @@ execFileSync(process.execPath,['scripts/generate-bastion-radar.mjs'],{stdio:'inh
 // Factory GLBs are deterministic, checked-in as a generator rather than 10MB binaries.
 // Both teams share the same PBR topology and real animated FactoryRollupDoor.
 execFileSync(process.execPath,['scripts/generate-factory-pbr.mjs'],{stdio:'inherit'});
+// Keep the verified, gate-free in-game factory as the default. If a real
+// Meshy original is committed, package it as a fully textured, inspectable
+// alternative WITHOUT regenerating or overwriting the Meshy source asset.
+if(existsSync('src/assets/reborn/buildings-3d/factory-meshy-source.glb'))
+ execFileSync(process.execPath,['scripts/prepare-meshy-factory.mjs'],{stdio:'inherit'});
 // The Energy Core is generated for BOTH factions from one compact PBR source.
 execFileSync(process.execPath,['scripts/generate-energy-core-pbr.mjs'],{stdio:'inherit'});
 // Both airfield factions are deterministic low-poly PBR assets in Git source.
