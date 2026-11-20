@@ -8,15 +8,16 @@ import {ai38VehicleRecoveryWaypoint,ai38CanRecoverVehicle}
  from '../dist/src/reborn/ai38-vehicle-navigation.js';
 
 const macro={
- time:225,income:83,ownedBastions:4,fieldFighters:13,availableInfantry:7,
- headquartersReady:true,barracksReady:true,factoryReady:true,
+ time:245,income:100,ownedBastions:5,fieldFighters:16,availableInfantry:7,
+ totalBastions:8,
+ headquartersReady:true,barracksReady:true,factoryReady:true,airfieldReady:true,
  bunkerCount:0,hasUpgradeTarget:true,homeThreat:false,finishing:false
 };
 test('KI 3.8 reserves actual earned credits for ONE paid Bunker',()=>{
  assert.deepEqual(ai38InfrastructurePlan(macro),
   {goal:'bunker',reserve:850,minFreeAfterPurchase:200});
  assert.deepEqual(ai38InfrastructurePlan({...macro,bunkerCount:1}),
-  {goal:'bastion-upgrade',reserve:1000,minFreeAfterPurchase:250});
+  {goal:'bastion-upgrade',reserve:0,minFreeAfterPurchase:450});
  for(const small of [
   {...macro,fieldFighters:4},{...macro,availableInfantry:1},
   {...macro,ownedBastions:1},{...macro,homeThreat:true},
