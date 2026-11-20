@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ai42BreakoutAllowed,ai42HqLookout,ai42DirectVisibleStrike} from '../dist/src/reborn/ai36-air-support.js';
+import {ai42BreakoutAllowed,ai42HqLookout,ai42DirectVisibleStrike,ai42LivingAirRaiders} from '../dist/src/reborn/ai36-air-support.js';
 test('observed late HQ siege requires two paid bombers, strong bastion control, at most one AA',()=>{
  const x={enabled:true,time:385,controlled:15,total:16,paidBombers:2,
   missionKind:'structure',missionSector:0,knownHQSector:0,
@@ -35,4 +35,13 @@ test('only an already authorized visible late-game HQ airstrike can skip the geo
   {airBreakoutAllowed:false},{bomberDistance:2100},
   {existingSameTarget:true},{retreating:true}
  ])assert.equal(ai42DirectVisibleStrike({...allowed,...bad}),false,JSON.stringify(bad));
+});
+
+test('a turret hit cannot cancel both already paid bomber aircraft mid-raid',()=>{
+ const planes=[{kind:'bomber',hp:349},{kind:'bomber',hp:676}];
+ assert.equal(ai42LivingAirRaiders(planes),2);
+ assert.equal(ai42LivingAirRaiders([{...planes[0],hp:0},planes[1]]),1);
+ assert.equal(ai42LivingAirRaiders([planes[0],{...planes[1],airfieldService:{}}]),1);
+ assert.equal(ai42LivingAirRaiders([planes[0],{...planes[1],returnToHangar:true}]),1);
+ assert.equal(ai42LivingAirRaiders([{kind:'tank',hp:1000}]),0);
 });
