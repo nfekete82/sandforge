@@ -32,6 +32,8 @@ jobs:
         run: |
           npx tsc -p tsconfig.json
           node --check scripts/benchmark-sandforge-ai38-combat.mjs
+      - name: KI 3.9 safe empty-path detour unit tests
+        run: node --test tests/sandforge-ai39-no-path-detour-20261120.test.mjs
       - name: Paired KI 3.6 vs KI 3.9 canyon vehicle telemetry
         run: |
           mkdir -p reports
