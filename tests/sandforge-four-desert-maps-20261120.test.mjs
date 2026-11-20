@@ -7,7 +7,7 @@ import {World} from '../dist/src/reborn/world.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {UNITS} from '../dist/src/reborn/catalog.js';
 import {ridgeHeightAtX} from '../dist/src/reborn/ai36-terrain-routes.js';
-import {selectDesertAIDoctrine,DESERT_AI_DOCTRINES} from '../dist/src/reborn/desert-ai-doctrine.js';
+import {selectDesertAIDoctrine,DESERT_AI_DOCTRINES,fixedDesertLateAirSupport} from '../dist/src/reborn/desert-ai-doctrine.js';
 
 const catalog=globalThis.SandforgeDesertMaps;
 const geometryHash=world=>createHash('sha256')
@@ -117,6 +117,33 @@ test('four map-specific AI doctrines are calibrated from paid A/B results',()=>{
    selectDesertAIDoctrine({...p,profile:p.terrain,generatorVersion:4})?.mode,
    'coordinated','Burning Horizon retains original v4 and default coordinated AI');
  }
+});
+
+test('paid late-game air support survives the offensive ground doctrine only on fixed Last Stronghold',()=>{
+ for(const p of catalog.maps){
+  const g=Simulation.campaign(p.seed,p.mapVersion,p.terrain,p.generatorVersion);
+  const eligible=fixedDesertLateAirSupport(
+   selectDesertAIDoctrine({
+    seed:g.seed,mapVersion:g.world.mapVersion,
+    profile:g.world.generated.battlefield.profile,
+    kind:g.world.generated.landscapeKind,
+    generatorVersion:g.world.generatorVersion
+   }),g.tactical.ai37Mode==='coordinated');
+  assert.equal(g.tactical.lateAirSupportEnabled,eligible,p.name);
+  if(p.id==='last-stronghold'){
+   assert.equal(g.tactical.ai37Mode,'off');
+   assert.equal(eligible,true,'attack doctrine must still guide already-paid R-01 and bombers');
+  }
+  if(p.id==='desert-strike')assert.equal(eligible,false,
+   'no unauthorized late-air change on the small open map');
+ }
+ const p=catalog.maps.find(p=>p.id==='last-stronghold');
+ const historic=Simulation.campaign(p.seed,p.mapVersion,p.terrain,4);
+ historic.tactical.ai37Mode='off';
+ assert.equal(historic.tactical.lateAirSupportEnabled,false,
+  'offensive support exception must not leak into old v4 saves');
+ assert.equal(fixedDesertLateAirSupport(null,false),false,
+  'unknown maps never get free air-support privileges');
 });
 
 test('main menu contains only the four desert maps, locked to the existing renderer',()=>{
