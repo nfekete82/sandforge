@@ -35,7 +35,7 @@ import {ai37GarrisonQuota,ai37BastionDefenseValue} from './ai37-fortification-do
 import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
-import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery} from './ai40-rally-recovery.js';
+import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
 export interface Loss extends Point {id:number;at:number;strength:number}
@@ -1606,6 +1606,11 @@ export class TacticalAI {
    };
    const tight=stats(330,neededAtRally),loose=stats(720,3);
    const reasons=[
+    ...(!ai41RallyMissionPermitsRescue({
+      kind:mission.kind,homePressure:observedHomePressure,
+      time:g.time,notBefore:policy?.notBefore??0
+    })?[mission.kind!=='capture'?'non-capture-siege-needs-validated-route':
+      observedHomePressure?'home-defense-pressure':'before-defense-window']:[]),
     ...(g.world.mapVersion<25?['old-map']:[]),
     ...(g.world.generatorVersion<3?['old-generator']:[]),
     ...(this.ai37Mode!=='coordinated'?['ai37-off']:[]),
@@ -1642,6 +1647,10 @@ export class TacticalAI {
   // waiting, relocate the staging point to a legal, existing troop cluster.
   // No teleports, unobserved enemy positions or free units.
   if(g.world.mapVersion>=25&&g.world.generatorVersion>=3&&
+     ai41RallyMissionPermitsRescue({
+       kind:mission.kind,homePressure:observedHomePressure,
+       time:g.time,notBefore:policy?.notBefore??0
+     })&&
      this.ai37Mode==='coordinated'&&s.phase==='gather'&&
      g.time>=190&&g.time>=this.ai40RallyRetryAt&&s.rally&&
      this.ai40RecoveredMissionSince!==mission.since){
