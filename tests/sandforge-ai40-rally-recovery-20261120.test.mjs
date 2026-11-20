@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ai40ClusterRallyRecovery} from '../dist/src/reborn/ai40-rally-recovery.js';
+import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders} from '../dist/src/reborn/ai40-rally-recovery.js';
 
 const pack=[
  {id:2,x:640,y:950,hp:100,kind:'infantry'},
@@ -51,4 +51,33 @@ test('few scattered soldiers do not trigger suicidal regroup',()=>{
  assert.equal(ai40ClusterRallyRecovery({...base,units:pack.map((u,i)=>({
   ...u,x:600+i*600,y:900+i*450
  }))}),undefined);
+});
+
+test('formation slot offset does not hide a truly blocked rally order',()=>{
+ const rally={x:1500,y:1500};
+ const units=Array.from({length:8},(_,i)=>({
+  id:i+1,x:300+i*12,y:320,hp:120,kind:'tank',
+  path:[],repath:2,orders:[{kind:'move',x:1500+i*70,y:1900,
+   tactical:{mode:'safe',goal:{...rally}}}]
+ }));
+ assert.equal(ai40CountBlockedRallyOrders(units,rally),8);
+ // A move that is genuinely marching toward a distant point stays untouched.
+ const moving=units.map(u=>({...u,path:[{x:700,y:700}]}));
+ assert.equal(ai40CountBlockedRallyOrders(moving,rally),0);
+});
+test('stalled rally ignores unrelated orders, short distances and empty readiness',()=>{
+ const rally={x:2000,y:2100};
+ const list=[
+  {x:50,y:50,path:[],repath:2,
+   orders:[{kind:'move',x:1800,y:1900}]},
+  {x:50,y:50,path:[],repath:2,
+   orders:[{kind:'attack',x:2000,y:2100}]},
+  {x:50,y:50,path:[],repath:0,
+   orders:[{kind:'move',x:2000,y:2100}]},
+  {x:1980,y:2100,path:[],repath:2,
+   orders:[{kind:'move',x:2000,y:2100}]},
+  {x:50,y:50,path:[],repath:2,
+   orders:[{kind:'move',x:7000,y:7100}]}
+ ];
+ assert.equal(ai40CountBlockedRallyOrders(list,rally),1);
 });

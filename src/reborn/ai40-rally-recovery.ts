@@ -37,3 +37,25 @@ export function ai40ClusterRallyRecovery<T extends Point&{
  if(!chosen)return undefined;
  return {x:chosen.u.x,y:chosen.u.y};
 }
+
+/** Count only genuine, unpathable march orders for THIS tactical rally.
+ * Formation slots mutate order.x/y, while tactical.goal keeps the exact
+ * commander-issued rally center. Reading order.x/y alone undercounts large
+ * (4-column) formations and prevents recovery even when the army is stuck.
+ * No strategic enemy knowledge and no simulated side effects are involved.
+ */
+export function ai40CountBlockedRallyOrders<T extends Point&{
+  orders:readonly {x:number;y:number;kind:string;
+    tactical?:{goal?:Point;mode?:string}}[];
+  path:readonly Point[];repath:number;
+}>(units:readonly T[],rally:Point):number{
+ let count=0;
+ for(const u of units){
+  const order=u.orders[0];
+  if(!order||order.kind!=='move'&&order.kind!=='attackMove')continue;
+  const intent=order.tactical?.goal??order;
+  if(distance(intent,rally)<230&&distance(u,rally)>500&&
+     !u.path.length&&u.repath>0)count++;
+ }
+ return count;
+}

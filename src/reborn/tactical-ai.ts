@@ -35,7 +35,7 @@ import {ai37GarrisonQuota,ai37BastionDefenseValue} from './ai37-fortification-do
 import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
-import {ai40ClusterRallyRecovery} from './ai40-rally-recovery.js';
+import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
 export interface Loss extends Point {id:number;at:number;strength:number}
@@ -1590,12 +1590,7 @@ export class TacticalAI {
     // several real paid troops with active orders TO this rally, yet no
     // computed A* waypoint, physically far from it. The old 43-second
     // timer alone diverted two otherwise victorious siege columns.
-    const trappedMoveOrders=pool.filter(u=>{
-      const order=u.orders[0];
-      return order&&(order.kind==='move'||order.kind==='attackMove')&&
-        distance(order,s.rally!)<230&&distance(u,s.rally!)>500&&
-        !u.path.length&&u.repath>0;
-    }).length;
+    const trappedMoveOrders=ai40CountBlockedRallyOrders(pool,s.rally);
     const replacement=ai40ClusterRallyRecovery({
       units:pool,oldRally:s.rally,mission,
       trappedMoveOrders,stalledSeconds:g.time-s.phaseAt,
