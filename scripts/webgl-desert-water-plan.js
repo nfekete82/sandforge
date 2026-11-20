@@ -18,6 +18,34 @@ const PLANS=Object.freeze({
  'desert-strike':Object.freeze({lakes:2,rivers:1,min:185,max:255}),
  'broken-empire':Object.freeze({lakes:1,rivers:1,min:155,max:205})
 });
+/** Use the exact visual footprint of lakes and winding rivers for vegetation
+ * exclusion. The outer wet bank can extend 1.24x past the water's edge;
+ * ripple contour can add 18%. No cactus, Joshua tree or dry scrub may touch
+ * the bank or water, including after GLB scaling/rotation.
+ */
+export function desertWaterExclusion(point,layout,{margin=42}={}){
+ if(!layout)return false;
+ for(const lake of layout.lakes??[]){
+  const dx=point.x-lake.x,dy=point.y-lake.y;
+  const co=Math.cos(lake.rotation),si=Math.sin(lake.rotation);
+  const a=dx*co+dy*si,b=-dx*si+dy*co;
+  const radius=Math.hypot(a,b/(lake.aspect||1));
+  // Rendered contour never exceeds 1+.095+.058+.026, and wet
+  // shore reaches 1.24. Conservative margin for sculpted vegetation.
+  if(radius<=lake.radius*1.24*1.18+margin)return true;
+ }
+ for(const river of layout.rivers??[]){
+  const points=river.points??[];
+  for(let i=1;i<points.length;i++){
+   // Bank extends 1.48x beyond a variable-width stream. Tapered ends
+   // are covered by this more conservative capsule test.
+   if(segmentDistance(point,points[i-1],points[i])<=river.width*1.48*1.08+margin)
+    return true;
+  }
+ }
+ return false;
+}
+
 export function planDesertWaterways({mapId,world,terrain=world?.generated,
  seed=world?.seed??0,oases=[],lowQuality=false}={}){
  const type=PLANS[mapId];
