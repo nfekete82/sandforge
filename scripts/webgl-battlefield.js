@@ -2070,11 +2070,13 @@ export class SandforgeBattlefield {
    const upgrade=tile.closest('.sf-sector-controls')?.querySelector('[data-upgrade-bastion]');
    if(upgrade){
     const level=t.upgradeLevel===2?2:1;
+    const home=campaignLayout(g.world.mapVersion,g.seed).headquarters.includes(t.id);
     upgrade.hidden=t.owner!==0;
-    upgrade.disabled=level===2||t.progress>0||g.credits[0]<750||
-      campaignLayout(g.world.mapVersion,g.seed).headquarters.includes(t.id);
-    upgrade.textContent=level===2?'STUFE 2 ✓':'UPGRADE · 750';
-    upgrade.title='Einkommen '+t.income+' → '+(t.income*2)+
+    upgrade.disabled=home||level===2||t.progress>0||g.credits[0]<750;
+    upgrade.textContent=home?'HEIMAT · FEST':level===2?'STUFE 2 ✓':'UPGRADE · 750';
+    upgrade.title=home?'Die Startbastion kann nicht aufgerüstet werden. Erobere eine andere Bastion.':
+      level===2?'Diese Bastion hat bereits das doppelte Einkommen.':
+      'Einkommen '+t.income+' → '+(t.income*2)+
       ' Credits je 10 Sekunden · Ausbau verfällt bei Verlust';
    }
   }
