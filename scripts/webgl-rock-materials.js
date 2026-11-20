@@ -101,6 +101,7 @@ export function sharedStoneMaps(lowQuality=false){
  */
 export function applyRockMineralVeins(material,{strength=.55,frequency=1}={}){
  if(!material?.isMeshStandardMaterial)return material;
+ if(material.userData.sandforgeRockMineralVeins)return material;
  const amount=clamp(strength,0,.75),freq=clamp(frequency,.25,3);
  const code=[
   'vec3 sfRockP = vSfRockPosition * '+freq.toFixed(3)+';',
