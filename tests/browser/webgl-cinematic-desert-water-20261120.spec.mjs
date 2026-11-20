@@ -18,7 +18,7 @@ for(const mapId of ['desert-strike','broken-empire'])
   const report=await page.evaluate(()=>{
    const a=window.__sandforgeWebGL,w=a.desertWater;
    return {id:a.desertMapId,hasWater:Boolean(w),lakes:w?.layout.lakes.length??0,
-    rivers:w?.layout.rivers.length??0,meshes:w?.meshes.length??0,
+    rivers:w?.layout.rivers.length??0,meshes:w?.meshes.length??0,shores:w?.shores.length??0,
     drawCalls:w?.drawCalls??0,
     goodPBR:w?.materials.every(m=>m.isMeshPhysicalMaterial&&m.transparent)??false,
     safe:w?.meshes.every(m=>m.userData.visualOnly&&m.userData.nonBlocking&&m.userData.shallowPassable)??false,
@@ -30,7 +30,8 @@ for(const mapId of ['desert-strike','broken-empire'])
   expect(report.id).toBe(mapId);
   expect(report.lakes).toBeGreaterThan(0);
   expect(report.rivers).toBeGreaterThan(0);
-  expect(report.drawCalls).toBe(report.meshes);
+  expect(report.drawCalls).toBe(report.meshes+report.shores);
+  expect(report.shores).toBe(report.meshes);
   expect(report.goodPBR&&report.safe&&report.blackEdge&&report.valid).toBe(true);
   await page.waitForTimeout(400);
   const clock=await page.evaluate(()=>window.__sandforgeWebGL.desertWater.materials[0].userData.waterTime.value);
