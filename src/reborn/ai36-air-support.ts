@@ -124,3 +124,35 @@ export function loneRoverAirDisengage(input:{
  return input.roverKind==='rover'&&input.enemyKind==='scout'&&
   input.enemyVisible&&input.distance<=500&&!input.aaCover;
 }
+
+/** Air siege in an endgame canyon deadlock uses REAL paid bombers and
+ * CURRENT visibility; never consults unseen hostile units or grants damage.
+ * One visible AA emplacement may be challenged, not a defended AA cluster. */
+export function ai42BreakoutAllowed(x:{
+ enabled:boolean;time:number;controlled:number;total:number;paidBombers:number;
+ missionKind:string|undefined;missionSector:number|undefined;knownHQSector:number|undefined;
+ targetKind:string;distanceFromHQ:number;targetVisible:boolean;
+ knownAirDefenses:number;observedAirDefenses:number;
+}):boolean{
+ return x.enabled&&x.time>=360&&x.total>=16&&x.controlled>=x.total-2&&
+  x.paidBombers>=2&&x.missionKind==='structure'&&
+  x.knownHQSector!==undefined&&x.missionSector===x.knownHQSector&&
+  (x.targetKind==='headquarters'||x.targetKind==='turret'&&x.distanceFromHQ<700)&&
+  x.targetVisible&&x.knownAirDefenses<=1&&x.observedAirDefenses<=1;
+}
+/** Never lock a bomb onto memory: only find a safe vantage where the
+ * physically flown aircraft can obtain fresh line-of-sight. */
+export function ai42HqLookout(x:{
+ from:Point;target:Point;size:number;sight:number;
+ guns:readonly (Point&{range:number})[];
+}):Point|undefined{
+ const radius=Math.min(610,x.sight-65);
+ if(radius<180)return undefined;
+ const angle=Math.atan2(x.from.y-x.target.y,x.from.x-x.target.x);
+ for(const delta of [0,-Math.PI/4,Math.PI/4,-Math.PI/2,Math.PI/2,-3*Math.PI/4,3*Math.PI/4,Math.PI]){
+  const a=angle+delta,p={x:x.target.x+Math.cos(a)*radius,y:x.target.y+Math.sin(a)*radius};
+  if(p.x<50||p.y<50||p.x>x.size-50||p.y>x.size-50)continue;
+  if(x.guns.some(g=>distance(g,p)<g.range+95))continue;
+  return p;
+ }
+}

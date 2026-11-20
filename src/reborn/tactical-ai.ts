@@ -24,7 +24,7 @@ import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad,canyonPassWaypoint} from './ai36-terrain-routes.js';
-import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage} from './ai36-air-support.js';
+import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage,ai42BreakoutAllowed,ai42HqLookout} from './ai36-air-support.js';
 import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
 import {preserveAI36Assault,ai36JoinActiveFront,maintainAI36FrontOnRetarget} from './ai36-assault-continuity.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
@@ -1018,7 +1018,25 @@ export class TacticalAI {
    (u.orders.some(o=>o.kind==='attack'||o.kind==='attackMove'||
       o.tactical?.mode==='assault')||u.defendUntil>g.time||
     this.state.phase==='attack'&&this.state.group.includes(u.id)));
-  return bomberCloseAirSupportAllowed(target,observed,ground);
+  if(bomberCloseAirSupportAllowed(target,observed,ground))return true;
+  const mission=this.state.commander?.mission,
+   knownHQ=g.memories[1].find(m=>m.owner===0&&m.hp>0&&m.kind==='headquarters');
+  if(!knownHQ)return false;
+  const isAA=(u:Unit|Base)=>['rocket','turret','interceptor','scout'].includes(u.kind);
+  return ai42BreakoutAllowed({
+   enabled:g.world.mapVersion===26&&g.world.generatorVersion>=4&&
+    this.mode==='director'&&this.ai37Mode==='coordinated',
+   time:g.time,controlled:g.territories.filter(t=>t.owner===1).length,
+   total:g.territories.length,
+   paidBombers:g.units.filter(u=>u.owner===1&&u.kind==='bomber'&&
+    u.hp>unitSpec(u).hp*.55&&!u.airfieldService&&!u.returnToHangar).length,
+   missionKind:mission?.kind,missionSector:mission?.sector,
+   knownHQSector:knownHQ.territory,
+   targetKind:target.kind,distanceFromHQ:distance(target,knownHQ),
+   targetVisible:g.canSee(1,target),
+   knownAirDefenses:this.state.knownTurrets.filter(v=>distance(v,target)<650).length,
+   observedAirDefenses:observed.filter(v=>isAA(v)&&distance(v,target)<650).length
+  });
  }
  private airSupport(members:Unit[],goal:Point,targetId:number|null):void{
   const g=this.g,s=this.state,front=members.filter(frontRole),
@@ -1139,13 +1157,44 @@ export class TacticalAI {
   // candidate. Previously one defended tank could block an isolated target
   // alongside it, making an already paid bomber wait indefinitely.
   const target=observedBomberSupportTarget(observed,front,1400,
-   candidate=>this.bomberStrikeSafe(candidate));
-  if(!target)return;
+   candidate=>this.bomberStrikeSafe(candidate))??
+   (g.world.mapVersion===26&&g.world.generatorVersion>=4?
+    observed.filter(v=>['headquarters','turret'].includes(v.kind)&&
+     this.bomberStrikeSafe(v)).sort((a,b)=>
+      (a.kind==='turret'?0:1)-(b.kind==='turret'?0:1)||a.id-b.id)[0]:undefined);
+  if(!target){
+   // One existing bomber may obtain fresh sight of an ALREADY observed HQ.
+   // The remembered coordinate is only a move goal; no invisible attack.
+   const mission=s.commander?.mission,
+    hq=g.memories[1].find(m=>m.owner===0&&m.hp>0&&
+     m.kind==='headquarters'&&m.territory===mission?.sector);
+   const paid=bombers.filter(u=>u.hp>unitSpec(u).hp*.55);
+   if(hq&&g.world.mapVersion===26&&g.world.generatorVersion>=4&&
+      this.ai37Mode==='coordinated'&&g.time>=360&&
+      mission?.kind==='structure'&&g.territories.length>=16&&
+      g.territories.filter(t=>t.owner===1).length>=g.territories.length-2&&
+      paid.length>=2&&
+      !g.units.some(v=>v.owner===0&&v.hp>0&&!v.carrier&&
+       g.canSee(1,v)&&distance(v,home)<850)){
+    const scout=paid.slice().sort((a,b)=>a.id-b.id)[0];
+    const lookout=ai42HqLookout({from:scout,target:hq,size:g.world.size,
+     sight:unitSpec(scout).sight,guns:s.knownTurrets});
+    if(lookout&&!scout.orders.some(o=>o.kind==='attack')&&
+       (!scout.orders.length||distance(scout.orders[0],lookout)>55))
+     g.command([scout.id],{kind:'move',x:lookout.x,y:lookout.y});
+   }
+   return;
+  }
   for(const [index,u] of bombers.entries()){
    if(recalled.has(u.id))continue;
    if(u.orders.some(o=>o.kind==='attack'&&
     observed.some(v=>v.id===o.target)))continue;
-   const dx=target.x-front.x,dy=target.y-front.y,
+   const fx=target.x-front.x,fy=target.y-front.y;
+   // A front-centroid sitting exactly at the observed HQ provides no
+   // valid flank direction. Use the actual bomber approach instead.
+   const airApproach=g.world.mapVersion===26&&
+    ['headquarters','turret'].includes(target.kind)&&Math.hypot(fx,fy)<70;
+   const dx=airApproach?target.x-u.x:fx,dy=airApproach?target.y-u.y:fy,
     norm=Math.hypot(dx,dy)||1;
    // Older index%2 assigned the exact same flank to bomber #1 and #3.
    // Keep two broad sides, but stagger additional aircraft along the
