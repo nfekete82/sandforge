@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import '../scripts/webgl-map-presets.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
@@ -75,9 +76,8 @@ test('random or forged map identity never injects monuments',()=>{
 });
 
 test('WebGL art integrates in packaged browser renderer with proper performance cleanup',()=>{
- const fs=await import('node:fs');
- const render=fs.readFileSync('scripts/webgl-preview.js','utf8');
- const builder=fs.readFileSync('scripts/build.mjs','utf8');
+ const render=readFileSync('scripts/webgl-preview.js','utf8');
+ const builder=readFileSync('scripts/build.mjs','utf8');
  assert.match(render,/createCuratedMapArt\(/);
  assert.match(render,/curatedMapArt\?\.dispose\(\)/);
  assert.match(render,/curatedGroundTint/);
