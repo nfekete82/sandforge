@@ -1152,7 +1152,8 @@ export class TacticalAI {
       stationaryTarget:!!victim&&'queue' in victim&&
        ['headquarters','turret'].includes(victim.kind),
       sameTarget:!!commitment&&commitment.target===pending.target,
-      missionStillValid:!!victim&&s.commander?.mission?.kind==='structure'&&
+      missionStillValid:!!victim&&'queue' in victim&&
+       s.commander?.mission?.kind==='structure'&&
        s.commander.mission.sector===victim.territory,
       time:g.time,expiry:commitment?.until??0
     }))continue;
