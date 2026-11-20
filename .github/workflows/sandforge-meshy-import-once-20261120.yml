@@ -1,0 +1,50 @@
+name: Sandforge one-time import of genuine Meshy 7.1 factory GLB
+on:
+  push:
+    branches: [feat/sandforge-meshy-factory-real-glb-20261120]
+permissions:
+  contents: write
+jobs:
+  import-authored-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch completed Meshy 7.1 PBR geometry exactly once
+        env:
+          MESHY_SIGNED_DOWNLOAD_URL: 'https://assets.meshy.ai/uploads/converted/01a1fb1b-22a2-727f-be8c-3f68d47ae6a0/01a1fb1e-695e-7534-9fe0-b778fd50ee1c/Meshy_AI__1120224036_image-to-3d-texture.glb?Expires=1795305600&Signature=mo~CVpbTyvAvH-AMRQmlfQoXVI907Ae8v9C0WwGTC0cNpMIGsWTZjhdaLipC7oLUq5hMwzCdBM0gJViXIONpM0cxi36Bu1HtcduwVK-pLlk~TJaD7PWQYtRnDe4W9iDNW57SmlF3iM7CjtHoN7WpFPshhVRVyOcrtz7N17yHi4qpkl81HwcwlQGfgXasNYmT6ONM3Y2Ox0rMWr89KIrFtf1CanvYtZUAtRdgyq6oG6y2I5faK5tccRSBy-H1kSeMftRTlYJnRcYZHwllDkqOhIV7dKouzZ3zAT6uCFtBw-BdWCkDKU~QwOvSr07iF44w~wlFJGVvZwQVVcJ4~H8sgQ__&Key-Pair-Id=K1VGYTHIYLM9UM'
+        run: |
+          set -euo pipefail
+          target=src/assets/reborn/buildings-3d/factory-meshy-source.glb
+          if test -s "$target"; then
+            echo "Original Meshy GLB already versioned; no repeat download."
+            exit 0
+          fi
+          curl --location --fail --silent --show-error --retry 3 --connect-timeout 20 --max-time 300 \
+            --output "$target" "$MESHY_SIGNED_DOWNLOAD_URL"
+          node scripts/prepare-meshy-factory.mjs
+          test -s src/assets/reborn/buildings-3d/factory-meshy-0.glb
+          test -s src/assets/reborn/buildings-3d/factory-meshy-1.glb
+          echo "Validated Meshy source file:"
+          ls -lh "$target"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$target"
+          git commit -m 'asset(meshy): commit authentic image-to-3D PBR vehicle factory source'
+          git push origin HEAD:feat/sandforge-meshy-factory-real-glb-20261120
+      - name: Preserve genuine model as workflow asset even if branch is write-protected
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-actual-meshy71-factory-source-and-candidates
+          path: |
+            src/assets/reborn/buildings-3d/factory-meshy-source.glb
+            src/assets/reborn/buildings-3d/factory-meshy-0.glb
+            src/assets/reborn/buildings-3d/factory-meshy-1.glb
+          retention-days: 30
+          if-no-files-found: warn
