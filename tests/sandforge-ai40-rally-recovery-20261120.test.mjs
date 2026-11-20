@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40ShouldAttemptRecovery} from '../dist/src/reborn/ai40-rally-recovery.js';
+import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from '../dist/src/reborn/ai40-rally-recovery.js';
 
 const pack=[
  {id:2,x:640,y:950,hp:100,kind:'infantry'},
@@ -105,4 +105,13 @@ test('no rally cooldown is armed for ordinary slow or insufficiently blocked mar
  assert.equal(ai40ShouldAttemptRecovery({
   fighters:18,blockedOrders:0,elapsed:210,readyAtRally:0
  }),false);
+});
+
+test('rally rescue cannot divert a turret/HQ siege or override the defender policy',()=>{
+ const capture={kind:'capture',homePressure:false,time:415,notBefore:300};
+ assert.equal(ai41RallyMissionPermitsRescue(capture),true);
+ assert.equal(ai41RallyMissionPermitsRescue({...capture,kind:'structure'}),false);
+ assert.equal(ai41RallyMissionPermitsRescue({...capture,kind:'hunt'}),false);
+ assert.equal(ai41RallyMissionPermitsRescue({...capture,homePressure:true}),false);
+ assert.equal(ai41RallyMissionPermitsRescue({...capture,time:281,notBefore:300}),false);
 });
