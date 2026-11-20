@@ -7,16 +7,21 @@ import {chooseMission,newCampaign} from '../dist/src/reborn/campaign-commander.j
 import {ai43OffensiveHqBreakthrough,ai43KeepKnownHqMission} from '../dist/src/reborn/ai43-hq-breakthrough.js';
 
 const maps=globalThis.SandforgeDesertMaps.maps;
-const strong={time:235,totalBastions:16,ownedBastions:14,
- knownLivingHQ:true,mobileFighters:14,healthyMobile:11,artillery:2,
+const strong={time:235,totalBastions:16,ownedBastions:15,
+ knownLivingHQ:true,liveHQContact:true,mobileFighters:14,healthyMobile:11,artillery:2,
  observedHomeThreat:false,recentLosses:1};
 test('KI43: only a genuinely discovered and combat-ready HQ can trigger an offensive siege',()=>{
  assert.equal(ai43OffensiveHqBreakthrough(strong),true);
- assert.equal(ai43OffensiveHqBreakthrough({...strong,ownedBastions:12}),true,
-  '12/16 earned sectors with artillery is a legitimate 3/4 land advantage');
+ assert.equal(ai43OffensiveHqBreakthrough({...strong,ownedBastions:14}),false,
+  '14/16 must NOT abandon winning Bastion siege for a risky HQ pivot');
+ assert.equal(ai43OffensiveHqBreakthrough({...strong,totalBastions:8,ownedBastions:7}),true,
+  'on open 8-sector desert, 7 genuinely held Bastions suffice');
+ assert.equal(ai43OffensiveHqBreakthrough({...strong,totalBastions:12,ownedBastions:11}),true,
+  'on 12-sector desert, preserve the final Bastion frontier');
  for(const overrides of [
   {time:164},{totalBastions:3},{ownedBastions:11},
-  {knownLivingHQ:false},{mobileFighters:8},{healthyMobile:6},
+  {knownLivingHQ:false},{liveHQContact:false},
+  {mobileFighters:8},{healthyMobile:6},
   {artillery:0},{observedHomeThreat:true},{recentLosses:4}
  ])assert.equal(ai43OffensiveHqBreakthrough({...strong,...overrides}),false,
   'must not enter blind/suicidal HQ push '+JSON.stringify(overrides));
