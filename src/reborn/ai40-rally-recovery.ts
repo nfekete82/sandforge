@@ -15,15 +15,17 @@ export function ai40RecoveryWaitThreshold(total:number,blocked:number):number{
  * only a real, unpathable, under-assembled paid army can start a rescue.
  * The expensive walkability validation starts AFTER this check, never
  * arming a retry timer merely because a macro planning pulse happened. */
-/** Rescue moves only a real Bastion capture wave. Relocating a KNOWN HQ
- * siege group does not prove the canyon path to a structure is passable.
- * A home-defense interdiction similarly must not be bypassed by a rally.
+/** Rescue capture waves as before. KI 4.3 additionally permits a real HQ
+ * siege ONLY after the caller verifies a physical route to and through a
+ * canyon ramp. Home-defense interdictions remain absolute.
  */
 export function ai41RallyMissionPermitsRescue(x:{
  kind:'capture'|'structure'|'hunt';
  homePressure:boolean;time:number;notBefore:number;
+ validatedSiegeApproach?:boolean;
 }):boolean{
- return x.kind==='capture'&&!x.homePressure&&x.time>=x.notBefore;
+ return !x.homePressure&&x.time>=x.notBefore&&
+  (x.kind==='capture'||x.kind==='structure'&&x.validatedSiegeApproach===true);
 }
 export function ai40ShouldAttemptRecovery(x:{
   fighters:number;blockedOrders:number;elapsed:number;readyAtRally:number;
