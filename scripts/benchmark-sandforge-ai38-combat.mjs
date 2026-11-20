@@ -48,6 +48,8 @@ function observeFactory(){
   bunkerMax=0,bunkerSeatSeconds=0,bunkerBuildingSeconds=0,
   upgradeSeconds=0,upgradesPeak=0,
   stationaryCommandSeconds=0,stationaryVehicles=0,
+  commandedVehicleSeconds=0,stationaryWithoutPath=0,
+  stallByKind={},stallByOrder={},stallByUnit=new Map(),
   lastSample=-1,vehiclePositions=new Map(),oldPositions=new Map(),immobileTimes=new Map(),
   mobileCount=0,pointCount=0,redIncomeSeconds=0,blueIncomeSeconds=0,contactTicks=0,
   eligibleBunkerSeconds=0,eligibleUpgradeSeconds=0,maxFreeCredits=0,
@@ -107,15 +109,38 @@ function observeFactory(){
   mobileCount=Math.max(mobileCount,vehicles.length);
   for(const u of vehicles){
    vehiclePositions.set(u.id,{x:u.x,y:u.y});
-   if(!u.orders.length||u.hold||u.defendUntil>g.time)continue;
+   if(!u.orders.length||u.hold||u.defendUntil>g.time){
+    immobileTimes.delete(u.id);continue;
+   }
    const goal=u.orders[0];
-   if(Math.hypot(goal.x-u.x,goal.y-u.y)<90)continue;
+   if(Math.hypot(goal.x-u.x,goal.y-u.y)<90){
+    immobileTimes.delete(u.id);continue;
+   }
    const old=previous.get(u.id);
    if(!old)continue;
+   commandedVehicleSeconds++;
    const stalled=Math.hypot(old.x-u.x,old.y-u.y)<3?
     (immobileTimes.get(u.id)??0)+1:0;
    immobileTimes.set(u.id,stalled);
-   if(stalled>=4){stationaryCommandSeconds++;if(stalled===4)stationaryVehicles++;}
+   if(stalled>=4){
+    stationaryCommandSeconds++;if(stalled===4)stationaryVehicles++;
+    const key=goal.kind??'unknown';
+    stallByKind[u.kind]=(stallByKind[u.kind]??0)+1;
+    stallByOrder[key]=(stallByOrder[key]??0)+1;
+    if(!u.path?.length)stationaryWithoutPath++;
+    const existing=stallByUnit.get(u.id)??{
+     id:u.id,kind:u.kind,seconds:0,maxConsecutive:0,
+     firstTime:Math.floor(g.time),lastTime:Math.floor(g.time)
+    };
+    existing.seconds++;existing.maxConsecutive=Math.max(existing.maxConsecutive,stalled);
+    existing.lastTime=Math.floor(g.time);
+    existing.order=key;existing.pathLength=u.path?.length??0;
+    existing.distanceToOrder=Math.round(Math.hypot(goal.x-u.x,goal.y-u.y));
+    existing.x=Math.round(u.x);existing.y=Math.round(u.y);
+    existing.goalX=Math.round(goal.x);existing.goalY=Math.round(goal.y);
+    existing.repath=Math.round((u.repath??0)*10)/10;
+    stallByUnit.set(u.id,existing);
+   }
   }
  };
  return {observe,finish:()=>({firstActualShotAt:startOfCombat===null?null:round(startOfCombat),
@@ -123,6 +148,13 @@ function observeFactory(){
   peakGarrisonOccupants:bunkerMax,bunkerSeatSeconds,bunkerBuildingSeconds,
   upgradedBastionSeconds:upgradeSeconds,peakUpgradedBastions:upgradesPeak,
   longStationaryVehicleSeconds:stationaryCommandSeconds,stationaryVehicleIncidents:stationaryVehicles,
+  commandedVehicleSeconds,
+  stationaryVehicleFraction:commandedVehicleSeconds?
+   round(stationaryCommandSeconds/commandedVehicleSeconds):0,
+  stationaryWithoutPath,
+  stallByKind,stallByOrder,
+  worstStalledVehicles:[...stallByUnit.values()]
+   .sort((a,b)=>b.seconds-a.seconds||a.id-b.id).slice(0,6),
   maxMobileVehicles:mobileCount,
   meanRedIncome:pointCount?round(redIncomeSeconds/pointCount):0,
   meanBlueIncome:pointCount?round(blueIncomeSeconds/pointCount):0,
@@ -146,6 +178,12 @@ function compact(run){
   maxCreditsWhileBunkerEligible:run.maxCreditsWhileBunkerEligible,
   firstBunkerAt:run.firstBunkerAt,firstUpgradeAt:run.firstUpgradeAt,
   stuckVehicleSeconds:run.longStationaryVehicleSeconds,
+  commandedVehicleSeconds:run.commandedVehicleSeconds,
+  stallFraction:run.stationaryVehicleFraction,
+  noPathStallSeconds:run.stationaryWithoutPath,
+  stallByKind:run.stallByKind,
+  stallByOrder:run.stallByOrder,
+  worstStalledVehicles:run.worstStalledVehicles,
   stalledMissions:run.stalledMissions,abortedMissions:run.abortedMissions,
   attackingSeconds:run.attackingSeconds,p95TickMs:round(run.cpu.stepMs.p95,3)};
 }

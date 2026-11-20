@@ -1,0 +1,51 @@
+name: Sandforge AI 3.9 canyon vehicle-stall diagnostics
+on:
+  push:
+    branches:
+      - diag/sandforge-ai39-canyon-vehicle-stall-20261120
+  workflow_dispatch:
+concurrency:
+  group: sandforge-ai39-vehicle-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  canyon-stalls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - map: 26
+            label: 16-bastions-canyon
+          - map: 25
+            label: 12-bastions-canyon
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and benchmark syntax
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/benchmark-sandforge-ai38-combat.mjs
+      - name: Paired KI 3.6 vs KI 3.9 canyon vehicle telemetry
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai38-combat.mjs \
+            --maps ${{ matrix.map }} \
+            --seeds 824836862 \
+            --opponents guarded,contesting,bastion-rush \
+            --seconds 480 \
+            --output reports/ai39-vehicle-${{ matrix.label }}.json
+      - name: Upload measured scenarios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai39-vehicle-${{ matrix.label }}
+          path: reports/ai39-vehicle-${{ matrix.label }}.json
+          if-no-files-found: warn
+          retention-days: 30
