@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {planBurnedSedans,BURNED_SEDAN_ART_VERSION} from './webgl-burned-sedan-plan.js';
+import {addBurnedSedanDebris} from './webgl-burned-sedan-debris-3d.js';
 
 /** Real 3D authored-style burnt civilian sedan, not a billboard or a
  * rectangular decal. Each damaged shell is 5 merged PBR submeshes. All
@@ -241,7 +242,7 @@ export function createBurnedSedanWrecks({
  root.userData={visualOnly:true,nonPlayable:true,nonBlocking:true,
   decorativeWreck:true,revision:BURNED_SEDAN_ART_VERSION,count:placements.length};
  if(!placements.length)return {
-  root,placements,drawCalls:0,triangles:0,dispose:()=>{}
+  root,placements,debris:[],debrisDrawCalls:0,drawCalls:0,triangles:0,dispose:()=>{}
  };
  const {materials,textures}=makeMaterials(lowQuality),
   geometries=[makeSedanGeometry(0),makeSedanGeometry(1)],
@@ -270,15 +271,25 @@ export function createBurnedSedanWrecks({
    root.add(mesh);meshes.push(mesh);
   }
  }
+ // Scatter a physically separate, nearby debris cluster for each sedan.
+ // Reuse the same shared weathered/charred PBR textures and materials. The
+ // eight additional part meshes are GPU-instanced, not one draw per scrap.
+ const debris=addBurnedSedanDebris({
+  root,world,terrain,seed,cars:placements,lowQuality,materials,heightAt
+ });
+ root.userData.debrisCount=debris.placements.length;
  scene.add(root);
  const triangles=meshes.reduce((n,m)=>n+m.count*
-  m.geometry.getAttribute('position').count/3,0);
+  m.geometry.getAttribute('position').count/3,0)+debris.triangles;
  let disposed=false;
  return {
-  root,placements,drawCalls:meshes.length,triangles,
+  root,placements,debris:debris.placements,
+  debrisDrawCalls:debris.drawCalls,
+  drawCalls:meshes.length+debris.drawCalls,triangles,
   dispose(){
    if(disposed)return;
    disposed=true;root.removeFromParent();
+   debris.dispose();
    for(const shape of geometries)for(const g of Object.values(shape))g.dispose();
    for(const mat of Object.values(materials))mat.dispose();
    for(const texture of textures)texture.dispose();
