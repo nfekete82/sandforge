@@ -334,7 +334,7 @@ export class Simulation {
     // explored, walkable, buildable and reachable by an idle AI engineer.
     // Preserve funds for field production, so base camping never replaces
     // Bastion captures or a useful combined-arms army.
-    if(this.world.mapVersion>=23&&engineer&&
+    if(this.world.mapVersion>=23&&this.tactical.ai37Mode==='coordinated'&&engineer&&
       !engineer.orders.some(o=>o.kind==='build')&&
       this.bases.some(b=>b.owner===ai&&b.kind==='headquarters'&&
         b.hp>0&&b.buildRemaining<=0)){
@@ -2899,13 +2899,13 @@ export class Simulation {
         const candidate=this.territories.filter(t=>
           bastionUpgradable(t,1,this.bases,
           campaignLayout(this.world.mapVersion,this.seed).headquarters))
-          .map(t=>({t,score:ai37UpgradeScore({
+          .map(t=>({t,score:this.tactical.ai37Mode==='coordinated'?ai37UpgradeScore({
             income:t.income,
             enemyAdjacent:t.neighbors.some(n=>this.territories[n]?.owner===0),
             visibleRaiders:this.units.filter(u=>u.owner===0&&u.hp>0&&
               !u.carrier&&this.canSee(1,u)&&distance(u,t.point)<420).length,
             contested:t.progress>0,alreadyUpgraded:t.upgradeLevel===2
-          })}))
+          }):t.income}))
           .filter(x=>Number.isFinite(x.score))
           .sort((a,b)=>b.score-a.score||a.t.id-b.t.id)[0]?.t;
         if(candidate)this.upgradeBastion(1,candidate.id);
