@@ -1,6 +1,7 @@
-/* The four ORIGINAL landscape archetypes with graded driving passes (v5), pinned to
+/* Four original desert archetypes with empirically selected route physics, pinned to
  * reproducible seeds and the existing premium desert WebGL renderer.
- * Same v4 art and mountain footprints; v5 grades only physical vehicle passes.
+ * All keep original v4 art; v5 grades physical ramps only on maps where
+ * measured AI pathing improved. Burning Horizon stays v4: v5 regressed.
  * No extra monuments, biome swap or procedural art rewrite.
  * One module shared between the standalone WebGL menu and Node QA.
  */
@@ -21,7 +22,7 @@
   }),
   Object.freeze({
    id:'burning-horizon',name:'Burning Horizon',inspiration:'Twilight Flame',kind:'diagonal-ridge',
-   bastions:16,mapVersion:26,seed:1907,terrain:'dunes',biome:'desert',generatorVersion:5,
+   bastions:16,mapVersion:26,seed:1907,terrain:'dunes',biome:'desert',generatorVersion:4,
    subtitle:'Große Wüste · 16 Bastionen',
    description:'Große Karte mit viel Platz für Basisbau und Verteidigung. Diagonale Höhenzüge ermöglichen zusätzliche Flankenwege.'
   }),
