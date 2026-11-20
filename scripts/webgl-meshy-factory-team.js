@@ -5,7 +5,7 @@ import * as THREE from 'three';
  * become red industrial enamel for player 1. Grayscale walls, weathered
  * metal, white hazard marks, normal/ORM and UVs remain as generated.
  */
-export const MESHY_FACTORY_TEAM_REVISION='sandforge-real-meshy-factory-team-v1';
+export const MESHY_FACTORY_TEAM_REVISION='sandforge-real-meshy-factory-team-v2-deep-red';
 export function paintMeshyFactoryTeam(model,owner){
  if(!model?.getObjectByName('SF_Factory_Meshy_ProductionRig'))return 0;
  model.userData.sandforgeOriginalPBR=true;
@@ -28,9 +28,11 @@ export function paintMeshyFactoryTeam(model,owner){
     shader.fragmentShader=shader.fragmentShader.replace(needle,needle+'\n'+[
      '// Meshy original Atlas PBR: keep actual normal and ORM untouched.',
      'float sfB=diffuseColor.b,sfG=diffuseColor.g,sfR=diffuseColor.r;',
-     'float sfBlue=smoothstep(.035,.105,sfB-max(sfR,sfG))*',
-     ' smoothstep(.005,.055,sfG-sfR);',
-     'vec3 sfRed=vec3(max(.11,sfB*1.24),sfB*.18,sfB*.135);',
+     '// Strong discrimination: old mid-strength blue must become RED,',
+     '// not the magenta mixture seen with a partial colour replacement.',
+     'float sfBlue=smoothstep(.008,.033,sfB-max(sfR,sfG))*',
+     ' smoothstep(-.025,.030,sfG-sfR);',
+     'vec3 sfRed=vec3(max(.24,sfB*1.72),sfB*.115,sfB*.070);',
      'diffuseColor.rgb=mix(diffuseColor.rgb,sfRed,clamp(sfBlue,0.,1.));'
     ].join('\n'));
    };
