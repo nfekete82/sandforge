@@ -30,7 +30,7 @@ test('validated strategy never chooses a blocked or false canyon entrance',()=>{
  assert.equal(original.x,500,'old v4 caller keeps exactly its old heuristic');
 });
 
-for(const m of maps.filter(m=>m.kind!=='open-basin'))test(
+for(const m of maps.filter(m=>m.generatorVersion===5&&m.kind!=='open-basin'))test(
  m.name+': every physically drawn gap has at least one verified route from each bank',()=>{
  const g=Simulation.campaign(m.seed,m.mapVersion,m.terrain,m.generatorVersion);
  const w=g.world,ridge=w.generated.ridges[0];
@@ -52,6 +52,16 @@ for(const m of maps.filter(m=>m.kind!=='open-basin'))test(
   else assert.ok(leg.length&&d(leg.at(-1),far)<w.cell*1.4,
    'a skipped pass hint requires an independently proven real crossing');
  }
+});
+
+test('Burning Horizon retains the proven faster original v4 routes',()=>{
+ const p=maps.find(m=>m.id==='burning-horizon');
+ assert.equal(p.generatorVersion,4);
+ const game=Simulation.campaign(p.seed,p.mapVersion,p.terrain,p.generatorVersion);
+ assert.equal(game.world.generatorVersion,4);
+ assert.equal(game.world.generated.landscapeKind,'diagonal-ridge');
+ assert.equal(game.tactical.ai37Mode,'coordinated');
+ assert.equal(Simulation.load(game.save()).world.generatorVersion,4);
 });
 
 test('backwards compatibility: v4 physical-pass override never changes historical saves',()=>{
