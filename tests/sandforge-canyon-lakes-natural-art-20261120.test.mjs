@@ -32,7 +32,7 @@ test('fractured legacy mesa geometry has no sunken flat-colored polygon skirt',(
  const b=buildGeologicalMesaSurface(args);
  assert.deepEqual(a,b);
  assert.ok(a.triangles>1000);
- assert.equal(a.perimeterPoints,outline.length*5);
+ assert.equal(a.perimeterPoints,outline.length*6);
  assert.equal(a.positions.length,a.colors.length);
  assert.equal(a.uv.length,a.positions.length/3*2);
  assert.ok(a.positions.every(Number.isFinite));
