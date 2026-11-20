@@ -1,0 +1,43 @@
+name: Sandforge authentic PBR desert graphics - four map validation
+on:
+  push:
+    branches: [feat/sandforge-four-authentic-desert-3d-environments-20261120]
+    paths:
+      - .github/workflows/sandforge-authentic-desert-3d-tests-20261120.yml
+      - scripts/webgl-desert-ecoregions.js
+      - scripts/webgl-desert-ecoregion-plan.js
+      - scripts/webgl-desert-ecoregion-3d.js
+      - scripts/webgl-desert-ground-pbr.js
+      - scripts/webgl-preview.js
+      - scripts/build.mjs
+      - tests/sandforge-desert-ecoregions-20261120.test.mjs
+      - src/assets/reborn/desert-ecoregions/**
+      - src/assets/reborn/terrain/desert-*.webp
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  true-pbr-scene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and real Three.js browser module syntax
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-preview.js
+          node --check scripts/webgl-desert-ecoregions.js
+          node --check scripts/webgl-desert-ecoregion-plan.js
+          node --check scripts/webgl-desert-ecoregion-3d.js
+          node --check scripts/webgl-desert-ground-pbr.js
+      - name: Four terrains, real GLB PBR UV maps and no fake shaded primitives
+        run: |
+          node --test tests/sandforge-desert-ecoregions-20261120.test.mjs
+          node --test tests/sandforge-four-desert-maps-20261120.test.mjs
+      - name: Browser module packaging and asset layout
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
