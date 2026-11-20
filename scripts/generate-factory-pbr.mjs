@@ -8,11 +8,12 @@ import {deflateSync} from 'node:zlib';
 import {factionRgb8} from './sandforge-faction-palette.js';
 const OUT=process.argv[2]||'src/assets/reborn/buildings-3d';
 const PI=Math.PI,TAU=2*PI;
-// The door obeys the existing WebGL factory gate's upward opening.
-// Work in the same local metre scale as the legacy FactoryRollupDoor.
-// The 10% wider factory is visual-only. Game collision and service yard stay unchanged.
+// Wide, roofed, OPEN production hall: true drive-through exit, no gate leaf.
+// Geometry stays in factory GLB model metres. Simulation collision and the
+// independent open-air repair platform remain unchanged.
 export const FACTORY_WIDTH_FACTOR=1.10;
-export const FACTORY_GATE_OPEN_HEIGHT=1.70;
+export const FACTORY_OPEN_BAY_WIDTH=3.36;
+export const FACTORY_OPEN_BAY_HEIGHT=2.14;
 export const FACTORY_ROOF_VENT_GAP=Object.freeze([-1.35,-.18]);
 const colors={
  camo:[198,177,137],sand:[211,193,157],sand_light:[224,204,170],
@@ -79,35 +80,68 @@ function buildParts(){
  box('stone',[0,.21,0],[4.85,.24,4.53]);
  for(const x of [-2.46,2.46])box('steel_dark',[x,.18,0],[.12,.33,4.71]);
  for(const z of [-2.31,2.31])box('steel_dark',[0,.18,z],[4.97,.33,.12]);
- // Camo walls: the front facade has an ACTUAL hole for the vehicle door.
+ // More architectural industrial hall: a 3.3-metre wide permanently open
+ // entrance, 2.14 metres high, up to the underside of the steel roof.
+ // The drive lane is FREE, not obscured by a single triangle or shutter.
  box('camo',[-2.28,1.30,0],[.35,2.20,4.18]);
  box('camo',[2.28,1.30,0],[.35,2.20,4.18]);
  box('camo',[0,1.32,-2.11],[4.58,2.21,.31]);
- box('camo',[-1.60,1.30,2.10],[1.44,2.20,.24]);
- box('camo',[1.83,1.30,2.10],[1.32,2.20,.24]);
- box('camo',[.18,2.16,2.10],[2.06,.51,.27]);
- // Camouflaged front corner buttresses and narrow machined header.
- for(const x of [-2.23,2.23]){
-  box('sand',[x,1.20,2.17],[.30,2.38,.36]);
-  box('steel_dark',[x,1.28,2.37],[.07,1.85,.06]);
+ // Narrow left/right shoulders: central portal from -1.50 to +1.85.
+ box('camo',[-1.91,1.30,2.10],[.80,2.20,.24]);
+ box('camo',[2.01,1.30,2.10],[.62,2.20,.24]);
+ // Industrial top beam, clear headroom for the articulated rocket truck.
+ box('steel_dark',[.18,2.225,2.13],[3.56,.18,.34]);
+ box('steel_light',[.18,2.29,2.33],[3.61,.10,.12]);
+ for(const [x,z] of [[-2.23,2.15],[2.23,2.15]]){
+  box('sand',[x,1.20,z],[.30,2.38,.36]);
+  box('steel_dark',[x,1.25,z+.20],[.09,1.90,.055]);
  }
- box('steel',[.18,1.90,2.25],[2.08,.25,.32]);
- box('steel_dark',[-.88,.96,2.35],[.14,1.65,.23]);
- box('steel_dark',[1.24,.96,2.35],[.14,1.65,.23]);
- // Independently animated door: SINGLE node FactoryRollupDoor and a
- // physically recessed black interior that remains visible as it opens.
- // Leave the real doorway EMPTY behind the moving shutter.
- // 15% wider and ~12% taller opening, fitted inside the real facade cavity.
- // Keep the original node name so the production presenter animates this panel.
- box('door',[.18,.86,2.24],[1.91,FACTORY_GATE_OPEN_HEIGHT,.15]);
- for(let i=0;i<8;i++)
-  box('door',[.18,.12+i*.213,2.332],[1.89,.164,.035]);
- for(const x of [-.75,1.11])
-  box('steel_light',[x,.87,2.34],[.055,1.61,.03]);
- // Door track is static on the facade, but nothing blocks the opening.
- box('steel_light',[.18,1.83,2.40],[2.18,.085,.085]);
- for(const x of [-1.06,1.42])
-  box('steel',[x,.83,2.36],[.075,1.58,.12]);
+ // Reinforced rectangular doorway jambs are bolted to the exterior, but
+ // terminate OUTSIDE the actual drive corridor.
+ for(const x of [-1.56,1.91]){
+  box('steel',[x,1.28,2.34],[.09,1.91,.12]);
+  for(const y of [.42,1.01,1.61,2.04])
+   box('steel_light',[x,y,2.405],[.14,.052,.055]);
+ }
+ // Vehicle-facing PBR interior, actually visible without opening a door:
+ // grippy workshop floor with thin tracks, structural ceiling trusses,
+ // working-strip illumination and maintenance tool cabinets at the SIDES.
+ box('concrete',[.18,.235,.21],[3.30,.035,4.44]);
+ for(const x of [-.86,1.22]){
+  box('steel_dark',[x,.252,.32],[.065,.024,4.26]);
+  for(const z of [-1.65,-.95,-.25,.45,1.15,1.85])
+   box('warning',[x,.271,z],[.07,.013,.12]);
+ }
+ // Overhead I-beam lattice and credible industrial suspended lamp housings.
+ for(const z of [-1.62,-.42,1.14]){
+  box('steel_dark',[.18,2.23,z],[3.75,.095,.14]);
+  for(const x of [-1.10,1.46]){
+   box('steel',[x,2.21,z],[.085,.12,.28]);
+   box('white',[x,2.13,z],[.68,.020,.055]);
+  }
+ }
+ for(const x of [-1.97,1.99]){
+  // Real ventilation grilles with slats in the workshop sidewalls.
+  for(const z of [-1.49,-.65,.18,1.10]){
+   box('steel_dark',[x,1.36,z],[.07,.55,.35]);
+   for(let i=0;i<4;i++)
+    box('steel_light',[x+Math.sign(x)*.045,1.15+i*.14,z],[.017,.030,.30]);
+  }
+ }
+ // Short lateral equipment consoles and lift controls don't obstruct
+ // tracked vehicles or the main single-vehicle production lane.
+ for(const [x,z] of [[-1.95,-1.06],[2.00,-.56]]){
+  box('khaki',[x,.45,z],[.33,.65,.74]);
+  box('steel_dark',[x,.81,z],[.36,.07,.76]);
+  box('glass',[x,1.02,z],[.036,.22,.31]);
+ }
+ // Painted exterior tracks and broad roll-out apron connect the hall to
+ // the legal simulation spawn; this is NOT the external repair platform.
+ box('concrete',[.18,.135,2.72],[3.25,.12,1.25]);
+ for(const x of [-.89,1.25]){
+  box('steel_dark',[x,.209,2.78],[.060,.022,1.07]);
+ }
+ // Loading gantry, robust side ledges and roof exhaust remain visible.
  // Stacked roof slab, weathered grey-green flat finish and real overhang.
  box('steel_dark',[0,2.40,0],[5.22,.19,4.85]);
  box('roof',[0,2.52,0],[5.08,.10,4.70]);
@@ -150,7 +184,7 @@ function buildParts(){
  for(const x of [-.78,1.16]){
   box('warning',[x,1.71,2.43],[.12,.20,.03]);
  }
- box('steel_dark',[.18,2.13,2.30],[1.55,.13,.10]);
+ box('steel_dark',[.18,2.40,2.30],[3.39,.10,.10]);
  for(const x of [-1.35,1.69]){
   box('steel_dark',[x,1.43,2.27],[.65,.94,.16]);
   box('team',[x,1.46,2.363],[.40,.60,.022]);
@@ -164,9 +198,8 @@ function buildParts(){
   box('sand',[x,.30,2.38],[.39,.35,.31]);
   box('steel_dark',[x,.31,2.56],[.40,.034,.025]);
  }
- // Dark threshold/ramp, wide enough for a real tracked vehicle.
- box('concrete',[.18,.14,2.62],[2.30,.18,.89]);
- for(const x of [-.63,.99])box('steel_dark',[x,.245,2.62],[.04,.025,.67]);
+ // Continuous ground-level production apron already extends past the
+ // open doorway, no elevated ramp, shutter track or trigger collider.
 }
 const crcTable=Array.from({length:256},(_,n)=>{let c=n;for(let i=0;i<8;i++)c=c&1?0xedb88320^(c>>>1):c>>>1;return c>>>0});
 function crc32(buffer){let c=0xffffffff;for(const b of buffer)c=crcTable[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0}
@@ -199,7 +232,7 @@ function exportTeam(owner){
  
  
  buildParts();
- const gltf={asset:{version:'2.0',generator:'sandforge-factory-pbr-v1-20261116'},
+ const gltf={asset:{version:'2.0',generator:'sandforge-open-vehicle-factory-v2-20261120'},
  extensionsUsed:['KHR_materials_unlit'],scene:0,
  scenes:[{nodes:[0]}],nodes:[{name:'SF_Factory_PBR_Root',children:[]}],
  meshes:[],materials:[],images:[],textures:[],samplers:[{magFilter:9729,minFilter:9987,wrapS:10497,wrapT:10497}],
@@ -240,6 +273,12 @@ function exportTeam(owner){
   const node=gltf.nodes.length;gltf.nodes.push({name:partName,mesh});
   gltf.nodes[0].children.push(node);
  }
+ // Named non-rendered locator for the forever-open drive-out presenter.
+ // Use its parent (the original authored model) as the transform root.
+ const openBay=gltf.nodes.length;
+ gltf.nodes.push({name:'SF_Factory_PBR_OpenBay',translation:[.18,.23,1.10],
+  extras:{openProductionExit:true,vehicleDriveThrough:true}});
+ gltf.nodes[0].children.push(openBay);
  const bin=Buffer.concat(chunks);gltf.buffers[0].byteLength=bin.length;
  const json=Buffer.from(JSON.stringify(gltf)),jp=(4-json.length%4)%4,bp=(4-bin.length%4)%4;
  const total=12+8+json.length+jp+8+bin.length+bp,out=Buffer.alloc(total);
@@ -251,6 +290,6 @@ function exportTeam(owner){
  const name='factory-'+owner+'.glb';
  writeFileSync(join(OUT,name),out);
  console.log('Generated '+name+': '+out.length+' bytes, '+gltf.meshes.length+' meshes, '+
-  gltf.images.length+' textures, one animated rollup door');
+  gltf.images.length+' textures, one permanently OPEN vehicle exit');
 }
 mkdirSync(OUT,{recursive:true});for(const owner of [0,1])exportTeam(owner);
