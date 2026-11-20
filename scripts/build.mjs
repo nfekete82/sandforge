@@ -34,6 +34,8 @@ cpSync('scripts/webgl-battle-debrief.js','dist/webgl-battle-debrief.js');
 cpSync('scripts/webgl-desert-art.js','dist/webgl-desert-art.js');
 cpSync('scripts/webgl-burned-sedan-plan.js','dist/webgl-burned-sedan-plan.js');
 cpSync('scripts/webgl-burned-sedan-3d.js','dist/webgl-burned-sedan-3d.js');
+cpSync('scripts/webgl-burned-sedan-debris-plan.js','dist/webgl-burned-sedan-debris-plan.js');
+cpSync('scripts/webgl-burned-sedan-debris-3d.js','dist/webgl-burned-sedan-debris-3d.js');
 cpSync('scripts/webgl-desert-style.js','dist/webgl-desert-style.js');
 cpSync('scripts/webgl-sand-pbr.js','dist/webgl-sand-pbr.js');
 cpSync('scripts/webgl-sand-surface-detail.js','dist/webgl-sand-surface-detail.js');
