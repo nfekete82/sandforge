@@ -23,8 +23,10 @@ jobs:
         run: |
           npx tsc -p tsconfig.json
           node --test tests/sandforge-meshy-reference-optimized-20261120.test.mjs
-      - name: Check WebGL ESM module graph
-        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+      - name: Test standalone Meshy preview build without private HQ and barracks GLBs
+        run: |
+          npm run build:meshy-preview
+          node -e "const fs=require('fs');for(const f of ['dist/webgl-meshy-factory.html','dist/webgl-meshy-factory-viewer.js','dist/src/assets/reborn/buildings-3d/factory-meshy-0.glb','dist/src/assets/reborn/buildings-3d/factory-0.glb']){if(!fs.existsSync(f))throw Error('Missing preview: '+f);console.log(f,fs.statSync(f).size)}"
   real-3d-meshy-browser:
     runs-on: ubuntu-latest
     timeout-minutes: 50
@@ -40,17 +42,19 @@ jobs:
           npm ci --prefix tests/browser --no-audit --no-fund
           cd tests/browser
           npx playwright install --with-deps chromium
-      - name: Package optimized GLB, current open factory and 3D comparison viewer
+      - name: Build standalone 3D comparison viewer without HQ/Barracks dependency
+        run: npm run build:meshy-preview
+      - name: Verify preview HTML is served (not 404)
         run: |
-          npx tsc -p tsconfig.json
-          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
-          mkdir -p dist/src
-          cp -a src/assets dist/src/assets
-          rm -f dist/src/assets/reborn/buildings-3d/factory-meshy-source.glb
-          node scripts/prepare-meshy-factory.mjs \
-            src/assets/reborn/buildings-3d/factory-meshy-optimized.glb \
-            dist/src/assets/reborn/buildings-3d
-          node scripts/generate-factory-pbr.mjs dist/src/assets/reborn/buildings-3d
+          PORT=8136 node scripts/serve.mjs &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in 1 2 3 4 5 6 7 8; do
+            if curl -fsS http://127.0.0.1:8136/healthz >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS -o /dev/null http://127.0.0.1:8136/webgl-meshy-factory.html
+          curl -fsS -o /dev/null http://127.0.0.1:8136/src/assets/reborn/buildings-3d/factory-meshy-0.glb
       - name: Render authentic optimized Meshy 3D from front and rear
         env:
           SANDFORGE_BROWSER_CHANNEL: chromium
