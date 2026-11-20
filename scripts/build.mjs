@@ -59,6 +59,8 @@ cpSync('scripts/webgl-recon-drone.js','dist/webgl-recon-drone.js');
 cpSync('scripts/webgl-builder-input.js','dist/webgl-builder-input.js');
 cpSync('scripts/webgl-wall-drag.js','dist/webgl-wall-drag.js');
 cpSync('scripts/webgl-strategic-buildings.js','dist/webgl-strategic-buildings.js');
+cpSync('scripts/webgl-fortified-bunker.js','dist/webgl-fortified-bunker.js');
+cpSync('scripts/webgl-military-micro-pbr.js','dist/webgl-military-micro-pbr.js');
 cpSync('scripts/webgl-rocket-infantry.js','dist/webgl-rocket-infantry.js');
 cpSync('scripts/webgl-engineer-tools.js','dist/webgl-engineer-tools.js');
 cpSync('scripts/webgl-medic-polish.js','dist/webgl-medic-polish.js');

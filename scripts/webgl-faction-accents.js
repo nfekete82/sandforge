@@ -76,7 +76,7 @@ export function tintFactionMaterials(root,owner,kind,type){
  root.traverse(mesh=>{
   if(!mesh.isMesh||mesh.userData?.factionAccent)return;
   const paint=source=>{
-   if(!source?.isMeshStandardMaterial)return source;
+   if(!source?.isMeshStandardMaterial||source.userData?.sandforgeAuthoredBunker)return source;
    let mat=source;
    if(!source.userData?.sandforgeFactionTint){
     if(owned.has(source))mat=owned.get(source);

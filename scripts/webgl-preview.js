@@ -8,6 +8,7 @@ import {randomMapSeed} from '/src/reborn/world-generation.js';
 import {rollingHillHeight} from '/src/reborn/rolling-hills.js';
 import {canyonGroundSampler,rampAtX,ridgeCenterY} from '/src/reborn/canyon-height.js';
 import {SandforgeBattlefield} from '/webgl-battlefield.js';
+import {updateBunkerFlagWind} from '/webgl-fortified-bunker.js';
 import {DesertOases} from '/webgl-oases.js';
 import {createCinematicDesertWaterways} from '/webgl-desert-water-3d.js';
 import {createDesertLakeVegetation} from '/webgl-desert-lake-vegetation-3d.js';
@@ -1449,6 +1450,7 @@ function animate(now){
  oases.update(now*.001);
  desertWater?.update(now*.001);
  lakeVegetation?.update(now*.001);
+ updateBunkerFlagWind(now*.001);
  // Authored palms use the same visual clock and real weather transitions.
  desertArt.update(now*.001,game.weather.intensity);
  if(performanceWatch.enabled)performanceWatch.auxiliary(performance.now()-beforeAux);

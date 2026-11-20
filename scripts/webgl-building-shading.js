@@ -15,7 +15,8 @@ export function finishBuildingFacadeShading(root){
  root.traverse(mesh=>{
   if(!mesh.isMesh||mesh.userData?.sandforgeBarracksPropPolish)return;
   const update=source=>{
-   if(!source?.isMeshStandardMaterial||source.transparent||source.opacity<.99)return source;
+   if(!source?.isMeshStandardMaterial||source.transparent||source.opacity<.99||
+      source.userData?.sandforgeAuthoredBunker)return source;
    if(skip.test((mesh.name||'')+' '+(source.name||'')))return source;
    if(source.userData?.sandforgeBuildingFacadeShade===BUILDING_FACADE_SHADING_REVISION)return source;
    if(adjusted.has(source))return adjusted.get(source);
