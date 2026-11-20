@@ -30,6 +30,17 @@ cpSync('scripts/desert-look-lab.js','dist/desert-look-lab.js');
 cpSync('scripts/webgl-preview.js','dist/webgl-preview.js');
 cpSync('scripts/webgl-meshy-factory-viewer.js','dist/webgl-meshy-factory-viewer.js');
 cpSync('scripts/webgl-meshy-factory-team.js','dist/webgl-meshy-factory-team.js');
+cpSync('scripts/webgl-meshy-structure.js','dist/webgl-meshy-structure.js');
+// Only enable real Meshy geometry after the model binary is present in Git.
+// The legacy authored PBR models remain the playable fallback otherwise.
+const structureDir='src/assets/reborn/buildings-3d/meshy-structures';
+const kinds=['barracks','airfield','bastion','bunker','headquarters','generator'];
+const available=Object.fromEntries(kinds.map(kind=>[
+ kind,existsSync(structureDir+'/'+kind+'.glb')
+]));
+writeFileSync('dist/webgl-meshy-asset-flags.js',
+ 'export const MESHY_STRUCTURE_ASSETS=Object.freeze('+JSON.stringify(available)+');\n');
+console.log('Meshy structure assets:',JSON.stringify(available));
 cpSync('scripts/webgl-biomes.js','dist/webgl-biomes.js');
 cpSync('scripts/webgl-golden-hour.js','dist/webgl-golden-hour.js');
 cpSync('scripts/webgl-match-result.js','dist/webgl-match-result.js');
