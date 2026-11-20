@@ -1,0 +1,48 @@
+name: Sandforge AI 4.0 stalled-rally observability
+on:
+  push:
+    branches:
+      - diag/sandforge-ai40-rally-pulse-20261120
+  workflow_dispatch:
+concurrency:
+  group: sandforge-ai40-rally-pulse-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  rally-diagnosis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - opponent: guarded
+          - opponent: contesting
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Validate benchmark syntax and TS
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/benchmark-sandforge-ai38-combat.mjs
+      - name: Profile authentic AI4.0 rally assembly vs AI3.6
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai38-combat.mjs \
+            --maps 26 \
+            --seeds 824836862 \
+            --opponents ${{ matrix.opponent }} \
+            --seconds 480 \
+            --output reports/ai40-rally-pulse-${{ matrix.opponent }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai40-rally-pulse-${{ matrix.opponent }}
+          path: reports/ai40-rally-pulse-${{ matrix.opponent }}.json
+          if-no-files-found: error
+          retention-days: 21

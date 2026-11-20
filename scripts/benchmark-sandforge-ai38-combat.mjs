@@ -53,6 +53,7 @@ function observeFactory(){
   lastSample=-1,vehiclePositions=new Map(),oldPositions=new Map(),immobileTimes=new Map(),
   mobileCount=0,pointCount=0,redIncomeSeconds=0,blueIncomeSeconds=0,contactTicks=0,
   nearestEnemyHQ=Infinity,redNearHQSeconds=0,maxRedNearHQ=0,
+  rallySamples=[],
   eligibleBunkerSeconds=0,eligibleUpgradeSeconds=0,maxFreeCredits=0,
   maxCreditsWhileBunkerEligible=0,firstBunkerAt=null,firstUpgradeAt=null;
  const observe=g=>{
@@ -70,6 +71,41 @@ function observeFactory(){
   if(bunkers.length&&firstBunkerAt===null)firstBunkerAt=g.time;
   const fighters=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier&&
    !['medic','engineer','scout','supply','drone'].includes(u.kind));
+  // Test-only introspection: WHY is an actual paid army stalled in
+  // 'gather' while the known enemy HQ still stands? No commands, no A* calls,
+  // no hidden-knowledge feed into the AI and no effect on the game.
+  if(sec>=150&&sec%30===0){
+   const s=g.tactical.state,r=s.rally,mission=s.commander?.mission;
+   const distance=(u,p)=>Math.hypot(u.x-p.x,u.y-p.y);
+   const toRally=r?fighters.filter(u=>u.orders?.[0]&&
+     distance(u.orders[0],r)<230):[];
+   const stuck=toRally.filter(u=>distance(u,r)>500&&
+      !u.path?.length&&u.repath>0);
+   const ready=r?fighters.filter(u=>distance(u,r)<330):[];
+   const noPath=fighters.filter(u=>u.orders?.length&&
+    distance(u,u.orders[0])>350&&!u.path?.length);
+   const uncommanded=fighters.filter(u=>!u.orders?.length);
+   const clusterCenter=fighters.length?fighters.reduce((p,u)=>({
+    x:p.x+u.x/fighters.length,y:p.y+u.y/fighters.length
+   }),{x:0,y:0}):null;
+   rallySamples.push({at:Math.round(g.time),phase:s.phase,
+    phaseSeconds:Math.round(g.time-s.phaseAt),
+    commander:s.commander?.phase,
+    mission:mission?.kind??null,missionSector:mission?.sector??null,
+    missionObjective:mission?.objective??null,
+    rally:r?{x:Math.round(r.x),y:Math.round(r.y)}:null,
+    rallyDistanceToArmyCenter:r&&clusterCenter?
+      Math.round(distance(r,clusterCenter)):null,
+    fighters:fighters.length,ready:ready.length,
+    readyArtillery:ready.filter(u=>u.kind==='artillery').length,
+    toRally:toRally.length,stuckToRally:stuck.length,
+    noPath: noPath.length,noOrders:uncommanded.length,
+    noPathByKind:Object.fromEntries(['infantry','heavy','rocket','tank','rover','artillery'].map(kind=>
+      [kind,noPath.filter(u=>u.kind===kind).length])),
+    sGroup:s.group.length,launchSize:s.launchSize,
+    troopsClosestToRally:r?Math.round(Math.min(...fighters.map(u=>distance(u,r)))):null
+   });
+  }
   // Offline-only full-state telemetry. Never passed into any AI policy.
   const enemyHQ=g.bases.find(b=>b.owner===0&&b.kind==='headquarters'&&b.hp>0);
   if(enemyHQ&&fighters.length){
@@ -161,7 +197,7 @@ function observeFactory(){
   commandedVehicleSeconds,
   stationaryVehicleFraction:commandedVehicleSeconds?
    round(stationaryCommandSeconds/commandedVehicleSeconds):0,
-  stationaryWithoutPath,
+  stationaryWithoutPath,rallySamples,
   nearestEnemyHQ:Number.isFinite(nearestEnemyHQ)?round(nearestEnemyHQ):null,
   redNearHQSeconds,maxRedNearHQ,
   stallByKind,stallByOrder,
@@ -199,6 +235,7 @@ function compact(run){
   closestRedToEnemyHQ:run.nearestEnemyHQ,
   redFighterSecondsNearHQ:run.redNearHQSeconds,
   peakRedFightersNearHQ:run.maxRedNearHQ,
+  rallySamples:run.rallySamples,
   stalledMissions:run.stalledMissions,abortedMissions:run.abortedMissions,
   attackingSeconds:run.attackingSeconds,p95TickMs:round(run.cpu.stepMs.p95,3)};
 }
