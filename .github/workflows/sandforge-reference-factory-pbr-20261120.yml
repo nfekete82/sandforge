@@ -26,6 +26,8 @@ jobs:
         run: |
           node scripts/generate-bastion-radar.mjs
           node scripts/generate-factory-pbr.mjs
+      - name: Verify complete bootable WebGL module graph before legacy tests
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
       - name: Verify 3D geometry, references, team stripes, real PBR maps, vehicle exits
         run: |
           node --test tests/sandforge-reference-vehicle-factory-20261120.test.mjs
@@ -33,8 +35,6 @@ jobs:
           node --test tests/sandforge-open-factory-star-flags-compact-bunker-20261120.test.mjs
           node --test tests/webgl-desert-building-pbr-20261115.test.mjs
           node --test tests/webgl-production-gates.test.mjs
-      - name: Verify complete bootable WebGL module graph
-        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
       - name: Preserve playable factory GLB assets for local inspection
         if: always()
         uses: actions/upload-artifact@v4
