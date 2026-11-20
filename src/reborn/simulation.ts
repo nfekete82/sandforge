@@ -345,7 +345,8 @@ export class Simulation {
         b.owner===ai&&b.hp>0&&distance(u,b)<650));
       const choice=ai37FortificationChoice({
         time:this.time,credits:this.credits[ai],income:this.income(ai),
-        completedHeadquarters:true,completedBarracks:has('barracks'),
+        completedHeadquarters:true,completedBarracks:this.bases.some(b=>
+          b.owner===ai&&b.kind==='barracks'&&b.hp>0&&b.buildRemaining<=0),
         builders:1,
         activeInfantry:active.filter(u=>unitSpec(u).group==='Infanterie'&&
           !['engineer','medic'].includes(u.kind)).length,
