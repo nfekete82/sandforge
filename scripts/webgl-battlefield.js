@@ -61,6 +61,7 @@ import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building
 import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette.js';
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
 import {unifyModelFactionFlags} from '/webgl-faction-flags.js';
+import {paintMeshyFactoryTeam} from '/webgl-meshy-factory-team.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
 import {createReconDrone,animateReconDrone} from '/webgl-recon-drone.js';
@@ -467,6 +468,7 @@ export class SandforgeBattlefield {
     const model=cloneSkeleton(data.scene);
     if(type==='building'&&((entry.kind==='headquarters'&&
       model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
+      (entry.kind==='factory'&&model.getObjectByName('SF_Factory_Meshy_ProductionRig'))||
       (entry.kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
        model.getObjectByName('SF_Factory_PBR_OpenBay'))||
       (entry.kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root'))||
@@ -482,6 +484,8 @@ export class SandforgeBattlefield {
       mesh.receiveShadow=true;
      }});
     }
+    if(type==='building'&&entry.kind==='factory')
+     paintMeshyFactoryTeam(model,entry.owner);
     if(type==='building'&&entry.kind==='barracks')polishBarracksProps(model);
     if(type==='building'&&['barracks','headquarters'].includes(entry.kind)){
      paintFactionRoofStripes(model,entry.kind,entry.owner);
@@ -500,7 +504,7 @@ export class SandforgeBattlefield {
     // width-normalization: collision, pathing and the repair pad do not grow.
     const finalFactoryArt=type==='building'&&entry.kind==='factory'&&
       Boolean(model.getObjectByName('SF_Factory_PBR_roof'));
-    const artScale=finalFactoryArt?1.06:1;
+    const artScale=finalFactoryArt?1.06:1; // Meshy factory keeps its measured original footprint
     if(extent>.0001){
      const scale=calibratedScale(entry.kind,type,dims,desired)*
        (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
@@ -537,6 +541,11 @@ export class SandforgeBattlefield {
     if(type==='building'&&entry.kind==='airfield'&&
        model.getObjectByName('SF_Airfield_PBR_Root'))model.visible=false;
     entry.node.add(model);entry.detail=model;
+    if(type==='building'&&entry.kind==='factory'&&
+       model.getObjectByName('SF_Factory_Meshy_ProductionRig')){
+     const extraFence=entry.yard?.getObjectByName('BasePerimeter_factory');
+     if(extraFence)extraFence.visible=false; // Meshy already has its own detailed fencing
+    }
     const visualScale=calibratedScale(entry.kind,type,dims,desired)*
       (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
     entry.modelHeight=dims.y*visualScale*(type==='unit'&&entry.kind==='bomber'?BOMBER_VISUAL_STRETCH.vertical:1);
@@ -866,11 +875,13 @@ export class SandforgeBattlefield {
    const model=cloneSkeleton(data.scene);
    if((kind==='headquarters'&&
      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
+     (kind==='factory'&&model.getObjectByName('SF_Factory_Meshy_ProductionRig'))||
      (kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
       model.getObjectByName('SF_Factory_PBR_OpenBay'))||
      (kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root'))||
      (kind==='generator'&&model.getObjectByName('SF_EnergyCore_PBR_Housing')) )
     model.userData.sandforgeOriginalPBR=true;
+   if(kind==='factory')paintMeshyFactoryTeam(model,0);
    if(kind==='barracks')polishBarracksProps(model);
    if(kind==='barracks'||kind==='headquarters'){
     paintFactionRoofStripes(model,kind,0);
@@ -892,7 +903,7 @@ export class SandforgeBattlefield {
    if(kind!=='airfield'||!model.getObjectByName('SF_Airfield_PBR_Root'))
     tint(model,false,.50);
    if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksDesertPalette(model);
-   if(!model.userData.sandforgeOriginalPBR||kind==='factory')
+   if(!model.userData.sandforgeOriginalPBR)
     finishDesertBuildingMaterials(model,kind);
    model.visible=!(kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root')); // no duplicate hangar
    group.remove(placeholder);disposeOwnedMeshes(placeholder);
@@ -1329,7 +1340,8 @@ export class SandforgeBattlefield {
      disposeTaggedMaterials(e.detail,'sandforgeBuildingFacadeOwned');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingFill');
      disposeTaggedMaterials(e.detail,'sandforgeMilitaryMicroPBROwned');
-     disposeTaggedMaterials(e.detail,'sandforgeOwnedFlagCloth');}
+     disposeTaggedMaterials(e.detail,'sandforgeOwnedFlagCloth');
+     disposeTaggedMaterials(e.detail,'sandforgeMeshyFactionOwned');}
     if(e.motion?.mixer){
      e.motion.mixer.stopAllAction();
      if(e.detail)e.motion.mixer.uncacheRoot(e.detail);
