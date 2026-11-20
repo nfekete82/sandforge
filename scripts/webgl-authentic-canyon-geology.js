@@ -46,7 +46,7 @@ export function buildGeologicalMesaSurface({
   accent=new THREE.Color(profile.accent);
  const cx=outline.reduce((s,p)=>s+p.x,0)/outline.length,
   cz=outline.reduce((s,p)=>s+p.y,0)/outline.length;
- const perEdge=quality==='low'?2:5;
+ const perEdge=quality==='low'?2:6;
  const perimeter=[];
  for(let i=0;i<outline.length;i++){
   const a=outline[i],b=outline[(i+1)%outline.length];
