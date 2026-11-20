@@ -23,6 +23,7 @@ function copy(src,dest){
 mkdirSync(output,{recursive:true});
 copy('webgl-meshy-factory.html',join(base,'webgl-meshy-factory.html'));
 copy('scripts/webgl-meshy-factory-viewer.js',join(base,'webgl-meshy-factory-viewer.js'));
+copy('scripts/webgl-meshy-factory-team.js',join(base,'webgl-meshy-factory-team.js'));
 const threeFiles=[
  'build/three.module.js','build/three.core.js',
  'examples/jsm/loaders/GLTFLoader.js',
@@ -33,12 +34,14 @@ const threeFiles=[
 for(const path of threeFiles)copy('node_modules/three/'+path,
  join(base,'vendor/three/'+path.replace('build/','').replace('examples/jsm/','addons/')));
 execFileSync(process.execPath,[
- 'scripts/prepare-meshy-factory.mjs',meshy,output
-],{stdio:'inherit'});
-execFileSync(process.execPath,[
  'scripts/generate-factory-pbr.mjs',output
 ],{stdio:'inherit'});
-for(const name of ['factory-meshy-0.glb','factory-meshy-1.glb','factory-0.glb','factory-1.glb']){
+for(const team of [0,1])copy(join(output,'factory-'+team+'.glb'),
+ join(output,'factory-procedural-'+team+'.glb'));
+execFileSync(process.execPath,[
+ 'scripts/prepare-meshy-factory.mjs',meshy,output
+],{stdio:'inherit'});
+for(const name of ['factory-0.glb','factory-1.glb','factory-procedural-0.glb','factory-procedural-1.glb']){
  const file=join(output,name);
  if(!existsSync(file)||statSync(file).size<20_000)
   throw new Error('3D-Vorschau GLB fehlt nach Export: '+name);
