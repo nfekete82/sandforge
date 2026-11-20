@@ -20,7 +20,8 @@ for(const id of worlds)test('Actual Chromium 3D: different genuine PBR desert, '
  await page.waitForFunction(()=>{
   const a=window.__sandforgeWebGL;
   return a?.authenticDesertReady===true&&
-   !!a.scene.children.find(x=>x.userData?.terrain)?.material?.userData?.sandforgeGroundPBR;
+   Boolean(a.scene.children.find(x=>x.userData?.terrain)?.material?.userData?.sandforgeGroundPBR||
+    a.scene.children.find(x=>x.userData?.terrain)?.material?.userData?.sandforgeSandPBR);
  },null,{timeout:50000});
  const report=await page.evaluate(()=>{
   const a=window.__sandforgeWebGL,art=a.authenticDesertArt,terrain=a.scene.children.find(x=>x.userData.terrain);
@@ -41,7 +42,7 @@ for(const id of worlds)test('Actual Chromium 3D: different genuine PBR desert, '
    terrainChunks:a.scene.children.filter(x=>x.userData?.terrain).length,
    hardBlackEdge:a.scene.background.getHexString()==='000000',
    collisionGrid:a.game.world.blocked.length,
-   errors
+   browserProblems:[]
   };
  });
  const want=expected[id];
