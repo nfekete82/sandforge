@@ -127,8 +127,11 @@ export function prepareMeshyFactory(src=SOURCE,output=OUT){
    extras:{source:'Meshy 7.1',realMeshyProduction:true,owner,
     frontLocalPlusZ:true,realShutter:true}});
   for(const [name,translation] of [
-   ['SF_Factory_Meshy_RolloutStart',[-.425,-.292,.16]],
-   ['SF_Factory_Meshy_RolloutExit',[-.425,-.345,.74]]]){
+   // These markers are children of the +90° Y-rotated factory root.
+   // Authored here in ORIGINAL -X-facing source coordinates so their world
+   // positions line up with the actual cut shutter (+Z after rotation).
+   ['SF_Factory_Meshy_RolloutStart',[-.16,-.292,-.425]],
+   ['SF_Factory_Meshy_RolloutExit',[-.74,-.345,-.425]]]){
    const i=model.nodes.length;
    model.nodes.push({name,translation,extras:{visualOnly:true,nonBlocking:true}});
    model.nodes[wrapper].children.push(i);
