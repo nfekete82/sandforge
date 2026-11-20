@@ -155,6 +155,8 @@ export class TacticalAI {
  ai35Mode:'off'|'control'='control';
  /** Same-binary A/B: OFF retains exact AI 3.5, coordinated = KI 3.6. */
  ai36Mode:AI36Mode='coordinated';
+ /** Same-compiled-binary A/B benchmark: KI3.7 fortification and staffing. */
+ ai37Mode:'off'|'coordinated'='coordinated';
  private recaptureMission:{sector:number;ids:number[];since:number;securedAt:number|null}|null=null;
  private recaptureRetryAt=0;
  private roverAirEscapeRetryAt=new Map<number,number>();
@@ -1175,7 +1177,7 @@ export class TacticalAI {
    const visible=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
     u.kind!=='drone'&&g.canSee(1,u));
    const priority=(t:typeof frontiers[number])=>
-    g.world.mapVersion>=23?ai37BastionDefenseValue({
+    g.world.mapVersion>=23&&this.ai37Mode==='coordinated'?ai37BastionDefenseValue({
       income:t.income,upgradeLevel:t.upgradeLevel,
       contestProgress:t.capturing===0?t.progress:0,
       enemyAdjacent:t.neighbors.some(id=>g.territories[id]?.owner===0),
@@ -1224,7 +1226,7 @@ export class TacticalAI {
  private staffBunkers(army:Unit[],home:Point):Set<number>{
   const g=this.g;
   const already=new Set(army.filter(u=>u.orders[0]?.kind==='garrison').map(u=>u.id));
-  if(this.mode!=='director'||g.world.mapVersion<23)return already;
+  if(this.mode!=='director'||this.ai37Mode==='off'||g.world.mapVersion<23)return already;
   const bunkers=g.bases.filter(b=>b.owner===1&&b.kind==='bunker'&&
     b.hp>0&&b.buildRemaining<=0)
     .sort((a,b)=>distance(a,home)-distance(b,home)||a.id-b.id);
