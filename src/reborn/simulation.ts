@@ -24,6 +24,7 @@ import {Transports,type TransportState} from './transports.js';
 import {BUNKER_CAPACITY,bunkerApproach,bunkerCanBoard,bunkerGarrisonedUnits,bunkerTargetRange,bunkerExitPoints,validBunkerGarrisons} from './bunker-garrison.js';
 import {BASTION_UPGRADE_COST,bastionEffectiveIncome,bastionUpgradable,validBastionUpgradeState} from './bastion-upgrades.js';
 import {ai37FortificationChoice,ai37UpgradeScore} from './ai37-fortification-doctrine.js';
+import {ai38InfrastructurePlan} from './ai38-investment-doctrine.js';
 import {TacticalAI,type TacticalState,type TacticalOrder} from './tactical-ai.js';
 import { MAP_VERSION, randomMapSeed } from './world-generation.js';
 import {beginBomberOrbit,advanceBomberOrbit,validBomberOrbit,BOMBER_ORBIT_SPEED,preservesCaptureBoundary,safeOrbitApproach,isOnBomberOrbit,bastionCaptureOrbit,approachBastionCaptureOrbit,type BomberOrbit} from './bomber-orbit.js';
@@ -313,9 +314,36 @@ export class Simulation {
   private planStrategicAi():void{
     if(this.status!=='playing'||!this.hasHeadquarters(1))return;
     const ai=1;
-    const engineer=this.units.find(u=>u.owner===ai&&u.kind==='engineer'&&u.hp>0&&!u.carrier);
+    // Do not take the first worker if it is busy with a factory or repairs.
+    const allEngineers=this.units.filter(u=>u.owner===ai&&u.kind==='engineer'&&u.hp>0&&!u.carrier);
+    const engineer=allEngineers.filter(u=>!u.orders.some(o=>o.kind==='build'||o.kind==='repair')&&
+      u.defendUntil<=this.time).sort((a,b)=>a.orders.length-b.orders.length||a.id-b.id)[0];
     const has=(kind:BuildingKind)=>this.bases.some(b=>b.owner===ai&&b.kind===kind&&b.hp>0);
-    const needed:BuildingKind|null=!has('research')&&this.credits[ai]>=1450&&this.time>140?'research':
+    const active=this.units.filter(u=>u.owner===ai&&u.hp>0&&!u.carrier);
+    const visibleRaiders=this.units.filter(u=>u.owner===0&&u.hp>0&&
+      !u.carrier&&this.canSee(ai,u));
+    const pressured=visibleRaiders.some(u=>this.bases.some(b=>
+      b.owner===ai&&b.hp>0&&distance(u,b)<650));
+    const investment=this.world.mapVersion>=23&&this.tactical.ai37Mode==='coordinated'?
+      ai38InfrastructurePlan({
+       time:this.time,income:this.income(ai),
+       ownedBastions:this.territories.filter(t=>t.owner===ai).length,
+       fieldFighters:active.filter(u=>unitSpec(u).damage>0).length,
+       availableInfantry:active.filter(u=>unitSpec(u).group==='Infanterie'&&
+         !['engineer','medic'].includes(u.kind)).length,
+       headquartersReady:this.bases.some(b=>b.owner===ai&&b.kind==='headquarters'&&
+         b.hp>0&&b.buildRemaining<=0),
+       barracksReady:this.bases.some(b=>b.owner===ai&&b.kind==='barracks'&&
+         b.hp>0&&b.buildRemaining<=0),
+       factoryReady:this.bases.some(b=>b.owner===ai&&b.kind==='factory'&&
+         b.hp>0&&b.buildRemaining<=0),
+       bunkerCount:this.bases.filter(b=>b.owner===ai&&b.kind==='bunker'&&b.hp>0).length,
+       hasUpgradeTarget:this.territories.some(t=>bastionUpgradable(t,ai,this.bases,
+         campaignLayout(this.world.mapVersion,this.seed).headquarters)),
+       homeThreat:pressured,finishing:this.tactical.state.commander?.enemyHQEliminatedAt!==undefined
+      }):null;
+    const needed:BuildingKind|null=investment?.goal?null:
+      !has('research')&&this.credits[ai]>=1450&&this.time>140?'research':
       INTERCEPTOR_ENABLED&&!has('interceptor')&&this.memories[ai].some(b=>b.owner===0&&b.kind==='silo'&&b.hp>0)&&
         this.credits[ai]>=3100?'interceptor':
       !has('silo')&&has('research')&&this.credits[ai]>=6300&&this.time>520?'silo':null;
@@ -334,20 +362,14 @@ export class Simulation {
     // explored, walkable, buildable and reachable by an idle AI engineer.
     // Preserve funds for field production, so base camping never replaces
     // Bastion captures or a useful combined-arms army.
-    if(this.world.mapVersion>=23&&this.tactical.ai37Mode==='coordinated'&&engineer&&
-      !engineer.orders.some(o=>o.kind==='build')&&
+    if(investment?.goal==='bunker'&&this.credits[ai]>=investment.reserve&&engineer&&
       this.bases.some(b=>b.owner===ai&&b.kind==='headquarters'&&
         b.hp>0&&b.buildRemaining<=0)){
-      const active=this.units.filter(u=>u.owner===ai&&u.hp>0&&!u.carrier);
-      const visibleRaiders=this.units.filter(u=>u.owner===0&&u.hp>0&&
-        !u.carrier&&this.canSee(ai,u));
-      const pressured=visibleRaiders.some(u=>this.bases.some(b=>
-        b.owner===ai&&b.hp>0&&distance(u,b)<650));
       const choice=ai37FortificationChoice({
         time:this.time,credits:this.credits[ai],income:this.income(ai),
         completedHeadquarters:true,completedBarracks:this.bases.some(b=>
           b.owner===ai&&b.kind==='barracks'&&b.hp>0&&b.buildRemaining<=0),
-        builders:1,
+        builders:allEngineers.length,
         activeInfantry:active.filter(u=>unitSpec(u).group==='Infanterie'&&
           !['engineer','medic'].includes(u.kind)).length,
         mobileFighters:active.filter(u=>unitSpec(u).damage>0).length,
@@ -365,17 +387,23 @@ export class Simulation {
         const anchors=forward&&choice==='bunker'&&
           this.bases.some(b=>b.owner===ai&&b.kind==='bunker')
           ?[forward.point,hq]:[hq];
+        // Search real, explored site polygons around both home and captured
+        // sectors. A 24-point HQ ring was often blocked by factories, rocks,
+        // construction facades and staging infantry. Do not cheat buildError.
         let placed=false;
         for(const anchor of anchors){
-          for(let i=0;i<24;i++){
-            const angle=i*Math.PI*2/24;
-            const radius=anchor===hq
-              ?BUILDINGS[choice].radius+hq.radius+105+(i%4)*35
-              :BUILDINGS[choice].radius+165+(i%3)*50;
-            const p={x:anchor.x+Math.cos(angle)*radius,
-              y:anchor.y+Math.sin(angle)*radius};
-            if(this.buildError(ai,choice,p))continue;
-            if(this.build(ai,choice,p,[engineer.id])){placed=true;break;}
+          for(const extra of [0,100,190,290,400,510]){
+            for(let i=0;i<20;i++){
+              const angle=i*Math.PI*2/20+(this.seed%9)*.04;
+              const radius=anchor===hq
+                ?BUILDINGS[choice].radius+hq.radius+125+extra
+                :BUILDINGS[choice].radius+175+extra;
+              const p={x:anchor.x+Math.cos(angle)*radius,
+                y:anchor.y+Math.sin(angle)*radius};
+              if(this.buildError(ai,choice,p))continue;
+              if(this.build(ai,choice,p,[engineer.id])){placed=true;break;}
+            }
+            if(placed)break;
           }
           if(placed)break;
         }
@@ -2894,8 +2922,10 @@ export class Simulation {
       this.tactical.plan();
       // AI uses the SAME paid Bastion upgrade rules as the player.
       // Reserve a healthy army and budget before investing in long-term income.
-      if(this.world.mapVersion>=23&&this.time>=170&&
-        this.credits[1]>=BASTION_UPGRADE_COST+1450&&this.count(1)>=8){
+      if(this.world.mapVersion>=23&&this.time>=170&&this.count(1)>=8&&
+        (investment?.goal==='bastion-upgrade'?
+         this.credits[1]>=investment.reserve:
+         this.tactical.ai37Mode==='off'&&this.credits[1]>=BASTION_UPGRADE_COST+1450)){
         const candidate=this.territories.filter(t=>
           bastionUpgradable(t,1,this.bases,
           campaignLayout(this.world.mapVersion,this.seed).headquarters))
