@@ -33,7 +33,7 @@ import type {Simulation,Unit,Base,Memory} from './simulation.js';
 import {friendlyGatePostColliders} from './defensive-wall.js';
 import {ai37GarrisonQuota,ai37BastionDefenseValue} from './ai37-fortification-doctrine.js';
 import {bastionEffectiveIncome} from './bastion-upgrades.js';
-import {BUNKER_CAPACITY} from './bunker-garrison.js';
+import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
 export interface Loss extends Point {id:number;at:number;strength:number}
@@ -188,15 +188,23 @@ export class TacticalAI {
  restore(state:TacticalState|undefined):void{
   this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
-  if(!state)for(const m of this.g.memories[1])if(m.owner===0&&m.kind==='turret'&&m.hp>0)this.remember(m,Math.max(0,this.g.time-45));
+  if(!state)for(const m of this.g.memories[1])if(m.owner===0&&
+    (m.kind==='turret'||m.kind==='bunker')&&m.hp>0)
+    this.remember(m,Math.max(0,this.g.time-45));
  }
- private remember(b:Pick<Memory,'id'|'x'|'y'|'hp'>,seenAt:number):void{
-  const item=this.state.knownTurrets.find(t=>t.id===b.id),record={id:b.id,x:b.x,y:b.y,hp:b.hp,range:RULES.turret.range,seenAt};
+ private remember(b:Pick<Memory,'id'|'x'|'y'|'hp'> & {kind?:string},seenAt:number):void{
+  const item=this.state.knownTurrets.find(t=>t.id===b.id),
+   record={id:b.id,x:b.x,y:b.y,hp:b.hp,
+    range:b.kind==='bunker'?BUNKER_MAX_FIRE_RANGE:RULES.turret.range,seenAt};
   if(item)Object.assign(item,record);else if(this.state.knownTurrets.length<64)this.state.knownTurrets.push(record);
  }
  observe():void{
   const g=this.g,s=this.state;
-  for(const b of g.bases)if(b.owner===0&&b.kind==='turret'&&b.hp>0&&g.canSee(1,b))this.remember(b,g.time);
+  // Garrisoned enemy bunkers are *observed* fixed weapons, not invisible
+  // free damage zones. Without observation, fog still hides them normally.
+  for(const b of g.bases)if(b.owner===0&&
+    (b.kind==='turret'||b.kind==='bunker')&&b.hp>0&&g.canSee(1,b))
+    this.remember(b,g.time);
   s.knownTurrets=s.knownTurrets.filter(t=>g.time-t.seenAt<240&&(!g.canSee(1,t)||g.bases.some(b=>b.id===t.id&&b.owner===0&&b.hp>0)));
  }
  loss(u:Unit):void{
