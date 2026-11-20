@@ -16,13 +16,13 @@ const economy={
 
 test('KI 3.7 builds a paid bunker before a second defensive turret',()=>{
  assert.equal(ai37FortificationChoice(economy),'bunker');
- assert.equal(ai37FortificationChoice({...economy,credits:1519}),null);
+ assert.equal(ai37FortificationChoice({...economy,credits:849}),null);
  assert.equal(ai37FortificationChoice({...economy,builders:0}),null);
  assert.equal(ai37FortificationChoice({...economy,ownedBastions:1}),null);
  assert.equal(ai37FortificationChoice({...economy,underAttack:true}),null);
  assert.equal(ai37FortificationChoice({...economy,completedBarracks:false}),null);
  assert.equal(ai37FortificationChoice({...economy,bunkers:1}),null);
- assert.equal(ai37FortificationChoice({...economy,bunkers:1,time:245}),'turret');
+ assert.equal(ai37FortificationChoice({...economy,bunkers:1,time:260}),'turret');
  assert.equal(ai37FortificationChoice({...economy,bunkers:1,turrets:2,time:350,
   credits:3300,income:110,mobileFighters:15}),'bunker');
 });
@@ -59,12 +59,18 @@ test('KI 3.7 spends credits for a real build at an explored safe HQ',()=>{
  const g=new Simulation(20261120,24);
  const home=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
  assert.ok(home);
- g.time=110;g.credits[1]=5000;
+ g.time=160;g.credits[1]=5000;
  const barracks={...home,id:8882,kind:'barracks',
   x:home.x+420,y:home.y+320,
   hp:BUILDINGS.barracks.hp,radius:BUILDINGS.barracks.radius,
   queue:[],queueTypes:[],buildRemaining:0};
  g.bases.push(barracks);
+ // New KI 3.8 intentionally waits for the full paid ground-production core.
+ const factory={...barracks,id:8884,kind:'factory',
+  x:home.x-420,y:home.y+300,
+  hp:BUILDINGS.factory.hp,radius:BUILDINGS.factory.radius,
+  queue:[],queueTypes:[],buildRemaining:0};
+ g.bases.push(factory);
  const territory=g.territories.find(t=>t.owner===-1);
  assert.ok(territory);territory.owner=1;
  for(let i=0;i<9;i++)g.spawn(1,{x:home.x+(i%3)*30+155,
