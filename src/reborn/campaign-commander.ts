@@ -12,7 +12,7 @@ export type CampaignPhase='opening'|'expansion'|'buildup'|'offensive'|'siege'|'e
 export interface WarMission extends Point {kind:'capture'|'structure'|'hunt';sector:number;objective:number|null;since:number;progressAt:number;distance:number;hp:number}
 export interface ReconTask extends Point {unit:number;since:number}
 export interface CampaignState {version:1;phase:CampaignPhase;phaseSince:number;mission?:WarMission;recon:ReconTask[];survey:{x:number;y:number;at:number}[];intel:{id:number;seenAt:number}[];aborted:number;observedEnemyHQ?:Point&{id:number};enemyHQEliminatedAt?:number;alternatives?:{sector:number;score:number;expectedLoss:number;budgetCost:number}[]}
-export interface MissionContext {strategy:EnemyStrategy;force:Unit[];losses:Loss[];fronts:FailedFront[];route:(p:Point)=>{length:number;risk:number}|undefined;routeFallback?:(p:Point)=>{length:number;risk:number}|undefined;intelligent?:boolean;bastionControl?:boolean;experience?:Experience}
+export interface MissionContext {strategy:EnemyStrategy;force:Unit[];losses:Loss[];fronts:FailedFront[];route:(p:Point)=>{length:number;risk:number}|undefined;routeFallback?:(p:Point)=>{length:number;risk:number}|undefined;intelligent?:boolean;bastionControl?:boolean;experience?:Experience;breakthrough?:boolean}
 export const newCampaign=():CampaignState=>({version:1,phase:'opening',phaseSince:0,recon:[],survey:[],intel:[],aborted:0});
 /** Preserve a recent, observed tower objective after confirmed HQ loss,
  * unless the screen suffers substantial losses or artillery disappears. */
@@ -52,6 +52,7 @@ export function refreshIntelligence(g:Simulation,s:CampaignState):void{
  * remains a war objective until its destruction has actually been observed. */
 export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?:MissionContext):WarMission|undefined{
  const buildings=knownBuildings(g),old=s.mission;
+ const breakthroughHQ=context?.breakthrough?buildings.find(b=>b.kind==='headquarters'):undefined;
  // The war has two explicit strategic objectives:
  // 1. Own and SECURE all public Bastions (including those lost again).
  // 2. Only then destroy remaining enemy units/structures.
@@ -104,7 +105,8 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
    !buildings.some(b=>b.kind==='headquarters'&&b.territory===t.id||
     b.kind==='turret'&&distance(b,t.point)<660)&&
    !g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&distance(u,t.point)<350));
-  if(valid&&!costly&&!unready&&!saferEnemySector&&g.time-old.progressAt<100){
+  if(valid&&!costly&&!unready&&!saferEnemySector&&
+    !(breakthroughHQ&&old.kind==='capture')&&g.time-old.progressAt<100){
    if(remembered){old.x=remembered.x;old.y=remembered.y;if(remembered.hp<old.hp){old.progressAt=g.time;old.hp=remembered.hp;}}
    if(enemy){old.x=enemy.x;old.y=enemy.y;}
    // A newly observed tower covering an HQ approach is a concrete reason to
@@ -123,11 +125,14 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  const openBastions=new Set<number>();
  // No HQ rush while Bastions remain unheld. Existing capture missions
  // preemptively neutralize only a tower/HQ physically blocking their circle.
- for(const b of securingBastions?[]:buildings){
+ // A proven mobile 2/3-sector overmatch may exploit an ACTUALLY observed HQ,
+ // even if an unrelated neutral Bastion is still unheld. A simple early HQ
+ // rush remains impossible without intelligence, siege escorts and army power.
+ for(const b of securingBastions?breakthroughHQ?[breakthroughHQ]:[]:buildings){
   const blocking=b.kind==='turret'&&buildings.some(other=>['headquarters','barracks','factory','airfield'].includes(other.kind??'')&&distance(other,b)<660);
   // After every Bastion is held, clean up visible production and combat units.
   const production=['barracks','factory','airfield'].includes(b.kind??'');
-  const value=finishing?(blocking?3500:production?3900:b.kind==='turret'?2600:1750)
+  const value=breakthroughHQ?.id===b.id?4200:finishing?(blocking?3500:production?3900:b.kind==='turret'?2600:1750)
    :blocking?2100:b.kind==='headquarters'?1900:b.kind==='turret'?1200:production?1450:700;
   choices.push({kind:'structure',p:b,sector:b.territory,objective:b.id,hp:b.hp,score:distance(origin,b)-value});
  }
@@ -215,7 +220,9 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  }
  routed.sort((a,b)=>a.c.score+a.route.length*.15+a.route.risk*12-b.c.score-b.route.length*.15-b.route.risk*12);
  const safeRoute=routed.filter(r=>safe(r.c)&&r.route.risk<8)[0];
- const next=context?(safeRoute??routed[0])?.c:ordered[0];
+ const decisive=context?.breakthrough&&breakthroughHQ?routed.find(r=>
+   r.c.kind==='structure'&&r.c.objective===breakthroughHQ.id&&r.route.risk<12):undefined;
+ const next=context?(decisive??safeRoute??routed[0])?.c:ordered[0];
  return s.mission=next?{kind:next.kind,x:next.p.x,y:next.p.y,sector:next.sector,objective:next.objective,hp:next.hp,since:g.time,progressAt:g.time,distance:distance(origin,next.p)}:undefined;
 }
 /** Coarse, deterministic fog frontiers. Sampling terrain is public navigation
