@@ -298,7 +298,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  // algorithm just ONE facility queued an item per AI pulse, leaving expensive
  // factories/airfields idle while barracks bought cheap infantry.
  if(director){
-  produceCombinedArmy(g,s,{own,army,seen,income,underAttack,knownTurrets:known,knownEnemyHQ,reserve,siegeReserve,maxArmy,scores,defenseNeedsWorker,finishing});
+  produceCombinedArmy(g,s,{own,army,seen,income,underAttack,knownTurrets:known,knownEnemyHQ,reserve,siegeReserve,infrastructureReserve:strategicInvestment?.reserve??0,maxArmy,scores,defenseNeedsWorker,finishing});
   return;
  }
  const choices=(Object.keys(scores) as UnitKind[]).filter(k=>scores[k]>0&&own.some(b=>b.buildRemaining<=0&&b.queue.length<2&&UNITS[k].producers.includes(b.kind))&&(!air||canAttack({kind:k},seen.find(u=>unitSpec(u).flying)!)||['medic','engineer','scout'].includes(k))).sort((a,b)=>scores[b]-scores[a]||Object.keys(scores).indexOf(a)-Object.keys(scores).indexOf(b));
