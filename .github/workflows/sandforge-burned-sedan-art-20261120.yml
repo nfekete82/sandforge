@@ -7,6 +7,8 @@ on:
       - .github/workflows/sandforge-burned-sedan-art-20261120.yml
       - scripts/webgl-burned-sedan-plan.js
       - scripts/webgl-burned-sedan-3d.js
+      - scripts/webgl-burned-sedan-debris-3d.js
+      - scripts/webgl-burned-sedan-debris-plan.js
       - scripts/webgl-preview.js
       - scripts/build.mjs
       - tests/sandforge-burned-sedan-3d-20261120.test.mjs
@@ -29,6 +31,8 @@ jobs:
           npx tsc -p tsconfig.json
           node --check scripts/webgl-burned-sedan-plan.js
           node --check scripts/webgl-burned-sedan-3d.js
+          node --check scripts/webgl-burned-sedan-debris-plan.js
+          node --check scripts/webgl-burned-sedan-debris-3d.js
           node --check scripts/webgl-preview.js
       - name: Verify real 3D models, textures, instancing and all 4 maps
         run: node --test tests/sandforge-burned-sedan-3d-20261120.test.mjs
