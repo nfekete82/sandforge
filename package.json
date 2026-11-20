@@ -42,7 +42,9 @@
     "build:3d": "SANDFORGE_RENDERER=webgl npm run build",
     "build:classic": "SANDFORGE_RENDERER=classic npm run build",
     "dev:3d": "SANDFORGE_RENDERER=webgl npm run dev",
-    "dev:classic": "SANDFORGE_RENDERER=classic npm run dev"
+    "dev:classic": "SANDFORGE_RENDERER=classic npm run dev",
+    "build:meshy-preview": "node scripts/build-meshy-preview.mjs",
+    "preview:meshy": "npm run build:meshy-preview && node scripts/serve.mjs"
   },
   "devDependencies": {
     "three": "0.180.0",
