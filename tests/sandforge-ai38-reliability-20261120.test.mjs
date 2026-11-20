@@ -6,6 +6,7 @@ import {ai38InfrastructurePlan,ai38DecisiveAssault}
  from '../dist/src/reborn/ai38-investment-doctrine.js';
 import {ai38VehicleRecoveryWaypoint,ai38CanRecoverVehicle}
  from '../dist/src/reborn/ai38-vehicle-navigation.js';
+import {ai38CommittedProductionReserve} from '../dist/src/reborn/director-production.js';
 
 const macro={
  time:245,income:100,ownedBastions:5,fieldFighters:16,availableInfantry:7,
@@ -84,4 +85,26 @@ test('safe vehicle recovery finds a real collision-free side corridor, never tel
  assert.equal(ai38CanRecoverVehicle({...base,ai:false}),false);
  assert.equal(ai38CanRecoverVehicle({...base,hasCargo:true}),false);
  assert.equal(ai38CanRecoverVehicle({...base,orderKind:'build'}),false);
+});
+
+test('KI 3.8 preserves real Bunker savings even under urgent barracks pressure',()=>{
+ const reserve={reserve:850,siegeReserve:0,infrastructureReserve:850};
+ assert.equal(ai38CommittedProductionReserve({
+  ...reserve,urgentBarracks:true,plannedArtillery:false
+ }),850,'urgent infantry must not drain the paid Bunker budget');
+ assert.equal(ai38CommittedProductionReserve({
+  ...reserve,urgentBarracks:false,plannedArtillery:true
+ }),850,'optional artillery cannot consume Bunker savings');
+ assert.equal(ai38CommittedProductionReserve({
+  reserve:500,siegeReserve:300,infrastructureReserve:850,
+  urgentBarracks:false,plannedArtillery:true
+ }),850,'artillery reserve waiver cannot bypass infrastructure protection');
+ assert.equal(ai38CommittedProductionReserve({
+  reserve:500,siegeReserve:300,infrastructureReserve:0,
+  urgentBarracks:false,plannedArtillery:true
+ }),200,'baseline siege reserve behavior is preserved');
+ assert.equal(ai38CommittedProductionReserve({
+  reserve:300,siegeReserve:0,infrastructureReserve:0,
+  urgentBarracks:true,plannedArtillery:false
+ }),125,'baseline urgent barracks still receives its normal waiver');
 });
