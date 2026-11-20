@@ -84,6 +84,11 @@ export function unifyModelFactionFlags(model,owner){
  let count=0;
  model.traverse(mesh=>{
   if(!mesh.isMesh)return;
+  // HQ and barracks have their own real wall-mounted star plaques. Their
+  // colored rectangles and 3D white star must NOT be converted into a cloth
+  // texture with another star drawn on top.
+  for(let parent=mesh;parent;parent=parent.parent)
+   if(parent.name==='SF_FactionEntranceBanners')return;
   if(mesh.userData?.sandforgeTeamFlag){
    if(mesh.userData.flagOwner!==owner){
     const old=Array.isArray(mesh.material)?mesh.material:[mesh.material];
