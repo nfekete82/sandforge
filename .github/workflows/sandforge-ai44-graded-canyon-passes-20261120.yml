@@ -1,0 +1,32 @@
+name: Sandforge AI 4.4 graded canyon pass physical regression
+on:
+  push:
+    branches:
+      - feat/sandforge-ai44-graded-canyon-passes-20261120
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  physical-ramp-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile and inspect exact v4 physical slope and routes
+        run: |
+          npx tsc -p tsconfig.json
+          node scripts/diagnose-ai44-canyon-terrain.mjs | tee ai44-canyon-terrain.log
+          node --test tests/sandforge-ai44-graded-canyon-passes-20261120.test.mjs
+          node --test tests/sandforge-ai39-no-path-detour-20261120.test.mjs
+          node --test tests/sandforge-ai40-canyon-mission-20261120.test.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sandforge-ai44-graded-pass-metrics
+          path: ai44-canyon-terrain.log
+          retention-days: 30
