@@ -8,6 +8,8 @@ on:
       - tests/browser/webgl-burned-sedan-3d.spec.mjs
       - scripts/webgl-burned-sedan-plan.js
       - scripts/webgl-burned-sedan-3d.js
+      - scripts/webgl-burned-sedan-debris-3d.js
+      - scripts/webgl-burned-sedan-debris-plan.js
       - scripts/webgl-preview.js
       - scripts/build.mjs
   workflow_dispatch:
