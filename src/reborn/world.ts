@@ -318,9 +318,18 @@ export class World {
     // entrance first instead of repeatedly returning partial paths into
     // the rock face. This applies to both factions and all ground vehicles.
     // Strategic reachability calls (allowPartial=false) are unchanged.
-    const pass=allowPartial&&!air&&this.generatorVersion>=3&&
+    // KI 4.5 / v4 physical navigation: a geometrically shorter pass can
+    // have no driveable entrance from THIS vehicle's current ridge side.
+    // Check both real straight legs with the same slope/collision validator
+    // before choosing a waypoint. If no direct approach is currently possible,
+    // preserve the legacy A* pass handling and its partial-path recovery.
+    const actualPass=allowPartial&&!air&&this.generatorVersion>=4&&
+      Number.isFinite(maxSlope)&&this.generated?.ridges.length
+      ?canyonPassWaypoint(start,target,this.generated.ridges,clearance,
+        (near,far)=>line(start,near)&&line(near,far)):undefined;
+    const pass=actualPass??(allowPartial&&!air&&this.generatorVersion>=3&&
       this.generated?.ridges.length
-      ?canyonPassWaypoint(start,target,this.generated.ridges,clearance):undefined;
+      ?canyonPassWaypoint(start,target,this.generated.ridges,clearance):undefined);
     const routingTarget=pass??target;
     const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(routingTarget,obstacles,[],start,clearance,maxSlope);
     if(!end)return [];

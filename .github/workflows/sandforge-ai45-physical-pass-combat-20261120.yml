@@ -1,0 +1,56 @@
+name: Sandforge AI 4.5 physical route 480s A/B
+on:
+  push:
+    branches:
+      - feat/sandforge-ai45-physical-pass-selection-20261120
+  workflow_dispatch:
+concurrency:
+  group: sandforge-ai45-battles-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  paired-combat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - map: 26
+            seed: 824836862
+            label: canyon-trap
+          - map: 26
+            seed: 9999
+            label: open-control
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify truly traversable waypoint and slope limits
+        run: |
+          npx tsc -p tsconfig.json
+          node --test tests/sandforge-ai45-physical-pass-selection-20261120.test.mjs
+          node --test tests/sandforge-ai44-graded-canyon-passes-20261120.test.mjs
+      - name: Run genuine 480-second headless paired battles
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai38-combat.mjs \
+            --maps ${{ matrix.map }} \
+            --seeds ${{ matrix.seed }} \
+            --opponents guarded,contesting,bastion-rush \
+            --seconds 480 \
+            --output reports/ai45-${{ matrix.label }}.json
+      - name: Enforce previous real outcome and nav safeguards
+        run: |
+          node scripts/check-sandforge-ai39-canyon-report.mjs reports/ai45-${{ matrix.label }}.json
+          node scripts/check-sandforge-ai40-offense-results.mjs reports/ai45-${{ matrix.label }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sandforge-ai45-${{ matrix.label }}
+          path: reports/ai45-${{ matrix.label }}.json
+          retention-days: 30
