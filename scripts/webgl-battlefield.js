@@ -556,7 +556,12 @@ export class SandforgeBattlefield {
     // and cockpit glass. Add only sub-centimeter pores, metallic scratches,
     // chipped paint and surface roughness to compatible shell materials.
     // Actor-owned materials are enhanced in-place to prevent orphan clones.
-    entry.microSurface=enhanceMilitaryMicroPBR(model,{kind:entry.kind,type});
+    // The HQ and other building GLBs already have authored faction/PBR
+    // material stacks. A second micro-shader can darken or invalidate the
+    // existing walls (black facade regression). Use this opt-in detail ONLY
+    // on genuine vehicle GLBs, preserving every original building texture.
+    if(type==='unit')
+     entry.microSurface=enhanceMilitaryMicroPBR(model,{kind:entry.kind,type});
     // Only the biggest model surfaces need shadow-map passes. Small
     // bolts, rivets and vents keep their complete PBR visual render.
     // Reduces shadow draw calls without disabling sun or unit shadows.
@@ -2871,6 +2876,38 @@ export class SandforgeBattlefield {
    'Aussteigen hier nicht möglich · Freie Fläche suchen');
   this.drawInterface();return done;
  }
+ bunkerAtPointer(event){
+  const candidates=this.game.bases.filter(b=>b.kind==='bunker'&&b.owner===0&&
+   b.hp>0&&b.buildRemaining<=0&&this.bases.get(b.id)?.node.visible);
+  if(!candidates.length)return null;
+  const rect=this.renderer.domElement.getBoundingClientRect();
+  if(!rect.width||!rect.height||event.clientX<rect.left||
+    event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)return null;
+  this.camera.updateMatrixWorld(true);
+  const ndc=new THREE.Vector2(
+   (event.clientX-rect.left)/rect.width*2-1,
+   1-(event.clientY-rect.top)/rect.height*2);
+  const ray=new THREE.Raycaster();
+  ray.setFromCamera(ndc,this.camera);
+  const hits=[];
+  for(const bunker of candidates){
+   const node=this.bases.get(bunker.id)?.node;
+   if(!node)continue;
+   // New PBR bunkers deliberately disable individual detail raycasts.
+   // Their combined bounding box still covers concrete walls, roof and flag.
+   const bounds=new THREE.Box3().setFromObject(node);
+   const intersection=bounds.isEmpty()?null:
+    ray.ray.intersectBox(bounds,new THREE.Vector3());
+   if(intersection)hits.push({bunker,depth:intersection.distanceTo(ray.ray.origin)});
+  }
+  if(hits.length)return hits.sort((a,b)=>a.depth-b.depth)[0].bunker;
+  // The terrain picker supplies a useful fallback for the concrete apron,
+  // even if transparent details or camera tilts make the bounding box miss.
+  const point=this.terrainPoint(event);
+  if(!point)return null;
+  return candidates.filter(b=>dist(point,b)<=BUILDINGS.bunker.radius+22)
+   .sort((a,b)=>dist(point,a)-dist(point,b))[0]??null;
+ }
  maintenanceFacilityAtPointer(event,kind){
   const candidates=this.game.bases.filter(b=>b.owner===0&&b.hp>0&&
    b.buildRemaining<=0&&b.kind===kind&&this.bases.get(b.id)?.node.visible);
@@ -2932,10 +2969,10 @@ export class SandforgeBattlefield {
   // An RMB hit on either owned carrier boards selected infantry before terrain movement.
   // Board BEFORE the terrain ray and other click commands.
   if(event.button===2&&this.selected.size&&!this.attackMode&&this.selectedBase===null){
-   const hit=this.friendlyAtPointer(event);
-   const bunker=hit?.type==='base'&&hit.entity.kind==='bunker'&&
-    hit.entity.owner===0&&hit.entity.hp>0&&hit.entity.buildRemaining<=0?
-    hit.entity:null;
+   // Aim at the bunker itself, not the nearer soldier/flag/empty slot
+   // that can occlude its ray hit. AABBs include authored non-pickable PBR
+   // bunker geometry while the existing hard 5-seat simulation is untouched.
+   const bunker=this.bunkerAtPointer(event);
    if(bunker){
     const ids=this.game.units.filter(u=>this.selected.has(u.id)&&u.owner===0&&
      !u.carrier&&u.hp>0&&UNITS[u.kind].group==='Infanterie').map(u=>u.id);
