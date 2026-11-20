@@ -44,7 +44,8 @@
     "dev:3d": "SANDFORGE_RENDERER=webgl npm run dev",
     "dev:classic": "SANDFORGE_RENDERER=classic npm run dev",
     "build:meshy-preview": "node scripts/build-meshy-preview.mjs",
-    "preview:meshy": "npm run build:meshy-preview && node scripts/serve.mjs"
+    "preview:meshy": "npm run build:meshy-preview && node scripts/serve.mjs",
+    "assets:meshy:import": "node scripts/import-meshy-structures-local.mjs"
   },
   "devDependencies": {
     "three": "0.180.0",
