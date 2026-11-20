@@ -35,6 +35,7 @@ import {ai37GarrisonQuota,ai37BastionDefenseValue} from './ai37-fortification-do
 import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
+import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -160,6 +161,9 @@ export class TacticalAI {
  ai36Mode:AI36Mode='coordinated';
  /** Same-compiled-binary A/B benchmark: KI3.7 fortification and staffing. */
  ai37Mode:'off'|'coordinated'='coordinated';
+ /** Experimental same-binary A/B switch. The player receives calibrated
+  * behavior only for exact, known, fixed desert maps. Never serialized. */
+ hqBreakthroughMode:'baseline'|'calibrated'='calibrated';
  private recaptureMission:{sector:number;ids:number[];since:number;securedAt:number|null}|null=null;
  private recaptureRetryAt=0;
  private roverAirEscapeRetryAt=new Map<number,number>();
@@ -1589,7 +1593,7 @@ export class TacticalAI {
    return undefined;
   }:undefined;
   const observedEnemyHQ=g.memories[1].some(m=>m.owner===0&&m.kind==='headquarters'&&m.hp>0);
-  const breakthrough=this.ai37Mode==='coordinated'&&ai38DecisiveAssault({
+  const hqAssaultSituation={
    time:g.time,totalBastions:g.territories.length,
    ownedBastions:g.territories.filter(t=>t.owner===1).length,
    visibleOrRememberedHQ:observedEnemyHQ,
@@ -1600,7 +1604,32 @@ export class TacticalAI {
    homeThreat:g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&
      g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<500)),
    recentLosses:s.losses.filter(l=>g.time-l.at<35).length
-  });
+  };
+  // Coordinated AI keeps its proven existing HQ rules. On the two fixed
+  // desert maps with a stronger *offensive* doctrine, permit the same paid
+  // siege group to exploit physically held Bastions, but only after our
+  // scouts really discovered a living enemy HQ. No fog knowledge or bonus.
+  const fixedDesert=this.hqBreakthroughMode==='calibrated'
+   ?selectDesertAIDoctrine({
+    seed:g.seed,mapVersion:g.world.mapVersion,
+    profile:g.world.generated?.battlefield?.profile,
+    kind:g.world.generated?.landscapeKind,
+    generatorVersion:g.world.generatorVersion
+   }):null;
+  const offensiveBreakthrough=fixedDesert?.mode==='off'&&
+   this.ai36Enabled&&ai43OffensiveHqBreakthrough({
+    time:hqAssaultSituation.time,
+    totalBastions:hqAssaultSituation.totalBastions,
+    ownedBastions:hqAssaultSituation.ownedBastions,
+    knownLivingHQ:hqAssaultSituation.visibleOrRememberedHQ,
+    mobileFighters:hqAssaultSituation.mobileFighters,
+    healthyMobile:hqAssaultSituation.healthyMobile,
+    artillery:hqAssaultSituation.artillery,
+    observedHomeThreat:hqAssaultSituation.homeThreat,
+    recentLosses:hqAssaultSituation.recentLosses
+   });
+  const breakthrough=(this.ai37Mode==='coordinated'&&
+    ai38DecisiveAssault(hqAssaultSituation))||Boolean(offensiveBreakthrough);
   const mission=chooseMission(g,c,origin,{strategy:s.adaptive?.strategy??'unknown',
    breakthrough,
    force:fighters,losses:s.losses,fronts:s.battle?.fronts??[],
