@@ -77,6 +77,8 @@ function observeFactory(){
    headquartersReady:buildings.some(b=>b.kind==='headquarters'&&b.buildRemaining<=0),
    barracksReady:buildings.some(b=>b.kind==='barracks'&&b.buildRemaining<=0),
    factoryReady:buildings.some(b=>b.kind==='factory'&&b.buildRemaining<=0),
+   airfieldReady:buildings.some(b=>b.kind==='airfield'&&b.buildRemaining<=0),
+   totalBastions:g.territories.length,
    bunkerCount:bunkers.length,
    hasUpgradeTarget:g.territories.some(t=>t.owner===1&&t.upgradeLevel!==2&&
     !buildings.some(b=>b.kind==='headquarters'&&b.territory===t.id)),
