@@ -6,7 +6,8 @@
 export interface Ai38InvestmentInput {
   time:number;income:number;
   ownedBastions:number;fieldFighters:number;availableInfantry:number;
-  barracksReady:boolean;factoryReady:boolean;headquartersReady:boolean;
+  barracksReady:boolean;factoryReady:boolean;airfieldReady:boolean;headquartersReady:boolean;
+  totalBastions:number;
   bunkerCount:number;
   hasUpgradeTarget:boolean;
   homeThreat:boolean;
@@ -31,10 +32,13 @@ export function ai38InfrastructurePlan(x:Ai38InvestmentInput):Ai38Infrastructure
     // 650-credit Bunker + 200 credits for the next paid defensive action.
     return {goal:'bunker',reserve:850,minFreeAfterPurchase:200};
   }
-  if(x.bunkerCount>0&&x.hasUpgradeTarget&&x.time>=180&&
-     x.income>=65&&x.fieldFighters>=9&&x.ownedBastions>=3){
-    // 750-credit sector upgrade, at least 250 credits still in the bank.
-    return {goal:'bastion-upgrade',reserve:1000,minFreeAfterPurchase:250};
+  // Sector reinvestment is optional: unlike the first Bunker, it must NOT
+  // reserve the army's money before aircraft/armor are operational.
+  // A 750-credit upgrade often has >200 simulated seconds payback.
+  if(x.bunkerCount>0&&x.hasUpgradeTarget&&x.time>=235&&
+     x.airfieldReady&&x.income>=90&&x.fieldFighters>=14&&
+     x.ownedBastions>=Math.ceil(x.totalBastions*.60)){
+    return {goal:'bastion-upgrade',reserve:0,minFreeAfterPurchase:450};
   }
   return none;
 }
