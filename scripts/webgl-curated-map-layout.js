@@ -112,7 +112,7 @@ export function planCuratedMapArt({preset,world,terrain,oases=[]}){
   if(!within(p)||!roadFree(p,preset.id==='staubkrone'?92:120)||
    !buildFree(p,preset.id==='schlangenfeste'?535:480)||
    ruinDistance(p)<95||
-   landmarks.some(l=>dist(p,l)<preset.id==='staubkrone'?155:120))continue;
+   landmarks.some(l=>dist(p,l)<(preset.id==='staubkrone'?155:120)))continue;
   if(preset.id==='schlangenfeste'&&ridges.length){
    // Jungles grow thickest on canyon flanks rather than open base pads.
    const ridge=ridges[0];
