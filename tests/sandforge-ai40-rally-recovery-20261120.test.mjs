@@ -19,7 +19,7 @@ const base={units:pack,oldRally:{x:3400,y:4100},
 test('after a 105s genuinely blocked gather, relocate to REAL friendly artillery cluster',()=>{
  const p=ai40ClusterRallyRecovery(base);
  assert.ok(p);
- assert.ok(pack.slice(0,5).some(u=>u.x===p.x&&u.y===p.y));
+ assert.ok(pack.filter(u=>u.id!==7).some(u=>u.x===p.x&&u.y===p.y));
  assert.ok(Math.hypot(p.x-720,p.y-995)<330);
 });
 test('no premature rally relocation, even with many paid units',()=>{
