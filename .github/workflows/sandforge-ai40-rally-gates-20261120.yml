@@ -1,0 +1,45 @@
+name: Sandforge AI4.0 actual rally decision gate trace
+on:
+  push:
+    branches:
+      - diag/sandforge-ai40-rally-gates-20261120
+  workflow_dispatch:
+concurrency:
+  group: sandforge-ai40-rally-gates-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  gate-trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        opponent: [guarded, contesting]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify diagnostic compile and no changed rally behavior
+        run: |
+          npx tsc -p tsconfig.json
+          node --test tests/sandforge-ai40-rally-recovery-20261120.test.mjs
+      - name: Paired KI3.6/KI4.0 real battle with opt-in 12-second gate probes
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai38-combat.mjs \
+            --maps 26 --seeds 824836862 \
+            --opponents ${{ matrix.opponent }} \
+            --seconds 480 \
+            --output reports/rally-gates-${{ matrix.opponent }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai40-rally-gates-${{ matrix.opponent }}
+          path: reports/rally-gates-${{ matrix.opponent }}.json
+          if-no-files-found: error
+          retention-days: 21

@@ -184,6 +184,19 @@ export class TacticalAI {
  private ai40RallyRetryAt=0;
  /** Only one verified recovery per actual military objective. */
  private ai40RecoveredMissionSince=-1;
+ /** Explicitly opt-in ONLY for headless benchmark observation. No saves. */
+ rallyGateTraceEnabled=false;
+ rallyGateTrace:Array<{
+  at:number;phase:TacticalPhase;phaseSeconds:number;missionSince:number;
+  map:number;generator:number;blockedBy:string[];
+  pool:number;blockedOrders:number;requiredBlocked:number;
+  alreadyAtRally:number;neededAtRally:number;
+  cluster330:number;cluster720:number;legal330:number;legal720:number;
+  nearestRally:number;remainingToRetry:number;recovered:boolean;
+  wave?:{ready:number;ground:number;enough:boolean;waveReady:boolean;
+    waveReason:string;guardBuildup:boolean;minimumReady:number};
+ }>=[];
+ private lastRallyGateTraceAt=-1e6;
  constructor(private readonly g:Simulation){}
  /** Only known front-line choices are shown to the optional language model. */
  strategicBrief():StrategicBrief|null{
@@ -198,7 +211,7 @@ export class TacticalAI {
   this.sectorPreference={sectorId,until:this.g.time+35};return true;
  }
  restore(state:TacticalState|undefined):void{
-  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;
+  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
   if(!state)for(const m of this.g.memories[1])if(m.owner===0&&
     (m.kind==='turret'||m.kind==='bunker')&&m.hp>0)
@@ -1573,6 +1586,54 @@ export class TacticalAI {
    .slice(0,reserve).map(u=>u.id));
   if(policy&&s.phase!=='attack')s.group=s.group.filter(id=>!guards.has(id));
   if(policy)this.stationHomeGuards(mainFighters.filter(u=>guards.has(u.id)),home);
+  // Read-only, benchmark-opt-in gate trace of REAL planner inputs.
+  // No changes to AI orders, campaign state, fog, credits or saves.
+  if(this.rallyGateTraceEnabled&&g.time>=180&&g.time-this.lastRallyGateTraceAt>=12){
+   this.lastRallyGateTraceAt=g.time;
+   const pool=mainFighters.filter(u=>!guards.has(u.id));
+   const blockedOrders=s.rally?ai40CountBlockedRallyOrders(pool,s.rally):0;
+   const requiredBlocked=Math.max(3,Math.ceil(pool.length*.35));
+   const neededAtRally=Math.min(4,Math.max(3,Math.ceil(pool.length*.14)));
+   const alreadyAtRally=s.rally?pool.filter(u=>distance(u,s.rally!)<330).length:0;
+   const safeBases=this.obstacles();
+   const viable=(u:Unit)=>g.world.walkable(u,safeBases,12)&&
+    !s.knownTurrets.some(t=>distance(t,u)<t.range+90);
+   const stats=(radius:number,minimum:number)=>{
+    const candidates=pool.filter(u=>s.rally&&distance(u,s.rally)>260&&
+     pool.filter(v=>distance(u,v)<radius).length>=minimum);
+    return {count:candidates.length,legal:candidates.filter(viable).length};
+   };
+   const tight=stats(330,neededAtRally),loose=stats(720,3);
+   const reasons=[
+    ...(g.world.mapVersion<25?['old-map']:[]),
+    ...(g.world.generatorVersion<3?['old-generator']:[]),
+    ...(this.ai37Mode!=='coordinated'?['ai37-off']:[]),
+    ...(s.phase!=='gather'?['not-gather']:[]),
+    ...(g.time<190?['too-early']:[]),
+    ...(g.time<this.ai40RallyRetryAt?['retry-cooldown']:[]),
+    ...(!s.rally?['no-rally']:[]),
+    ...(this.ai40RecoveredMissionSince===mission.since?['mission-already-recovered']:[]),
+    ...(g.time-s.phaseAt<95?['gather-less-than-95s']:[]),
+    ...(pool.length<8?['insufficient-fighters']:[]),
+    ...(blockedOrders<requiredBlocked?['not-enough-unpathable-orders']:[]),
+    ...(alreadyAtRally>=neededAtRally?['already-assembled']:[]),
+    ...(tight.legal===0?['no-safe-dense-cluster']:[])
+   ];
+   this.rallyGateTrace.push({
+    at:Math.round(g.time),phase:s.phase,
+    phaseSeconds:Math.round(g.time-s.phaseAt),
+    missionSince:Math.round(mission.since),map:g.world.mapVersion,
+    generator:g.world.generatorVersion,blockedBy:reasons,
+    pool:pool.length,blockedOrders,requiredBlocked,
+    alreadyAtRally,neededAtRally,
+    cluster330:tight.count,cluster720:loose.count,
+    legal330:tight.legal,legal720:loose.legal,
+    nearestRally:s.rally&&pool.length?Math.round(Math.min(...pool.map(u=>distance(u,s.rally!)))):-1,
+    remainingToRetry:Math.max(0,Math.round(this.ai40RallyRetryAt-g.time)),
+    recovered:false
+   });
+   if(this.rallyGateTrace.length>100)this.rallyGateTrace.shift();
+  }
   // KI 4.0: On huge canyon maps a captured frontier Bastion can sit on the
   // far side of the ridge from the ACTUAL paid army. The old gather stage
   // sent dozens of tanks/infantry to that inaccessible rally for minutes,
@@ -1601,6 +1662,18 @@ export class TacticalAI {
     if(replacement){
       s.rally=replacement;
       this.ai40RecoveredMissionSince=mission.since;
+      if(this.rallyGateTraceEnabled)this.rallyGateTrace.push({
+        at:Math.round(g.time),phase:s.phase,
+        phaseSeconds:Math.round(g.time-s.phaseAt),
+        missionSince:Math.round(mission.since),map:g.world.mapVersion,
+        generator:g.world.generatorVersion,blockedBy:['RECOVERED'],
+        pool:pool.length,blockedOrders:trappedMoveOrders,
+        requiredBlocked:Math.max(3,Math.ceil(pool.length*.35)),
+        alreadyAtRally:pool.filter(u=>distance(u,replacement)<330).length,
+        neededAtRally:Math.min(4,Math.max(3,Math.ceil(pool.length*.14))),
+        cluster330:-1,cluster720:-1,legal330:-1,legal720:-1,
+        nearestRally:0,remainingToRetry:0,recovered:true
+      });
     }
   }
   const selected=mainFighters.filter(u=>!guards.has(u.id)).sort((a,b)=>Number(s.group.includes(b.id))-Number(s.group.includes(a.id))||distance(a,s.rally!)-distance(b,s.rally!)||a.id-b.id).slice(0,18);
@@ -1790,6 +1863,14 @@ export class TacticalAI {
    const guardBuildup=policy&&(
     observedHomePressure||g.time<policy.notBefore||
     groundReady<policy.minimumReady);
+   if(this.rallyGateTraceEnabled){
+    const last=this.rallyGateTrace.at(-1);
+    if(last&&last.at===Math.round(g.time))last.wave={
+      ready:ready.length,ground:groundReady,enough,
+      waveReady:wave.ready,waveReason:wave.reason,
+      guardBuildup:!!guardBuildup,minimumReady:policy?.minimumReady??0
+    };
+   }
    if(!enough||!wave.ready||guardBuildup){
     campaignPhase(c,g.time<40?'opening':defended?'buildup':'expansion',g.time);this.setPhase('gather');
     stageForSiege();return;
