@@ -60,6 +60,7 @@ import {createRocketInfantry,attachRocketLauncherToInfantry,disposeRocketLaunche
 import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building-roof-stripes.js';
 import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette.js';
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
+import {unifyModelFactionFlags} from '/webgl-faction-flags.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
 import {createReconDrone,animateReconDrone} from '/webgl-recon-drone.js';
@@ -549,6 +550,7 @@ export class SandforgeBattlefield {
      if(type==='building')finishDesertBuildingMaterials(model,entry.kind);
      if(type==='building')finishBuildingFacadeShading(model);
     }
+    if(type==='building')unifyModelFactionFlags(model,entry.owner);
     if(type==='building'&&entry.kind==='barracks')addBarracksContactShadows(model);
     if(type==='unit')
      attachTeamMarkings(entry,entry.owner,entry.kind,entry.modelFootprint,entry.modelHeight);
@@ -1231,6 +1233,7 @@ export class SandforgeBattlefield {
      paintFactionRoofStripes(entry.detail,b.kind,b.owner);
      paintFactionEntranceBanners(entry.detail,b.kind,b.owner);
     }
+    if(entry.detail)unifyModelFactionFlags(entry.detail,b.owner);
    }
    entry.node.position.copy(this.entityPosition(b));
    entry.node.visible=b.owner===0||this.game.canSee(0,b);
@@ -1433,6 +1436,7 @@ export class SandforgeBattlefield {
    detail.scale.multiplyScalar(factor);
    detail.position.set(-center.x*factor,-box.min.y*factor,-center.z*factor);
    this.lightBuildingMeshes(detail);
+   unifyModelFactionFlags(detail,owner);
    limitModelShadowCasters(detail,18);
    // Release per-bastion materials, clips and fallback rotors after each
    // ownership change. GLB source geometries/textures remain cached.
