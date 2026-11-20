@@ -101,8 +101,8 @@ export function createConformingCraterGeometry(craters,{
 // Environmental set dressing mirrors deterministic Canyon sites but has no
 // influence on gameplay or collision. Every asset is a true GPU 3D mesh.
 export class DesertArtPass {
- constructor({scene,world,terrain,heightAt,pos,loader,lowQuality=false,biome='desert'}){
-  Object.assign(this,{scene,world,terrain,heightAt,pos,loader,lowQuality,biome});
+ constructor({scene,world,terrain,heightAt,pos,loader,lowQuality=false,biome='desert',mapId=null}){
+  Object.assign(this,{scene,world,terrain,heightAt,pos,loader,lowQuality,biome,mapId});
   this.details=createGroundDetails(world,terrain.sites);
   this.items=[];this.animations=[];this.windPalms=[];
   this.addCraters();
@@ -268,6 +268,10 @@ export class DesertArtPass {
   }
  }
  async loadPalmGroves(){
+  // Indigenous flora by ecoregion: date-palm groves belong to Sandforge's
+  // Saharan oasis map, never Mojave Joshua desert, Sonora Saguaro deserts
+  // or arid Badlands. Do not replace with green sphere/cylinder plants.
+  if(this.mapId&&this.mapId!=='desert-strike')return 0;
   // No tropical palms on a snowfield; jungle keeps the existing groves.
   if(this.biome==='snow')return 0;
   const spacious=this.world.mapVersion>=19;
