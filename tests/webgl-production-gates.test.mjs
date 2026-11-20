@@ -61,23 +61,13 @@ test('pause uses simulation clock; stale events and missing models do not hide u
 for(const owner of [0,1])test(`GLB faction ${owner} has a real opening; UVs and PBR textures survive`,()=>{
  const raw=readFileSync(new URL(`../src/assets/reborn/buildings-3d/factory-${owner}.glb`,import.meta.url));
  const len=raw.readUInt32LE(12),j=JSON.parse(raw.subarray(20,20+len)),bin=raw.subarray(28+len);
- const doorIndex=j.nodes.findIndex(n=>n.name==='FactoryRollupDoor');
- const door=j.nodes[doorIndex];
- assert.ok(door,'an authored moving roll-up shutter must exist for production');
- // The FINAL PBR asset merges all metal shutter ribs into one mesh/node.
- // Older imported factory GLBs instead used a parent with moving children.
- const doorNodes=new Set([...(door.children??[]),
-  ...(door.mesh!==undefined?[doorIndex]:[])]);
- assert.ok(doorNodes.size>0,'the garage door needs movable geometry');
- const doorPrimitives=door.mesh===undefined?[]:j.meshes[door.mesh].primitives;
- for(const p of doorPrimitives){
-  const a=j.accessors[p.attributes.POSITION];
-  assert.ok(a.max[1]-a.min[1]>=1.68,'full-height steel roll-up door');
-  assert.ok(a.max[0]-a.min[0]>=2,'front factory opening is vehicle-width');
-  assert.ok(p.attributes.TEXCOORD_0!==undefined,'door preserves its PBR UV map');
- }
+ const exit=j.nodes.find(n=>n.name==='SF_Factory_PBR_OpenBay');
+ assert.ok(exit,'the original vehicle-factory GLB must have a permanent, open exit');
+ assert.equal(exit.extras?.vehicleDriveThrough,true);
+ assert.equal(j.nodes.some(n=>n.name==='FactoryRollupDoor'),false,
+  'no blocking gate leaves or visual door dependency');
  assert.ok(j.images.length>0);assert.ok(j.materials.some(m=>m.pbrMetallicRoughness?.baseColorTexture));
- const moving=doorNodes,ray=new THREE.Raycaster(new THREE.Vector3(.18,.75,1.7),new THREE.Vector3(0,0,-1),0,2.5);
+ const moving=new Set(),ray=new THREE.Raycaster(new THREE.Vector3(.18,.75,1.7),new THREE.Vector3(0,0,-1),0,2.5);
  const scene=new THREE.Group();
  for(const [ni,n]of j.nodes.entries()){
   if(n.mesh===undefined||moving.has(ni))continue;
