@@ -78,10 +78,9 @@ export class SandforgeProductionGates {
    const back=new THREE.Mesh(new THREE.BoxGeometry(.49,.31,.012),hallMaterial);
    back.name='MeshyFactoryRearBay';back.position.set(-.425,-.178,-.39);
    back.receiveShadow=true;hall.add(back);
-   for(const x of [-.686,-.165]){
-    const rail=new THREE.Mesh(new THREE.BoxGeometry(.018,.28,.57),hallMaterial);
-    rail.name='MeshyFactoryDoorTrack';rail.position.set(x,-.187,.42);hall.add(rail);
-   }
+   // The auxiliary side tracks looked like two swinging garage doors when
+   // the actual roll-up shutter opened. The genuine Meshy shutter is the
+   // ONLY animated door; do not generate those two rectangular side panels.
    entry.detail.add(hall);hall.visible=false;
    entry.gate={kind:'factory',root:entry.detail,meshyShutter:true,
     door,rolloutStart:start,rolloutExit:exit,hall,lamp:null,dust:null,ramp:null,
