@@ -1324,7 +1324,8 @@ export class SandforgeBattlefield {
      disposeTaggedMaterials(e.detail,'sandforgeBuildingPBROwned');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingFacadeOwned');
      disposeTaggedMaterials(e.detail,'sandforgeBuildingFill');
-     disposeTaggedMaterials(e.detail,'sandforgeMilitaryMicroPBROwned');}
+     disposeTaggedMaterials(e.detail,'sandforgeMilitaryMicroPBROwned');
+     disposeTaggedMaterials(e.detail,'sandforgeOwnedFlagCloth');}
     if(e.motion?.mixer){
      e.motion.mixer.stopAllAction();
      if(e.detail)e.motion.mixer.uncacheRoot(e.detail);
