@@ -40,6 +40,9 @@ cpSync('scripts/webgl-desert-style.js','dist/webgl-desert-style.js');
 cpSync('scripts/webgl-sand-pbr.js','dist/webgl-sand-pbr.js');
 cpSync('scripts/webgl-sand-surface-detail.js','dist/webgl-sand-surface-detail.js');
 cpSync('scripts/webgl-desert-village.js','dist/webgl-desert-village.js');
+// Deterministic floodplain placement + animated real Three.js PBR water.
+for(const name of ['webgl-desert-water-plan','webgl-desert-water-3d'])
+ cpSync('scripts/'+name+'.js','dist/'+name+'.js');
 cpSync('scripts/webgl-rock-materials.js','dist/webgl-rock-materials.js');
 cpSync('scripts/webgl-ruin-fragments.js','dist/webgl-ruin-fragments.js');
 cpSync('scripts/webgl-scenic-desert-houses.js','dist/webgl-scenic-desert-houses.js');
