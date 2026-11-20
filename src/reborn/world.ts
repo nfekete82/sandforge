@@ -320,7 +320,13 @@ export class World {
     // Strategic reachability calls (allowPartial=false) are unchanged.
     const pass=allowPartial&&!air&&this.generatorVersion>=3&&
       this.generated?.ridges.length
-      ?canyonPassWaypoint(start,target,this.generated.ridges,clearance):undefined;
+      ?canyonPassWaypoint(start,target,this.generated.ridges,clearance,
+        this.generatorVersion===5&&Number.isFinite(maxSlope)
+         // Validate the ENTIRE entry→exit segment with the very same
+         // unit footprint, collision geometry and max slope as A*.
+         // Do not enable the extra work on historical v3/v4 saves.
+         ?(near,far)=>line(near,far):undefined)
+      :undefined;
     const routingTarget=pass??target;
     const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(routingTarget,obstacles,[],start,clearance,maxSlope);
     if(!end)return [];
