@@ -62,7 +62,8 @@ function cylinder(mat,r,y0,y1,sides=12,at=[0,0,0],rotor=false){
  }
 }
 function beam(mat,a,b,width=.09,rotor=false){
- const direction=unit(sub(b,a)),right=unit(cross(direction,[0,0,1])),forward=unit(cross(direction,right));
+ const direction=unit(sub(b,a)),axis=Math.abs(direction[2])>.93?[0,1,0]:[0,0,1],
+  right=unit(cross(direction,axis)),forward=unit(cross(direction,right));
  const offset=(p,x,z)=>add(add(p,mul(right,x)),mul(forward,z)),w=width/2;
  const low=[offset(a,-w,-w),offset(a,w,-w),offset(a,w,w),offset(a,-w,w)],high=[offset(b,-w,-w),offset(b,w,-w),offset(b,w,w),offset(b,-w,w)],g=material(mat,rotor);
  for(let i=0;i<4;i++){const j=(i+1)%4;quad(g,low[i],low[j],high[j],high[i]);}quad(g,...low.slice().reverse());quad(g,...high);
