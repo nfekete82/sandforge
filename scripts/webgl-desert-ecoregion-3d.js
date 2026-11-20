@@ -56,10 +56,10 @@ function prepareRealPbrModel(scene,kind){
 }
 export async function loadAuthenticDesertScenery({
  loader,scene,world,terrain=world?.generated,seed=world?.seed??0,
- mapId,heightAt,lowQuality=false
+ mapId,heightAt,lowQuality=false,waterLayout=null
 }){
  const placements=planDesertEcoregion({
-  mapId,world,terrain,seed,lowQuality
+  mapId,world,terrain,seed,lowQuality,waterLayout
  });
  const root=new THREE.Group();root.name='visual-authentic-desert-ecoregion';
  root.userData={visualOnly:true,nonPlayable:true,nonBlocking:true,mapId};
