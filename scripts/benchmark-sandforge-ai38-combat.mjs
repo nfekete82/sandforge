@@ -26,12 +26,13 @@ const round=(n,d=2)=>Number(n.toFixed(d));
 const avg=(rows,key)=>rows.length?round(rows.reduce((s,r)=>s+r[key],0)/rows.length):null;
 const sum=(rows,key)=>rows.reduce((s,r)=>s+(r[key]??0),0);
 const opts={maps:[24,25,26],seeds:[824836862,9999],opponents:['guarded','contesting','bastion-rush'],
- seconds:420,output:resolve('reports/ai38-combat.json'),presets:[]};
+ seconds:420,output:resolve('reports/ai38-combat.json'),presets:[],variants:['ai36','ai38']};
 function parse(argv){
  for(let i=0;i<argv.length;i+=2){
   const key=argv[i],v=argv[i+1];
   if(!v)throw Error('Missing value after '+key);
-  if(key==='--presets')opts.presets=v.split(',');
+  if(key==='--variants')opts.variants=v.split(',');
+  else if(key==='--presets')opts.presets=v.split(',');
   else if(key==='--maps')opts.maps=v.split(',').map(Number);
   else if(key==='--seeds')opts.seeds=v.split(',').map(Number);
   else if(key==='--opponents')opts.opponents=v.split(',');
@@ -43,6 +44,9 @@ function parse(argv){
  if(chosen.some(m=>!m)||new Set(opts.presets).size!==opts.presets.length)
   throw Error('Unknown or repeated desert map: '+opts.presets);
  if(chosen.length){opts.maps=chosen.map(x=>x.mapVersion);opts.seeds=chosen.map(x=>x.seed);}
+ if(!opts.variants.length||new Set(opts.variants).size!==opts.variants.length||
+   opts.variants.some(v=>!['ai36','ai38','baseline','calibrated'].includes(v)))
+  throw Error('Invalid AI benchmark variants: '+opts.variants);
  if(!opts.maps.length||opts.maps.some(x=>![24,25,26].includes(x))||
    !opts.seeds.length||opts.seeds.some(x=>!Number.isInteger(x)||x<0)||
    !opts.opponents.length||opts.opponents.some(x=>!['guarded','contesting','bastion-rush'].includes(x))||
@@ -220,7 +224,7 @@ function compact(run){
 function summary(runs){
  const rows=[];
  for(const map of opts.maps)for(const opponent of opts.opponents)
-  for(const variant of ['ai36','ai38']){
+  for(const variant of opts.variants){
    const rs=runs.filter(r=>r.map===map&&r.opponent===opponent&&r.variant===variant);
    if(!rs.length)continue;
    rows.push({map,opponent,variant,count:rs.length,
@@ -243,11 +247,14 @@ function paired(runs){
  const pairs=[];
  for(const map of opts.maps)for(const seed of opts.seeds)
   for(const opponent of opts.opponents){
-   const a=runs.find(r=>r.map===map&&r.seed===seed&&r.opponent===opponent&&r.variant==='ai36');
-   const b=runs.find(r=>r.map===map&&r.seed===seed&&r.opponent===opponent&&r.variant==='ai38');
+   const oldVariant=opts.variants.includes('baseline')?'baseline':'ai36',
+    newVariant=opts.variants.includes('calibrated')?'calibrated':'ai38';
+   const a=runs.find(r=>r.map===map&&r.seed===seed&&r.opponent===opponent&&r.variant===oldVariant);
+   const b=runs.find(r=>r.map===map&&r.seed===seed&&r.opponent===opponent&&r.variant===newVariant);
    if(!a||!b)continue;
    if(a.initialStateHash!==b.initialStateHash)throw Error('A/B started from different map state');
    pairs.push({map,seed,opponent,landscape:a.landscape,
+     beforeVariant:oldVariant,afterVariant:newVariant,
     before:a.outcome,after:b.outcome,sameStartingState:true,
     deltaShots:b.shotEvents-a.shotEvents,
     deltaCaptures:b.captures-a.captures,
@@ -270,7 +277,7 @@ async function main(){
    ?opts.presets.map(id=>{const p=globalThis.SandforgeDesertMaps.byId(id);
       return {map:p.mapVersion,seed:p.seed,preset:p};})
    :opts.maps.flatMap(map=>opts.seeds.map(seed=>({map,seed,preset:null})));
- const total=cases.length*opts.opponents.length*2;
+ const total=cases.length*opts.opponents.length*opts.variants.length;
  const persist=complete=>{
   mkdirSync(dirname(opts.output),{recursive:true});
   writeFileSync(opts.output,JSON.stringify({
@@ -280,11 +287,17 @@ async function main(){
  };
  persist(false);
  for(const {map,seed,preset} of cases)for(const opponent of opts.opponents)
-  for(const variant of ['ai36','ai38']){
+  for(const variant of opts.variants){
    const recorder=observeFactory();
    const Simulation=class extends SimulationV4{
-    constructor(a,b){super(a,b,preset?.terrain,preset?.generatorVersion??4);this.tactical.ai37Mode=variant==='ai38'?'coordinated':'off';
-      this.tactical.rallyGateTraceEnabled=variant==='ai38';}
+    constructor(a,b){
+     super(a,b,preset?.terrain,preset?.generatorVersion??4);
+     if(variant==='ai36'||variant==='ai38')
+      this.tactical.ai37Mode=variant==='ai38'?'coordinated':'off';
+     // Paired baseline/calibrated inherit identical map-specific doctrine.
+     this.tactical.hqBreakthroughMode=variant==='calibrated'?'calibrated':'baseline';
+     this.tactical.rallyGateTraceEnabled=variant==='ai38';
+    }
    };
    const result=runMatch({Simulation,UNITS},{opponent,seconds:opts.seconds,
     ai33:'adaptive',ai35:'control',ai36:'coordinated',observe:recorder.observe,
