@@ -35,6 +35,7 @@ import {installBattleDebrief} from '/webgl-battle-debrief.js';
 import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry} from '/webgl-rock-materials.js';
 import {makeSmallRuinFragments,isSmallRuin} from '/webgl-ruin-fragments.js';
 import {chooseRareScenicHouseIndex,createScenicDesertHouse} from '/webgl-scenic-desert-houses.js';
+import {createBurnedSedanWrecks} from '/webgl-burned-sedan-3d.js';
 
 /** Opt-in WebGL scene using the real authoritative Sandforge map and simulation.
  * This page is isolated from the production Canvas renderer, save format and AI
@@ -1072,6 +1073,13 @@ const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
   lowQuality:query.get('lite')==='1',showOutcrops:biome!=='desert'}):[];
 boundaryCliffs=addBoundaryCliffs({scene,size,heightAt,seed,lowQuality:query.get('lite')==='1',softRim:spacious,hardVoid:spacious});
 const stones=instancedStone();
+// Authored 3D burned civilian cars with actual geometry and PBR weathering.
+// Only the four fixed desert maps; visual-only and never registered with
+// simulation collision, unit selection, saves or route-finding.
+const burnedSedans=desertMap&&biome==='desert'
+ ?createBurnedSedanWrecks({scene,world,terrain,seed,
+   mapId:desertMap.id,heightAt,lowQuality:query.get('lite')==='1'})
+ :null;
 // Desert corridors are navigation-only; no permanent tracks leading to Bastions.
 const biomeVegetation=addBiomeVegetation({THREE,scene,world,terrain,game,heightAt,seed,biome,
  lowQuality:query.get('lite')==='1'});
@@ -1197,7 +1205,10 @@ if(oasisFocus){
  camera.position.add(target.clone().sub(controls.target));controls.target.copy(target);
  camera.zoom=1.55;camera.updateProjectionMatrix();controls.update();
 }
-window.addEventListener('pagehide',event=>{if(!event.persisted){oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();}});
+window.addEventListener('pagehide',event=>{if(!event.persisted){
+ burnedSedans?.dispose();
+ oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
+}});
 let desertArtReady=false;
 const effects=new SandforgeCombatEffects({scene,camera,game,world,heightAt,pos,battlefield,biome,lowQuality:query.get('lite')==='1',vehicleDust:query.get('dust')!=='off'});
 // Renderer-only weather preview: weather rules in Simulation are unchanged.
@@ -1400,6 +1411,8 @@ function animate(now){
 renderer.setAnimationLoop(animate);
 window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,battlefield,effects,atmosphere,sound,constructionRecovery,visualPerimeter,boundaryCliffs,panKeys,groundTracks,oases,biome,biomeVegetation,
  desertMapId:desertMap?.id??null,
+ burnedSedans,
+ get burnedSedanCount(){return burnedSedans?.placements.length??0;},
  performance:performanceWatch,
  // Console diagnostic: compare FPS/draw calls with site props on/off live.
  setSiteDecorEnabled:enabled=>battlefield.setSiteDecorEnabled(enabled),
