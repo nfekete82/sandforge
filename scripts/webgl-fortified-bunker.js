@@ -195,9 +195,7 @@ export function createFortifiedBunker(owner=0){
   if(firing){
    wall('concrete-foundation',42,16,11,concrete,18,0);
    wall('concrete-brow',42,11,11,concrete,40.5,0);
-   for(const side of [-1,1])
-    wall('jamb-'+side,9,12.5,11,plaster,31.0,side*.0);
-   // The jambs require local horizontal offsets, not depth offsets:
+   // The jambs need local horizontal offsets; the centre remains open:
    for(const side of [-1,1])box('Bunker_Window_ReinforcedPost_'+i+'_'+side,
     9,14,13,steel,x+Math.cos(a)*side*16,31.3,z-Math.sin(a)*side*16,a);
    // Five preserved, separately identifiable recessed firing windows.
