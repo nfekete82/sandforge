@@ -72,6 +72,7 @@ jobs:
       - name: Render two teams closed and door open with original normal maps
         env:
           SANDFORGE_BROWSER_CHANNEL: chromium
+          SANDFORGE_MESHY_STANDALONE: '1'
           LIBGL_ALWAYS_SOFTWARE: '1'
         run: |
           cd tests/browser
