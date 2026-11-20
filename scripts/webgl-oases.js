@@ -17,7 +17,7 @@ function ribbon(points,width){
 }
 function join(parts){const merged=mergeGeometries(parts.map(g=>g.index?g.toNonIndexed():g));
  for(const g of parts)g.dispose();return merged;}
-function palmGeometry(variant){
+export function palmGeometry(variant){
  const r=oasisRandom(0xe173b27^variant),height=85+variant*12,bend=8+variant*3;
  const curve=new THREE.CatmullRomCurve3(Array.from({length:9},(_,i)=>{
   const t=i/8;return new THREE.Vector3(bend*t*t,height*t,Math.sin(t*2)*variant*2);
@@ -45,7 +45,7 @@ function palmGeometry(variant){
  }
  return {trunk:join(trunkParts),leaves:join(leaves)};
 }
-function tuftGeometry(reed=false){
+export function tuftGeometry(reed=false){
  const parts=[];
  for(let i=0;i<(reed?9:13);i++){
   const a=i*2.39996,l=reed?12+(i%4)*2:5+(i%4)*1.6;
@@ -58,7 +58,7 @@ function tuftGeometry(reed=false){
 /** Shared GPU wind for instanced oasis palms; trunk and foliage use
  * identical root bending while leaf tips flutter independently.
  * Does not mutate CPU matrices, simulation, save data or pathfinding. */
-function palmWindMaterial(source,wind,fronds){
+export function palmWindMaterial(source,wind,fronds){
  const material=source.clone();
  material.onBeforeCompile=shader=>{
   shader.uniforms.sfPalmTime=wind.time;

@@ -10,6 +10,7 @@ import {canyonGroundSampler,rampAtX,ridgeCenterY} from '/src/reborn/canyon-heigh
 import {SandforgeBattlefield} from '/webgl-battlefield.js';
 import {DesertOases} from '/webgl-oases.js';
 import {createCinematicDesertWaterways} from '/webgl-desert-water-3d.js';
+import {createDesertLakeVegetation} from '/webgl-desert-lake-vegetation-3d.js';
 import {planDesertWaterways} from '/webgl-desert-water-plan.js';
 import {generateOases} from '/webgl-oasis-generation.js';
 import {createLandscapeMeshes} from '/webgl-landscape-network.js';
@@ -40,6 +41,8 @@ import {createDesertVillages} from '/webgl-desert-village.js';
 import {installMatchResultOverlay} from '/webgl-match-result.js';
 import {installBattleDebrief} from '/webgl-battle-debrief.js';
 import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry,applyRockMineralVeins} from '/webgl-rock-materials.js';
+import {CANYON_GEOLOGY,buildGeologicalMesaSurface} from '/webgl-authentic-canyon-geology.js';
+import {createCanyonPbrOutcrops} from '/webgl-canyon-pbr-outcrops.js';
 import {makeSmallRuinFragments,isSmallRuin} from '/webgl-ruin-fragments.js';
 import {chooseRareScenicHouseIndex,createScenicDesertHouse} from '/webgl-scenic-desert-houses.js';
 import {createBurnedSedanWrecks} from '/webgl-burned-sedan-3d.js';
@@ -485,48 +488,21 @@ function buildTerrain(){
  * skirts fill the complete solid hull: no blocked ground under empty air. */
 function addBattlefieldRocks(material){
  const vertices=[],colors=[],uv=[];
- const brokenEmpireRedSlate=desertRegion?.id==='broken-empire';
- // Sonoran geology: dark red-gray sandstone with charcoal weathering,
- // not the pale yellow Mesa look of the golden dunes. Keep identical
- // rock geometry, PBR maps, collision hull and pathfinding.
- const baseColor=new THREE.Color(brokenEmpireRedSlate?'#855653':
-  biome==='desert'?desertStyle.mesa:biomeStyle.rocks[0]);
- const dark=new THREE.Color(brokenEmpireRedSlate?'#39333b':
-  biome==='desert'?desertStyle.mesaShade:biomeStyle.rocks[1]);
+ // Authentic fractured shelves, dark geological strata and coherent PBR
+ // stone textures. Terrain navigation continues using the original polygon
+ // and ridge ramp geometry; only this visual mesh gets extra vertices.
  for(const [id,mesa] of terrain.mesas.entries()){
-  const poly=mesa.outline,cx=poly.reduce((n,p)=>n+p.x,0)/poly.length,cz=poly.reduce((n,p)=>n+p.y,0)/poly.length;
-  const peak=mesa.columns.reduce((n,c)=>n+c.height,0)/mesa.columns.length*(terrain.battlefield.profile==='rocky'?1.55:1.05);
-  const r=rnd((seed^id*0x9e3779b9^0x536fa1)>>>0),rotation=r()*6.28;
-  // Fine stepped strata and weathered shelves avoid monolithic orange boulders.
-  // Still one merged visual mesh over the authoritative collision polygon.
-  const rings=[1.02,.985,.94,.88,.82,.75,.67,.56,.41],
-   levels=[-.8,.13,.23,.37,.54,.70,.84,.94,1],points=[];
-  for(let k=0;k<rings.length;k++){
-   points[k]=poly.map((p,i)=>{
-    const erosion=k===0?1:1+Math.sin(i*2.37+rotation+k*.7)*.12+
-     Math.sin(i*4.13+k*.53+rotation)*.035;
-    const x=cx+(p.x-cx)*rings[k]*erosion,z=cz+(p.y-cz)*rings[k]*erosion;
-    return [x-half,heightAt(x,z)+peak*levels[k]*(k===0?1:1+Math.sin(i*1.9+rotation)*.12),z-half];
-   });
-  }
-  const tri=(a,b,c,band)=>{
-   for(const p of [a,b,c]){
-    vertices.push(...p);
-    const s=Math.sin(p[1]*.165+(p[0]+half)*.009)*.09;
-    const weathering=brokenEmpireRedSlate
-      ?Math.max(.12,Math.min(.86,band*.85+s*1.2+.12))
-      :Math.max(0,Math.min(.85,band+s));
-     const color=baseColor.clone().lerp(dark,weathering);
-    colors.push(color.r,color.g,color.b);uv.push((p[0]+half)/150,p[1]/120);
-   }
-  };
-  for(let k=0;k<rings.length-1;k++)for(let i=0;i<poly.length;i++){
-   const j=(i+1)%poly.length,a=points[k][i],b=points[k][j],c=points[k+1][i],d=points[k+1][j];
-   tri(a,c,b,.08+(k%2)*.15+r()*.07);tri(b,c,d,.08+(k%2)*.15+r()*.07);
-  }
-  const top=[cx-half+Math.sin(rotation)*peak*.09,
-   heightAt(cx,cz)+peak*1.02,cz-half+Math.cos(rotation)*peak*.08];
-  for(let i=0;i<poly.length;i++)tri(points.at(-1)[i],top,points.at(-1)[(i+1)%poly.length],.02+r()*.06);
+  const poly=mesa.outline;
+  const peak=mesa.columns.reduce((n,c)=>n+c.height,0)/mesa.columns.length*
+   (terrain.battlefield.profile==='rocky'?1.55:1.05);
+  const detail=buildGeologicalMesaSurface({
+   outline:poly,peak,heightAt,half,id,seed,
+   mapId:desertRegion?.id??'desert-strike',
+   quality:query.get('lite')==='1'?'low':'high'
+  });
+  vertices.push(...detail.positions);
+  colors.push(...detail.colors);
+  uv.push(...detail.uv);
  }
  const geometry=new THREE.BufferGeometry();
  geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
@@ -539,12 +515,15 @@ function addBattlefieldRocks(material){
  const mat=new THREE.MeshStandardMaterial({color:'#ffffff',vertexColors:true,
   map:biome==='desert'?rockMaps.map:null,
   roughness:.98,roughnessMap:rockMaps.roughnessMap,
-  normalMap:rockMaps.normalMap,normalScale:new THREE.Vector2(.38,.38),
-  metalness:0,side:THREE.DoubleSide,flatShading:true});
+  normalMap:rockMaps.normalMap,normalScale:new THREE.Vector2(
+   desertRegion?.id==='last-stronghold'?.65:.52,
+   desertRegion?.id==='last-stronghold'?.65:.52),
+  metalness:0,side:THREE.DoubleSide,flatShading:false});
  // Dark weathered mineral seams follow the true 3D canyon/mesa surfaces.
  // Preserve existing PBR textures, normals, triangles and navigation hulls.
  if(spacious&&biome==='desert')applyRockMineralVeins(mat,{
-   strength:brokenEmpireRedSlate?.66:.57,frequency:brokenEmpireRedSlate?1.35:1.1});
+   strength:CANYON_GEOLOGY[desertRegion?.id]?.veins??.53,
+   frequency:desertRegion?.id==='last-stronghold'?1.55:1.25});
  if(biome!=='desert')new THREE.TextureLoader().load('/src/assets/reborn/sandstone-strata-v1.png',map=>{
   map.wrapS=map.wrapT=THREE.RepeatWrapping;map.colorSpace=THREE.SRGBColorSpace;
   map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
@@ -1110,7 +1089,8 @@ const chunks=buildTerrain();
 // One-time geometry; roads and physical cliffs are never updated per frame.
 const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
  createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],ridges:terrain.ridges,biome,
-  lowQuality:query.get('lite')==='1',showOutcrops:biome!=='desert'}):[];
+  lowQuality:query.get('lite')==='1',mapId:desertRegion?.id??null,
+  showOutcrops:biome!=='desert'||['burning-horizon','last-stronghold'].includes(desertRegion?.id)}):[];
 boundaryCliffs=addBoundaryCliffs({scene,size,heightAt,seed,lowQuality:query.get('lite')==='1',softRim:spacious,hardVoid:spacious});
 const stones=instancedStone();
 // Authored 3D burned civilian cars with actual geometry and PBR weathering.
@@ -1133,11 +1113,20 @@ const plannedDesertWater=spacious&&biome==='desert'&&query.get('water')!=='off'
  ?planDesertWaterways({world,terrain,seed,mapId:desertRegion?.id??null,
    oases:oasisPlanForWater,lowQuality:query.get('lite')==='1'}):null;
 // Load hand-modeled organic PBR GLBs, no primitive-geometry stand-ins.
-let authenticDesertArt=null,authenticDesertReady=false;
+let authenticDesertArt=null,canyonOutcrops=null,authenticDesertReady=false;
 const authenticDesertLoad=desertRegion?loadAuthenticDesertScenery({
  loader,scene,world,terrain,seed,mapId:desertRegion.id,heightAt,
  waterLayout:plannedDesertWater,lowQuality:query.get('lite')==='1'
-}).then(a=>{authenticDesertArt=a;return a;}).catch(error=>{
+}).then(a=>{
+ authenticDesertArt=a;
+ // Embed the actual SMALL authentic sandstone GLBs into the large
+ // rocky canyons. These are the same original UV-mapped PBR geometries,
+ // shared in a handful of GPU instanced draws and never placed on passes.
+ if(['burning-horizon','last-stronghold'].includes(desertRegion?.id))
+  canyonOutcrops=createCanyonPbrOutcrops({scene,world,terrain,heightAt,seed,
+   mapId:desertRegion.id,sourceScenery:a,lowQuality:query.get('lite')==='1'});
+ return a;
+}).catch(error=>{
  console.warn('Authentic 3D desert scenery unavailable:',error);return null;
 }).finally(()=>{authenticDesertReady=true;}):Promise.resolve(null);
 // Small ground-level stones accent the winding dry wash from the reference.
@@ -1257,6 +1246,12 @@ const desertWater=spacious&&biome==='desert'&&query.get('water')!=='off'
    mapId:desertRegion?.id??null,oases:oases.layout,
    layout:plannedDesertWater,lowQuality:query.get('lite')==='1'})
  :null;
+// Sculpted, wind-animated palms/reeds grow in irregular clusters beyond
+// each lake's wet shoreline, without adding real-world collision obstacles.
+const lakeVegetation=desertWater?.layout.lakes.length
+ ?createDesertLakeVegetation({scene,world,terrain,heightAt,seed,
+   mapId:desertRegion?.id??null,layout:desertWater.layout,
+   lowQuality:query.get('lite')==='1'}):null;
 // Generator v3: six unique, locally generated UV-textured adobe house GLBs.
 // Older maps keep their established sparse two-GLTF hamlets, unchanged.
 // Render-only scenery; never creates terrain obstacles or changes saved games.
@@ -1273,8 +1268,8 @@ if(oasisFocus){
  camera.zoom=1.55;camera.updateProjectionMatrix();controls.update();
 }
 window.addEventListener('pagehide',event=>{if(!event.persisted){
- burnedSedans?.dispose();
- authenticDesertArt?.dispose();
+ lakeVegetation?.dispose();burnedSedans?.dispose();
+ canyonOutcrops?.dispose();authenticDesertArt?.dispose();
  groundBlending?.dispose();desertWater?.dispose();oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
 }});
 let desertArtReady=false;
@@ -1453,6 +1448,7 @@ function animate(now){
  atmosphere.update(visualDt);
  oases.update(now*.001);
  desertWater?.update(now*.001);
+ lakeVegetation?.update(now*.001);
  // Authored palms use the same visual clock and real weather transitions.
  desertArt.update(now*.001,game.weather.intensity);
  if(performanceWatch.enabled)performanceWatch.auxiliary(performance.now()-beforeAux);
@@ -1478,12 +1474,13 @@ function animate(now){
  }
 }
 renderer.setAnimationLoop(animate);
-window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,battlefield,effects,atmosphere,sound,constructionRecovery,visualPerimeter,boundaryCliffs,panKeys,groundTracks,oases,desertWater,biome,biomeVegetation,
+window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,battlefield,effects,atmosphere,sound,constructionRecovery,visualPerimeter,boundaryCliffs,panKeys,groundTracks,oases,desertWater,lakeVegetation,biome,biomeVegetation,
  get groundBlending(){return groundBlending;},
  get groundBlendReady(){return groundBlendReady;},
  desertMapId:desertMap?.id??null,
  desertRegion:desertRegion?.key??null,
  get authenticDesertArt(){return authenticDesertArt;},
+ get canyonOutcrops(){return canyonOutcrops;},
  get authenticDesertReady(){return authenticDesertReady;},
  burnedSedans,
  get burnedSedanCount(){return burnedSedans?.placements.length??0;},

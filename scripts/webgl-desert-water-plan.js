@@ -15,8 +15,8 @@ const segmentDistance=(p,a,b)=>{
  return Math.hypot(p.x-a.x-vx*t,p.y-a.y-vy*t);
 };
 const PLANS=Object.freeze({
- 'desert-strike':Object.freeze({lakes:2,rivers:1,min:185,max:255}),
- 'broken-empire':Object.freeze({lakes:1,rivers:1,min:155,max:205})
+ 'desert-strike':Object.freeze({lakes:2,rivers:0,min:185,max:255}),
+ 'broken-empire':Object.freeze({lakes:1,rivers:0,min:155,max:205})
 });
 /** Use the exact visual footprint of lakes and winding rivers for vegetation
  * exclusion. The outer wet bank can extend 1.24x past the water's edge;
@@ -84,36 +84,7 @@ export function planDesertWaterways({mapId,world,terrain=world?.generated,
    phase:random()*Math.PI*2,seed:Math.floor(random()*0xffffffff)};
   if(safe(ellipse,r*1.12))lakes.push(Object.freeze(ellipse));
  }
- // A river joins the largest real lagoon, runs within legal open terrain
- // and ends before it reaches any road, HQ, Bastion or cliff. It is NOT a
- // decorative line across the tactical map or the black world boundary.
- for(const lake of lakes.slice(0,type.rivers)){
-  let selected=null;
-  for(let attempt=0;attempt<160&&!selected;attempt++){
-   const a=random()*Math.PI*2,len=380+random()*310,phase=random()*6.283;
-   const dx=Math.cos(a),dy=Math.sin(a),sx=-dy,sy=dx;
-   const bend=65+random()*95,width=25+random()*17;
-   const points=[];
-   let valid=true;
-   for(let i=0;i<=22;i++){
-    const t=i/22;
-    const d=lake.radius*.55+t*len;
-    const sideways=(Math.sin(t*4.3+phase)-Math.sin(phase))*
-      bend*t*(1-.45*t);
-    const p={x:lake.x+dx*d+sx*sideways,y:lake.y+dy*d+sy*sideways};
-    // River head overlaps its lagoon. Samples farther downstream use the
-    // same hard constraints as the lake, with a narrower bank clearance.
-    if(t>.22&&!safe(p,width+34,lake)){valid=false;break;}
-    if(p.x<95||p.y<95||p.x>size-95||p.y>size-95){valid=false;break;}
-    points.push(Object.freeze(p));
-   }
-   if(valid){
-    selected=Object.freeze({id:'river-'+rivers.length,
-     lakeId:lake.id,points:Object.freeze(points),
-     width,phase,seed:Math.floor(random()*0xffffffff)});
-   }
-  }
-  if(selected)rivers.push(selected);
- }
+ // Intentionally no rivers. The ribbon streams did not look natural;
+ // lakes and planted natural oasis shorelines are the only surface water.
  return Object.freeze({mapId,lakes:Object.freeze(lakes),rivers:Object.freeze(rivers)});
 }

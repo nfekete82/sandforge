@@ -20,7 +20,7 @@ for(const mapId of ['desert-strike','broken-empire'])
    return {id:a.desertMapId,hasWater:Boolean(w),lakes:w?.layout.lakes.length??0,
     rivers:w?.layout.rivers.length??0,meshes:w?.meshes.length??0,shores:w?.shores.length??0,
     drawCalls:w?.drawCalls??0,
-    goodPBR:w?.materials.every(m=>m.isMeshPhysicalMaterial&&m.transparent)??false,
+    goodPBR:w?.meshes.every(m=>m.material.isMeshPhysicalMaterial&&m.material.transparent)??false,
     safe:w?.meshes.every(m=>m.userData.visualOnly&&m.userData.nonBlocking&&m.userData.shallowPassable)??false,
     blackEdge:a.scene.background?.getHexString()==='000000',
     valid:a.game.world.validation?.valid,
@@ -29,7 +29,7 @@ for(const mapId of ['desert-strike','broken-empire'])
   console.log('SANDFORGE_LAKES_RIVERS '+JSON.stringify(report));
   expect(report.id).toBe(mapId);
   expect(report.lakes).toBeGreaterThan(0);
-  expect(report.rivers).toBeGreaterThan(0);
+  expect(report.rivers).toBe(0);
   expect(report.drawCalls).toBe(report.meshes+report.shores);
   expect(report.shores).toBe(report.meshes);
   expect(report.goodPBR&&report.safe&&report.blackEdge&&report.valid).toBe(true);
