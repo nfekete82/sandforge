@@ -301,26 +301,84 @@ const crcTable=Array.from({length:256},(_,n)=>{let c=n;for(let i=0;i<8;i++)c=c&1
 function crc32(buffer){let c=0xffffffff;for(const b of buffer)c=crcTable[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0}
 const be=n=>{const b=Buffer.alloc(4);b.writeUInt32BE(n);return b};
 function pngChunk(type,data){const name=Buffer.from(type);return Buffer.concat([be(data.length),name,data,be(crc32(Buffer.concat([name,data])))]);}
-function png(color,key){
- // Roof paint needs fine quiet mineral grain, not a magnified 48px pattern
- // that looks like deep parallel grooves under golden-hour grazing light.
- const width=key==='roof'?256:48,height=key==='roof'?256:48;
- let state=(color[0]*2161+color[1]*3191+color[2]*5779)>>>0;
- const scan=Buffer.alloc((width*4+1)*height);
- const random=()=>{state=(1664525*state+1013904223)>>>0;return state/4294967296};
+// Physically based, fully self-contained textures. All maps are authored
+// deterministically and EMBEDDED in the GLB: no external HTTP textures.
+// 1024px galvanized roof, 512px facade/cement/metal, lower-cost 256px
+// small workshop details. Normal + ORM maps share a small set of roles.
+const keyRole=key=>/glass|glazing/.test(key)?'glass':
+ /roof|rib|metal_cladding/.test(key)?'roof':
+ /camo|sand|khaki|wall_weather|stone|concrete/.test(key)?'cement':
+ /hazard|warning|team|white/.test(key)?'paint':'steel';
+const hash=(x,y,salt)=>{
+ let h=Math.imul(x+51,374761393)^Math.imul(y+97,668265263)^salt;
+ h=Math.imul(h^(h>>>13),1274126177);
+ return ((h^(h>>>16))>>>0)/4294967295;
+};
+const smooth=t=>t*t*(3-2*t);
+function smoothNoise(x,y,n,cell,salt){
+ const u=x/cell,v=y/cell,ix=Math.floor(u),iy=Math.floor(v),
+  wx=smooth(u-ix),wy=smooth(v-iy),cycle=Math.max(2,Math.round(n/cell));
+ const h=(i,j)=>hash((i+cycle)%cycle,(j+cycle)%cycle,salt);
+ return (h(ix,iy)*(1-wx)+h(ix+1,iy)*wx)*(1-wy)+
+  (h(ix,iy+1)*(1-wx)+h(ix+1,iy+1)*wx)*wy;
+}
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function surfaceElevation(x,y,n,key){
+ const role=keyRole(key),seed=role==='roof'?83:role==='cement'?139:role==='steel'?211:17;
+ const n1=smoothNoise(x,y,n,64,seed),n2=smoothNoise(x,y,n,16,seed+3);
+ const grain=hash(x,y,seed+7);
+ const rib=role==='roof'?Math.sin(x/n*2*Math.PI*44)*.14:0;
+ const seams=role==='roof'?(x%n<3||y%n<3?-.32:0):
+  role==='cement'?(x%n<2||y%n<2?-.10:0):0;
+ const scuff=role==='steel'?Math.sin(y*.16+x*.015)*.025:0;
+ return (n1-.5)*.25+(n2-.5)*.11+(grain-.5)*.075+
+  rib+seams+scuff;
+}
+function textureResolution(key,kind){
+ if(kind!=='albedo')return 256;
+ return key==='roof'?1024:/camo|concrete|metal_cladding|roof_rib|wall_weather/.test(key)?512:256;
+}
+function png(color,key,kind='albedo'){
+ const width=textureResolution(key,kind),height=width,
+  scan=Buffer.alloc((width*4+1)*height),
+  role=keyRole(key),seed=color[0]*19+color[1]*37+color[2]*53;
+ const flat=key==='team'||key==='white'||key==='hazard_white';
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-  // Uniform paint: same sRGB as the team roof stripes and the static flags.
-  const i=y*(width*4+1)+1+x*4,
-  noise=(key==='team'||key==='white')?0:
-   Math.round((random()-.5)*(['roof','camo'].includes(key)?5:17));
-  let rgb=color;
-  // Do not bake the old 48px sine-wave camouflage into the exterior:
-  // the factory uses the same high-detail wall atlas as HQ and barracks.
-  // A quiet sandy base remains visible briefly before PBR shader upload.
-  for(let c=0;c<3;c++)scan[i+c]=Math.max(0,Math.min(255,rgb[c]+noise));scan[i+3]=255;
+  const idx=y*(width*4+1)+1+x*4,e=surfaceElevation(x,y,width,key);
+  const dust=smoothNoise(x,y,width,64,seed+7)-.5;
+  const grain=hash(x,y,seed)-.5;
+  if(kind==='normal'){
+   const dx=(surfaceElevation(x+1,y,width,key)-surfaceElevation(x-1,y,width,key))*1.32;
+   const dy=(surfaceElevation(x,y+1,width,key)-surfaceElevation(x,y-1,width,key))*1.32;
+   const len=Math.hypot(dx,dy,1);
+   scan[idx]=Math.round((-.5*dx/len+.5)*255);
+   scan[idx+1]=Math.round((-.5*dy/len+.5)*255);
+   scan[idx+2]=Math.round((.5/len+.5)*255);
+  }else if(kind==='orm'){
+   const rough=clamp((role==='glass'?.37:role==='roof'?.76:
+    role==='cement'?.90:role==='paint'?.82:.61)+
+    dust*.12+grain*.08+Math.abs(e)*.03,.22,.99);
+   const metal=role==='glass'?.05:role==='roof'?.54:
+    role==='steel'?.69:role==='cement'?.025:.15;
+   scan[idx]=255;scan[idx+1]=Math.round(rough*255);
+   scan[idx+2]=Math.round(metal*255);
+  }else{
+   const line=role==='roof'?.075*Math.sin(x*.28+y*.007):0;
+   const chip=(role==='steel'||role==='roof')&&e>.20&&hash(x,y,seed+19)>.76?-.19:0;
+   const stain=role==='cement'?-.11*Math.max(0,(dust+.18)*1.1):0;
+   const fade=flat?1:clamp(1+e*.22+dust*.095+grain*.065+chip+stain+line,.68,1.16);
+   const neutral=role==='cement'?.017:0;
+   for(let c=0;c<3;c++){
+    const bias=c===2?neutral:0;
+    scan[idx+c]=Math.round(clamp(color[c]*(fade+bias),0,255));
+   }
+  }
+  scan[idx+3]=255;
  }
  const hdr=Buffer.alloc(13);hdr.writeUInt32BE(width,0);hdr.writeUInt32BE(height,4);hdr[8]=8;hdr[9]=6;
- return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),pngChunk('IHDR',hdr),pngChunk('IDAT',deflateSync(scan,{level:8})),pngChunk('IEND',Buffer.alloc(0))]);
+ return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),
+  pngChunk('IHDR',hdr),pngChunk('IDAT',deflateSync(scan,{level:7})),
+  pngChunk('IEND',Buffer.alloc(0))]);
 }
 function exportTeam(owner){
  const pal=JSON.parse(JSON.stringify(colors));
@@ -346,17 +404,29 @@ function exportTeam(owner){
    array.forEach((v,i)=>{const k=i%dimensions;a.min[k]=Math.min(a.min[k],v);a.max[k]=Math.max(a.max[k],v)});}
   const id=gltf.accessors.length;gltf.accessors.push(a);return id;
  }
- const names=new Map();for(const g of groups.values()){
+ const names=new Map(),texCache=new Map();
+ function authoredTexture(key,color,kind){
+  const cache=(kind==='albedo'?key:keyRole(key))+'|'+kind;
+  if(texCache.has(cache))return texCache.get(cache);
+  const image=gltf.images.length;
+  gltf.images.push({bufferView:append(png(color,key,kind)),mimeType:'image/png',
+   name:'SandforgeReference_'+cache});
+  const idx=gltf.textures.length;gltf.textures.push({sampler:0,source:image});
+  texCache.set(cache,idx);return idx;
+ }
+ for(const g of groups.values()){
   if(!names.has(g.name)){
-   const mat=gltf.materials.length,color=pal[g.name],image=gltf.images.length;
-   const factionSurface=g.name==='team';
-   gltf.images.push({bufferView:append(png(color,g.name)),mimeType:'image/png'});
-   gltf.textures.push({sampler:0,source:image});
+   const mat=gltf.materials.length,color=pal[g.name],
+    factionSurface=g.name==='team'||g.name==='white';
+   const base=authoredTexture(g.name,color,'albedo');
+   const normal=factionSurface?null:authoredTexture(g.name,color,'normal');
+   const orm=factionSurface?null:authoredTexture(g.name,color,'orm');
    gltf.materials.push({name:'Sandforge_Factory_'+g.name,pbrMetallicRoughness:{
-    baseColorTexture:{index:image},metallicFactor:/metal|bronze|gunmetal/.test(g.name)?.45:.07,
-    roughnessFactor:.83},
+    baseColorTexture:{index:base},metallicFactor:factionSurface?0:1,
+    roughnessFactor:factionSurface?1:1,
+    ...(factionSurface?{}:{metallicRoughnessTexture:{index:orm}})},
+    ...(factionSurface?{}:{normalTexture:{index:normal,scale:.58}}),
     ...(factionSurface?{extensions:{KHR_materials_unlit:{}}}:{}),
-    // No cyan emissive boost on painted team identifiers.
     emissiveFactor:[0,0,0],doubleSided:true});
    names.set(g.name,mat);
   }
@@ -375,6 +445,13 @@ function exportTeam(owner){
  gltf.nodes.push({name:'SF_Factory_PBR_OpenBay',translation:[.18,.23,1.10],
   extras:{openProductionExit:true,vehicleDriveThrough:true}});
  gltf.nodes[0].children.push(openBay);
+ // Allows the runtime to keep THIS authored metal/concrete PBR instead of
+ // overriding it with the older low-resolution desert wall shader.
+ const reference=gltf.nodes.length;
+ gltf.nodes.push({name:'SF_Factory_PBR_ReferenceHangar_v3',
+  extras:{authoredPBR:true,referenceImageInspired:true,normalMaps:true,
+   ormMaps:true,heroRoofResolution:1024}});
+ gltf.nodes[0].children.push(reference);
  const bin=Buffer.concat(chunks);gltf.buffers[0].byteLength=bin.length;
  const json=Buffer.from(JSON.stringify(gltf)),jp=(4-json.length%4)%4,bp=(4-bin.length%4)%4;
  const total=12+8+json.length+jp+8+bin.length+bp,out=Buffer.alloc(total);
