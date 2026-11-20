@@ -750,12 +750,12 @@ export class TacticalAI {
    if(this.ai36Enabled&&u.kind==='drone'&&
       g.world.mapVersion===26&&g.world.generatorVersion>=4&&
       this.ai37Mode==='coordinated'&&g.time>=330&&
-      mission?.kind==='structure'&&g.territories.length>=16&&
+      g.territories.length>=16&&
       g.territories.filter(t=>t.owner===1).length>=g.territories.length-2&&
       g.units.filter(v=>v.owner===1&&v.kind==='bomber'&&
        v.hp>unitSpec(v).hp*.55&&!v.airfieldService&&!v.returnToHangar).length>=2){
      const hq=g.memories[1].find(m=>m.owner===0&&m.hp>0&&
-       m.kind==='headquarters'&&m.territory===mission.sector);
+       m.kind==='headquarters');
      if(hq){
       const lookout=ai42DroneOverwatchPoint({
         home,hq,size:g.world.size,sight:unitSpec(u).sight,
@@ -1187,11 +1187,11 @@ export class TacticalAI {
    // The remembered coordinate is only a move goal; no invisible attack.
    const mission=s.commander?.mission,
     hq=g.memories[1].find(m=>m.owner===0&&m.hp>0&&
-     m.kind==='headquarters'&&m.territory===mission?.sector);
+     m.kind==='headquarters');
    const paid=bombers.filter(u=>u.hp>unitSpec(u).hp*.55);
    if(hq&&g.world.mapVersion===26&&g.world.generatorVersion>=4&&
       this.ai37Mode==='coordinated'&&g.time>=330&&
-      mission?.kind==='structure'&&g.territories.length>=16&&
+      g.territories.length>=16&&
       g.territories.filter(t=>t.owner===1).length>=g.territories.length-2&&
       paid.length>=2&&
       !g.units.some(v=>v.owner===0&&v.hp>0&&!v.carrier&&
@@ -1211,7 +1211,7 @@ export class TacticalAI {
   // enforced by ai42BreakoutAllowed and bomberStrikeSafe.
   const mission=s.commander?.mission;
   const rememberedHQ=g.memories[1].find(m=>m.owner===0&&m.hp>0&&
-   m.kind==='headquarters'&&m.territory===mission?.sector);
+   m.kind==='headquarters');
   const bomberCount=bombers.filter(u=>u.hp>unitSpec(u).hp*.55).length;
   const airAA=(v:Unit|Base)=>['rocket','turret','interceptor','scout'].includes(v.kind);
   const lateAirAllowed=!!rememberedHQ&&ai42BreakoutAllowed({
