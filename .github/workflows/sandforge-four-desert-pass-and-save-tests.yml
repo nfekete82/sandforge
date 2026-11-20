@@ -11,6 +11,7 @@ on:
       - src/reborn/world.ts
       - src/reborn/simulation.ts
       - tests/sandforge-four-desert-maps-20261120.test.mjs
+      - tests/sandforge-desert-ai-navigation-20261120.test.mjs
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,6 +31,7 @@ jobs:
       - name: Validate physical routes and every old-save regression
         run: |
           node --test tests/sandforge-four-desert-maps-20261120.test.mjs
+          node --test tests/sandforge-desert-ai-navigation-20261120.test.mjs
           node --test tests/sandforge-diverse-landscapes-v4-20261119.test.mjs
       - name: Validate packaged WebGL scene and the four names
         run: |
