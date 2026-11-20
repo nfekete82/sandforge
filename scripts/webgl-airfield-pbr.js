@@ -1,6 +1,8 @@
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {applyAirfieldRollup,AIRFIELD_ROLLUP_SLATS} from './webgl-airfield-rollup.js';
 import {finishDesertBuildingMaterials} from './webgl-building-pbr.js';
+import {meshyStructurePath,prepareMeshyStructure} from './webgl-meshy-structure.js';
+import * as THREE from 'three';
 
 // Rendering-only swap: the actual runway, taxi/landing path, serviced aircraft,
 // fuel props, crew animations and one-bay game rules are never touched.
@@ -121,7 +123,32 @@ export function ensureAirfieldPbr(group,owner=0,{ghost=false}={}){
    applyAirfieldRollup(gate,gate.open);
   }
   group.userData.airfieldDishRotor=rotor;
-  return true;
+  // The authored hangar remains until the complete new Meshy structure has
+  // loaded. The runway, taxi paths and air-service rules are unaffected.
+  const meshyUrl=meshyStructurePath('airfield');
+  if(!meshyUrl)return true;
+  return new GLTFLoader().loadAsync(meshyUrl).then(({scene})=>{
+   if(group.userData.airfieldPbrDisposed||group.userData.airfieldPbrToken!==token)
+    return false;
+   const skin=scene.clone(true),box=new THREE.Box3().setFromObject(skin);
+   const size=box.getSize(new THREE.Vector3());
+   if(Math.max(size.x,size.z)<.0001)throw Error('Empty Meshy airfield GLB');
+   const scale=Math.min(207/Math.max(size.x,size.z),145/Math.max(.01,size.y));
+   const center=box.getCenter(new THREE.Vector3());
+   skin.scale.multiplyScalar(scale);
+   skin.position.set(-175-center.x*scale,3-box.min.y*scale,-77-center.z*scale);
+   skin.name='SandforgeMeshyAirfieldSkin';
+   prepareMeshyStructure(skin,'airfield',owner);
+   if(ghost)styleGhost(skin);
+   const previous=group.userData.airfieldMeshySkin;
+   if(previous){previous.removeFromParent();releaseGhost(previous);}
+   group.add(skin);group.userData.airfieldMeshySkin=skin;
+   model.visible=false;
+   return true;
+  }).catch(error=>{
+   console.warn('Airfield Meshy skin: retaining authored PBR hangar',error);
+   return true;
+  });
  }).catch(error=>{
   if(group.userData.airfieldPbrToken===token&&!group.userData.airfieldPbrDisposed){
    group.userData.airfieldPbrFailedOwner=owner;
@@ -141,6 +168,9 @@ export function detachAirfieldPbr(group){
  if(!group)return;
  group.userData.airfieldPbrDisposed=true;
  group.userData.airfieldPbrToken=(group.userData.airfieldPbrToken||0)+1;
+ const skin=group.userData.airfieldMeshySkin;
+ if(skin){skin.removeFromParent();releaseGhost(skin);}
+ group.userData.airfieldMeshySkin=null;
  const model=group.userData.airfieldPbrModel;
  if(model){model.removeFromParent();releaseGhost(model);}
  group.userData.airfieldPbrModel=null;
