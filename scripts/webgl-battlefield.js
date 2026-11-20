@@ -1625,7 +1625,9 @@ export class SandforgeBattlefield {
   for(const entry of this.bases.values()){
    const decor=entry.yard?.getObjectByName('BasePerimeter_'+entry.kind);
    if(!decor)continue;
-   decor.visible=this.siteDecorEnabled;
+   const embeddedFence=entry.kind==='factory'&&
+    Boolean(entry.detail?.getObjectByName('SF_Factory_Meshy_ProductionRig'));
+   decor.visible=this.siteDecorEnabled&&!embeddedFence;
    affected++;
   }
   return affected;
