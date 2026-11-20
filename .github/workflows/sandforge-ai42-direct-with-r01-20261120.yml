@@ -2,7 +2,7 @@ name: Sandforge AI 4.2 direct bomber + paid drone overwatch trial
 on:
   push:
     branches:
-      - feat/sandforge-ai42-combo-with-r01-20261120
+      - feat/sandforge-ai42-direct-with-r01-20261120
   workflow_dispatch:
 concurrency:
   group: sandforge-ai42-combo-${{ github.ref }}
