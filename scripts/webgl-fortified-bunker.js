@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {FACTION_PAINT} from './sandforge-faction-palette.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {meshyStructurePath,prepareMeshyStructure} from './webgl-meshy-structure.js';
 import {factionFlagMaterial,FACTION_FLAG_REVISION} from './webgl-faction-flags.js';
 
 /** Fully original visual-only bunker revision:
@@ -17,6 +19,32 @@ export const FORTIFIED_BUNKER_REVISION='sandforge-compact-fortified-pbr-bunker-v
 export const BUNKER_VISUAL_SCALE=.72;
 export const BUNKER_VISUAL_PORT_COUNT=5;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+let meshyBunkerAsset=null;
+function installMeshyBunkerSkin(root,owner){
+ const url=meshyStructurePath('bunker');
+ if(!url||typeof window==='undefined')return;
+ if(!meshyBunkerAsset)meshyBunkerAsset=new GLTFLoader().loadAsync(url)
+  .catch(err=>{meshyBunkerAsset=null;throw err;});
+ void meshyBunkerAsset.then(({scene})=>{
+  if(root.userData.meshySkinInstalled)return;
+  const skin=scene.clone(true);
+  const bounds=new THREE.Box3().setFromObject(skin);
+  const size=bounds.getSize(new THREE.Vector3()),width=Math.max(size.x,size.z);
+  if(!Number.isFinite(width)||width<.0001)throw Error('Empty Meshy bunker GLB');
+  // Parent bunker group still has the original .72 cosmetic factor.
+  const scale=145/width,center=bounds.getCenter(new THREE.Vector3());
+  skin.scale.multiplyScalar(scale);
+  skin.position.set(-center.x*scale,-bounds.min.y*scale,-center.z*scale);
+  prepareMeshyStructure(skin,'bunker',owner);
+  skin.traverse(node=>{if(node.isMesh)node.raycast=()=>{};});
+  skin.name='SandforgeMeshyBunkerSkin';skin.userData.visualOnly=true;
+  root.add(skin);root.userData.meshySkinInstalled=true;
+  for(const child of root.children)if(child!==skin&&
+     (child.name.startsWith('Bunker_PBR_StaticBatch_')||
+      child.name.startsWith('Bunker_Embrasure_')))child.visible=false;
+ }).catch(err=>console.warn('Bunker Meshy skin fallback:',err.message));
+}
+
 const flagClock={value:0};
 export function updateBunkerFlagWind(time){
  flagClock.value=Number.isFinite(time)?time:0;
@@ -293,5 +321,6 @@ export function createFortifiedBunker(owner=0){
  // garrison, construction, pathfinding and save state remain unchanged.
  root.scale.setScalar(BUNKER_VISUAL_SCALE);
  root.userData.bunkerVisualScale=BUNKER_VISUAL_SCALE;
+ installMeshyBunkerSkin(root,owner);
  return root;
 }
