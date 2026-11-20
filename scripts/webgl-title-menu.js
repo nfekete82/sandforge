@@ -7,6 +7,26 @@
  const savedKey='sandforge:webgl:v1';
  const optionKey='sandforge:webgl:options';
  const savedBiomeKey='sandforge:webgl:save-biome';
+ const mapPresets=globalThis.SandforgeMapPresets;
+ const selectedPreset=()=>mapPresets?.byId($('sf3d-map-preset').value)||null;
+ const updateMapChoice=()=>{
+  const p=selectedPreset();
+  $('sf3d-random-controls').hidden=Boolean(p);
+  $('sf3d-map-description').textContent=p
+   ?p.subtitle+' · '+p.style+' — '+p.description
+   :'Zufallskarte: Bastionen, Biom, Gelände und Seed selbst bestimmen.';
+  // Presets are locked together: changing the scenery cannot silently
+  // create a different map under the same named-map label.
+  if(p){
+   $('sf3d-map-size').value=String(p.bastions);
+   $('sf3d-seed').value=String(p.seed);
+   $('sf3d-biome').value=p.biome;
+   $('sf3d-terrain').value=p.terrain;
+   $('sf3d-landscape').value='network';
+  }
+  $('sf3d-new-status').textContent='';
+ };
+
  const validBiome=value=>['desert','snow','jungle'].includes(value)?value:'desert';
  // The 3D game may run at / (release candidate) or /webgl-preview.html
  // (existing QA/deep links). Stay on the active entry during navigation.
@@ -67,7 +87,7 @@
  let pauseCheatProgress=0;
  let suppressSpaceRelease=false;
  const saved=readSave();
- const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert',landscape='network'}={})=>{
+ const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert',landscape='network',preset=null}={})=>{
   const params=new URLSearchParams({bastions:String(count),seed:String(seed>>>0),play:'1'});
   // Keep local A/B policy selection while navigating from the main menu.
   if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
@@ -81,8 +101,16 @@
   const options=readOptions();
   if(options.quality==='lite')params.set('lite','1');
   if(options.fog===false)params.set('fog','0');
-  if(!resume&&!legacy){params.set('terrain',terrain);params.set('landscape',landscape==='classic'?'classic':'network');}
+  if(!resume&&!legacy){
+   params.set('terrain',terrain);
+   params.set('landscape',landscape==='curated'?'curated':landscape==='classic'?'classic':'network');
+  }
   if(!legacy)params.set('biome',validBiome(biome));
+  // Persist the authored-map identity in the URL, but the simulation
+  // independently verifies all geometry fields before showing the label.
+  const authored=mapPresets?.byId(preset);
+  if(authored&&authored.seed===(seed>>>0)&&authored.bastions===count&&
+   validBiome(biome)===authored.biome)params.set('preset',authored.id);
   location.assign(gameRoute()+'?'+params);
  };
  function continueSave(){
@@ -96,7 +124,11 @@
   try{visual=JSON.parse(localStorage.getItem(savedBiomeKey)||'null');}catch{}
   const biome=visual?.seed===data.seed&&visual?.mapVersion===data.mapVersion
    ?validBiome(visual.biome):'desert';
-  play(bastions,data.seed,{resume:true,legacy:data.mapVersion<=18,biome});
+  const p=mapPresets?.byId(visual?.preset);
+  const savedPreset=p&&visual?.seed===data.seed&&
+   p.mapVersion===data.mapVersion&&p.generatorVersion===data.generatorVersion&&
+   p.terrain===data.terrainProfile&&p.biome===biome?p.id:null;
+  play(bastions,data.seed,{resume:true,legacy:data.mapVersion<=18,biome,preset:savedPreset});
  }
  function randomSeed(){
   if(window.crypto?.getRandomValues){
@@ -164,16 +196,19 @@
  function goMain(){
   location.assign(gameRoute());
  }
+ $('sf3d-map-preset').addEventListener('change',updateMapChoice);
  $('sf3d-new').addEventListener('click',()=>{
+  $('sf3d-map-preset').value='staubkrone';
   const source=$('bastions');
   $('sf3d-map-size').value=source?.value??'8';
   $('sf3d-seed').value='';
   $('sf3d-terrain').value='random';
   $('sf3d-landscape').value='network';
   $('sf3d-biome').value='desert';
+  updateMapChoice();
   newDialog.showModal();
  });
- $('sf3d-campaign').addEventListener('click',()=>newDialog.showModal());
+ $('sf3d-campaign').addEventListener('click',()=>{updateMapChoice();newDialog.showModal();});
  $('sf3d-continue').addEventListener('click',continueSave);
  $('sf3d-main-load').addEventListener('click',continueSave);
  $('sf3d-main-options').addEventListener('click',openOptions);
@@ -208,6 +243,14 @@
   }
  });
  $('sf3d-new-confirm').addEventListener('click',()=>{
+  const preset=selectedPreset();
+  if(preset){
+   play(preset.bastions,preset.seed,{
+    terrain:preset.terrain,biome:preset.biome,
+    landscape:'curated',preset:preset.id
+   });
+   return;
+  }
   const count=Number($('sf3d-map-size').value);
   const text=$('sf3d-seed').value.trim();
   const n=text.length?Number(text):randomSeed();
@@ -223,7 +266,8 @@
   if(saved)try{
    localStorage.setItem(savedBiomeKey,JSON.stringify({
     seed:game.game.seed,mapVersion:game.world.mapVersion,
-    biome:validBiome(window.__sandforgeWebGL?.biome)
+    biome:validBiome(window.__sandforgeWebGL?.biome),
+    preset:window.__sandforgeWebGL?.mapPresetId??null
    }));
   }catch(error){console.warn('Biom-Einstellung konnte nicht gespeichert werden:',error);}
   $('sf3d-pause-status').textContent=saved
@@ -233,7 +277,7 @@
  $('sf3d-pause-load').addEventListener('click',continueSave);
  $('sf3d-pause-options').addEventListener('click',openOptions);
  $('sf3d-pause-new').addEventListener('click',()=>{
-  pauseDialog.close();newDialog.showModal();
+  pauseDialog.close();updateMapChoice();newDialog.showModal();
  });
  $('sf3d-pause-main').addEventListener('click',goMain);
  for(const el of document.querySelectorAll('[data-sf3d-close]')){
@@ -298,6 +342,7 @@
  window.addEventListener('blur',()=>{suppressSpaceRelease=false;});
  window.Sandforge3DMenu={openPause,goMain,continueSave,play,readSave,readOptions,gameRoute};
  const options=readOptions();
+ updateMapChoice();
  $('sf3d-continue').hidden=!Boolean(saved&&modes[saved.mapVersion]);
  $('sf3d-main-load').disabled=!Boolean(saved&&modes[saved.mapVersion]);
  if(query.has('play')||query.has('bastions')||query.has('seed')||query.has('resume')){
