@@ -41,6 +41,7 @@ cpSync('scripts/webgl-ruin-fragments.js','dist/webgl-ruin-fragments.js');
 cpSync('scripts/webgl-scenic-desert-houses.js','dist/webgl-scenic-desert-houses.js');
 for(const module of ['webgl-oases','webgl-oasis-generation','webgl-oasis-materials','webgl-oasis-village-layout'])cpSync(`scripts/${module}.js`,`dist/${module}.js`);
 cpSync('scripts/webgl-map-edges.js','dist/webgl-map-edges.js');
+cpSync('scripts/webgl-desert-maps.js','dist/webgl-desert-maps.js');
 cpSync('scripts/webgl-title-menu.js','dist/webgl-title-menu.js');
 cpSync('scripts/webgl-battlefield.js','dist/webgl-battlefield.js');
 // Required by webgl-battlefield.js; without this the entire 3D entry graph fails.
