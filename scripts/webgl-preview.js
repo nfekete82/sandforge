@@ -1211,8 +1211,8 @@ function setShowcase(enabled){
 }
 showcaseButton.onclick=()=>setShowcase(!showcaseActive);
 if(query.get('showcase')==='1')setShowcase(true);
-const desertArt=new DesertArtPass({scene,world,terrain,heightAt,pos,loader,biome,lowQuality:query.get('lite')==='1'});
-const oases=new DesertOases({scene,game,heightAt,groundMeshes,lowQuality:query.get('lite')==='1',enabled:biome==='desert'&&query.get('oases')!=='off'});
+const desertArt=new DesertArtPass({scene,world,terrain,heightAt,pos,loader,biome,mapId:desertRegion?.id??null,lowQuality:query.get('lite')==='1'});
+const oases=new DesertOases({scene,game,heightAt,groundMeshes,lowQuality:query.get('lite')==='1',enabled:biome==='desert'&&query.get('oases')!=='off'&&(!desertRegion||desertRegion.key==='erg')});
 battlefield.oases=oases;
 // Generator v3: six unique, locally generated UV-textured adobe house GLBs.
 // Older maps keep their established sparse two-GLTF hamlets, unchanged.
