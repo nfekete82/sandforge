@@ -31,6 +31,9 @@ import {coordinatedFrontMarch} from './combat-movement.js';
 import {formationSlotPitch} from './vehicle-spacing.js';
 import type {Simulation,Unit,Base,Memory} from './simulation.js';
 import {friendlyGatePostColliders} from './defensive-wall.js';
+import {ai37GarrisonQuota,ai37BastionDefenseValue} from './ai37-fortification-doctrine.js';
+import {bastionEffectiveIncome} from './bastion-upgrades.js';
+import {BUNKER_CAPACITY} from './bunker-garrison.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
 export interface Loss extends Point {id:number;at:number;strength:number}
@@ -446,7 +449,7 @@ export class TacticalAI {
      .map(b=>distance(u,b))),
     kind:u.kind,
     insideCaptureRing:!!captured,
-    endangeredIncome:captured?.income??0
+    endangeredIncome:captured?bastionEffectiveIncome(captured):0
    });
   };
   const target=intruders.slice().sort((a,v)=>threatScore(a)-threatScore(v)||a.id-v.id)[0];
@@ -458,7 +461,7 @@ export class TacticalAI {
   const threatenedBastion=g.territories.filter(t=>t.owner===1&&distance(target,t.point)<300)
    .sort((a,b)=>distance(target,a.point)-distance(target,b.point)||a.id-b.id)[0];
   const multiplier=g.world.mapVersion>=24
-   ?localBastionDefenseMultiplier(threatenedBastion?.income??0,baseEmergency):1.2;
+   ?localBastionDefenseMultiplier(threatenedBastion?bastionEffectiveIncome(threatenedBastion):0,baseEmergency):1.2;
   const needed=fightingPower(nearby)*multiplier;
   // Base invasions remain a FULL emergency: all actually paid fighters
   // may confront a landing on the HQ, barracks, factory or research yard.
@@ -1163,11 +1166,17 @@ export class TacticalAI {
    // real capture pressure. Only observed enemy units affect prioritization.
    const visible=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
     u.kind!=='drone'&&g.canSee(1,u));
-   const priority=(t:typeof frontiers[number])=>bastionGuardPriority({
-    id:t.id,income:t.income,capturing:t.capturing,progress:t.progress,
-    enemyAdjacent:t.neighbors.some(id=>g.territories[id]?.owner===0),
-    visibleRaiders:visible.filter(u=>distance(u,t.point)<360).length
-   });
+   const priority=(t:typeof frontiers[number])=>
+    g.world.mapVersion>=23?ai37BastionDefenseValue({
+      income:t.income,upgradeLevel:t.upgradeLevel,
+      contestProgress:t.capturing===0?t.progress:0,
+      enemyAdjacent:t.neighbors.some(id=>g.territories[id]?.owner===0),
+      visibleRaiders:visible.filter(u=>distance(u,t.point)<360).length
+    }):bastionGuardPriority({
+      id:t.id,income:t.income,capturing:t.capturing,progress:t.progress,
+      enemyAdjacent:t.neighbors.some(id=>g.territories[id]?.owner===0),
+      visibleRaiders:visible.filter(u=>distance(u,t.point)<360).length
+    });
    frontiers.sort((a,b)=>priority(b)-priority(a)||legacyFrontier(a,b));
   }else frontiers.sort(legacyFrontier);
   const originalPosts=g.world.mapVersion>=24
@@ -1198,6 +1207,60 @@ export class TacticalAI {
    if(u.orders[0]?.tactical?.mode==='safe'&&distance(u.orders[0],post)<85)continue;
    this.issue([u],post,'safe',undefined,false,false);
   }
+ }
+ /** Staff real paid Bunkers without reducing the field attack below five
+  * fighters. Never pull engineers, medics, current assault members or
+  * units already engaged with VISIBLE opponents. Real boarding orders
+  * reserve seats and follow ordinary terrain/path rules.
+  */
+ private staffBunkers(army:Unit[],home:Point):Set<number>{
+  const g=this.g;
+  const already=new Set(army.filter(u=>u.orders[0]?.kind==='garrison').map(u=>u.id));
+  if(!this.ai36Enabled||g.world.mapVersion<23)return already;
+  const bunkers=g.bases.filter(b=>b.owner===1&&b.kind==='bunker'&&
+    b.hp>0&&b.buildRemaining<=0)
+    .sort((a,b)=>distance(a,home)-distance(b,home)||a.id-b.id);
+  if(!bunkers.length)return already;
+  const infantry=army.filter(u=>unitSpec(u).group==='Infanterie'&&
+    !['engineer','medic'].includes(u.kind)&&u.hp>0);
+  const fighters=army.filter(combat);
+  const current=g.units.filter(u=>u.hp>0&&u.carrier&&
+    bunkers.some(b=>b.id===u.carrier)).length;
+  const intended=ai37GarrisonQuota({
+   activeInfantry:infantry.length+current,
+   fieldFighters:fighters.length+current,
+   bunkerCount:bunkers.length,
+   homeThreat:g.units.some(u=>u.owner===0&&u.hp>0&&
+     !u.carrier&&g.canSee(1,u)&&distance(u,home)<730),
+   frontlineOrders:this.state.group.length
+  });
+  let budget=Math.max(0,intended-current-already.size);
+  if(!budget)return already;
+  const reservedAssault=new Set(this.state.group);
+  for(const bunker of bunkers){
+   const reserved=army.filter(u=>u.orders[0]?.kind==='garrison'&&
+     u.orders[0].target===bunker.id).length;
+   let room=Math.min(BUNKER_CAPACITY-(bunker.garrison?.length??0)-reserved,budget);
+   if(room<=0)continue;
+   const existing=g.units.filter(u=>u.carrier===bunker.id&&u.hp>0);
+   const priority=(u:Unit)=>u.kind==='rocket'
+     ?(existing.some(v=>v.kind==='rocket')?3:0):
+      u.kind==='heavy'?1:u.kind==='infantry'?2:4;
+   const candidates=infantry.filter(u=>
+    !already.has(u.id)&&!reservedAssault.has(u.id)&&
+    u.hp>=unitSpec(u).hp*.55&&u.defendUntil<=g.time&&
+    !u.orders.some(o=>['build','board','garrison'].includes(o.kind))&&
+    distance(u,bunker)<780&&
+    !g.units.some(enemy=>enemy.owner===0&&enemy.hp>0&&!enemy.carrier&&
+      g.canSee(1,enemy)&&distance(enemy,u)<280))
+    .sort((a,b)=>priority(a)-priority(b)||distance(a,bunker)-distance(b,bunker)||a.id-b.id);
+   for(const u of candidates){
+    if(room<=0||budget<=0)break;
+    if(!g.boardBunker(bunker.id,[u.id]))continue;
+    already.add(u.id);room--;budget--;
+   }
+  }
+  return already;
  }
  /** A cheap second axis of pressure: mobile reserves capture an unguarded adjacent
   * bastion while the main army fights. No unknown enemies are inspected. */
@@ -2057,7 +2120,15 @@ export class TacticalAI {
    s.battleDirector=this.battleDirective.state;
   }else this.battleDirective=undefined;
   const recovering=this.recovery(army,home);if(g.world.mapVersion>=3&&this.mode==='director')for(const id of this.withdrawals(army))recovering.add(id);
-  this.airlift(army,home);const explorers=this.recon(army.filter(u=>!recovering.has(u.id)),home),boarding=new Set([...army.filter(u=>u.orders[0]?.kind==='board').map(u=>u.id),...(s.airlift?.phase==='pickup'?s.airlift.passengers??[]:[])]),fighters=army.filter(u=>combat(u)&&!recovering.has(u.id)&&!explorers.has(u.id)&&!boarding.has(u.id)),medics=army.filter(u=>u.kind==='medic'&&!recovering.has(u.id)&&!boarding.has(u.id)).slice(0,2);
+  const staffing=this.staffBunkers(army,home);
+  this.airlift(army.filter(u=>!staffing.has(u.id)),home);
+  const explorers=this.recon(army.filter(u=>!recovering.has(u.id)&&!staffing.has(u.id)),home),
+   boarding=new Set([...army.filter(u=>u.orders[0]?.kind==='board').map(u=>u.id),
+    ...(s.airlift?.phase==='pickup'?s.airlift.passengers??[]:[])]),
+   fighters=army.filter(u=>combat(u)&&!recovering.has(u.id)&&
+    !explorers.has(u.id)&&!boarding.has(u.id)&&!staffing.has(u.id)),
+   medics=army.filter(u=>u.kind==='medic'&&!recovering.has(u.id)&&
+    !boarding.has(u.id)).slice(0,2);
   developArmy(g,s,army,p=>this.danger(p));
   const earlyContesters=this.contestOpeningBastions();
   for(const w of army.filter(u=>u.kind==='engineer'&&!u.orders.length)){const b=g.bases.filter(b=>b.owner===1&&b.hp>0&&b.hp<buildingSpec(b).hp&&b.buildRemaining<=0).sort((a,b)=>distance(w,a)-distance(w,b))[0];if(b)g.command([w.id],{...b,kind:'repair',target:b.id});}
