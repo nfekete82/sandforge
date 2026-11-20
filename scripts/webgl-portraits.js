@@ -445,6 +445,7 @@ async function rasterizeBuildingIcon(kind,renderer){
    });
    const authoredHQ=kind==='headquarters'&&hasAuthoredHeadquartersPBR(model);
    const authoredBarracks=kind==='barracks'&&hasFinalBarracksPBR(model);
+   const meshyFactory=kind==='factory'&&Boolean(model.getObjectByName('SF_Factory_Meshy_ProductionRig'));
    const authoredFactory=kind==='factory'&&Boolean(model.getObjectByName('SF_Factory_PBR_roof')&&
     (model.getObjectByName('SF_Factory_PBR_OpenBay')||model.getObjectByName('FactoryRollupDoor')));
    const referenceFactory=kind==='factory'&&Boolean(model.getObjectByName('SF_Factory_PBR_ReferenceHangar_v3'));
@@ -465,6 +466,10 @@ async function rasterizeBuildingIcon(kind,renderer){
       node.material.map(m=>m.clone()):node.material.clone();
     });
     prepareFinalBarracksPortrait(model);
+   }else if(meshyFactory){
+    // Meshy factory uses the EXACT GLB 2K authored materials and red/blue
+    // artwork used in world, not a second orange procedural facade shader.
+    // Player HUD shows the original blue, with shutter closed at idle.
    }else if(authoredFactory||authoredAirfield||authoredGenerator){
     // Keep HUD and gameplay in sync: only the external factory/hangar wall
     // gets the barracks palette, with the original roof and gate preserved.
