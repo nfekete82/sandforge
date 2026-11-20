@@ -3,6 +3,8 @@ import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from './sandforge-faction-palett
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {SILO_FOUNDATION_APERTURE} from './webgl-foundation-slabs.js';
 import {DESERT_GOLDEN_HOUR} from './webgl-golden-hour.js';
+import {createFortifiedBunker,updateBunkerFlagWind} from './webgl-fortified-bunker.js';
+export {updateBunkerFlagWind};
 
 /** Zero-Hour-style recognizable strategic structures. Procedural originals,
  * avoiding missing GLB placeholders. Created ONCE per building, NOT per frame.
@@ -420,57 +422,12 @@ function createDefensiveWall(owner,gate=false,span=2){
  addWallBarbedWire(root,{half:gate,span:gate?(span===1?1:2):1});
  return root;
 }
-/** Original static PBR defence pillbox, built once per instance.
- * Octagonal reinforced concrete, armoured roof, dark firing ports,
- * protected blast door and five visible directional embrasures.
+/** Fully sculpted PBR bunker, shared by the building preview and gameplay.
+ * The physical garrison logic, entry radius, ammunition, HP and 5-seat
+ * occupancy remain owned exclusively by the existing Simulation.
  */
 export function createDefensiveBunker(owner=0){
- const root=new THREE.Group();root.name='Sandforge_DefenseBunker';
- root.userData.visualOnly=true;root.userData.bunkerFiringPorts=5;
- const paint=FACTION_PAINT[owner];
- const mat=(color,metalness=.1,roughness=.85)=>new THREE.MeshStandardMaterial({
-  color,map:materialGrain,bumpMap:materialGrain,bumpScale:.16,
-  metalness,roughness
- });
- const concrete=mat('#b6a58b',.09,.95),armor=mat('#64685b',.65,.53),
-  stone=mat('#d0bb93',.06,.94),sandbag=mat('#b7a076',.03,.95),
-  rubber=new THREE.MeshStandardMaterial({color:'#1b2221',metalness:.25,roughness:.88}),
-  stripe=new THREE.MeshStandardMaterial({color:paint,metalness:.33,roughness:.4}),
-  brass=mat('#858572',.7,.35);
- const add=(geometry,material,x,y,z,rx=0,ry=0,rz=0)=>{
-  const m=new THREE.Mesh(geometry,material);
-  m.position.set(x,y,z);m.rotation.set(rx,ry,rz);
-  m.castShadow=true;m.receiveShadow=true;root.add(m);return m;
- };
- add(new THREE.CylinderGeometry(70,74,7,8),stone,0,3,0);
- add(new THREE.CylinderGeometry(56,64,38,8),concrete,0,24,0);
- add(new THREE.CylinderGeometry(65,59,9,8),armor,0,44,0);
- add(new THREE.CylinderGeometry(55,62,6,8),stone,0,51,0);
- add(new THREE.CylinderGeometry(35,35,4,8),armor,0,55,0);
- for(let i=0;i<5;i++){
-  const a=Math.PI*(.08+i*.367),rad=55;
-  const x=Math.sin(a)*rad,z=Math.cos(a)*rad;
-  const slot=add(new THREE.BoxGeometry(23,8,2.8),rubber,x,29,z,0,a,0);
-  slot.name='Bunker_Embrasure_'+(i+1);
-  add(new THREE.BoxGeometry(26,2.8,5),armor,x,35,z,0,a,0);
-  add(new THREE.BoxGeometry(27,2.8,5),armor,x,22,z,0,a,0);
- }
- add(new THREE.BoxGeometry(27,26,4),rubber,0,17,-60);
- add(new THREE.BoxGeometry(32,4,8),armor,0,32,-61);
- for(const x of [-14,14])add(new THREE.BoxGeometry(3,30,5),brass,x,17,-61);
- add(new THREE.BoxGeometry(17,2,3),brass,0,18,-64);
- add(new THREE.CylinderGeometry(16,18,6,8),armor,18,59,-3);
- add(new THREE.CylinderGeometry(11,11,3,8),stripe,18,63,-3);
- for(let i=0;i<6;i++){
-  const a=i*Math.PI/3,x=Math.sin(a)*63,z=Math.cos(a)*63;
-  add(new THREE.BoxGeometry(25,10,11),sandbag,x,8,z,0,a,0);
- }
- for(let i=0;i<3;i++){
-  add(new THREE.BoxGeometry(32,2.5,6),armor,-23+i*16,49,28,0,.2,0);
- }
- const marker=add(new THREE.BoxGeometry(30,4,5),stripe,0,10,57);
- marker.name='Bunker_FactionMarker';
- return root;
+ return createFortifiedBunker(owner);
 }
 export const STRATEGIC_BUILDING_KINDS=Object.freeze(['research','silo','interceptor','wall','wallGate','bunker']);
 export const isStrategicBuilding=kind=>STRATEGIC_BUILDING_KINDS.includes(kind);
