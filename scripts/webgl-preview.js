@@ -63,10 +63,16 @@ const session=query.get('resume')==='1'?(()=>{
  if(restored.seed!==seed||restored.territories.length!==bastions)throw Error('Spielstand passt nicht zur angeforderten Partie.');
  return restored;
 })():null;
-// Fresh battles use diverse, versioned v4 landscapes by default.
-// A resumed v2/v3 save keeps its original geometry; opt into classic=2 or network-v3=3.
-const generatorVersion=procedural?(query.get('landscape')==='classic'?2:
- query.get('landscape')==='network-v3'?3:4):2;
+// Only the four exact fixed-map selections get safer v5 pass grading.
+// Other v4 deep links and previously saved games retain original geometry.
+// The named map cannot be spoofed through a bare URL query parameter.
+const requestedMap=globalThis.SandforgeDesertMaps?.byId(query.get('map'));
+const selectedGenerator=requestedMap&&requestedMap.seed===seed&&
+ requestedMap.bastions===bastions&&requestedMap.mapVersion===sizes[bastions]&&
+ requestedMap.terrain===profile&&requestedMap.biome===biome&&
+ query.get('landscape')==='network'?requestedMap.generatorVersion:null;
+const generatorVersion=procedural?(selectedGenerator??(query.get('landscape')==='classic'?2:
+ query.get('landscape')==='network-v3'?3:4)):2;
 const game=session??Simulation.campaign(seed,sizes[bastions],profile,generatorVersion);
 // Local AI laboratory: compare the same game and seed with 3.2 or 3.3 tactics.
 // Not serialized, never affects the live Uberspace release.
