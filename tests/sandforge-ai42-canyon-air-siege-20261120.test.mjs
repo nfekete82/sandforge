@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ai42BreakoutAllowed,ai42HqLookout} from '../dist/src/reborn/ai36-air-support.js';
+import {ai42BreakoutAllowed,ai42HqLookout,ai42HoldVisibleBuildingCommitment} from '../dist/src/reborn/ai36-air-support.js';
 test('observed late HQ siege requires two paid bombers, strong bastion control, at most one AA',()=>{
  const x={enabled:true,time:385,controlled:15,total:16,paidBombers:2,
   missionKind:'structure',missionSector:0,knownHQSector:0,
@@ -24,4 +24,13 @@ test('bomber sight waypoint avoids previously observed AA and never targets via 
  assert.ok(x.guns.every(t=>Math.hypot(t.x-p.x,t.y-p.y)>t.range+94));
  assert.equal(ai42HqLookout({...x,sight:180}),undefined);
  assert.equal(ai42HqLookout({...x,guns:[{x:1300,y:1200,range:760}]}),undefined);
+});
+
+test('confirmed fixed-target bomber flight survives a short FoW flicker only',()=>{
+ const x={enabled:true,stationaryTarget:true,sameTarget:true,
+  missionStillValid:true,time:384,expiry:396};
+ assert.equal(ai42HoldVisibleBuildingCommitment(x),true);
+ for(const bad of [{enabled:false},{stationaryTarget:false},{sameTarget:false},
+  {missionStillValid:false},{time:397},{expiry:430}])
+  assert.equal(ai42HoldVisibleBuildingCommitment({...x,...bad}),false,JSON.stringify(bad));
 });
