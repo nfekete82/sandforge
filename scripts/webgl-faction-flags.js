@@ -70,7 +70,8 @@ export function factionFlagMaterial(owner=0,{windSafe=true}={}){
   metalness:0,side:THREE.DoubleSide
  });
  material.userData={sandforgeTeamFlag:true,owner:owner===1?1:0,
-  authoredFlagTexture:true,revision:FACTION_FLAG_REVISION,windSafe};
+  authoredFlagTexture:true,sandforgeOwnedFlagCloth:true,
+  revision:FACTION_FLAG_REVISION,windSafe};
  return material;
 }
 
@@ -82,8 +83,17 @@ export function unifyModelFactionFlags(model,owner){
  if(!model||(owner!==0&&owner!==1))return 0;
  let count=0;
  model.traverse(mesh=>{
-  if(!mesh.isMesh||mesh.userData?.sandforgeTeamFlag)return;
-  if(!/(?:^|[_-])(flag|banner|pennant|fabric)(?:$|[_-])/i.test(mesh.name))return;
+  if(!mesh.isMesh)return;
+  if(mesh.userData?.sandforgeTeamFlag){
+   if(mesh.userData.flagOwner!==owner){
+    const old=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+    mesh.material=factionFlagMaterial(owner);
+    for(const m of new Set(old))if(m?.userData?.sandforgeOwnedFlagCloth)m.dispose();
+    mesh.userData.flagOwner=owner;count++;
+   }
+   return;
+  }
+  if(!/(flag|banner|pennant|fabric)/i.test(mesh.name))return;
   // Do not recolour name-only parent components, solid supports or poles.
   if(/mast|pole|rod|frame|anchor|bracket|mount|support|stem|clamp|rail/i.test(mesh.name))return;
   if(!mesh.geometry?.attributes?.uv)return;
