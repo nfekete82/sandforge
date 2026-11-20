@@ -156,3 +156,22 @@ export function ai42HqLookout(x:{
   return p;
  }
 }
+
+/** Keep a PAID R-01 at a physically reachable air vantage near its
+ * previously observed HQ while two bombers prepare a real assault.
+ * No fog is revealed synthetically and no unit can attack from memory. */
+export function ai42DroneOverwatchPoint(x:{
+ home:Point;hq:Point;size:number;sight:number;
+ guns:readonly (Point&{range:number})[];
+}):Point|undefined{
+ const radius=Math.min(910,x.sight-150);
+ if(radius<310)return undefined;
+ const angle=Math.atan2(x.home.y-x.hq.y,x.home.x-x.hq.x);
+ for(const delta of [0,-Math.PI/4,Math.PI/4,-Math.PI/2,Math.PI/2,-3*Math.PI/4,3*Math.PI/4,Math.PI]){
+  const a=angle+delta;
+  const p={x:x.hq.x+Math.cos(a)*radius,y:x.hq.y+Math.sin(a)*radius};
+  if(p.x<50||p.y<50||p.x>x.size-50||p.y>x.size-50)continue;
+  if(x.guns.some(g=>distance(g,p)<g.range+140))continue;
+  return p;
+ }
+}

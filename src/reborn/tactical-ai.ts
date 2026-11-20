@@ -24,7 +24,7 @@ import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad,canyonPassWaypoint} from './ai36-terrain-routes.js';
-import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage,ai42BreakoutAllowed,ai42HqLookout} from './ai36-air-support.js';
+import {droneFrontierPoint,observedBomberSupportTarget,bomberCloseAirSupportAllowed,loneRoverAirDisengage,ai42BreakoutAllowed,ai42HqLookout,ai42DroneOverwatchPoint} from './ai36-air-support.js';
 import {groundedAssaultRouteOrigin} from './ai36-offensive-routing.js';
 import {preserveAI36Assault,ai36JoinActiveFront,maintainAI36FrontOnRetarget} from './ai36-assault-continuity.js';
 import {coordinatedFrontMarch} from './combat-movement.js';
@@ -744,7 +744,27 @@ export class TacticalAI {
    // vision stays governed by World/VisionCache, exactly like player drones.
    const mission=c.mission;
    let goal:Point|undefined;
-   if(this.ai36Enabled&&u.kind==='drone'&&mission&&
+   // KI4.2: retain real R-01 sight during an economically earned HQ air
+   // assault instead of sending it to a different frontier as the bombers
+   // turn and momentarily lose contact. No magic sensors or enemy-unit data.
+   if(this.ai36Enabled&&u.kind==='drone'&&
+      g.world.mapVersion===26&&g.world.generatorVersion>=4&&
+      this.ai37Mode==='coordinated'&&g.time>=330&&
+      mission?.kind==='structure'&&g.territories.length>=16&&
+      g.territories.filter(t=>t.owner===1).length>=g.territories.length-2&&
+      g.units.filter(v=>v.owner===1&&v.kind==='bomber'&&
+       v.hp>unitSpec(v).hp*.55&&!v.airfieldService&&!v.returnToHangar).length>=2){
+     const hq=g.memories[1].find(m=>m.owner===0&&m.hp>0&&
+       m.kind==='headquarters'&&m.territory===mission.sector);
+     if(hq){
+      const lookout=ai42DroneOverwatchPoint({
+        home,hq,size:g.world.size,sight:unitSpec(u).sight,
+        guns:s.knownTurrets
+      });
+      if(lookout&&this.danger(lookout)<5)goal=lookout;
+     }
+   }
+   if(!goal&&this.ai36Enabled&&u.kind==='drone'&&mission&&
       distance(home,mission)>650&&!g.canSee(1,mission)){
     const forward=droneFrontierPoint(home,mission,g.world.size);
     if(!g.canSee(1,forward)&&this.danger(forward)<5)goal=forward;
