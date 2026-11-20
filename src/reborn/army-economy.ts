@@ -7,6 +7,7 @@ import {buildBastionDefense,defensiveTowerLimit,rankBastionDefenses} from './bas
 import {buildHomeFortification,HOME_DEFENSE_PULSE_SECONDS,
  HOME_DEFENSE_RADIUS} from './ai-base-fortifications.js';
 import {aiBuildSiteScore} from './construction-spacing.js';
+import {ai38InfrastructurePlan} from './ai38-investment-doctrine.js';
 import {defenseLessonsLost} from './battle-learning.js';
 import type {Simulation,Unit,Base} from './simulation.js';
 import type {TacticalState} from './tactical-ai.js';
@@ -74,6 +75,22 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  const defenseFronts=director?rankBastionDefenses(g):[];
  const urgentDefense=defenseFronts.some(c=>c.urgent);
  const generators=own.filter(b=>b.kind==='generator').length;
+ // Reserve only a finite, real balance for ONE infrastructure purchase.
+ // The old macro immediately spent every Bastion payout on queues, so
+ // KI 3.7's 1,520-credit Bunker rule never triggered in 36 live wars.
+ const strategicInvestment=director&&g.tactical.ai37Mode==='coordinated'?
+  ai38InfrastructurePlan({
+   time:g.time,income,ownedBastions:g.territories.filter(t=>t.owner===1).length,
+   fieldFighters:fighters.length,
+   availableInfantry:army.filter(u=>unitSpec(u).group==='Infanterie'&&
+    !['medic','engineer'].includes(u.kind)).length,
+   headquartersReady:complete('headquarters'),barracksReady:complete('barracks'),
+   factoryReady:complete('factory'),
+   bunkerCount:own.filter(b=>b.kind==='bunker').length,
+   hasUpgradeTarget:g.territories.some(t=>t.owner===1&&t.upgradeLevel!==2&&
+    !own.some(b=>b.kind==='headquarters'&&b.territory===t.id)),
+   homeThreat:underAttack,finishing
+  }):null;
  const observedSiege=known>0||g.memories[1].some(m=>m.owner===0&&m.hp>0&&m.kind==='headquarters');
  // Compute the reserve BEFORE optional construction can spend it.
  // The first generator is a core investment; later cores are optional.
@@ -110,7 +127,8 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  // A confirmed visible or remembered siege objective should not lose its
  // first funded rocket to optional airfield construction. Fogged HQs do not
  // qualify; an already paid artillery queue releases this temporary deferral.
- if(deferOptionalAirfieldForSiege(goal,observedSiege,complete('factory'),count('artillery'),underAttack))goal=null;
+ if(deferOptionalAirfieldForSiege(goal,observedSiege,complete('factory'),count('artillery'),underAttack)||
+  strategicInvestment?.goal&&goal==='airfield')goal=null;
  if(e.goal!==goal){e.goal=goal;e.since=g.time;}
  if(goal&&g.credits[1]>=BUILDINGS[goal].cost&&g.time-e.attemptAt>=9){
   e.attemptAt=g.time;
@@ -134,7 +152,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  // then two shielded flanks and further towers. One slow attempt per pulse
  // and a protected army budget prevent the AI from becoming a passive turtle.
  // A failed/blocked terrain site is skipped; AI builders never seal the exit.
- if(director&&!finishing&&!unfinished&&
+ if(director&&!finishing&&!unfinished&&strategicInvestment?.goal!=='bunker'&&
    !g.bases.some(b=>b.owner===1&&b.hp>0&&b.buildRemaining>0)&&
    complete('barracks')&&(complete('factory')||underAttack)&&
    (goal===null||goal==='generator'||underAttack&&goal==='factory')&&
@@ -155,7 +173,8 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  // Fortify owned border bastions after core production has started. Unlike
  // a passive HQ guard, a real turret can hold a captured frontier while the
  // mobile army advances. Do not block repairs, construction or new armor.
- if(director&&!finishing&&!unfinished&&!g.bases.some(b=>b.owner===1&&b.hp>0&&b.buildRemaining>0)
+ if(director&&!finishing&&!unfinished&&strategicInvestment?.goal!=='bunker'&&
+   !g.bases.some(b=>b.owner===1&&b.hp>0&&b.buildRemaining>0)
   &&(goal===null||goal==='generator'||(learnedDefense||urgentDefense)&&goal==='factory')
   &&(!observedSiege||count('artillery')>0||urgentDefense)
   &&complete('barracks')&&(complete('factory')||learnedDefense||urgentDefense)
@@ -186,7 +205,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  // only the committed active construction goal, then reassess next pulse.
  const buildReserve=e.goal&&(e.goal==='barracks'||!underAttack&&fighters.length>=3)
   &&g.time-e.since<85?BUILDINGS[e.goal].cost:0;
- const reserve=Math.max(buildReserve,siegeReserve);
+ const reserve=Math.max(buildReserve,siegeReserve,strategicInvestment?.reserve??0);
  const maxArmy=director?directorArmyTarget(income):Math.min(30,Math.max(14,Math.floor(income/4)+8));if(g.count(1)+g.queued(1)>=maxArmy&&(!director||count('engineer')>0)){
   if(director)e.production={at:g.time,reason:'army-cap',goal:null,missing:0,facilities:Object.fromEntries(own.filter(b=>b.buildRemaining<=0).map(b=>[b.id,{reason:b.queue.length>=2?'queue-blocked':'army-cap',goal:null,missing:0}]))};
   return;
