@@ -169,7 +169,8 @@ execFileSync(process.execPath,['scripts/generate-factory-pbr.mjs'],{stdio:'inher
 // Keep the verified, gate-free in-game factory as the default. If a real
 // Meshy original is committed, package it as a fully textured, inspectable
 // alternative WITHOUT regenerating or overwriting the Meshy source asset.
-if(existsSync('src/assets/reborn/buildings-3d/factory-meshy-source.glb'))
+if(existsSync('src/assets/reborn/buildings-3d/factory-meshy-optimized.glb')||
+   existsSync('src/assets/reborn/buildings-3d/factory-meshy-source.glb'))
  execFileSync(process.execPath,['scripts/prepare-meshy-factory.mjs'],{stdio:'inherit'});
 // The Energy Core is generated for BOTH factions from one compact PBR source.
 execFileSync(process.execPath,['scripts/generate-energy-core-pbr.mjs'],{stdio:'inherit'});
@@ -177,6 +178,9 @@ execFileSync(process.execPath,['scripts/generate-energy-core-pbr.mjs'],{stdio:'i
 // Real flightline service still animates doors and controls aircraft docking.
 execFileSync(process.execPath,['scripts/generate-airfield-pbr.mjs'],{stdio:'inherit'});
 cpSync('src/assets', 'dist/src/assets', {recursive:true});
+// The 69 MB original Meshy sculpt is an editable source, NOT a game asset.
+// Never serve it to the browser; only the optimized and validated candidate.
+rmSync('dist/src/assets/reborn/buildings-3d/factory-meshy-source.glb',{force:true});
 // Distinct UV-textured, render-only oasis adobe models are generated locally.
 // Source generator is tracked, binary GLBs are deterministic build outputs.
 execFileSync(process.execPath,['scripts/generate-oasis-adobe-glbs.mjs',
