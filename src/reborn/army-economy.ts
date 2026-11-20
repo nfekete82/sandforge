@@ -85,7 +85,8 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
    availableInfantry:army.filter(u=>unitSpec(u).group==='Infanterie'&&
     !['medic','engineer'].includes(u.kind)).length,
    headquartersReady:complete('headquarters'),barracksReady:complete('barracks'),
-   factoryReady:complete('factory'),
+   factoryReady:complete('factory'),airfieldReady:complete('airfield'),
+   totalBastions:g.territories.length,
    bunkerCount:own.filter(b=>b.kind==='bunker').length,
    hasUpgradeTarget:g.territories.some(t=>t.owner===1&&t.upgradeLevel!==2&&
     !own.some(b=>b.kind==='headquarters'&&b.territory===t.id)),
@@ -128,7 +129,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  // first funded rocket to optional airfield construction. Fogged HQs do not
  // qualify; an already paid artillery queue releases this temporary deferral.
  if(deferOptionalAirfieldForSiege(goal,observedSiege,complete('factory'),count('artillery'),underAttack)||
-  strategicInvestment?.goal&&goal==='airfield')goal=null;
+  strategicInvestment?.goal==='bunker'&&goal==='airfield')goal=null;
  if(e.goal!==goal){e.goal=goal;e.since=g.time;}
  if(goal&&g.credits[1]>=BUILDINGS[goal].cost&&g.time-e.attemptAt>=9){
   e.attemptAt=g.time;
