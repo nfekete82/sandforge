@@ -23,6 +23,7 @@ import {turretPivot,turretMuzzles} from './turret.js';
 import {Transports,type TransportState} from './transports.js';
 import {BUNKER_CAPACITY,bunkerApproach,bunkerCanBoard,bunkerGarrisonedUnits,bunkerTargetRange,bunkerExitPoints,validBunkerGarrisons} from './bunker-garrison.js';
 import {BASTION_UPGRADE_COST,bastionEffectiveIncome,bastionUpgradable,validBastionUpgradeState} from './bastion-upgrades.js';
+import {ai37FortificationChoice,ai37UpgradeScore} from './ai37-fortification-doctrine.js';
 import {TacticalAI,type TacticalState,type TacticalOrder} from './tactical-ai.js';
 import { MAP_VERSION, randomMapSeed } from './world-generation.js';
 import {beginBomberOrbit,advanceBomberOrbit,validBomberOrbit,BOMBER_ORBIT_SPEED,preservesCaptureBoundary,safeOrbitApproach,isOnBomberOrbit,bastionCaptureOrbit,approachBastionCaptureOrbit,type BomberOrbit} from './bomber-orbit.js';
@@ -326,6 +327,56 @@ export class Simulation {
           const radius=BUILDINGS[needed].radius+hq.radius+75+(i%3)*85;
           const p={x:hq.x+Math.cos(angle)*radius,y:hq.y+Math.sin(angle)*radius};
           if(!this.buildError(ai,needed,p)&&this.build(ai,needed,p,[engineer.id]))break;
+        }
+      }
+    }
+    // KI 3.7: real, PAID fortifications. The candidate must be already
+    // explored, walkable, buildable and reachable by an idle AI engineer.
+    // Preserve funds for field production, so base camping never replaces
+    // Bastion captures or a useful combined-arms army.
+    if(this.world.mapVersion>=23&&engineer&&
+      !engineer.orders.some(o=>o.kind==='build')&&
+      this.bases.some(b=>b.owner===ai&&b.kind==='headquarters'&&
+        b.hp>0&&b.buildRemaining<=0)){
+      const active=this.units.filter(u=>u.owner===ai&&u.hp>0&&!u.carrier);
+      const visibleRaiders=this.units.filter(u=>u.owner===0&&u.hp>0&&
+        !u.carrier&&this.canSee(ai,u));
+      const pressured=visibleRaiders.some(u=>this.bases.some(b=>
+        b.owner===ai&&b.hp>0&&distance(u,b)<650));
+      const choice=ai37FortificationChoice({
+        time:this.time,credits:this.credits[ai],income:this.income(ai),
+        completedHeadquarters:true,completedBarracks:has('barracks'),
+        builders:1,
+        activeInfantry:active.filter(u=>unitSpec(u).group==='Infanterie'&&
+          !['engineer','medic'].includes(u.kind)).length,
+        mobileFighters:active.filter(u=>unitSpec(u).damage>0).length,
+        ownedBastions:this.territories.filter(t=>t.owner===ai).length,
+        bunkers:this.bases.filter(b=>b.owner===ai&&b.kind==='bunker'&&b.hp>0).length,
+        turrets:this.bases.filter(b=>b.owner===ai&&b.kind==='turret'&&b.hp>0).length,
+        underAttack:pressured
+      });
+      if(choice){
+        const hq=this.bases.find(b=>b.owner===ai&&b.kind==='headquarters'&&
+          b.hp>0&&b.buildRemaining<=0)!;
+        const forward=this.territories.filter(t=>t.owner===ai&&
+          t.upgradeLevel===2&&distance(t.point,engineer)<950)
+          .sort((a,b)=>b.income-a.income||a.id-b.id)[0];
+        const anchors=forward&&choice==='bunker'&&
+          this.bases.some(b=>b.owner===ai&&b.kind==='bunker')
+          ?[forward.point,hq]:[hq];
+        let placed=false;
+        for(const anchor of anchors){
+          for(let i=0;i<24;i++){
+            const angle=i*Math.PI*2/24;
+            const radius=anchor===hq
+              ?BUILDINGS[choice].radius+hq.radius+105+(i%4)*35
+              :BUILDINGS[choice].radius+165+(i%3)*50;
+            const p={x:anchor.x+Math.cos(angle)*radius,
+              y:anchor.y+Math.sin(angle)*radius};
+            if(this.buildError(ai,choice,p))continue;
+            if(this.build(ai,choice,p,[engineer.id])){placed=true;break;}
+          }
+          if(placed)break;
         }
       }
     }
@@ -2846,8 +2897,16 @@ export class Simulation {
         this.credits[1]>=BASTION_UPGRADE_COST+1450&&this.count(1)>=8){
         const candidate=this.territories.filter(t=>
           bastionUpgradable(t,1,this.bases,
-          campaignLayout(this.world.mapVersion,this.seed).headquarters)).sort((a,b)=>
-          b.income-a.income||a.id-b.id)[0];
+          campaignLayout(this.world.mapVersion,this.seed).headquarters))
+          .map(t=>({t,score:ai37UpgradeScore({
+            income:t.income,
+            enemyAdjacent:t.neighbors.some(n=>this.territories[n]?.owner===0),
+            visibleRaiders:this.units.filter(u=>u.owner===0&&u.hp>0&&
+              !u.carrier&&this.canSee(1,u)&&distance(u,t.point)<420).length,
+            contested:t.progress>0,alreadyUpgraded:t.upgradeLevel===2
+          })}))
+          .filter(x=>Number.isFinite(x.score))
+          .sort((a,b)=>b.score-a.score||a.t.id-b.t.id)[0]?.t;
         if(candidate)this.upgradeBastion(1,candidate.id);
       }
     }
