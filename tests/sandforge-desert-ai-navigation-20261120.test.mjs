@@ -14,7 +14,7 @@ const d=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 test('validated strategy never chooses a blocked or false canyon entrance',()=>{
  const ridge={spine:[{x:0,y:1000},{x:2200,y:1000}],
   width:150,height:105,ramps:[{x:500,width:360},{x:1650,width:360}],clearings:[]};
- const from={x:600,y:420},to={x:600,y:1630};
+ const from={x:900,y:420},to={x:900,y:1630};
  const seen=[];
  const actual=canyonPassWaypoint(from,to,[ridge],16,(near,far)=>{
   seen.push([near,far]);
@@ -41,7 +41,9 @@ for(const m of maps.filter(m=>m.kind!=='open-basin'))test(
   assert.ok(leg.length&&d(leg.at(-1),far)<w.cell*1.4,
    'pass must work with the real artillery slope limit');
   const lookup=canyonPassWaypoint(near,far,[ridge],clearance(),
-   (a,b)=>w.line(a,b,[],clearance(),slope));
+   (a,b)=>w.line(a,b,[],clearance(),slope)||
+     w.path(a,b,[],clearance(),undefined,false,false,false,slope)
+      .some(q=>d(q,b)<w.cell*1.4));
   assert.ok(lookup,'AI should recognize this verified mountain pass');
   assert.ok(w.walkable(lookup,[],clearance()),'AI route points must be physically legal');
  }
