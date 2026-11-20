@@ -8,6 +8,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: sandforge-meshy-structures-import
+  cancel-in-progress: true
 jobs:
   import-real-meshy-glbs:
     runs-on: ubuntu-latest
@@ -59,5 +62,7 @@ jobs:
             echo "Meshy models already imported"
           else
             git commit -m "assets(meshy): import six PBR building models [skip ci]"
+            git fetch origin "${GITHUB_REF_NAME}"
+            git rebase "origin/${GITHUB_REF_NAME}"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
