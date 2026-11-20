@@ -43,3 +43,40 @@ export function ai38CanRecoverVehicle(input:{
   !input.turning&&!input.hasCargo&&!input.inCombat&&
   input.sinceProgress>=3.3&&input.attempt>=1;
 }
+
+/** KI 3.9: A* can legally return no path when a long, steep canyon
+ * temporarily requires a move away from the ultimate goal. The actual
+ * vehicle must drive this SHORT candidate under its normal collision,
+ * terrain/slope and spacing validator. Never teleport or ignore walls.
+ *
+ * Alternating the preferred side and excluding the last recovery origin
+ * prevents repeatedly choosing the same failed two-way sidestep.
+ */
+export function ai39NoPathRecoveryWaypoint(input:{
+  from:Point;goal:Point;unitId:number;attempt:number;
+  avoid?:Point;clear:(p:Point)=>boolean;
+}):Point|undefined{
+ const {from,goal,unitId,attempt,avoid,clear}=input;
+ if(!Number.isFinite(from.x+from.y+goal.x+goal.y))return undefined;
+ const heading=Math.atan2(goal.y-from.y,goal.x-from.x);
+ const side=(unitId+Math.max(0,Math.floor((attempt-1)/2)))%2===0?1:-1;
+ const angles=[
+  side*Math.PI*.5,-side*Math.PI*.5,
+  side*Math.PI*.32,-side*Math.PI*.32,
+  side*Math.PI*.72,-side*Math.PI*.72,
+  0,Math.PI
+ ];
+ // Some canyon approaches require a short move away from the enemy before
+ // reaching the real pass. Bound the probe to 315 map units per attempt.
+ for(const radius of attempt>2?[205,125,315,75]:[125,205,75,315]){
+  for(const turn of angles){
+   const angle=heading+turn;
+   const p={x:from.x+Math.cos(angle)*radius,
+    y:from.y+Math.sin(angle)*radius};
+   if(distance(p,goal)>distance(from,goal)+Math.max(240,radius*.92)||
+      avoid&&distance(p,avoid)<Math.min(105,radius*.65))continue;
+   if(clear(p))return p;
+  }
+ }
+ return undefined;
+}

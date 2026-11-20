@@ -25,7 +25,7 @@ import {BUNKER_CAPACITY,bunkerApproach,bunkerCanBoard,bunkerGarrisonedUnits,bunk
 import {BASTION_UPGRADE_COST,bastionEffectiveIncome,bastionUpgradable,validBastionUpgradeState} from './bastion-upgrades.js';
 import {ai37FortificationChoice,ai37UpgradeScore} from './ai37-fortification-doctrine.js';
 import {ai38InfrastructurePlan} from './ai38-investment-doctrine.js';
-import {ai38VehicleRecoveryWaypoint,ai38CanRecoverVehicle} from './ai38-vehicle-navigation.js';
+import {ai38VehicleRecoveryWaypoint,ai38CanRecoverVehicle,ai39NoPathRecoveryWaypoint} from './ai38-vehicle-navigation.js';
 import {TacticalAI,type TacticalState,type TacticalOrder} from './tactical-ai.js';
 import { MAP_VERSION, randomMapSeed } from './world-generation.js';
 import {beginBomberOrbit,advanceBomberOrbit,validBomberOrbit,BOMBER_ORBIT_SPEED,preservesCaptureBoundary,safeOrbitApproach,isOnBomberOrbit,bastionCaptureOrbit,approachBastionCaptureOrbit,type BomberOrbit} from './bomber-orbit.js';
@@ -856,6 +856,11 @@ export class Simulation {
   }>();
   private readonly ai38VehicleEscapes=new WeakMap<Unit,{
     targetX:number;targetY:number;lastX:number;lastY:number;
+    attempts:number;
+  }>();
+  /** AI-only transient recovery for empty A* routes; never serialized. */
+  private readonly ai39EmptyPathRecovery=new WeakMap<Unit,{
+    targetX:number;targetY:number;originX:number;originY:number;
     attempts:number;
   }>();
   /** Temporary, deliberately non-serialized combat position for AI rockets. */
@@ -2169,6 +2174,42 @@ export class Simulation {
           const escapeTarget=safeExit??target;
           u.path=this.world.path(u,escapeTarget,legacyObstacles,clearance,risk,false,true,true,slopeLimit);
           if(u.path.length)u.vehicleEscape=safeExit?'exit':'last-resort';
+        }
+      }
+      // KI 3.9: a valid assault order is not a driving path. Long canyon
+      // routes can exhaust bounded A* before discovering a pass, leaving
+      // vehicles completely idle while infantry continues attacking.
+      // For AI vehicles ONLY, probe a short, genuinely traversable sideways
+      // corridor after both coarse and exact A* failed. The original order
+      // is retained, the temporary waypoint is physically driven, and the
+      // next route query again targets the real order.
+      if(vehicle&&!u.path.length&&u.owner===1&&
+         this.tactical.ai37Mode==='coordinated'&&
+         this.world.mapVersion>=23&&this.world.generatorVersion>=3&&
+         (u.orders[0]?.kind==='move'||u.orders[0]?.kind==='attackMove')&&
+         u.combatTarget==null&&!u.hold&&!u.factoryService&&
+         (u.transport?.cargo.length??0)===0&&distance(u,target)>170){
+        const old=this.ai39EmptyPathRecovery.get(u);
+        const sameGoal=old&&Math.hypot(old.targetX-target.x,old.targetY-target.y)<150;
+        const attempt=sameGoal?old.attempts+1:1;
+        const avoid=sameGoal&&old?{x:old.originX,y:old.originY}:undefined;
+        const nearby=this.spatial.query(u,380).filter(v=>v!==u&&v.hp>0&&
+          !v.carrier&&!unitSpec(v).flying&&unitSpec(v).group==='Fahrzeuge');
+        const local=ai39NoPathRecoveryWaypoint({
+          from:u,goal:target,unitId:u.id,attempt,avoid,
+          clear:p=>this.world.walkable(p,collisionObstacles,clearance)&&
+            this.world.line(u,p,routeObstacles,clearance,slopeLimit)&&
+            nearby.every(v=>distance(p,v)>vehicleSpacingGap(u,v).hard+12)
+        });
+        if(local){
+          this.ai39EmptyPathRecovery.set(u,{
+            targetX:target.x,targetY:target.y,originX:u.x,originY:u.y,
+            attempts:attempt
+          });
+          u.path=[local];
+          // Re-test the coarse path after a REAL successful physical
+          // detour; exact-only searches tend to exhaust too early here.
+          u.exactPath=false;
         }
       }
       // Failed reachability no longer hammers the same blocked goal every

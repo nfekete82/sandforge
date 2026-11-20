@@ -48,8 +48,11 @@ function observeFactory(){
   bunkerMax=0,bunkerSeatSeconds=0,bunkerBuildingSeconds=0,
   upgradeSeconds=0,upgradesPeak=0,
   stationaryCommandSeconds=0,stationaryVehicles=0,
+  commandedVehicleSeconds=0,stationaryWithoutPath=0,
+  stallByKind={},stallByOrder={},stallByUnit=new Map(),
   lastSample=-1,vehiclePositions=new Map(),oldPositions=new Map(),immobileTimes=new Map(),
   mobileCount=0,pointCount=0,redIncomeSeconds=0,blueIncomeSeconds=0,contactTicks=0,
+  nearestEnemyHQ=Infinity,redNearHQSeconds=0,maxRedNearHQ=0,
   eligibleBunkerSeconds=0,eligibleUpgradeSeconds=0,maxFreeCredits=0,
   maxCreditsWhileBunkerEligible=0,firstBunkerAt=null,firstUpgradeAt=null;
  const observe=g=>{
@@ -67,6 +70,15 @@ function observeFactory(){
   if(bunkers.length&&firstBunkerAt===null)firstBunkerAt=g.time;
   const fighters=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier&&
    !['medic','engineer','scout','supply','drone'].includes(u.kind));
+  // Offline-only full-state telemetry. Never passed into any AI policy.
+  const enemyHQ=g.bases.find(b=>b.owner===0&&b.kind==='headquarters'&&b.hp>0);
+  if(enemyHQ&&fighters.length){
+   const distances=fighters.map(u=>Math.hypot(u.x-enemyHQ.x,u.y-enemyHQ.y));
+   nearestEnemyHQ=Math.min(nearestEnemyHQ,...distances);
+   const inside=distances.filter(d=>d<850).length;
+   redNearHQSeconds+=inside;
+   maxRedNearHQ=Math.max(maxRedNearHQ,inside);
+  }
   const buildings=g.bases.filter(b=>b.owner===1&&b.hp>0);
   const observedRaiders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u));
   const investment=ai38InfrastructurePlan({
@@ -107,15 +119,38 @@ function observeFactory(){
   mobileCount=Math.max(mobileCount,vehicles.length);
   for(const u of vehicles){
    vehiclePositions.set(u.id,{x:u.x,y:u.y});
-   if(!u.orders.length||u.hold||u.defendUntil>g.time)continue;
+   if(!u.orders.length||u.hold||u.defendUntil>g.time){
+    immobileTimes.delete(u.id);continue;
+   }
    const goal=u.orders[0];
-   if(Math.hypot(goal.x-u.x,goal.y-u.y)<90)continue;
+   if(Math.hypot(goal.x-u.x,goal.y-u.y)<90){
+    immobileTimes.delete(u.id);continue;
+   }
    const old=previous.get(u.id);
    if(!old)continue;
+   commandedVehicleSeconds++;
    const stalled=Math.hypot(old.x-u.x,old.y-u.y)<3?
     (immobileTimes.get(u.id)??0)+1:0;
    immobileTimes.set(u.id,stalled);
-   if(stalled>=4){stationaryCommandSeconds++;if(stalled===4)stationaryVehicles++;}
+   if(stalled>=4){
+    stationaryCommandSeconds++;if(stalled===4)stationaryVehicles++;
+    const key=goal.kind??'unknown';
+    stallByKind[u.kind]=(stallByKind[u.kind]??0)+1;
+    stallByOrder[key]=(stallByOrder[key]??0)+1;
+    if(!u.path?.length)stationaryWithoutPath++;
+    const existing=stallByUnit.get(u.id)??{
+     id:u.id,kind:u.kind,seconds:0,maxConsecutive:0,
+     firstTime:Math.floor(g.time),lastTime:Math.floor(g.time)
+    };
+    existing.seconds++;existing.maxConsecutive=Math.max(existing.maxConsecutive,stalled);
+    existing.lastTime=Math.floor(g.time);
+    existing.order=key;existing.pathLength=u.path?.length??0;
+    existing.distanceToOrder=Math.round(Math.hypot(goal.x-u.x,goal.y-u.y));
+    existing.x=Math.round(u.x);existing.y=Math.round(u.y);
+    existing.goalX=Math.round(goal.x);existing.goalY=Math.round(goal.y);
+    existing.repath=Math.round((u.repath??0)*10)/10;
+    stallByUnit.set(u.id,existing);
+   }
   }
  };
  return {observe,finish:()=>({firstActualShotAt:startOfCombat===null?null:round(startOfCombat),
@@ -123,6 +158,15 @@ function observeFactory(){
   peakGarrisonOccupants:bunkerMax,bunkerSeatSeconds,bunkerBuildingSeconds,
   upgradedBastionSeconds:upgradeSeconds,peakUpgradedBastions:upgradesPeak,
   longStationaryVehicleSeconds:stationaryCommandSeconds,stationaryVehicleIncidents:stationaryVehicles,
+  commandedVehicleSeconds,
+  stationaryVehicleFraction:commandedVehicleSeconds?
+   round(stationaryCommandSeconds/commandedVehicleSeconds):0,
+  stationaryWithoutPath,
+  nearestEnemyHQ:Number.isFinite(nearestEnemyHQ)?round(nearestEnemyHQ):null,
+  redNearHQSeconds,maxRedNearHQ,
+  stallByKind,stallByOrder,
+  worstStalledVehicles:[...stallByUnit.values()]
+   .sort((a,b)=>b.seconds-a.seconds||a.id-b.id).slice(0,6),
   maxMobileVehicles:mobileCount,
   meanRedIncome:pointCount?round(redIncomeSeconds/pointCount):0,
   meanBlueIncome:pointCount?round(blueIncomeSeconds/pointCount):0,
@@ -146,6 +190,15 @@ function compact(run){
   maxCreditsWhileBunkerEligible:run.maxCreditsWhileBunkerEligible,
   firstBunkerAt:run.firstBunkerAt,firstUpgradeAt:run.firstUpgradeAt,
   stuckVehicleSeconds:run.longStationaryVehicleSeconds,
+  commandedVehicleSeconds:run.commandedVehicleSeconds,
+  stallFraction:run.stationaryVehicleFraction,
+  noPathStallSeconds:run.stationaryWithoutPath,
+  stallByKind:run.stallByKind,
+  stallByOrder:run.stallByOrder,
+  worstStalledVehicles:run.worstStalledVehicles,
+  closestRedToEnemyHQ:run.nearestEnemyHQ,
+  redFighterSecondsNearHQ:run.redNearHQSeconds,
+  peakRedFightersNearHQ:run.maxRedNearHQ,
   stalledMissions:run.stalledMissions,abortedMissions:run.abortedMissions,
   attackingSeconds:run.attackingSeconds,p95TickMs:round(run.cpu.stepMs.p95,3)};
 }

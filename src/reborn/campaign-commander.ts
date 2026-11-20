@@ -205,6 +205,28 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
   const route=context.route(c.p);if(route)routed.push({c,route});
   if(routed.length===(context.intelligent?8:6))break;
  }
+ // KI 4.0: a KNOWN and observed HQ with an ACTUALLY secured near-complete
+ // Bastion economy can be approached through a VALIDATED canyon segment even
+ // while other Bastions have ordinary full routes. Previously the
+ // conservative fallback was consulted only when every unrelated capture
+ // candidate failed. The attack-mission selector then preferred a quiet
+ // Bastion indefinitely despite available artillery and a genuine siege
+ // army. A fallback is not a fabricated complete route or free vision.
+ // Partial pass routing is an EXPENSIVE strategic pivot. During active
+ // Bastion contests it can divert the whole paid force away from securing
+ // the remaining sectors (observed regression on the 16-Bastion canyon).
+ // Keep ordinary complete-route captures until >=7/8 of public sectors
+ // are physically held; only then perform the risky last HQ breakthrough.
+ if(context?.breakthrough&&breakthroughHQ&&context.routeFallback&&
+    redOwned>=Math.ceil(g.territories.length*.875)&&
+    !routed.some(r=>r.c.kind==='structure'&&r.c.objective===breakthroughHQ.id)){
+  const observed=choices.find(c=>c.kind==='structure'&&
+    c.objective===breakthroughHQ.id);
+  if(observed){
+   const partial=context.routeFallback(observed.p);
+   if(partial&&partial.risk<12)routed.push({c:observed,route:partial});
+  }
+ }
  // Bounded full-route searches can reject a reachable distant HQ after
  // the R-01 reveals it early. The movement engine already supports verified
  // partial paths. Only use this AI3.6-only alternative when ALL complete
