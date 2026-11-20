@@ -1,94 +1,147 @@
 #!/usr/bin/env node
-/** Sandforge Meshy import bridge.
- * The original 69 MB high-poly Meshy sculpt is retained in the Meshy account
- * (task 01a1fb1b-22a2-727f-be8c-3f68d47ae6a0) and source Git history.
- * The optimized 5.3 MB actual Meshy GLB is the versioned build source.
- * It is NEVER overwritten by the procedural Sandforge factory generator.
- *
- * This script wraps the exact Meshy geometry/materials into candidate models.
- * The photographed shutter is NOT misrepresented as an open doorway:
- * current playable production still uses the verified open-bay factory.
+/** Mes​hy 7.1 --> Sandforge. Split the real corrugated door triangles from
+ * the original quantized PBR GLB without repainting or remeshing the roof.
+ * The game-facing factory-0/1.glb preserve the original Meshy UVs, basecolor,
+ * normal and metallic/roughness textures byte-for-byte.
  */
 import {existsSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import {pathToFileURL} from 'node:url';
-const SOURCE=process.argv[2]??(
- existsSync('src/assets/reborn/buildings-3d/factory-meshy-optimized.glb')?
- 'src/assets/reborn/buildings-3d/factory-meshy-optimized.glb':
- 'src/assets/reborn/buildings-3d/factory-meshy-source.glb');
+export const MESHY_FACTORY_VERSION='sandforge-meshy-pbr-production-gate-v1-20261121';
+export const MESHY_DOOR_HEIGHT=.330;
+const SOURCE=process.argv[2]??'src/assets/reborn/buildings-3d/factory-meshy-optimized.glb';
 const OUT=process.argv[3]??dirname(SOURCE);
-function parseGLB(buffer){
- if(buffer.length<24||buffer.toString('ascii',0,4)!=='glTF'||
-    buffer.readUInt32LE(4)!==2||buffer.readUInt32LE(8)!==buffer.length)
-  throw new Error('Not a valid glTF 2.0 binary file');
- const chunks=[];let offset=12;
- while(offset+8<=buffer.length){
-  const length=buffer.readUInt32LE(offset);
-  const type=buffer.toString('ascii',offset+4,offset+8);
-  if(length%4!==0||offset+8+length>buffer.length)
-   throw new Error('Corrupted glTF chunk length');
-  chunks.push({type,bytes:buffer.subarray(offset+8,offset+8+length)});
-  offset+=8+length;
+const align4=n=>(n+3)&~3;
+function readGLB(b){
+ if(b.length<40||b.toString('ascii',0,4)!=='glTF'||
+    b.readUInt32LE(4)!==2||b.readUInt32LE(8)!==b.length)
+  throw new Error('Invalid glTF 2 binary');
+ let offset=12;const chunks=[];
+ while(offset<b.length){
+  const size=b.readUInt32LE(offset),type=b.toString('ascii',offset+4,offset+8);
+  if(size%4||offset+8+size>b.length)throw new Error('Invalid glTF chunk length');
+  chunks.push({type,bytes:Buffer.from(b.subarray(offset+8,offset+8+size))});
+  offset+=8+size;
  }
- if(offset!==buffer.length||chunks[0]?.type!=='JSON')throw new Error('glTF JSON chunk missing');
- const doc=JSON.parse(chunks[0].bytes.toString('utf8'));
- if(doc.asset?.version!=='2.0'||!doc.scenes?.length||!doc.nodes?.length||
-    !doc.meshes?.length||!doc.materials?.length)
-  throw new Error('Meshy source is not a textured 3D building');
- return {doc,chunks};
+ if(chunks[0]?.type!=='JSON'||chunks[1]?.type!=='BIN\0')
+  throw new Error('Missing GLB JSON/BIN chunks');
+ return {doc:JSON.parse(chunks[0].bytes.toString('utf8')),bin:chunks[1].bytes};
 }
-function encodeGLB(doc,chunks){
- const json=Buffer.from(JSON.stringify(doc)),pad=(4-json.length%4)%4;
- const payloads=[{type:'JSON',bytes:Buffer.concat([json,Buffer.alloc(pad,32)])},
-  ...chunks.slice(1)];
- const len=12+payloads.reduce((sum,c)=>sum+8+c.bytes.length,0);
- const glb=Buffer.alloc(len);glb.write('glTF',0,4,'ascii');
- glb.writeUInt32LE(2,4);glb.writeUInt32LE(len,8);
- let ptr=12;
- for(const {type,bytes} of payloads){
-  glb.writeUInt32LE(bytes.length,ptr);glb.write(type,ptr+4,4,'ascii');
-  bytes.copy(glb,ptr+8);ptr+=8+bytes.length;
+function saveGLB(doc,bin){
+ const json=Buffer.from(JSON.stringify(doc));
+ const payloads=[['JSON',Buffer.concat([json,Buffer.alloc(align4(json.length)-json.length,32)])],
+  ['BIN\0',Buffer.concat([bin,Buffer.alloc(align4(bin.length)-bin.length)])]];
+ const size=12+payloads.reduce((n,[,b])=>n+8+b.length,0),out=Buffer.alloc(size);
+ out.write('glTF',0,4,'ascii');out.writeUInt32LE(2,4);out.writeUInt32LE(size,8);
+ let ptr=12;for(const [type,bytes] of payloads){
+  out.writeUInt32LE(bytes.length,ptr);out.write(type,ptr+4,4,'ascii');
+  bytes.copy(out,ptr+8);ptr+=8+bytes.length;
  }
- return glb;
+ return out;
 }
-export function prepareMeshyFactory(src,output){
+function quantPositions(doc,bin,id){
+ const a=doc.accessors[id],v=doc.bufferViews[a.bufferView];
+ if(a.componentType!==5123||a.type!=='VEC3'||a.sparse)
+  throw new Error('Meshy vertex quantization unexpectedly changed');
+ const offset=(v.byteOffset??0)+(a.byteOffset??0),step=v.byteStride??6;
+ const vertices=new Array(a.count);
+ for(let i=0;i<a.count;i++){
+  const p=offset+i*step;
+  vertices[i]=[bin.readUInt16LE(p),bin.readUInt16LE(p+2),bin.readUInt16LE(p+4)];
+ }
+ return vertices;
+}
+function extractRealShutter(doc,bin){
+ const index=doc.nodes.findIndex(n=>n.mesh!==undefined),node=doc.nodes[index];
+ const mesh=doc.meshes[node.mesh],primitive=mesh.primitives?.[0];
+ if(mesh.primitives.length!==1||primitive.indices===undefined)
+  throw new Error('Expected original Meshy single-PBR indexed mesh');
+ const accessor=doc.accessors[primitive.indices],view=doc.bufferViews[accessor.bufferView];
+ if(accessor.componentType!==5125||accessor.type!=='SCALAR'||accessor.count%3)
+  throw new Error('Expected 32-bit Meshy triangle indices');
+ const vertices=quantPositions(doc,bin,primitive.attributes.POSITION);
+ const translate=node.translation??[0,0,0],scale=node.scale??[1,1,1];
+ const at=i=>vertices[i].map((n,k)=>n*scale[k]+translate[k]);
+ const ptr=(view.byteOffset??0)+(accessor.byteOffset??0),stay=[],door=[];
+ for(let i=0;i<accessor.count;i+=3){
+  const indices=[bin.readUInt32LE(ptr+i*4),
+   bin.readUInt32LE(ptr+(i+1)*4),bin.readUInt32LE(ptr+(i+2)*4)];
+  if(indices.some(n=>n>=vertices.length))throw new Error('Invalid Meshy index');
+  const [a,b,c]=indices.map(at);
+  const p=a.map((n,k)=>(n+b[k]+c[k])/3),[x,y,z]=p;
+  const e=b.map((n,k)=>n-a[k]),f=c.map((n,k)=>n-a[k]);
+  const nx=e[1]*f[2]-e[2]*f[1],ny=e[2]*f[0]-e[0]*f[2],
+   nz=e[0]*f[1]-e[1]*f[0];
+  const unitX=nx/(Math.hypot(nx,ny,nz)||1);
+  const zmin=-.662+(y+.350)*.110/.320-.012;
+  const zmax=-.180-(y+.350)*.120/.320+.012;
+  const gate=x>-.525&&x<-.395&&y>-.357&&y<-.022&&
+   z>zmin&&z<zmax&&unitX<-.12;
+  (gate?door:stay).push(...indices);
+ }
+ const triangles=door.length/3;
+ if(triangles<450||triangles>1300)throw new Error('Unable to isolate Meshy garage shutter '+triangles);
+ if(stay.length+door.length!==accessor.count)throw new Error('Index partition mismatch');
+ for(let i=0;i<stay.length;i++)bin.writeUInt32LE(stay[i],ptr+i*4);
+ for(let i=0;i<door.length;i++)bin.writeUInt32LE(door[i],ptr+(stay.length+i)*4);
+ view.byteLength=stay.length*4;accessor.count=stay.length;
+ const viewId=doc.bufferViews.length;
+ doc.bufferViews.push({buffer:view.buffer,byteOffset:ptr+stay.length*4,
+  byteLength:door.length*4,target:34963});
+ const accessorId=doc.accessors.length;
+ doc.accessors.push({bufferView:viewId,byteOffset:0,componentType:5125,
+  count:door.length,type:'SCALAR'});
+ const meshId=doc.meshes.length;
+ doc.meshes.push({name:'FactoryRollupDoor',primitives:[{
+  attributes:{...primitive.attributes},indices:accessorId,material:primitive.material
+ }]});
+ const doorId=doc.nodes.length;
+ doc.nodes.push({name:'FactoryRollupDoor',mesh:meshId,
+  translation:[...node.translation],scale:[...node.scale],
+  extras:{realMeshyShutter:true,openHeight:MESHY_DOOR_HEIGHT,
+   closedY:node.translation[1],originalScaleY:node.scale[1]}});
+ const parent=doc.nodes.find(n=>n.children?.includes(index));
+ if(!parent)throw new Error('No parent for authored Meshy shutter');
+ parent.children.push(doorId);
+ return {realDoorTriangles:triangles,intactFactoryTriangles:stay.length/3};
+}
+export function prepareMeshyFactory(src=SOURCE,output=OUT){
  if(!existsSync(src))return {status:'source-missing'};
- const raw=readFileSync(src);
- if(raw.length>80_000_000||raw.length<20_000)
-  throw new Error('Unsafe factory Meshy asset size');
- const {doc,chunks}=parseGLB(raw);
- if(doc.materials.every(m=>!m.pbrMetallicRoughness?.baseColorTexture))
-  throw new Error('Meshy output missing authentic base-color textures');
- mkdirSync(output,{recursive:true});
- const result=[];
- for(const owner of [0,1]){
-  const model=structuredClone(doc);
-  const scene=model.scenes[model.scene??0];
-  const oldRootNodes=scene.nodes??[];
+ const bytes=readFileSync(src);
+ if(bytes.length<30000||bytes.length>12000000)
+  throw new Error('Expected optimized Meshy PBR source GLB, not high-poly original');
+ const parsed=readGLB(bytes),doc=parsed.doc;
+ if(!doc.materials?.some(m=>m.normalTexture&&
+  m.pbrMetallicRoughness?.baseColorTexture&&
+  m.pbrMetallicRoughness?.metallicRoughnessTexture))
+  throw new Error('Missing real Mes​hy PBR texture maps');
+ mkdirSync(output,{recursive:true});const out=[];
+ for(let owner=0;owner<2;owner++){
+  const model=structuredClone(doc),bin=Buffer.from(parsed.bin);
+  const stats=extractRealShutter(model,bin),roots=model.scenes[model.scene??0].nodes;
   const wrapper=model.nodes.length;
-  model.nodes.push({name:'SF_Factory_Meshy_ReferenceSource',
-   children:[...oldRootNodes],
-   extras:{meshyGenerated:true,
-    defaultGameFactory:false,owner,source:'Meshy 7.1 Image to 3D'}});
-  const orientation=model.nodes.length;
-  model.nodes.push({name:'SF_Factory_Meshy_ProductionOrientation',
-   extras:{requiresOpenDoorValidation:true,team:owner}});
-  model.nodes[wrapper].children.push(orientation);
-  const profile=model.nodes.length;
-  model.nodes.push({name:'SF_Factory_PBR_ReferenceHangar_v3',
-   extras:{authoredPBR:true,meshyCandidate:true}});
-  model.nodes[wrapper].children.push(profile);
-  scene.nodes=[wrapper];
-  model.asset.generator='sandforge-meshy-reference-factory-adapter-v1';
-  const name='factory-meshy-'+owner+'.glb';
-  const file=join(output,name);
-  writeFileSync(file,encodeGLB(model,chunks));
-  result.push({name,path:file,meshes:model.meshes.length,materials:model.materials.length,
-   textures:model.textures?.length??0,bytes:raw.length});
+  // Original Meshy garage faces -X. Rotate +90° Y: real shutter faces +Z
+  // exactly like Sandforge barracks and 4-cardinal vehicle production.
+  model.nodes.push({name:'SF_Factory_Meshy_ProductionRig',
+   rotation:[0,Math.SQRT1_2,0,Math.SQRT1_2],children:[...roots],
+   extras:{source:'Mes​hy 7.1',realMeshyProduction:true,owner,
+    frontLocalPlusZ:true,realShutter:true}});
+  for(const [name,translation] of [
+   ['SF_Factory_Meshy_RolloutStart',[-.425,-.292,.16]],
+   ['SF_Factory_Meshy_RolloutExit',[-.425,-.345,.74]]]){
+   const i=model.nodes.length;
+   model.nodes.push({name,translation,extras:{visualOnly:true,nonBlocking:true}});
+   model.nodes[wrapper].children.push(i);
+  }
+  model.scenes[model.scene??0].nodes=[wrapper];
+  model.asset.generator=MESHY_FACTORY_VERSION;
+  model.asset.extras={originalMes​hyPBR:true,owner,teamPaintShader:owner===1,
+   productionGateway:true,...stats};
+  const file=join(output,'factory-'+owner+'.glb'),glb=saveGLB(model,bin);
+  writeFileSync(file,glb);
+  out.push({owner,file,bytes:glb.length,...stats});
  }
- return {status:'prepared',result};
+ return {status:'ready',output:out};
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
- const out=prepareMeshyFactory(SOURCE,OUT);
- console.log('Sandforge Meshy candidate:',JSON.stringify(out));
-}
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)
+ console.log('Sandforge Meshy production GLB:',JSON.stringify(prepareMeshyFactory()));
