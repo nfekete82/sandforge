@@ -186,6 +186,12 @@ export class TacticalAI {
  private ai40RecoveredMissionSince=-1;
  /** Explicitly opt-in ONLY for headless benchmark observation. No saves. */
  rallyGateTraceEnabled=false;
+ /** Test-only record of why a known HQ pass rally was not selected. */
+ hqPassTraceEnabled=false;
+ hqPassProbes:Array<{at:number;mission:number;original:{x:number;y:number};
+  chosen:{x:number;y:number};candidate:{x:number;y:number}|null;
+  distance:number;oldPathCount:number|null;outcome:string;
+  army:number}>=[];
  rallyGateTrace:Array<{
   at:number;phase:TacticalPhase;phaseSeconds:number;missionSince:number;
   map:number;generator:number;blockedBy:string[];
@@ -211,7 +217,7 @@ export class TacticalAI {
   this.sectorPreference={sectorId,until:this.g.time+35};return true;
  }
  restore(state:TacticalState|undefined):void{
-  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
+  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;this.hqPassProbes=[];
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
   if(!state)for(const m of this.g.memories[1])if(m.owner===0&&
     (m.kind==='turret'||m.kind==='bunker')&&m.hp>0)
@@ -1554,20 +1560,50 @@ export class TacticalAI {
    // Existing reachable staging points and all other mission types remain.
    if(g.world.mapVersion===26&&g.world.generatorVersion>=3&&
       this.ai37Mode==='coordinated'&&intel?.kind==='headquarters'&&
-      g.world.generated?.ridges.length&&distance(origin,s.rally)>500&&
-      !this.route(origin,s.rally).length){
-     const obstacles=this.obstacles();
-     const entrance=verifiedCanyonApproachRally({
-       from:origin,target:mission,ridges:g.world.generated.ridges,
-       clearance:12,
-       walkable:p=>g.world.walkable(p,obstacles,12),
-       safe:p=>!s.knownTurrets.some(t=>distance(p,t)<t.range+90),
-       reachable:p=>{
-         const route=this.route(origin,p);
-         return route.length>0&&this.sampleRoute(route,origin).risk<8;
-       }
-     });
-     if(entrance)s.rally=entrance;
+      g.world.generated?.ridges.length){
+     const original={x:s.rally.x,y:s.rally.y};
+     const far=distance(origin,s.rally)>500;
+     const oldPath=far?this.route(origin,s.rally):[];
+     const oldReachable=far&&oldPath.length>0;
+     let outcome=far?'original-stage-reachable':'already-near-stage';
+     let candidate:Point|undefined;
+     if(far&&!oldReachable){
+       const obstacles=this.obstacles();
+       candidate=canyonPassWaypoint(origin,mission,g.world.generated.ridges,12);
+       let verdict='no-pass-crossing';
+       const entrance=verifiedCanyonApproachRally({
+         from:origin,target:mission,ridges:g.world.generated.ridges,
+         clearance:12,
+         walkable:p=>{
+          const ok=g.world.walkable(p,obstacles,12);
+          if(!ok)verdict='pass-not-walkable';
+          return ok;
+         },
+         safe:p=>{
+          const ok=!s.knownTurrets.some(t=>distance(p,t)<t.range+90);
+          if(!ok)verdict='pass-in-known-gun-range';
+          return ok;
+         },
+         reachable:p=>{
+           const route=this.route(origin,p);
+           const risk=route.length?this.sampleRoute(route,origin).risk:Infinity;
+           const ok=route.length>0&&risk<8;
+           if(!ok)verdict=route.length?'pass-too-risky':'pass-no-real-path';
+           return ok;
+         }
+       });
+       if(entrance){s.rally=entrance;verdict='verified-pass-selected';}
+       outcome=verdict;
+     }
+     if(this.hqPassTraceEnabled){
+       this.hqPassProbes.push({at:Math.round(g.time),mission:mission.sector,
+         original,chosen:{x:s.rally.x,y:s.rally.y},
+         candidate:candidate?{x:candidate.x,y:candidate.y}:null,
+         distance:Math.round(distance(origin,original)),
+         oldPathCount:far?oldPath.length:null,
+         outcome,army:fighters.length});
+       if(this.hqPassProbes.length>60)this.hqPassProbes.shift();
+     }
    }
   }
   // Cleanup holds the paid army together rather than sending two fighters to

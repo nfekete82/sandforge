@@ -55,7 +55,8 @@ function observeFactory(){
   nearestEnemyHQ=Infinity,redNearHQSeconds=0,maxRedNearHQ=0,
   eligibleBunkerSeconds=0,eligibleUpgradeSeconds=0,maxFreeCredits=0,
   maxCreditsWhileBunkerEligible=0,firstBunkerAt=null,firstUpgradeAt=null,
-  rallyGateTrace=[],seenRallyGateIndex=0;
+  rallyGateTrace=[],seenRallyGateIndex=0,
+  hqPassProbes=[],seenHqPassIndex=0;
  const observe=g=>{
   // Record only REAL weapon events. No effects fabricated by the telemetry.
   for(const s of g.shots)if(s.owner===1&&s.at!==undefined&&Math.abs(s.at-g.time)<.0001){
@@ -71,6 +72,13 @@ function observeFactory(){
    if(probes.length>seenRallyGateIndex){
     rallyGateTrace.push(...probes.slice(seenRallyGateIndex));
     seenRallyGateIndex=probes.length;
+   }
+  }
+  if(g.tactical.hqPassTraceEnabled){
+   const probes=g.tactical.hqPassProbes;
+   if(probes.length>seenHqPassIndex){
+    hqPassProbes.push(...probes.slice(seenHqPassIndex));
+    seenHqPassIndex=probes.length;
    }
   }
   const bunkers=g.bases.filter(b=>b.hp>0&&b.kind==='bunker'&&b.owner===1);
@@ -169,7 +177,7 @@ function observeFactory(){
   commandedVehicleSeconds,
   stationaryVehicleFraction:commandedVehicleSeconds?
    round(stationaryCommandSeconds/commandedVehicleSeconds):0,
-  stationaryWithoutPath,rallyGateTrace,
+  stationaryWithoutPath,rallyGateTrace,hqPassProbes,
   nearestEnemyHQ:Number.isFinite(nearestEnemyHQ)?round(nearestEnemyHQ):null,
   redNearHQSeconds,maxRedNearHQ,
   stallByKind,stallByOrder,
@@ -208,6 +216,7 @@ function compact(run){
   redFighterSecondsNearHQ:run.redNearHQSeconds,
   peakRedFightersNearHQ:run.maxRedNearHQ,
   rallyGateTrace:run.rallyGateTrace,
+  hqPassProbes:run.hqPassProbes,
   stalledMissions:run.stalledMissions,abortedMissions:run.abortedMissions,
   attackingSeconds:run.attackingSeconds,p95TickMs:round(run.cpu.stepMs.p95,3)};
 }
@@ -274,7 +283,8 @@ async function main(){
    const recorder=observeFactory();
    const Simulation=class extends SimulationV4{
     constructor(a,b){super(a,b);this.tactical.ai37Mode=variant==='ai38'?'coordinated':'off';
-      this.tactical.rallyGateTraceEnabled=variant==='ai38';}
+      this.tactical.rallyGateTraceEnabled=variant==='ai38';
+      this.tactical.hqPassTraceEnabled=variant==='ai38';}
    };
    const result=runMatch({Simulation,UNITS},{opponent,seconds:opts.seconds,
     ai33:'adaptive',ai35:'control',ai36:'coordinated',observe:recorder.observe,
