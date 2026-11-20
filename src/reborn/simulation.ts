@@ -312,6 +312,34 @@ export class Simulation {
       this.planStrategicAi();
     }
   }
+  /** Same public facts drive the 3-second macro reserve, 7-second
+   * construction, and paid Bastion reinvestment. No phantom credits. */
+  private ai38Investment():ReturnType<typeof ai38InfrastructurePlan>|null{
+    if(this.world.mapVersion<23||this.tactical.ai37Mode!=='coordinated')return null;
+    const ai=1,active=this.units.filter(u=>u.owner===ai&&u.hp>0&&!u.carrier);
+    const observedRaiders=this.units.filter(u=>u.owner===0&&u.hp>0&&
+      !u.carrier&&this.canSee(ai,u));
+    const underAttack=observedRaiders.some(u=>this.bases.some(b=>
+      b.owner===ai&&b.hp>0&&distance(u,b)<650));
+    return ai38InfrastructurePlan({
+      time:this.time,income:this.income(ai),
+      ownedBastions:this.territories.filter(t=>t.owner===ai).length,
+      fieldFighters:active.filter(u=>unitSpec(u).damage>0).length,
+      availableInfantry:active.filter(u=>unitSpec(u).group==='Infanterie'&&
+        !['engineer','medic'].includes(u.kind)).length,
+      headquartersReady:this.bases.some(b=>b.owner===ai&&b.kind==='headquarters'&&
+        b.hp>0&&b.buildRemaining<=0),
+      barracksReady:this.bases.some(b=>b.owner===ai&&b.kind==='barracks'&&
+        b.hp>0&&b.buildRemaining<=0),
+      factoryReady:this.bases.some(b=>b.owner===ai&&b.kind==='factory'&&
+        b.hp>0&&b.buildRemaining<=0),
+      bunkerCount:this.bases.filter(b=>b.owner===ai&&b.kind==='bunker'&&b.hp>0).length,
+      hasUpgradeTarget:this.territories.some(t=>bastionUpgradable(t,ai,this.bases,
+        campaignLayout(this.world.mapVersion,this.seed).headquarters)),
+      homeThreat:underAttack,
+      finishing:this.tactical.state.commander?.enemyHQEliminatedAt!==undefined
+    });
+  }
   private planStrategicAi():void{
     if(this.status!=='playing'||!this.hasHeadquarters(1))return;
     const ai=1;
@@ -325,24 +353,7 @@ export class Simulation {
       !u.carrier&&this.canSee(ai,u));
     const pressured=visibleRaiders.some(u=>this.bases.some(b=>
       b.owner===ai&&b.hp>0&&distance(u,b)<650));
-    const investment=this.world.mapVersion>=23&&this.tactical.ai37Mode==='coordinated'?
-      ai38InfrastructurePlan({
-       time:this.time,income:this.income(ai),
-       ownedBastions:this.territories.filter(t=>t.owner===ai).length,
-       fieldFighters:active.filter(u=>unitSpec(u).damage>0).length,
-       availableInfantry:active.filter(u=>unitSpec(u).group==='Infanterie'&&
-         !['engineer','medic'].includes(u.kind)).length,
-       headquartersReady:this.bases.some(b=>b.owner===ai&&b.kind==='headquarters'&&
-         b.hp>0&&b.buildRemaining<=0),
-       barracksReady:this.bases.some(b=>b.owner===ai&&b.kind==='barracks'&&
-         b.hp>0&&b.buildRemaining<=0),
-       factoryReady:this.bases.some(b=>b.owner===ai&&b.kind==='factory'&&
-         b.hp>0&&b.buildRemaining<=0),
-       bunkerCount:this.bases.filter(b=>b.owner===ai&&b.kind==='bunker'&&b.hp>0).length,
-       hasUpgradeTarget:this.territories.some(t=>bastionUpgradable(t,ai,this.bases,
-         campaignLayout(this.world.mapVersion,this.seed).headquarters)),
-       homeThreat:pressured,finishing:this.tactical.state.commander?.enemyHQEliminatedAt!==undefined
-      }):null;
+    const investment=this.ai38Investment();
     const needed:BuildingKind|null=investment?.goal?null:
       !has('research')&&this.credits[ai]>=1450&&this.time>140?'research':
       INTERCEPTOR_ENABLED&&!has('interceptor')&&this.memories[ai].some(b=>b.owner===0&&b.kind==='silo'&&b.hp>0)&&
@@ -2957,6 +2968,7 @@ export class Simulation {
     const start=performance.now();
     try{
       this.tactical.plan();
+      const investment=this.ai38Investment();
       // AI uses the SAME paid Bastion upgrade rules as the player.
       // Reserve a healthy army and budget before investing in long-term income.
       if(this.world.mapVersion>=23&&this.time>=170&&this.count(1)>=8&&
