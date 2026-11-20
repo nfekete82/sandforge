@@ -7,6 +7,7 @@ import {World} from '../dist/src/reborn/world.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {UNITS} from '../dist/src/reborn/catalog.js';
 import {ridgeHeightAtX} from '../dist/src/reborn/ai36-terrain-routes.js';
+import {selectDesertAIDoctrine,DESERT_AI_DOCTRINES} from '../dist/src/reborn/desert-ai-doctrine.js';
 
 const catalog=globalThis.SandforgeDesertMaps;
 const geometryHash=world=>createHash('sha256')
@@ -92,6 +93,26 @@ test('historical v4 saves remain untouched after grading only new v5 fixed maps'
  const oldLoad=Simulation.load(old.save());
  assert.equal(oldLoad.world.generatorVersion,4);
  assert.equal(geometryHash(oldLoad.world),geometryHash(old.world));
+});
+
+test('four map-specific AI doctrines are calibrated from paid A/B results',()=>{
+ assert.equal(DESERT_AI_DOCTRINES.length,4);
+ const expected=['off','coordinated','coordinated','off'];
+ for(const [i,p] of catalog.maps.entries()){
+  const world=Simulation.campaign(p.seed,p.mapVersion,p.terrain,p.generatorVersion);
+  assert.equal(world.tactical.ai37Mode,expected[i],p.name+' doctrine');
+  const match=selectDesertAIDoctrine({
+   seed:p.seed,mapVersion:p.mapVersion,profile:p.terrain,kind:p.kind,
+   generatorVersion:p.generatorVersion
+  });
+  assert.equal(match?.id,p.id);
+  const restored=Simulation.load(world.save());
+  assert.equal(restored.tactical.ai37Mode,expected[i],
+   'saving cannot change the same battlefield AI doctrine');
+  assert.equal(selectDesertAIDoctrine({...p,seed:p.seed+1,profile:p.terrain}),null);
+  assert.equal(selectDesertAIDoctrine({...p,profile:p.terrain,generatorVersion:4}),null,
+   'old v4 AI and historical battle balance must remain unchanged');
+ }
 });
 
 test('main menu contains only the four desert maps, locked to the existing renderer',()=>{
