@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {planDesertEcoregion} from './webgl-desert-ecoregion-plan.js';
 import {DESERT_MODEL_FILES,DESERT_MODEL_TARGET_HEIGHT} from './webgl-desert-ecoregions.js';
+import {applyRockMineralVeins} from './webgl-rock-materials.js';
 
 /** Loads independently authored, PBR-textured GLB sculptures.
  * No emergency cylinders, spheres, billboard shrubs or green tinted cones.
@@ -34,6 +35,9 @@ function prepareRealPbrModel(scene,kind){
   for(const m of sourceMaterials){
    if(!m)return;
    materialSet.add(m);
+   // Dark mineral marbling on the actual UV-mapped sandstone GLB only.
+   // The botanical PBR materials remain entirely untouched.
+   if(kind==='sandstone')applyRockMineralVeins(m,{strength:.54,frequency:1.75});
    // Thin organic Joshua leaves are physically double sided; do not
    // manufacture extra canopy shapes or change bark's material color.
    if(kind==='joshua')m.side=THREE.DoubleSide;
