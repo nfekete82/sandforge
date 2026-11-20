@@ -1,0 +1,72 @@
+name: Sandforge HQ PBR texture preservation and bunker infantry boarding QA
+on:
+  push:
+    branches: [fix/sandforge-hq-materials-bunker-boarding-20261120]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gameplay-and-shader-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Validate TypeScript and real WebGL JS syntax
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-battlefield.js
+          node --check scripts/webgl-military-micro-pbr.js
+      - name: HQ PBR immutability and near/far mixed-infantry bunker garrisons
+        run: |
+          node --test tests/sandforge-hq-bunker-regression-20261120.test.mjs
+          node --test tests/sandforge-bunker-bastion-audio-20261119.test.mjs
+          node --test tests/sandforge-bunker-micro-pbr-20261120.test.mjs
+      - name: Verify all 3D build modules
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+
+  real-hq-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install native Chromium and Sandforge browser QA
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tests/browser --no-audit --no-fund
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Package source PBR textures and valid WebGL modules
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          mkdir -p dist/src
+          cp -a src/assets dist/src/assets
+          node scripts/generate-oasis-adobe-glbs.mjs dist/src/assets/reborn/oasis-village
+      - name: Verify authored headquarters GLB materials survive and render
+        env:
+          SANDFORGE_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-hq-material-restoration-20261120.spec.mjs --config=playwright.config.mjs
+      - name: Save actual HQ facade screenshot and errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-restored-headquarters-pbr-chromium
+          path: |
+            tests/browser/artifacts/screenshots/
+            tests/browser/artifacts/results.json
+            tests/browser/artifacts/report/
+            tests/browser/artifacts/runs/
+          if-no-files-found: warn
+          retention-days: 30
