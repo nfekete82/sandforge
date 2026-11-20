@@ -338,15 +338,27 @@ export class World {
     // entrance first instead of repeatedly returning partial paths into
     // the rock face. This applies to both factions and all ground vehicles.
     // Strategic reachability calls (allowPartial=false) are unchanged.
-    const pass=allowPartial&&!air&&this.generatorVersion>=3&&
+    // v5 physical pass ranking: a traversable gap is not necessarily
+    // accessible from this particular vehicle's position. Prefer a pass
+    // with both a legal direct approach AND a proven crossing. This is an
+    // inexpensive positive test, not another recursive A* search.
+    // When every approach needs a bend, retain the proven v5 path selector.
+    // v3/v4 historical saves intentionally take their original exact route.
+    const verifyApproach=allowPartial&&!air&&this.generatorVersion===5&&
+      Number.isFinite(maxSlope)&&Boolean(this.generated?.ridges.length);
+    const directlyReachablePass=verifyApproach
+      ?canyonPassWaypoint(start,target,this.generated!.ridges,clearance,
+        (near,far)=>this.line(start,near,obstacles,clearance,maxSlope)&&
+          this.physicalPassAvailable(near,far,clearance,maxSlope))
+      :undefined;
+    const pass=directlyReachablePass??(allowPartial&&!air&&this.generatorVersion>=3&&
       this.generated?.ridges.length
       ?canyonPassWaypoint(start,target,this.generated.ridges,clearance,
         this.generatorVersion===5&&Number.isFinite(maxSlope)
-         // Validate the ENTIRE entry→exit segment with the very same
-         // unit footprint, collision geometry and max slope as A*.
-         // Do not enable the extra work on historical v3/v4 saves.
+         // The original pass proof remains the fallback for curved approaches
+         // and for vehicles already stranded on an unsafe slope.
          ?(near,far)=>this.physicalPassAvailable(near,far,clearance,maxSlope):undefined)
-      :undefined;
+      :undefined);
     const routingTarget=pass??target;
     const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(routingTarget,obstacles,[],start,clearance,maxSlope);
     if(!end)return [];
