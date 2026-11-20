@@ -1099,6 +1099,14 @@ const burnedSedans=desertMap&&biome==='desert'
 // Desert corridors are navigation-only; no permanent tracks leading to Bastions.
 const biomeVegetation=addBiomeVegetation({THREE,scene,world,terrain,game,heightAt,seed,biome,
  lowQuality:query.get('lite')==='1'});
+// Load hand-modeled organic PBR GLBs, no primitive-geometry stand-ins.
+let authenticDesertArt=null,authenticDesertReady=false;
+const authenticDesertLoad=desertRegion?loadAuthenticDesertScenery({
+ loader,scene,world,terrain,seed,mapId:desertRegion.id,heightAt,
+ lowQuality:query.get('lite')==='1'
+}).then(a=>{authenticDesertArt=a;return a;}).catch(error=>{
+ console.warn('Authentic 3D desert scenery unavailable:',error);return null;
+}).finally(()=>{authenticDesertReady=true;}):Promise.resolve(null);
 // Small ground-level stones accent the winding dry wash from the reference.
 // One visual-only instanced draw call; no gameplay pathing or collision edits.
 const washStones=spacious&&biome==='desert'?addDesertWashStones({scene,world,size,seed,heightAt,
@@ -1223,6 +1231,7 @@ if(oasisFocus){
 }
 window.addEventListener('pagehide',event=>{if(!event.persisted){
  burnedSedans?.dispose();
+ authenticDesertArt?.dispose();
  oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
 }});
 let desertArtReady=false;
@@ -1427,6 +1436,9 @@ function animate(now){
 renderer.setAnimationLoop(animate);
 window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,battlefield,effects,atmosphere,sound,constructionRecovery,visualPerimeter,boundaryCliffs,panKeys,groundTracks,oases,biome,biomeVegetation,
  desertMapId:desertMap?.id??null,
+ desertRegion:desertRegion?.key??null,
+ get authenticDesertArt(){return authenticDesertArt;},
+ get authenticDesertReady(){return authenticDesertReady;},
  burnedSedans,
  get burnedSedanCount(){return burnedSedans?.placements.length??0;},
  performance:performanceWatch,
@@ -1447,6 +1459,10 @@ async function main(){
  try{
   setStatus('Lade echte 3D-Ruinen …');
   const ruins=await addRuins();
+  authenticDesertLoad.then(a=>{
+   if(a)console.info('3D desert ecoregion: '+desertRegion.title+' · '+
+    a.drawCalls+' shared PBR draws / '+a.placements.length+' sites');
+  });
   desertArt.load().then(count=>{
    console.info('3D environment props',count);
   }).catch(error=>console.warn('Desert detail fallback',error))
