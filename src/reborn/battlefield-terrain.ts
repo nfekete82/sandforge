@@ -1,10 +1,11 @@
 import {campaignLayout, type MapVersion, type Point} from './config.js';
 import type {CanyonRidge} from './canyon-front.js';
+import {ridgeCenterY} from './canyon-height.js';
 
 /** Revision 2: roomier buildable pads around bastions / headquarters.
  * Revision 1 remains reproducible for existing saves. */
 export const BATTLEFIELD_GENERATOR = 2;
-export type BattlefieldGeneratorVersion=1|2|3|4;
+export type BattlefieldGeneratorVersion=1|2|3|4|5;
 export const TERRAIN_GRADING_V2={
  bastionFlatRadius:540,bastionShoulder:360,
  homeFlatRadius:775,homeShoulder:460,
@@ -132,6 +133,39 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
  }
  for(let j=n-1;j>=0;j--)for(let i=n-1;i>=0;i--){
   const k=j*n+i;let h=heights[k];if(i<segments)h=Math.min(h,heights[k+1]+delta);if(j<segments)h=Math.min(h,heights[k+n]+delta);heights[k]=h;
+ }
+ // Curated three-map campaign only (generator v5). On v4, a
+ // drawn canyon pass can have .31 diagonal triangle slopes while paid
+ // vehicles reject >.185-.215: one can see the road but never cross it.
+ // Lower ONLY the existing ramp corridors in the authoritative heightfield.
+ // V1–V4 saved geometry remains byte-identical; cliffs stay blocked.
+ if(generatorVersion===5&&ridges.some(r=>r.ramps.length)){
+  const passCells=new Uint8Array(n*n);
+  for(const ridge of ridges)for(const ramp of ridge.ramps){
+   const left=Math.max(0,Math.floor((ramp.x-ramp.width*.5-115)/step));
+   const right=Math.min(segments,Math.ceil((ramp.x+ramp.width*.5+115)/step));
+   for(let i=left;i<=right;i++){
+    const x=i*step,center=ridgeCenterY(ridge,x);
+    for(let j=0;j<n;j++)if(Math.abs(j*step-center)<=1450)
+     passCells[j*n+i]=1;
+   }
+  }
+  // .105 per axis stays <.15 on the steepest rendered triangle. The
+  // regular .22 envelope continues outside the physical crossings.
+  const regular=step*.22,passEdge=step*.105;
+  const limit=(a:number,b:number)=>passCells[a]||passCells[b]?passEdge:regular;
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+   const k=j*n+i;let h=heights[k];
+   if(i)h=Math.min(h,heights[k-1]+limit(k,k-1));
+   if(j)h=Math.min(h,heights[k-n]+limit(k,k-n));
+   heights[k]=h;
+  }
+  for(let j=n-1;j>=0;j--)for(let i=n-1;i>=0;i--){
+   const k=j*n+i;let h=heights[k];
+   if(i<segments)h=Math.min(h,heights[k+1]+limit(k,k+1));
+   if(j<segments)h=Math.min(h,heights[k+n]+limit(k,k+n));
+   heights[k]=h;
+  }
  }
  let minHeight=Infinity,maxHeight=-Infinity;
  for(const h of heights){minHeight=Math.min(minHeight,h);maxHeight=Math.max(maxHeight,h);}
