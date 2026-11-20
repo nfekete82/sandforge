@@ -3,13 +3,22 @@
  * worktree. Uses temporary signed model links stored in the matching one-off
  * GitHub import workflow. This writes only to the current source directory;
  * no simulation state, existing 3D assets or Git branches are modified. */
-import {readFileSync,mkdirSync,writeFileSync,statSync} from 'node:fs';
+import {readFileSync,mkdirSync,writeFileSync,statSync,existsSync} from 'node:fs';
 import {join} from 'node:path';
 const kinds=['barracks','airfield','bastion','bunker','headquarters','generator'];
 const workflow=readFileSync('.github/workflows/meshy-structures-import-20261121.yml','utf8');
 const dir='src/assets/reborn/buildings-3d/meshy-structures';
 mkdirSync(dir,{recursive:true});
 for(const kind of kinds){
+ const existing=join(dir,kind+'.glb');
+ if(existsSync(existing)){
+  const b=readFileSync(existing);
+  if(b.length>=50000&&b.toString('ascii',0,4)==='glTF'&&
+     b.readUInt32LE(8)===b.length){
+   console.log(kind+': already installed ('+b.length+' bytes)');
+   continue;
+  }
+ }
  const name='SF_'+kind.toUpperCase()+'_URL';
  const match=workflow.match(new RegExp('^\\s*'+name+':\\s*("[^\\n]+")\\s*$','m'));
  if(!match)throw new Error('Meshy import URL missing for '+kind);
