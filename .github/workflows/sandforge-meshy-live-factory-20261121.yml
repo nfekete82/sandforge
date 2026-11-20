@@ -75,7 +75,7 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: '1'
         run: |
           cd tests/browser
-          npx playwright test webgl-meshy-live-factory-20261121.spec.mjs --config=playwright.config.mjs
+          npx playwright test webgl-meshy-live-factory-20261121.spec.mjs webgl-meshy-live-production-20261121.spec.mjs --config=playwright.config.mjs
       - name: Keep actual open/closed 3D factory screenshots and shader errors
         if: always()
         uses: actions/upload-artifact@v4
