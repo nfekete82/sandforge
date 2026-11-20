@@ -36,6 +36,21 @@ export function earlyArtilleryWindow(input:{
   &&input.fighters>=5&&input.income>=65&&input.time>=60&&input.time<210
   &&!input.underAttack&&!input.visibleEnemyAir;
 }
+/** Keep a committed Bunker budget even when an urgent barracks would
+ * otherwise spend nearly every incoming credit on 100-credit riflemen.
+ * Real home-defense emergencies release this budget upstream.
+ */
+export function ai38CommittedProductionReserve(input:{
+ urgentBarracks:boolean;plannedArtillery:boolean;
+ reserve:number;siegeReserve:number;infrastructureReserve:number;
+}):number{
+ const x=input;
+ return x.urgentBarracks
+  ?Math.max(x.infrastructureReserve,Math.min(125,x.reserve)):
+  x.plannedArtillery
+   ?Math.max(x.infrastructureReserve,x.reserve-x.siegeReserve):x.reserve;
+}
+
 /** Purchase priorities are persistent composition deficits, not affordable-unit scores.
  * Counts include paid queues, so one factory never reserves money for a unit it
  * has already ordered. Every purchase still goes through Simulation.recruit. */
@@ -235,12 +250,11 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   // KI 3.8: optional factory/artillery reservations can be released to an
   // urgent infantry screen, but a deliberately funded 650-credit Bunker
   // must not be starved by repeated 100-credit rifle purchases.
-  const strategicReserve=c.infrastructureReserve??0;
-  const committedReserve=urgentBarracks
-    ?Math.max(strategicReserve,Math.min(125,c.reserve)):
-    isPlanned&&need==='artillery'
-    ?Math.max(strategicReserve,c.reserve-(c.siegeReserve??0)):
-     c.reserve;
+  const committedReserve=ai38CommittedProductionReserve({
+    urgentBarracks,plannedArtillery:isPlanned&&need==='artillery',
+    reserve:c.reserve,siegeReserve:c.siegeReserve??0,
+    infrastructureReserve:c.infrastructureReserve??0
+  });
   const budget=g.credits[1]-(workerLost?0:committedReserve)-protection;
   let choices=isPlanned?[need!,...ranks(producer).filter(k=>k!==need)]:ranks(producer);
   // Barracks and airfields are independent production facilities. A high
