@@ -81,3 +81,32 @@ test('stalled rally ignores unrelated orders, short distances and empty readines
  ];
  assert.equal(ai40CountBlockedRallyOrders(list,rally),1);
 });
+
+test('loose but real cannon escort can recover where no 330-unit cluster exists',()=>{
+ const soldiers=Array.from({length:8},(_,i)=>({
+  id:i+1,x:300+i*240,y:960,hp:100,
+  kind:i===3?'artillery':'tank'
+ }));
+ const oldRally={x:5500,y:5400},mission={x:6200,y:5500};
+ const fallback=ai40ClusterRallyRecovery({
+  units:soldiers,oldRally,mission,stalledSeconds:130,
+  trappedMoveOrders:6,siegeRequired:true,
+  viable:p=>p.x>0&&p.y>0
+ });
+ assert.ok(fallback);
+ assert.ok(soldiers.some(u=>u.x===fallback.x&&u.y===fallback.y));
+ assert.ok(Math.abs(fallback.x-soldiers[3].x)<=720);
+});
+test('loose fallback does not activate on merely slow, unblocked marches',()=>{
+ const soldiers=Array.from({length:8},(_,i)=>({
+  id:i+1,x:300+i*240,y:960,hp:100,kind:'tank'
+ }));
+ const scenario={units:soldiers,oldRally:{x:5500,y:5400},
+  mission:{x:6200,y:5500},stalledSeconds:130,
+  trappedMoveOrders:0,siegeRequired:false,viable:()=>true};
+ assert.equal(ai40ClusterRallyRecovery(scenario),undefined);
+ assert.equal(ai40ClusterRallyRecovery({...scenario,stalledSeconds:80,
+  trappedMoveOrders:6}),undefined);
+ assert.equal(ai40ClusterRallyRecovery({...scenario,trappedMoveOrders:6,
+  viable:()=>false}),undefined);
+});

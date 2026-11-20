@@ -33,7 +33,20 @@ export function ai40ClusterRallyRecovery<T extends Point&{
   distance(v.u,x.oldRally)>260);
  candidates.sort((a,b)=>b.score-a.score||
   a.u.id-b.u.id);
- const chosen=candidates[0];
+ // If every real fighter was scattered by a failed cross-canyon march,
+ // no four can be within 330 units even though many are on the same side
+ // of the ridge. Choose a genuine paid soldier in a SMALLER, safe loose
+ // column instead of requiring a dense cluster that cannot form.
+ // This is an emergency-only fallback: all the strict clock, blocked-path
+ // and real-force gates above still apply. Prefer actual siege protection.
+ const chosen=candidates[0]??living.filter(u=>x.viable(u)).map(u=>{
+  const neighbors=living.filter(v=>distance(u,v)<720);
+  const siege=neighbors.some(v=>v.kind==='artillery'&&v.hp>0);
+  return {u,neighbors:neighbors.length,siege,
+   score:neighbors.length*100+(x.siegeRequired&&siege?260:0)-
+     distance(u,x.mission)*.012};
+ }).filter(v=>v.neighbors>=3&&distance(v.u,x.oldRally)>500)
+  .sort((a,b)=>b.score-a.score||a.u.id-b.u.id)[0];
  if(!chosen)return undefined;
  return {x:chosen.u.x,y:chosen.u.y};
 }
