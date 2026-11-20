@@ -36,8 +36,9 @@ function createCloudMesh(scene,texture,max,opacity,order,name){
  return mesh;
 }
 export class SandforgeAtmosphere3D {
- constructor({scene,game,world,heightAt,camera,controls,lowQuality=false,biome='desert'}){
+ constructor({scene,game,world,heightAt,camera,controls,lowQuality=false,biome='desert',showFrontierClouds=true}){
   Object.assign(this,{scene,game,world,heightAt,camera,controls,lowQuality});
+  this.showFrontierClouds=Boolean(showFrontierClouds);
   this.texture=cloudTexture(biome);
   this.fogMax=lowQuality?100:300;
   this.dustMax=lowQuality?48:170;
@@ -56,7 +57,9 @@ export class SandforgeAtmosphere3D {
   }));
  }
  refreshVisibility(){
-  if(!this.enabled){
+  if(!this.enabled||!this.showFrontierClouds){
+   // Decorative radial sprites caused bright artificial circles at desert FoW edges.
+   // Keep the authoritative gameplay visibility and terrain fog unchanged.
    this.frontier=[];this.fogMesh.count=0;this.metrics.frontier=0;
    return;
   }
