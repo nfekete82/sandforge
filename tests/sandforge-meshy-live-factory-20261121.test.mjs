@@ -134,7 +134,9 @@ test('actual Meshy 3D door rolls upward and serializes paid factory rollout with
  game.time=10+GATE_TIMING.warning+GATE_TIMING.opening+duration*.5;
  presenter.update(true,1);
  assert.ok(actor.productionMotion?.moving);
- game.time=10+GATE_TIMING.warning+GATE_TIMING.opening+duration;
+ // A render frame after the theoretical hand-off avoids floating point
+ // equality on the 20 Hz simulation-to-render interpolation boundary.
+ game.time=10+GATE_TIMING.warning+GATE_TIMING.opening+duration+.025;
  presenter.update(true,1);
  assert.ok(released.includes(unit.id));
  game.time+=GATE_TIMING.closing+.12;
