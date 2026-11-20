@@ -227,7 +227,7 @@ export function createCinematicDesertWaterways({
  return {
   root,layout,meshes,shores,materials,
   drawCalls:meshes.length+shores.length,
-  update(time){if(disposed)return;for(const m of materials)m.userData.waterTime.value=time;},
+  update(time){if(disposed)return;for(const m of materials)if(m.userData.waterTime)m.userData.waterTime.value=time;},
   dispose(){if(disposed)return;disposed=true;root.removeFromParent();
    for(const mesh of [...meshes,...shores])mesh.geometry.dispose();
    for(const mat of materials)mat.dispose();root.clear();
