@@ -34,6 +34,7 @@ import {friendlyGatePostColliders} from './defensive-wall.js';
 import {ai37GarrisonQuota,ai37BastionDefenseValue} from './ai37-fortification-doctrine.js';
 import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
+import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
 export interface Loss extends Point {id:number;at:number;strength:number}
@@ -167,7 +168,10 @@ export class TacticalAI {
  }
  private get ai35Enabled():boolean{
   return this.ai35Mode==='control'&&this.ai33Mode==='adaptive'&&
-   (this.g.world.mapVersion===24||this.g.world.mapVersion===26);
+   (this.g.world.mapVersion===24||this.g.world.mapVersion===26||
+    // KI 3.8 enables the same recapture/air-support doctrine for
+    // previously skipped 12-Bastion games, preserving the AI3.6 baseline.
+    this.g.world.mapVersion===25&&this.ai37Mode==='coordinated');
  }
  /** Runtime-only diagnostics: never influence simulation or serialize in saves. */
  diagnostics:TacticalDiagnostics=newDiagnostics();
@@ -1432,7 +1436,21 @@ export class TacticalAI {
    // Unit movement remains subject to the normal collision/path validator.
    return {length:measured.length+remaining*1.5,risk:measured.risk+1};
   }:undefined;
+  const observedEnemyHQ=g.memories[1].some(m=>m.owner===0&&m.kind==='headquarters'&&m.hp>0);
+  const breakthrough=this.ai37Mode==='coordinated'&&ai38DecisiveAssault({
+   time:g.time,totalBastions:g.territories.length,
+   ownedBastions:g.territories.filter(t=>t.owner===1).length,
+   visibleOrRememberedHQ:observedEnemyHQ,
+   mobileFighters:fighters.filter(u=>combat(u)&&!unitSpec(u).flying).length,
+   healthyMobile:fighters.filter(u=>combat(u)&&!unitSpec(u).flying&&
+     u.hp>=unitSpec(u).hp*.55).length,
+   artillery:fighters.filter(u=>u.kind==='artillery'&&u.hp>0).length,
+   homeThreat:g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)&&
+     g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<500)),
+   recentLosses:s.losses.filter(l=>g.time-l.at<35).length
+  });
   const mission=chooseMission(g,c,origin,{strategy:s.adaptive?.strategy??'unknown',
+   breakthrough,
    force:fighters,losses:s.losses,fronts:s.battle?.fronts??[],
    intelligent:this.missionPlannerMode==='legacy'?false:this.doctrineMode==='intelligent',
    bastionControl:this.ai35Enabled,experience,
