@@ -1,4 +1,5 @@
 import {desertEcoregion} from './webgl-desert-ecoregions.js';
+import {desertWaterExclusion} from './webgl-desert-water-plan.js';
 /** Seeded locations only. Never constructs gameplay obstacles or uses fogged
  * intel. Every decoration is optional, non-pickable and render-only.
  */
@@ -14,7 +15,7 @@ const distSegment=(p,a,b)=>{
  return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dz);
 };
 export function planDesertEcoregion({
- mapId,world,terrain=world?.generated,seed=world?.seed??0,lowQuality=false
+ mapId,world,terrain=world?.generated,seed=world?.seed??0,lowQuality=false,waterLayout=null
 }={}){
  const region=desertEcoregion(mapId);
  if(!region||!world||!terrain?.battlefield)return [];
@@ -45,6 +46,9 @@ export function planDesertEcoregion({
    if(x<=margin||y<=margin||x>=size-margin||y>=size-margin)continue;
    const p={x,y};
    if(avoid.some(site=>distance(site,p)<site.r))continue;
+   // Prevent all genuine 3D succulents / dry trees / rocks from floating
+   // in lagoons, rivers or the muddy banks. Water is planned BEFORE props.
+   if(desertWaterExclusion(p,waterLayout,{margin:kind==='sandstone'?26:49}))continue;
    // Plants and rocks cannot sit on an obvious visual vehicle route or
    // a building pad, even though they never change the true pathfinder.
    if(roads.some(road=>road.slice(1).some((q,i)=>
