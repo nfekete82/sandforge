@@ -52,6 +52,7 @@ function observeFactory(){
   stallByKind={},stallByOrder={},stallByUnit=new Map(),
   lastSample=-1,vehiclePositions=new Map(),oldPositions=new Map(),immobileTimes=new Map(),
   mobileCount=0,pointCount=0,redIncomeSeconds=0,blueIncomeSeconds=0,contactTicks=0,
+  nearestEnemyHQ=Infinity,redNearHQSeconds=0,maxRedNearHQ=0,
   eligibleBunkerSeconds=0,eligibleUpgradeSeconds=0,maxFreeCredits=0,
   maxCreditsWhileBunkerEligible=0,firstBunkerAt=null,firstUpgradeAt=null;
  const observe=g=>{
@@ -69,6 +70,15 @@ function observeFactory(){
   if(bunkers.length&&firstBunkerAt===null)firstBunkerAt=g.time;
   const fighters=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier&&
    !['medic','engineer','scout','supply','drone'].includes(u.kind));
+  // Offline-only full-state telemetry. Never passed into any AI policy.
+  const enemyHQ=g.bases.find(b=>b.owner===0&&b.kind==='headquarters'&&b.hp>0);
+  if(enemyHQ&&fighters.length){
+   const distances=fighters.map(u=>Math.hypot(u.x-enemyHQ.x,u.y-enemyHQ.y));
+   nearestEnemyHQ=Math.min(nearestEnemyHQ,...distances);
+   const inside=distances.filter(d=>d<850).length;
+   redNearHQSeconds+=inside;
+   maxRedNearHQ=Math.max(maxRedNearHQ,inside);
+  }
   const buildings=g.bases.filter(b=>b.owner===1&&b.hp>0);
   const observedRaiders=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u));
   const investment=ai38InfrastructurePlan({
@@ -152,6 +162,8 @@ function observeFactory(){
   stationaryVehicleFraction:commandedVehicleSeconds?
    round(stationaryCommandSeconds/commandedVehicleSeconds):0,
   stationaryWithoutPath,
+  nearestEnemyHQ:Number.isFinite(nearestEnemyHQ)?round(nearestEnemyHQ):null,
+  redNearHQSeconds,maxRedNearHQ,
   stallByKind,stallByOrder,
   worstStalledVehicles:[...stallByUnit.values()]
    .sort((a,b)=>b.seconds-a.seconds||a.id-b.id).slice(0,6),
@@ -184,6 +196,9 @@ function compact(run){
   stallByKind:run.stallByKind,
   stallByOrder:run.stallByOrder,
   worstStalledVehicles:run.worstStalledVehicles,
+  closestRedToEnemyHQ:run.nearestEnemyHQ,
+  redFighterSecondsNearHQ:run.redNearHQSeconds,
+  peakRedFightersNearHQ:run.maxRedNearHQ,
   stalledMissions:run.stalledMissions,abortedMissions:run.abortedMissions,
   attackingSeconds:run.attackingSeconds,p95TickMs:round(run.cpu.stepMs.p95,3)};
 }

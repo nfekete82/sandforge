@@ -18,9 +18,17 @@ jobs:
       matrix:
         include:
           - map: 26
-            label: 16-bastions-canyon
+            seed: 824836862
+            label: 16-bastions-canyon-seed824836862
           - map: 25
-            label: 12-bastions-canyon
+            seed: 824836862
+            label: 12-bastions-canyon-seed824836862
+          - map: 26
+            seed: 9999
+            label: 16-bastions-canyon-seed9999
+          - map: 25
+            seed: 9999
+            label: 12-bastions-canyon-seed9999
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,6 +40,7 @@ jobs:
         run: |
           npx tsc -p tsconfig.json
           node --check scripts/benchmark-sandforge-ai38-combat.mjs
+          node --check scripts/check-sandforge-ai39-canyon-report.mjs
       - name: KI 3.9 safe empty-path detour unit tests
         run: node --test tests/sandforge-ai39-no-path-detour-20261120.test.mjs
       - name: Paired KI 3.6 vs KI 3.9 canyon vehicle telemetry
@@ -39,10 +48,12 @@ jobs:
           mkdir -p reports
           node scripts/benchmark-sandforge-ai38-combat.mjs \
             --maps ${{ matrix.map }} \
-            --seeds 824836862 \
+            --seeds ${{ matrix.seed }} \
             --opponents guarded,contesting,bastion-rush \
             --seconds 480 \
             --output reports/ai39-vehicle-${{ matrix.label }}.json
+      - name: Validate A/B state and canyon navigation regression
+        run: node scripts/check-sandforge-ai39-canyon-report.mjs reports/ai39-vehicle-${{ matrix.label }}.json
       - name: Upload measured scenarios
         if: always()
         uses: actions/upload-artifact@v4
