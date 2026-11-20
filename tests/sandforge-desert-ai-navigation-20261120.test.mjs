@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import '../scripts/webgl-desert-maps.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {UNITS} from '../dist/src/reborn/catalog.js';
@@ -53,7 +54,7 @@ test('backwards compatibility: v4 physical-pass override never changes historica
  const oldPass=old.world.generated.ridges[0].ramps[0];
  assert.ok(Number.isFinite(oldPass.x));
  // The updated pathfinder receives an opt-in callback only for v5.
- const source=(await import('node:fs')).readFileSync('src/reborn/world.ts','utf8');
+ const source=readFileSync('src/reborn/world.ts','utf8');
  assert.match(source,/generatorVersion===5&&Number\.isFinite\(maxSlope\)/);
  assert.equal(Simulation.load(old.save()).world.generatorVersion,4);
 });
