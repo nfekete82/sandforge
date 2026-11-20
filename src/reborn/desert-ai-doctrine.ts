@@ -5,6 +5,8 @@ import type {MapVersion} from './config.js';
 /** Offline A/B-calibrated tactical doctrine for ONLY the four fixed
  * desert maps. Match the entire public map identity, never opponent data
  * or fogged unit positions. A modified/custom map inherits normal AI.
+ * Burning Horizon uses its original v4 terrain because real 480s trials
+ * showed fewer path stalls and the same one real victory versus v5.
  * This is deterministic scenario tuning, NOT online learning.
  */
 export interface DesertAIDoctrineMap {
@@ -24,7 +26,7 @@ export const DESERT_AI_DOCTRINES:readonly DesertAIDoctrineMap[]=Object.freeze([
  }),
  Object.freeze({
   id:'burning-horizon',seed:1907,mapVersion:26,profile:'dunes',
-  kind:'diagonal-ridge',generatorVersion:5,mode:'coordinated'
+  kind:'diagonal-ridge',generatorVersion:4,mode:'coordinated'
  }),
  Object.freeze({
   id:'last-stronghold',seed:314159,mapVersion:26,profile:'mixed',
