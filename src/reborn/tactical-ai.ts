@@ -1592,7 +1592,18 @@ export class TacticalAI {
    }
    return undefined;
   }:undefined;
-  const observedEnemyHQ=g.memories[1].some(m=>m.owner===0&&m.kind==='headquarters'&&m.hp>0);
+  const rememberedEnemyHQ=g.memories[1].find(m=>
+   m.owner===0&&m.kind==='headquarters'&&m.hp>0);
+  const observedEnemyHQ=!!rememberedEnemyHQ;
+  // A new offensive pivot needs the player's truly active sensor coverage.
+  // Once an HQ attack is already committed, a brief lost line-of-sight
+  // cannot reset the artillery rally if its genuine progress is recent.
+  const oldHqMission=s.commander?.mission;
+  const liveHQContact=!!rememberedEnemyHQ&&(
+   g.canSee(1,rememberedEnemyHQ)||
+   (oldHqMission?.kind==='structure'&&
+    oldHqMission.objective===rememberedEnemyHQ.id&&
+    g.time-oldHqMission.progressAt<45));
   const hqAssaultSituation={
    time:g.time,totalBastions:g.territories.length,
    ownedBastions:g.territories.filter(t=>t.owner===1).length,
@@ -1622,6 +1633,7 @@ export class TacticalAI {
     totalBastions:hqAssaultSituation.totalBastions,
     ownedBastions:hqAssaultSituation.ownedBastions,
     knownLivingHQ:hqAssaultSituation.visibleOrRememberedHQ,
+    liveHQContact,
     mobileFighters:hqAssaultSituation.mobileFighters,
     healthyMobile:hqAssaultSituation.healthyMobile,
     artillery:hqAssaultSituation.artillery,
