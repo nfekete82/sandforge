@@ -199,9 +199,9 @@ function riverShore(r,heightAt,size){
 /** Pure visual layer; deterministic based on the existing fixed map seed. */
 export function createCinematicDesertWaterways({
  scene,world,terrain=world?.generated,heightAt,mapId,
- seed=world?.seed??0,oases=[],lowQuality=false
+ seed=world?.seed??0,oases=[],lowQuality=false,layout:plannedLayout=null
 }){
- const layout=planDesertWaterways({mapId,world,terrain,seed,oases,lowQuality});
+ const layout=plannedLayout??planDesertWaterways({mapId,world,terrain,seed,oases,lowQuality});
  const root=new THREE.Group();root.name='visual-cinematic-desert-waterways';
  root.userData={visualOnly:true,nonPlayable:true,shallowPassable:true};
  const meshes=[],materials=[],shores=[];
