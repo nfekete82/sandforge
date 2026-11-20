@@ -1,0 +1,38 @@
+name: Sandforge AI43 observed HQ breakthrough and mission stability
+on:
+  push:
+    branches:
+      - feat/sandforge-ai-hq-breakthrough-20261120
+    paths:
+      - .github/workflows/sandforge-ai43-hq-breakthrough-tests.yml
+      - src/reborn/ai43-hq-breakthrough.ts
+      - src/reborn/campaign-commander.ts
+      - src/reborn/tactical-ai.ts
+      - scripts/benchmark-sandforge-ai38-combat.mjs
+      - tests/sandforge-ai43-hq-breakthrough-20261120.test.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mission-continuity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile authoritative Sandforge game and validate CLI
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/benchmark-sandforge-ai38-combat.mjs
+      - name: HQ stability, honest fog, paid artillery and historical mission regression
+        run: |
+          node --test tests/sandforge-ai43-hq-breakthrough-20261120.test.mjs
+          node --test tests/sandforge-ai40-canyon-mission-20261120.test.mjs
+          node --test tests/sandforge-ai42-canyon-air-siege-20261120.test.mjs
+          node --test tests/reborn-commander.test.mjs
+      - name: Verify browser integration still compiles
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
