@@ -1190,7 +1190,7 @@ export class TacticalAI {
      m.kind==='headquarters'&&m.territory===mission?.sector);
    const paid=bombers.filter(u=>u.hp>unitSpec(u).hp*.55);
    if(hq&&g.world.mapVersion===26&&g.world.generatorVersion>=4&&
-      this.ai37Mode==='coordinated'&&g.time>=360&&
+      this.ai37Mode==='coordinated'&&g.time>=330&&
       mission?.kind==='structure'&&g.territories.length>=16&&
       g.territories.filter(t=>t.owner===1).length>=g.territories.length-2&&
       paid.length>=2&&

@@ -134,7 +134,7 @@ export function ai42BreakoutAllowed(x:{
  targetKind:string;distanceFromHQ:number;targetVisible:boolean;
  knownAirDefenses:number;observedAirDefenses:number;
 }):boolean{
- return x.enabled&&x.time>=360&&x.total>=16&&x.controlled>=x.total-2&&
+ return x.enabled&&x.time>=330&&x.total>=16&&x.controlled>=x.total-2&&
   x.paidBombers>=2&&x.missionKind==='structure'&&
   x.knownHQSector!==undefined&&x.missionSector===x.knownHQSector&&
   (x.targetKind==='headquarters'||x.targetKind==='turret'&&x.distanceFromHQ<700)&&
