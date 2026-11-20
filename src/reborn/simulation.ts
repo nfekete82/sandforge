@@ -25,6 +25,7 @@ import {BUNKER_CAPACITY,bunkerApproach,bunkerCanBoard,bunkerGarrisonedUnits,bunk
 import {BASTION_UPGRADE_COST,bastionEffectiveIncome,bastionUpgradable,validBastionUpgradeState} from './bastion-upgrades.js';
 import {ai37FortificationChoice,ai37UpgradeScore} from './ai37-fortification-doctrine.js';
 import {ai38InfrastructurePlan} from './ai38-investment-doctrine.js';
+import {selectDesertAIDoctrine} from './desert-ai-doctrine.js';
 import {ai38VehicleRecoveryWaypoint,ai38CanRecoverVehicle,ai39NoPathRecoveryWaypoint} from './ai38-vehicle-navigation.js';
 import {TacticalAI,type TacticalState,type TacticalOrder} from './tactical-ai.js';
 import { MAP_VERSION, randomMapSeed } from './world-generation.js';
@@ -786,6 +787,15 @@ export class Simulation {
     // Bastions replace finite neutral stockpiles as the income objectives.
     // All modern maps now earn credits through bastions, not neutral depots.
 
+    // Select a tested public-map doctrine only on an EXACT fixed-map
+    // match. Benchmarks may still override it per run for genuine A/B.
+    const fixedDoctrines=selectDesertAIDoctrine({
+      seed:this.seed,mapVersion:this.world.mapVersion,
+      profile:this.world.generated?.battlefield?.profile,
+      kind:this.world.generated?.landscapeKind,
+      generatorVersion:this.world.generatorVersion
+    });
+    if(fixedDoctrines)this.tactical.ai37Mode=fixedDoctrines.mode;
     this.spatial.rebuild(this.units);this.updateVision();
   }
   static campaign(seed=randomMapSeed(),version:MapVersion=MAP_VERSION,profile?:TerrainProfile,generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR):Simulation {return new Simulation(seed,version,false,true,profile,generatorVersion);}
