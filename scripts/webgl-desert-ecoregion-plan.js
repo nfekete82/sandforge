@@ -33,8 +33,6 @@ export function planDesertEcoregion({
    const y=margin+random()*(size-margin*2);
    const p={x,y};
    if(avoid.some(site=>distance(site,p)<site.r))continue;
-   if(roads.some(road=>road.slice(1).some((q,i)=>
-    distSegment(p,road[i],q)<kind==='sandstone'?145:0)))continue;
    // Plants and rocks cannot sit on an obvious visual vehicle route or
    // a building pad, even though they never change the true pathfinder.
    if(roads.some(road=>road.slice(1).some((q,i)=>
