@@ -17,9 +17,9 @@ import {runMatch} from './benchmark-reborn-ai.mjs';
 import './webgl-desert-maps.js';
 
 class SimulationV4 extends NativeSimulation {
- constructor(seed,mapVersion,profile=undefined){
+ constructor(seed,mapVersion,profile=undefined,generator=4){
   // Use the exact v4 terrain profile of a selected browser battlefield.
-  super(seed,mapVersion,false,false,profile,4);
+  super(seed,mapVersion,false,false,profile,generator);
  }
 }
 const round=(n,d=2)=>Number(n.toFixed(d));
@@ -283,18 +283,18 @@ async function main(){
   for(const variant of ['ai36','ai38']){
    const recorder=observeFactory();
    const Simulation=class extends SimulationV4{
-    constructor(a,b){super(a,b,preset?.terrain);this.tactical.ai37Mode=variant==='ai38'?'coordinated':'off';
+    constructor(a,b){super(a,b,preset?.terrain,preset?.generatorVersion??4);this.tactical.ai37Mode=variant==='ai38'?'coordinated':'off';
       this.tactical.rallyGateTraceEnabled=variant==='ai38';}
    };
    const result=runMatch({Simulation,UNITS},{opponent,seconds:opts.seconds,
     ai33:'adaptive',ai35:'control',ai36:'coordinated',observe:recorder.observe,
     label:variant},seed,'director',map);
-   const world=new SimulationV4(seed,map,preset?.terrain);
+   const world=new SimulationV4(seed,map,preset?.terrain,preset?.generatorVersion??4);
    const run={...result,...recorder.finish(),variant,map,seed,opponent,
     presetId:preset?.id??null,terrain:world.world.generated?.battlefield?.profile,
     landscape:world.world.generated?.landscapeKind??'unknown',
     generatorVersion:world.world.generatorVersion};
-   if(run.generatorVersion!==4||preset&&(run.landscape!==preset.kind||
+   if(run.generatorVersion!==(preset?.generatorVersion??4)||preset&&(run.landscape!==preset.kind||
      run.terrain!==preset.terrain||world.territories.length!==preset.bastions))
     throw Error('Named map differs from authoritative v4 browser topology');
    runs.push(run);persist(false);
