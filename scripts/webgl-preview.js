@@ -10,6 +10,8 @@ import {canyonGroundSampler,rampAtX,ridgeCenterY} from '/src/reborn/canyon-heigh
 import {SandforgeBattlefield} from '/webgl-battlefield.js';
 import {DesertOases} from '/webgl-oases.js';
 import {createLandscapeMeshes} from '/webgl-landscape-network.js';
+import {createCuratedMapArt} from '/webgl-curated-map-art.js';
+import {CURATED_PALETTES} from '/webgl-curated-map-layout.js';
 import {normalizeSimulationSpeed,simulationFrameBudget} from '/webgl-simulation-speed.js';
 import {DesertArtPass} from '/webgl-environment.js';
 import {BIOME_STYLES,normalizeBiome,createBiomeGroundTexture,addBiomeVegetation} from '/webgl-biomes.js';
@@ -105,6 +107,7 @@ const activePreset=globalThis.SandforgeMapPresets?.matches(namedPreset,{
  mapVersion:world.mapVersion,generatorVersion:world.generatorVersion,
  terrain:terrain?.battlefield?.profile,biome
 })?namedPreset:null;
+const curatedPalette=activePreset?CURATED_PALETTES[activePreset.id]:null;
 const gradingHomes=terrain.battlefield?.generatorVersion>=2
  ?campaignLayout(world.mapVersion,seed).headquarters.map(i=>battlefieldStart(terrain.sites[i],size))
  :[];
@@ -146,13 +149,17 @@ const goldenHour=desertGoldenHourEnabled(biome,query.get('lighting'));
 const sunset=goldenHour?DESERT_GOLDEN_HOUR:null;
 scene.background=new THREE.Color('#000000');
 scene.fog=new THREE.FogExp2(sunset?.fogColor??biomeStyle.fog,
- sunset?.fogDensity??.00008);
+ sunset?.fogDensity??(activePreset?.id==='frostpforte'?.000092:
+  activePreset?.id==='schlangenfeste'?.000085:.00008));
 scene.add(new THREE.HemisphereLight(
  sunset?.skyColor??biomeStyle.sky,sunset?.bounceColor??biomeStyle.bounce,
  sunset?.hemisphereIntensity??1.20));
 // One sun and one low-energy cool fill: longer shadows with good contrast
 // between 3D terrain, military camouflage and faction-colored glass.
-const sunlightOffset=new THREE.Vector3(...(sunset?.sunOffset??[-700,1100,420]));
+const sunlightOffset=new THREE.Vector3(...(sunset?.sunOffset??
+ (activePreset?.id==='frostpforte'?[-820,910,-320]:
+  activePreset?.id==='schlangenfeste'?[-760,1130,600]:
+  [-700,1100,420])));
 const sun=new THREE.DirectionalLight(
  sunset?.sunColor??biomeStyle.sunlight,
  sunset?.sunIntensity??(spacious?2.85:3.05));
@@ -374,6 +381,8 @@ function buildTerrain(){
  const biomeGroundBase=new THREE.Color(biomeStyle.groundBase);
  const biomeGroundLight=new THREE.Color(biomeStyle.groundLight);
  const biomeGroundRock=new THREE.Color(biomeStyle.groundRock);
+ // Map-specific grading is baked into existing terrain vertices once.
+ const curatedGroundTint=curatedPalette?new THREE.Color(curatedPalette.ground):null;
  for(let cy=0;cy<chunks;cy++)for(let cx=0;cx<chunks;cx++){
   const count=(segments+1)**2,vertices=new Float32Array(count*3),
    colors=new Float32Array(count*3),uv=new Float32Array(count*2),
@@ -405,6 +414,14 @@ function buildTerrain(){
     // height field, no additional draw call or changing ground mesh.
     const earth=terrainGradingEdge(x,z,terrain.sites,gradingHomes,terrain.battlefield.generatorVersion);
     vertexColor.lerp(sandstone,earth*.16);
+   }
+   if(curatedGroundTint){
+    const motif=activePreset.id==='staubkrone'
+     ?.65+.35*(Math.sin(x*.004+z*.002)*.5+.5)
+     :activePreset.id==='frostpforte'
+      ?.5+.5*Math.min(1,slope*2.4)
+      :.58+.42*(Math.sin(x*.003+z*.005)*.5+.5);
+    vertexColor.lerp(curatedGroundTint,curatedPalette.terrainMix*motif);
    }
    // Warm pale dune sand only. Building GLBs and everything else
    // have their own materials and therefore retain exactly their old look.
@@ -1177,6 +1194,11 @@ if(query.get('showcase')==='1')setShowcase(true);
 const desertArt=new DesertArtPass({scene,world,terrain,heightAt,pos,loader,biome,lowQuality:query.get('lite')==='1'});
 const oases=new DesertOases({scene,game,heightAt,groundMeshes,lowQuality:query.get('lite')==='1',enabled:biome==='desert'&&query.get('oases')!=='off'});
 battlefield.oases=oases;
+// Dedicated PBR set pieces, climate scenery and landmark silhouettes.
+const curatedMapArt=activePreset?createCuratedMapArt({
+ scene,world,terrain,heightAt,preset:activePreset,oases:oases.layout,
+ lowQuality:query.get('lite')==='1'
+}):null;
 // Generator v3: six unique, locally generated UV-textured adobe house GLBs.
 // Older maps keep their established sparse two-GLTF hamlets, unchanged.
 // Render-only scenery; never creates terrain obstacles or changes saved games.
@@ -1192,7 +1214,10 @@ if(oasisFocus){
  camera.position.add(target.clone().sub(controls.target));controls.target.copy(target);
  camera.zoom=1.55;camera.updateProjectionMatrix();controls.update();
 }
-window.addEventListener('pagehide',event=>{if(!event.persisted){oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();}});
+window.addEventListener('pagehide',event=>{if(!event.persisted){
+ curatedMapArt?.dispose();oases.dispose();
+ battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
+}});
 let desertArtReady=false;
 const effects=new SandforgeCombatEffects({scene,camera,game,world,heightAt,pos,battlefield,biome,lowQuality:query.get('lite')==='1',vehicleDust:query.get('dust')!=='off'});
 // Renderer-only weather preview: weather rules in Simulation are unchanged.
@@ -1394,7 +1419,7 @@ function animate(now){
 }
 renderer.setAnimationLoop(animate);
 window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,battlefield,effects,atmosphere,sound,constructionRecovery,visualPerimeter,boundaryCliffs,panKeys,groundTracks,oases,biome,biomeVegetation,
- mapPresetId:activePreset?.id??null,
+ mapPresetId:activePreset?.id??null,curatedMapArt,
  performance:performanceWatch,
  // Console diagnostic: compare FPS/draw calls with site props on/off live.
  setSiteDecorEnabled:enabled=>battlefield.setSiteDecorEnabled(enabled),
@@ -1422,7 +1447,9 @@ async function main(){
   status.dataset.ready='true';
   setStatus((activePreset?activePreset.name+' · ':terrain.battlefield?(terrain.landscapeKind?document.title.split(' · ')[2]+' · ':'')+
   TERRAIN_LABELS[terrain.battlefield.profile]+' · Seed '+seed+' · ':'')+
-  'WebGL2 aktiv · '+chunks+' Terrain-Chunks · '+stones+' Felsen · '+ruins+' 3D-Ruinen · 3D-Spielmechanik aktiv.');
+  'WebGL2 aktiv · '+chunks+' Terrain-Chunks · '+stones+' Felsen · '+ruins+' 3D-Ruinen · '+
+  (curatedMapArt?.plan?curatedMapArt.plan.landmarks.length+' Karten-Wahrzeichen · ':'')+
+  '3D-Spielmechanik aktiv.');
  }catch(error){
   console.error(error);errorNode.textContent='3D-Assets konnten nicht geladen werden: '+String(error);
   status.dataset.ready='false';setStatus('WebGL-Szene verfügbar; Asset-Ladevorgang fehlgeschlagen');
