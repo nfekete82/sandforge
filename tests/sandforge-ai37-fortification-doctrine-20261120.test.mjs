@@ -31,9 +31,9 @@ test('AI garrison cannot consume a small army; rockets and heavy guards remain p
  assert.equal(ai37GarrisonQuota({
   activeInfantry:9,fieldFighters:6,bunkerCount:1,homeThreat:false,frontlineOrders:3}),0);
  assert.equal(ai37GarrisonQuota({
-  activeInfantry:8,fieldFighters:11,bunkerCount:1,homeThreat:false,frontlineOrders:4}),3);
+  activeInfantry:8,fieldFighters:11,bunkerCount:1,homeThreat:false,frontlineOrders:4}),2);
  assert.equal(ai37GarrisonQuota({
-  activeInfantry:14,fieldFighters:18,bunkerCount:2,homeThreat:false,frontlineOrders:8}),4);
+  activeInfantry:14,fieldFighters:18,bunkerCount:2,homeThreat:false,frontlineOrders:8}),2);
  assert.equal(ai37GarrisonQuota({
   activeInfantry:2,fieldFighters:18,bunkerCount:1,homeThreat:true,frontlineOrders:0}),0);
  assert.equal(ai37GarrisonQuota({
@@ -108,7 +108,7 @@ test('KI bunker staffing uses ordinary boarding orders and preserves attack squa
  const originally=g.units.length,credits=g.credits[1];
  const reserved=g.tactical.staffBunkers(g.units.filter(u=>u.owner===1&&
   u.hp>0&&!u.carrier),home);
- assert.ok(reserved.size>=1&&reserved.size<=4);
+ assert.ok(reserved.size>=1&&reserved.size<=2);
  assert.ok([...reserved].every(id=>!g.tactical.state.group.includes(id)));
  assert.ok([...reserved].every(id=>g.units.find(u=>u.id===id)?.orders[0]?.kind==='garrison'));
  assert.equal(g.units.length,originally,'no free units');
