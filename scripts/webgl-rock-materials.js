@@ -92,6 +92,48 @@ export function sharedStoneMaps(lowQuality=false){
  cache.set(key,maps);
  return maps;
 }
+
+/** Dark, irregular mineral seams on real sandstone. The effect is layered
+ * ON TOP of the authored PBR albedo/normal/roughness, not a replacement
+ * material or a new rock mesh. Rock-local coordinates avoid visible atlas
+ * seams and make every face continuous; one shader, zero extra draw calls.
+ * Keeps simulation obstacles, camera, FoW and physical slopes untouched.
+ */
+export function applyRockMineralVeins(material,{strength=.55,frequency=1}={}){
+ if(!material?.isMeshStandardMaterial)return material;
+ const amount=clamp(strength,0,.75),freq=clamp(frequency,.25,3);
+ const code=String.raw\`
+  vec3 sfRockP = vSfRockPosition * \${freq.toFixed(3)};
+  float sfWarp = 1.10*sin(sfRockP.x*.043+sfRockP.z*.037)
+               + .36*sin(sfRockP.z*.097-sfRockP.x*.084);
+  float sfBands = sfRockP.y*.185 + sfWarp
+                 + .28*sin(sfRockP.y*.049+sfRockP.z*.061);
+  float sfVein = abs(sin(sfBands));
+  // Irregular charcoal/brown mineral threads, not uniform black stripes.
+  float sfLine = 1.0-smoothstep(.044,.205,sfVein);
+  float sfStain = sin(sfRockP.x*.096-sfRockP.z*.059+sfRockP.y*.031);
+  float sfMottling = smoothstep(.62,.98,sfStain)*.16;
+  float sfPigment = clamp((sfLine*(.80+.2*sfStain)+sfMottling)
+                    * \${amount.toFixed(3)},0.0,.72);
+  diffuseColor.rgb *= (1.0-sfPigment);
+ \`;
+ const previous=material.onBeforeCompile;
+ material.onBeforeCompile=shader=>{
+  previous?.(shader);
+  shader.vertexShader=shader.vertexShader
+   .replace('#include <common>','#include <common>\\nvarying vec3 vSfRockPosition;')
+   .replace('#include <begin_vertex>','#include <begin_vertex>\\nvSfRockPosition = position;');
+  shader.fragmentShader=shader.fragmentShader
+   .replace('#include <common>','#include <common>\\nvarying vec3 vSfRockPosition;')
+   .replace('#include <color_fragment>','#include <color_fragment>\\n'+code);
+ };
+ const key=material.customProgramCacheKey.bind(material);
+ material.customProgramCacheKey=()=>key()+'-sf-mineral-veins-v1-'+amount+'-'+freq;
+ material.userData.sandforgeRockMineralVeins={strength:amount,frequency:freq};
+ material.needsUpdate=true;
+ return material;
+}
+
 export function stoneMaterial(color='#c9ad8d',options={}){
  const {lowQuality=false,roughness=.96,normalScale=.58,flatShading=true}=options;
  const maps=sharedStoneMaps(lowQuality);
