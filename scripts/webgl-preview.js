@@ -10,6 +10,8 @@ import {canyonGroundSampler,rampAtX,ridgeCenterY} from '/src/reborn/canyon-heigh
 import {SandforgeBattlefield} from '/webgl-battlefield.js';
 import {DesertOases} from '/webgl-oases.js';
 import {createCinematicDesertWaterways} from '/webgl-desert-water-3d.js';
+import {planDesertWaterways} from '/webgl-desert-water-plan.js';
+import {generateOases} from '/webgl-oasis-generation.js';
 import {createLandscapeMeshes} from '/webgl-landscape-network.js';
 import {normalizeSimulationSpeed,simulationFrameBudget} from '/webgl-simulation-speed.js';
 import {DesertArtPass} from '/webgl-environment.js';
@@ -483,8 +485,14 @@ function buildTerrain(){
  * skirts fill the complete solid hull: no blocked ground under empty air. */
 function addBattlefieldRocks(material){
  const vertices=[],colors=[],uv=[];
- const baseColor=new THREE.Color(biome==='desert'?desertStyle.mesa:biomeStyle.rocks[0]);
- const dark=new THREE.Color(biome==='desert'?desertStyle.mesaShade:biomeStyle.rocks[1]);
+ const brokenEmpireRedSlate=desertRegion?.id==='broken-empire';
+ // Sonoran geology: dark red-gray sandstone with charcoal weathering,
+ // not the pale yellow Mesa look of the golden dunes. Keep identical
+ // rock geometry, PBR maps, collision hull and pathfinding.
+ const baseColor=new THREE.Color(brokenEmpireRedSlate?'#855653':
+  biome==='desert'?desertStyle.mesa:biomeStyle.rocks[0]);
+ const dark=new THREE.Color(brokenEmpireRedSlate?'#39333b':
+  biome==='desert'?desertStyle.mesaShade:biomeStyle.rocks[1]);
  for(const [id,mesa] of terrain.mesas.entries()){
   const poly=mesa.outline,cx=poly.reduce((n,p)=>n+p.x,0)/poly.length,cz=poly.reduce((n,p)=>n+p.y,0)/poly.length;
   const peak=mesa.columns.reduce((n,c)=>n+c.height,0)/mesa.columns.length*(terrain.battlefield.profile==='rocky'?1.55:1.05);
@@ -505,7 +513,10 @@ function addBattlefieldRocks(material){
    for(const p of [a,b,c]){
     vertices.push(...p);
     const s=Math.sin(p[1]*.165+(p[0]+half)*.009)*.09;
-    const color=baseColor.clone().lerp(dark,Math.max(0,Math.min(.85,band+s)));
+    const weathering=brokenEmpireRedSlate
+      ?Math.max(.12,Math.min(.86,band*.85+s*1.2+.12))
+      :Math.max(0,Math.min(.85,band+s));
+     const color=baseColor.clone().lerp(dark,weathering);
     colors.push(color.r,color.g,color.b);uv.push((p[0]+half)/150,p[1]/120);
    }
   };
@@ -532,7 +543,8 @@ function addBattlefieldRocks(material){
   metalness:0,side:THREE.DoubleSide,flatShading:true});
  // Dark weathered mineral seams follow the true 3D canyon/mesa surfaces.
  // Preserve existing PBR textures, normals, triangles and navigation hulls.
- if(spacious&&biome==='desert')applyRockMineralVeins(mat,{strength:.57,frequency:1.1});
+ if(spacious&&biome==='desert')applyRockMineralVeins(mat,{
+   strength:brokenEmpireRedSlate?.66:.57,frequency:brokenEmpireRedSlate?1.35:1.1});
  if(biome!=='desert')new THREE.TextureLoader().load('/src/assets/reborn/sandstone-strata-v1.png',map=>{
   map.wrapS=map.wrapT=THREE.RepeatWrapping;map.colorSpace=THREE.SRGBColorSpace;
   map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
@@ -1111,11 +1123,20 @@ const burnedSedans=desertMap&&biome==='desert'
 // Desert corridors are navigation-only; no permanent tracks leading to Bastions.
 const biomeVegetation=addBiomeVegetation({THREE,scene,world,terrain,game,heightAt,seed,biome,
  lowQuality:query.get('lite')==='1'});
+// Plan all water BEFORE any real 3D plant is positioned. The same immutable
+// lake and river plan is reused for both shoreline rendering and vegetation
+// exclusion, so no Saguaro or Joshua tree can stand in water.
+const oasisPlanForWater=biome==='desert'&&query.get('oases')!=='off'&&
+ (!desertRegion||desertRegion.key==='erg')
+ ?generateOases({world,seed,startRegions:game.startRegions,heightAt}):[];
+const plannedDesertWater=spacious&&biome==='desert'&&query.get('water')!=='off'
+ ?planDesertWaterways({world,terrain,seed,mapId:desertRegion?.id??null,
+   oases:oasisPlanForWater,lowQuality:query.get('lite')==='1'}):null;
 // Load hand-modeled organic PBR GLBs, no primitive-geometry stand-ins.
 let authenticDesertArt=null,authenticDesertReady=false;
 const authenticDesertLoad=desertRegion?loadAuthenticDesertScenery({
  loader,scene,world,terrain,seed,mapId:desertRegion.id,heightAt,
- lowQuality:query.get('lite')==='1'
+ waterLayout:plannedDesertWater,lowQuality:query.get('lite')==='1'
 }).then(a=>{authenticDesertArt=a;return a;}).catch(error=>{
  console.warn('Authentic 3D desert scenery unavailable:',error);return null;
 }).finally(()=>{authenticDesertReady=true;}):Promise.resolve(null);
@@ -1134,7 +1155,10 @@ const groundTracks=new SandforgeGroundTracks({
 });
 groundTracks.capture();
 const atmosphere=new SandforgeAtmosphere3D({
- scene,game,world,heightAt,camera,controls,biome,lowQuality:query.get('lite')==='1'
+ scene,game,world,heightAt,camera,controls,biome,lowQuality:query.get('lite')==='1',
+ // Bright radial light circles at the FoW border are ornamental sprites.
+ // All four modern deserts use native FoW without glowing disks.
+ showFrontierClouds:!(desertRegion&&spacious)
 });
 battlefield.fogAtmosphere=atmosphere;
 atmosphere.setFogEnabled(battlefield.fogEnabled);
@@ -1231,7 +1255,7 @@ battlefield.oases=oases;
 const desertWater=spacious&&biome==='desert'&&query.get('water')!=='off'
  ?createCinematicDesertWaterways({scene,world,terrain,heightAt,seed,
    mapId:desertRegion?.id??null,oases:oases.layout,
-   lowQuality:query.get('lite')==='1'})
+   layout:plannedDesertWater,lowQuality:query.get('lite')==='1'})
  :null;
 // Generator v3: six unique, locally generated UV-textured adobe house GLBs.
 // Older maps keep their established sparse two-GLTF hamlets, unchanged.
