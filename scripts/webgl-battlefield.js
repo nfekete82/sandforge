@@ -541,7 +541,11 @@ export class SandforgeBattlefield {
       (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
     entry.modelHeight=dims.y*visualScale*(type==='unit'&&entry.kind==='bomber'?BOMBER_VISUAL_STRETCH.vertical:1);
     entry.modelFootprint=Math.max(dims.x,dims.z)*visualScale*(type==='unit'&&entry.kind==='bomber'?BOMBER_VISUAL_STRETCH.horizontal:1);
-    if(type==='building'&&model.userData.sandforgeOriginalPBR&&entry.kind==='factory')
+    // The new reference factory already embeds high-resolution colour,
+    // glTF normal and metallic-roughness maps. The older procedural
+    // wall shader would FLATTEN and overwrite these carefully authored PBRs.
+    if(type==='building'&&model.userData.sandforgeOriginalPBR&&entry.kind==='factory'&&
+       !model.getObjectByName('SF_Factory_PBR_ReferenceHangar_v3'))
      finishDesertBuildingMaterials(model,'factory');
     if(!model.userData.sandforgeOriginalPBR){
      applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,

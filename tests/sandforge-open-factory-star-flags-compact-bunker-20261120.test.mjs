@@ -83,7 +83,7 @@ try{
 }
 for(const team of [0,1])test('real generated factory-'+team+' has exposed PBR workshop with zero shutters',()=>{
  const {raw,doc,binStart}=glbDocs.get(team);
- assert.equal(doc.asset.generator,'sandforge-open-vehicle-factory-v2-20261120');
+ assert.equal(doc.asset.generator,'sandforge-industrial-reference-factory-v3-20261120');
  const names=new Set(doc.nodes.map(n=>n.name));
  assert.ok(names.has('SF_Factory_PBR_OpenBay'));
  assert.ok(!names.has('FactoryRollupDoor'));
@@ -94,7 +94,7 @@ for(const team of [0,1])test('real generated factory-'+team+' has exposed PBR wo
  assert.ok(names.has('SF_Factory_PBR_concrete'));
  assert.ok(names.has('SF_Factory_PBR_steel_dark'));
  assert.ok(names.has('SF_Factory_PBR_camo'));
- assert.ok(raw.length<1_200_000);
+ assert.ok(raw.length<18_000_000);
  const findMesh=name=>doc.meshes[doc.nodes.find(n=>n.name===name).mesh];
  const p=findMesh('SF_Factory_PBR_camo').primitives[0].attributes.POSITION;
  const accessor=doc.accessors[p],view=doc.bufferViews[accessor.bufferView],data=[];

@@ -64,15 +64,16 @@ test('Bastion banner and signal base color match exact blue/red faction RGB',()=
 test('factory is authored PBR open-hall with a truly empty drive-through for both teams',()=>{
  for(const owner of [0,1]){
   const file=glb('factory-'+owner),doc=file.doc;
-  assert.equal(doc.asset.generator,'sandforge-open-vehicle-factory-v2-20261120');
+  assert.equal(doc.asset.generator,'sandforge-industrial-reference-factory-v3-20261120');
   const nodes=new Set(doc.nodes.map(n=>n.name));
   for(const name of ['SF_Factory_PBR_OpenBay','SF_Factory_PBR_roof',
     'SF_Factory_PBR_camo','SF_Factory_PBR_vent','SF_Factory_PBR_team'])
    assert.ok(nodes.has(name),'open factory '+owner+' missing '+name);
   assert.ok(!nodes.has('FactoryRollupDoor'),'no visible or hidden sliding shutter');
   assert.ok(doc.nodes.find(n=>n.name==='SF_Factory_PBR_OpenBay')?.extras?.openProductionExit);
-  assert.ok(doc.meshes.length>=11&&doc.meshes.length<=22);
-  assert.ok(file.data.length<1_200_000,'open factory remains GPU-friendly');
+  assert.ok(doc.meshes.length>=21&&doc.meshes.length<=38,
+   'reference factory still batches all 3D detail by 23-38 authored PBR material meshes');
+  assert.ok(file.data.length<18_000_000,'1024px PBR reference factory must remain GPU-friendly');
   assert.deepEqual(texturePixel(file,'Sandforge_Factory_team'),factionRgb8(owner));
   assert.ok(doc.materials.every(m=>!m.name.startsWith('Sandforge_Bastion_')));
   const facade=meshPositions(file,'SF_Factory_PBR_camo');
@@ -98,7 +99,9 @@ test('build regenerates factory GLBs before copying assets, not user-local binar
  assert.match(gen,/SF_Factory_PBR_OpenBay/);
  assert.doesNotMatch(gen,/partName\s*=\s*['"]FactoryRollupDoor['"]/,
   'factory export has no movable door mesh');
- assert.match(gen,/width=key==='roof'\?256:48/,'roof should have fine PBR paint, not magnified 48px grooves');
+ assert.match(gen,/key==='roof'\?1024/,'reference roof must use real 1024px embedded PBR texture');
+ assert.match(gen,/metallicRoughnessTexture:\{index:orm\}/);
+ assert.match(gen,/normalTexture:\{index:normal/);
  assert.doesNotMatch(gen,/sandforge-pbr-gesamt-test/);
  const game=readFileSync('scripts/webgl-battlefield.js','utf8');
  assert.match(game,/entry.kind==='factory'.*SF_Factory_PBR_roof/);

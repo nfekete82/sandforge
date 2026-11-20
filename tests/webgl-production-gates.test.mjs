@@ -91,7 +91,9 @@ for(const owner of [0,1])test(`GLB faction ${owner} has a real opening; UVs and 
  scene.updateMatrixWorld(true);assert.equal(ray.intersectObjects(scene.children).length,0,'closed fixed facade remains behind the door');
  // The new factory roof is at y~2.5, not below the old 2.0 m probe.
  // Shoot DOWN from above the actual model roof, ignoring the moving door.
- const roofRay=new THREE.Raycaster(new THREE.Vector3(.18,3.05,.9),new THREE.Vector3(0,-1,0),0,.9);
+ // The new pitched reference hangar rises to ~3.21 m at the ridge;
+ // probe from ABOVE its top, not from inside the sloping metal roof.
+ const roofRay=new THREE.Raycaster(new THREE.Vector3(.18,4.80,.9),new THREE.Vector3(0,-1,0),0,3.20);
  assert.ok(roofRay.intersectObjects(scene.children).length>0,'the fixed roof remains closed above the vehicle portal');
 });
 test('independent buildings animate concurrently; repeated releases reuse a closed gate',()=>{
