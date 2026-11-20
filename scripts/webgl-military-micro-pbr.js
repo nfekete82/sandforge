@@ -91,8 +91,14 @@ export function enhanceMilitaryMicroPBR(root,{kind,type}={}){
     return source;
    const key=source.uuid+'|'+role;
    if(clones.has(key))return clones.get(key);
-   const mat=source.clone();
-   const previous=source.onBeforeCompile,oldKey=source.customProgramCacheKey.bind(source);
+   // Faction, building-facade and troop-paint materials already belong
+   // to this instance. Decorate IN PLACE, never orphan a per-actor clone.
+   const alreadyOwned=Boolean(source.userData?.sandforgeFactionTint||
+    source.userData?.sandforgeArmourOwnedPaint||source.userData?.sandforgeHelicopterOwnedPaint||
+    source.userData?.sandforgeBuildingPBROwned||source.userData?.sandforgeBuildingFill||
+    source.userData?.sandforgeBuildingFacadeOwned);
+   const mat=alreadyOwned?source:source.clone();
+   const previous=mat.onBeforeCompile,oldKey=mat.customProgramCacheKey.bind(mat);
    const overlay=makeMicrotexture(role);
    // Original GLB units are meters on vehicles and larger model units on
    // bases. Different tile constants keep scratches sub-centimeter sized.
@@ -128,7 +134,7 @@ export function enhanceMilitaryMicroPBR(root,{kind,type}={}){
    mat.customProgramCacheKey=()=>oldKey()+'|'+MILITARY_MICRO_PBR_REVISION+'|'+role+'|'+tile;
    mat.userData={...source.userData,
     sandforgeMilitaryMicroPBR:MILITARY_MICRO_PBR_REVISION,
-    sandforgeMilitaryMicroPBROwned:true,role};
+    sandforgeMilitaryMicroPBROwned:!alreadyOwned,role};
    mat.needsUpdate=true;clones.set(key,mat);roles.add(role);updated++;return mat;
   };
   mesh.material=Array.isArray(mesh.material)?
