@@ -43,11 +43,12 @@ for(const map of maps)test(map.name+': large shallow water is seeded, local and 
  const scene=new THREE.Scene();
  const water=createCinematicDesertWaterways({scene,world,terrain,
   heightAt:(x,z)=>world.terrainHeight(x,z),...args,lowQuality:true});
- assert.equal(water.drawCalls,water.layout.lakes.length+water.layout.rivers.length);
- assert.equal(water.meshes.length,water.drawCalls);
+ assert.equal(water.drawCalls,2*(water.layout.lakes.length+water.layout.rivers.length));
+ assert.equal(water.meshes.length+water.shores.length,water.drawCalls);
+ assert.ok(water.shores.every(m=>m.userData.wetShore&&m.material.isMeshStandardMaterial));
  assert.ok(water.meshes.every(m=>m.userData.visualOnly&&m.userData.shallowPassable));
  water.update(11.2);
- assert.ok(water.materials.every(m=>m.userData.waterTime.value===11.2));
+ assert.ok(water.materials.filter(m=>m.userData.waterTime).every(m=>m.userData.waterTime.value===11.2));
  water.dispose();assert.equal(scene.children.includes(water.root),false);
  assert.equal(JSON.stringify(game.save()),save,'no simulation rule or save mutation');
  assert.deepEqual(Buffer.from(world.blocked),obstacles,'collision grid unchanged');
