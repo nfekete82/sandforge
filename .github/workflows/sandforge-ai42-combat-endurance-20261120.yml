@@ -2,7 +2,7 @@ name: Sandforge AI 4.2 bomber combat endurance trial
 on:
   push:
     branches:
-      - feat/sandforge-ai42-endurance-combat-endurance-20261120
+      - feat/sandforge-ai42-direct-combat-endurance-20261120
   workflow_dispatch:
 concurrency:
   group: sandforge-ai42-endurance-${{ github.ref }}
