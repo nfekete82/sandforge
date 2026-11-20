@@ -10,6 +10,7 @@ const expected={
 for(const id of worlds)test('Actual Chromium 3D: different genuine PBR desert, '+id,async({page})=>{
  test.setTimeout(240000);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ page.on('console',m=>{if(m.type()==='error'&&/WebGLProgram|shader|VALIDATE_STATUS/i.test(m.text()))errors.push(m.text());});
  await page.setViewportSize({width:1600,height:900});
  await page.goto('/webgl-preview.html',{waitUntil:'domcontentloaded'});
  await page.locator('#sf3d-new').click();
@@ -26,10 +27,16 @@ for(const id of worlds)test('Actual Chromium 3D: different genuine PBR desert, '
  const report=await page.evaluate(()=>{
   const a=window.__sandforgeWebGL,art=a.authenticDesertArt,terrain=a.scene.children.find(x=>x.userData.terrain);
   const meshes=art?.meshes??[];
+  const mesa=a.scene.getObjectByName('physical-battlefield-rocks');
+  const sandstone=meshes.filter(m=>m.userData?.model==='sandstone');
+  const veined=m=>(Array.isArray(m.material)?m.material:[m.material])
+   .every(mat=>Boolean(mat?.userData?.sandforgeRockMineralVeins));
   return {
    map:a.desertMapId,ecoregion:a.desertRegion,
    stable:!!a.loaded,valid:a.game.world.validation?.valid,
    modelKinds:[...new Set(meshes.map(m=>m.userData.model))].sort(),
+   marbledMesa:!mesa||veined(mesa),
+   marbledSandstone:sandstone.length===0||sandstone.every(veined),
    textured:meshes.every(m=>m.isInstancedMesh&&m.material?.map?.isTexture),
    nonBlocking:meshes.every(m=>m.userData.visualOnly&&m.userData.nonBlocking&&m.userData.nonPlayable),
    drawCalls:art?.drawCalls??0,
@@ -52,6 +59,8 @@ for(const id of worlds)test('Actual Chromium 3D: different genuine PBR desert, '
  expect(report.hardBlackEdge).toBe(true);
  expect(report.terrainChunks).toBe(16);
  expect(report.groundMaps).toBe(true);
+ expect(report.marbledMesa).toBe(true);
+ expect(report.marbledSandstone).toBe(true);
  expect(report.missingAssets).toEqual([]);
  expect(report.modelKinds).toEqual([...want.models].sort());
  expect(report.nonBlocking&&report.textured).toBe(true);

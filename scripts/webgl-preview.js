@@ -35,7 +35,7 @@ import {loadAuthenticDesertScenery} from '/webgl-desert-ecoregion-3d.js';
 import {createDesertVillages} from '/webgl-desert-village.js';
 import {installMatchResultOverlay} from '/webgl-match-result.js';
 import {installBattleDebrief} from '/webgl-battle-debrief.js';
-import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry} from '/webgl-rock-materials.js';
+import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry,applyRockMineralVeins} from '/webgl-rock-materials.js';
 import {makeSmallRuinFragments,isSmallRuin} from '/webgl-ruin-fragments.js';
 import {chooseRareScenicHouseIndex,createScenicDesertHouse} from '/webgl-scenic-desert-houses.js';
 import {createBurnedSedanWrecks} from '/webgl-burned-sedan-3d.js';
@@ -521,6 +521,9 @@ function addBattlefieldRocks(material){
   roughness:.98,roughnessMap:rockMaps.roughnessMap,
   normalMap:rockMaps.normalMap,normalScale:new THREE.Vector2(.38,.38),
   metalness:0,side:THREE.DoubleSide,flatShading:true});
+ // Dark weathered mineral seams follow the true 3D canyon/mesa surfaces.
+ // Preserve existing PBR textures, normals, triangles and navigation hulls.
+ if(spacious&&biome==='desert')applyRockMineralVeins(mat,{strength:.57,frequency:1.1});
  if(biome!=='desert')new THREE.TextureLoader().load('/src/assets/reborn/sandstone-strata-v1.png',map=>{
   map.wrapS=map.wrapT=THREE.RepeatWrapping;map.colorSpace=THREE.SRGBColorSpace;
   map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
