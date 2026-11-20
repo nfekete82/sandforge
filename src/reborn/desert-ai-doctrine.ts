@@ -41,3 +41,15 @@ export function selectDesertAIDoctrine(x:{
   p.mapVersion===x.mapVersion&&p.profile===x.profile&&
   p.kind===x.kind&&p.generatorVersion===x.generatorVersion)??null;
 }
+
+/** The fast offensive ground doctrine must not silently disable already-paid
+ * late-air support on the ONE fixed large canyon battlefield. The ordinary
+ * caller still checks time, HQ observation, genuinely paid bomber numbers,
+ * current live vision and anti-air risk. No target is created by this gate.
+ * Legacy v4 saves and every other map preserve their existing behavior.
+ */
+export function fixedDesertLateAirSupport(
+ map:DesertAIDoctrineMap|null,coordinated:boolean
+):boolean{
+ return coordinated||map?.id==='last-stronghold';
+}
