@@ -344,7 +344,7 @@ export class World {
     // inexpensive positive test, not another recursive A* search.
     // When every approach needs a bend, retain the proven v5 path selector.
     // v3/v4 historical saves intentionally take their original exact route.
-    const verifyApproach=allowPartial&&!air&&this.generatorVersion===5&&
+    const verifyApproach=allowPartial&&!air&&this.generatorVersion>=5&&
       Number.isFinite(maxSlope)&&Boolean(this.generated?.ridges.length);
     const directlyReachablePass=verifyApproach
       ?canyonPassWaypoint(start,target,this.generated!.ridges,clearance,
@@ -354,7 +354,7 @@ export class World {
     const pass=directlyReachablePass??(allowPartial&&!air&&this.generatorVersion>=3&&
       this.generated?.ridges.length
       ?canyonPassWaypoint(start,target,this.generated.ridges,clearance,
-        this.generatorVersion===5&&Number.isFinite(maxSlope)
+        this.generatorVersion>=5&&Number.isFinite(maxSlope)
          // The original pass proof remains the fallback for curved approaches
          // and for vehicles already stranded on an unsafe slope.
          ?(near,far)=>this.physicalPassAvailable(near,far,clearance,maxSlope):undefined)
