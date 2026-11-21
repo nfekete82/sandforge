@@ -10,7 +10,7 @@ import {ridgeHeightAtX} from '../dist/src/reborn/ai36-terrain-routes.js';
 import {selectDesertAIDoctrine,DESERT_AI_DOCTRINES,fixedDesertLateAirSupport} from '../dist/src/reborn/desert-ai-doctrine.js';
 
 const catalog=globalThis.SandforgeDesertMaps;
-const classicMaps=catalog.maps.filter(map=>map.id!=='plateau-crossroads');
+const classicMaps=catalog.maps.filter(map=>['desert-strike','broken-empire','burning-horizon','last-stronghold'].includes(map.id));
 const geometryHash=world=>createHash('sha256')
  .update(JSON.stringify(world.generated.sites))
  .update(JSON.stringify(world.generated.ridges))
@@ -19,11 +19,11 @@ const geometryHash=world=>createHash('sha256')
  .update(world.blocked)
  .digest('hex');
 
-test('four original maps stay unchanged and both authored plateau maps are versioned',()=>{
+test('four original maps retain their identity; the five existing maps now use v8 highlands',()=>{
  assert.equal(classicMaps.length,4);
  assert.equal(catalog.maps.length,6);
  const custom=catalog.byId('plateau-crossroads');
- assert.equal(custom.generatorVersion,6);
+ assert.equal(custom.generatorVersion,8);
  assert.equal(custom.kind,'plateau-crossroads');
  assert.equal(custom.bastions,16);
  assert.deepEqual(classicMaps.map(x=>x.id),[
@@ -36,7 +36,7 @@ test('four original maps stay unchanged and both authored plateau maps are versi
   'open-basin','broken-escarpment','diagonal-ridge','serpentine-canyon']);
  assert.equal(new Set(catalog.maps.map(x=>x.seed)).size,6);
  for(const map of classicMaps){
-  assert.equal(map.generatorVersion,map.id==='burning-horizon'?4:5,'retain v4 on the measured Burning Horizon regression');
+  assert.equal(map.generatorVersion,8,'v8 highland maps are the new match default');
   assert.equal(map.biome,'desert','only original desert graphics');
   assert.ok(Object.isFrozen(map),'locked battlefields are immutable');
   assert.ok(catalog.matches(map,{...map,terrain:map.terrain,kind:map.kind}));
@@ -66,7 +66,7 @@ for(const map of catalog.maps)test(map.name+': playable fair deterministic origi
   'existing savegame geometry must be byte-for-byte unchanged');
 });
 
-for(const map of catalog.maps.filter(p=>p.generatorVersion===5&&p.kind!=='open-basin'))test(
+for(const map of catalog.maps.filter(p=>p.generatorVersion===8&&p.kind!=='open-basin'))test(
  map.name+': all real mountain passes are physically driveable by paid ground vehicles',()=>{
  const game=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion);
  const world=game.world,ridge=world.generated.ridges[0];
@@ -89,7 +89,7 @@ for(const map of catalog.maps.filter(p=>p.generatorVersion===5&&p.kind!=='open-b
  }
 });
 
-test('historical v4 saves remain untouched after grading only new v5 fixed maps',()=>{
+test('historical v4 and v5 maps retain their old geometry even after v8 highlands',()=>{
  const p=catalog.byId('last-stronghold'),old=Simulation.campaign(p.seed,p.mapVersion,p.terrain,4);
  const version5=Simulation.campaign(p.seed,p.mapVersion,p.terrain,5);
  assert.equal(old.world.generatorVersion,4);
@@ -116,12 +116,12 @@ test('four map-specific AI doctrines are calibrated from paid A/B results',()=>{
   assert.equal(restored.tactical.ai37Mode,expected[i],
    'saving cannot change the same battlefield AI doctrine');
   assert.equal(selectDesertAIDoctrine({...p,seed:p.seed+1,profile:p.terrain}),null);
-  if(p.generatorVersion===5)assert.equal(
-   selectDesertAIDoctrine({...p,profile:p.terrain,generatorVersion:4}),null,
-   'historical v4 AI must be unchanged for maps now pinned to v5');
-  else assert.equal(
+  if(p.id==='burning-horizon')assert.equal(
    selectDesertAIDoctrine({...p,profile:p.terrain,generatorVersion:4})?.mode,
-   'coordinated','Burning Horizon retains original v4 and default coordinated AI');
+   'coordinated','Burning Horizon historical v4 doctrine remains');
+  else assert.equal(
+   selectDesertAIDoctrine({...p,profile:p.terrain,generatorVersion:4}),null,
+   'historical unmatched v4 doctrine remains disabled');
  }
 });
 
@@ -152,7 +152,7 @@ test('paid late-game air support survives the offensive ground doctrine only on 
   'unknown maps never get free air-support privileges');
 });
 
-test('main menu offers four original maps plus Plateau Crossroads',()=>{
+test('main menu offers the six original and authored desert maps',()=>{
  const html=readFileSync('webgl-preview.html','utf8');
  const menu=readFileSync('scripts/webgl-title-menu.js','utf8');
  const renderer=readFileSync('scripts/webgl-preview.js','utf8');
