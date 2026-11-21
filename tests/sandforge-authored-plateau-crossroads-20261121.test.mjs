@@ -19,11 +19,11 @@ const distanceSegment=(p,a,b)=>{
 
 test('authored Plateau Crossroads: deterministic playable geometry with 3 plateaus, 4 real gaps',()=>{
  assert.ok(map);
- assert.equal(map.generatorVersion,6);
+ assert.equal(map.generatorVersion,8);
  assert.equal(map.bastions,16);
  const game=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion);
  const world=game.world;
- assert.equal(world.generatorVersion,6);
+ assert.equal(world.generatorVersion,8);
  assert.equal(world.generated.landscapeKind,'plateau-crossroads');
  assert.equal(world.generated.ridges.length,3);
  assert.equal(world.generated.ridges.reduce((n,r)=>n+r.ramps.length,0),4);
@@ -31,7 +31,7 @@ test('authored Plateau Crossroads: deterministic playable geometry with 3 platea
  assert.equal(world.validation?.valid,true,JSON.stringify(world.validation));
  assert.equal(world.validation?.reachableSites,16);
  assert.equal(world.validation?.tankReachableSites,16);
- assert.equal(Simulation.load(game.save()).world.generatorVersion,6);
+ assert.equal(Simulation.load(game.save()).world.generatorVersion,8);
  const second=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion);
  assert.deepEqual(world.generated.ridges,second.world.generated.ridges);
  assert.deepEqual(world.generated.roads,second.world.generated.roads);
@@ -89,4 +89,16 @@ test('Plateau Crossroads is selectable from 3D menu while original maps remain a
  for(const name of ['desert-strike','broken-empire','burning-horizon','last-stronghold','plateau-crossroads']){
   assert.match(menu,new RegExp('value="'+name+'"'));
  }
+});
+
+
+test('old Plateau Crossroads v6 geometry and save remain exactly reproducible',()=>{
+ const old=Simulation.campaign(map.seed,map.mapVersion,map.terrain,6);
+ assert.equal(old.world.generatorVersion,6);
+ assert.equal(old.world.generated.ridges.length,3);
+ const restored=Simulation.load(old.save());
+ assert.equal(restored.world.generatorVersion,6);
+ assert.deepEqual(restored.world.generated.battlefield.heights,
+  old.world.generated.battlefield.heights);
+ assert.deepEqual(restored.world.blocked,old.world.blocked);
 });
