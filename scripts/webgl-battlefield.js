@@ -523,6 +523,7 @@ export class SandforgeBattlefield {
      paintFactionRoofStripes(model,entry.kind,entry.owner);
      paintFactionEntranceBanners(model,entry.kind,entry.owner);
     }
+    // ?soldier=legacy remains the explicit A/B fallback for ALL ground infantry.
     // Share the successful humanoid soldier base across ALL ground infantry,
     // then attach each specialist's own tools/weapon and medical kit.
     // Rifleman, Medic, Pioneer, Heavy MG and Rocket keep distinct equipment,
