@@ -67,7 +67,6 @@ test('measured local infantry exits stay just outside the physical GLB at any sc
  assert.ok(start&&exit);
  // Headquarters engineer starts INSIDE the actual front double doors,
  // then crosses the threshold to the outdoor rally exit; no fake gate.
- const size=b.getSize(new THREE.Vector3());
  const facade=b.min.z+size.z*MESHY_HQ_ENGINEER_DOOR.facadeZFraction;
  assert.ok(start.position.z<facade);
  assert.ok(exit.position.z>facade);
