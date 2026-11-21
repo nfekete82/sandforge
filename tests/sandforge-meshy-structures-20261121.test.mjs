@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {MESHY_STRUCTURE_ASSETS} from '../scripts/webgl-meshy-asset-flags.js';
-import {meshyStructurePath,prepareMeshyStructure,meshyLocalBounds,SANDFORGE_INDUSTRIAL_PALETTE,MESHY_HQ_ENGINEER_DOOR,removeHeadquartersEmblemMeshes}
+import {meshyStructurePath,prepareMeshyStructure,meshyLocalBounds,SANDFORGE_INDUSTRIAL_PALETTE,MESHY_HQ_ENGINEER_DOOR,removeHeadquartersEmblemMeshes,meshHeadquartersDoor,setMeshyHeadquartersDoorOpen}
  from '../scripts/webgl-meshy-structure.js';
 
 test('missing Meshy binaries never break existing Sandforge PBR buildings',()=>{
@@ -106,7 +106,7 @@ test('vehicle factory and HQ both receive final identical Sandforge PBR-grade sh
  assert.match(gameplay,/prepareMeshyStructure\(model,'factory',entry\.owner\)/);
  assert.match(gameplay,/prepareMeshyStructure\(model,'factory',0\)/);
  assert.match(viewer,/prepareMeshyStructure\(model,kind,owner\)/);
- assert.match(style,/matched-hq-factory-albedo/);
+ assert.match(style,/hq-door-badge-glsl-radar-safe/);
  assert.match(style,/sfSandPanel/);
  assert.match(style,/roughnessmap_fragment/);
  const material=new THREE.MeshStandardMaterial({
@@ -195,4 +195,56 @@ test('any separately modeled HQ crest is removed without touching the real door'
  assert.equal(removeHeadquartersEmblemMeshes(root),1);
  assert.equal(root.getObjectByName('Star_Emblem'),undefined);
  assert.equal(root.getObjectByName('HQ_Original_Double_Door'),actualDoor);
+});
+
+test('actual Meshy double-door opens from centre with ORIGINAL facade texture',()=>{
+ const tex=new THREE.DataTexture(new Uint8Array([75,71,61,255]),1,1);
+ const root=new THREE.Group();
+ root.add(new THREE.Mesh(new THREE.BoxGeometry(12,5,9),
+  new THREE.MeshStandardMaterial({map:tex,roughness:.86,metalness:.25})));
+ prepareMeshyStructure(root,'headquarters',0);
+ const door=meshHeadquartersDoor(root);
+ assert.ok(door);
+ assert.equal(door.open,0);
+ assert.equal(door.mode,'original-meshy-double-door');
+ assert.ok(root.getObjectByName('SF_Meshy_HQ_OriginalDoor_Interior'));
+ assert.equal(root.getObjectByName('SF_Meshy_HQ_Shutter'),undefined);
+ const mesh=root.children.find(child=>child.isMesh&&!child.userData.realMeshyDoorInset);
+ assert.ok(mesh);
+ assert.equal(mesh.material.map,tex);
+ const shader={vertexShader:'#include <common>\n#include <begin_vertex>',
+  fragmentShader:'#include <common>\n#include <map_fragment>\n#include <roughnessmap_fragment>',
+  uniforms:{}};
+ mesh.material.onBeforeCompile(shader);
+ assert.match(shader.fragmentShader,/uniform float sfHQDoorOpen/);
+ assert.match(shader.fragmentShader,/sfDoorAllowed/);
+ assert.match(shader.fragmentShader,/discard/);
+ assert.match(shader.vertexShader,/sfHQMatRootPos/);
+ assert.ok(shader.uniforms.sfHQDoorOpen);
+ assert.equal(shader.uniforms.sfHQDoorOpen.value,0);
+ setMeshyHeadquartersDoorOpen(door,.75);
+ assert.equal(door.open,.75);
+ assert.equal(shader.uniforms.sfHQDoorOpen.value,.75);
+ setMeshyHeadquartersDoorOpen(door,1.5);
+ assert.equal(shader.uniforms.sfHQDoorOpen.value,1);
+ setMeshyHeadquartersDoorOpen(door,0);
+ assert.equal(shader.uniforms.sfHQDoorOpen.value,0);
+});
+test('Pionier departure waits for real HQ door to open and closes after rollout',()=>{
+ const producer=readFileSync('scripts/webgl-production-gates.js','utf8');
+ assert.match(producer,/meshHeadquartersDoor\(entry.detail\)/);
+ assert.match(producer,/openBay:!meshHQDoor/);
+ assert.match(producer,/if\(gate.meshHQDoor\)/);
+ assert.match(producer,/setMeshyHeadquartersDoorOpen\(gate.meshHQDoor,pose.open\)/);
+ assert.match(producer,/setMeshyHeadquartersDoorOpen\(gate.meshHQDoor,0\)/);
+ assert.match(producer,/state.directFoot\|\|gate.openBay\|\|gate.meshyShutter\|\|gate.meshyInfantry/);
+});
+test('emblem shader can coexist with radar vertex shader without shadowing varyings',()=>{
+ const style=readFileSync('scripts/webgl-meshy-structure.js','utf8');
+ const radar=readFileSync('scripts/webgl-meshy-hq-radars.js','utf8');
+ assert.match(style,/sfHQMatRootPos/);
+ assert.match(radar,/vec3 sfHQRootPos=/);
+ assert.doesNotMatch(style,/varying vec3 sfHQRootPos/);
+ assert.match(style,/sfBadgeY=smoothstep\(\.010,\.045/);
+ assert.match(style,/sfBadgeZ=smoothstep\(\.24,\.39/);
 });
