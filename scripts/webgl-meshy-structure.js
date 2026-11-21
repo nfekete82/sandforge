@@ -4,7 +4,7 @@ import {MESHY_STRUCTURE_ASSETS} from './webgl-meshy-asset-flags.js';
 // Vehicle factory is the visual reference for every Sandforge structure:
 // original PBR albedo/normal/ORM, dusty khaki armour, dark steel, restrained
 // blue/red enamel. Do not flatten a Meshy texture atlas into plain-color boxes.
-export const MESHY_STRUCTURE_REVISION='sandforge-meshy-unified-industrial-pbr-v2-20261121';
+export const MESHY_STRUCTURE_REVISION='sandforge-meshy-matched-hq-factory-albedo-v3-20261121';
 export const SANDFORGE_INDUSTRIAL_PALETTE=Object.freeze({
  sand:'#c3ae8a',armour:'#a08d6d',steel:'#444a45',concrete:'#aaa08b',
  blue:'#1b508d',red:'#a7332e'
@@ -72,7 +72,10 @@ export function prepareMeshyStructure(model,kind,owner=0){
    const oldKey=source.customProgramCacheKey.bind(source);
    mat.onBeforeCompile=function(shader,renderer){
     previous?.call(this,shader,renderer);
-    const marker='#include <map_fragment>';
+    // Grade AFTER authored camouflage/facade layers, never before: the
+    // factory may still run its legacy color_fragment wall shader. Working
+    // at roughnessmap_fragment sees the FINAL painted albedo on both models.
+    const marker='#include <roughnessmap_fragment>';
     if(!shader.fragmentShader.includes(marker))return;
     const industrial=[
      '// Unified Sandforge industrial grade: retain original PBR atlas detail.',
@@ -80,9 +83,24 @@ export function prepareMeshyStructure(model,kind,owner=0){
      'float sfMin=min(min(diffuseColor.r,diffuseColor.g),diffuseColor.b);',
      'float sfLum=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));',
      'float sfNeutral=1.0-smoothstep(.085,.31,sfMax-sfMin);',
-     'float sfMatteSand=sfNeutral*smoothstep(.18,.66,sfLum)*.16;',
-     'vec3 sfKhaki=vec3(.83,.73,.57)*sfLum;',
-     'diffuseColor.rgb=mix(diffuseColor.rgb,sfKhaki,sfMatteSand);'
+     // Sand/olive painted panels only. Shadowed grilles, black portals and
+     // cobalt team trim are excluded by the tan chroma mask.
+     'float sfTan=max(0.0,diffuseColor.r-diffuseColor.b);',
+     'float sfSandPanel=smoothstep(.025,.13,sfTan)*smoothstep(.08,.25,sfLum);',
+     'sfSandPanel*=1.0-smoothstep(.78,.98,sfLum);',
+     // A single target tone for both facilities, but keep all baked scratches,
+     // dirt, noise and edge wear: this remains a multiplier, not an overlay.
+     'vec3 sfPanelTone=vec3(1.035,1.005,.965);',
+     'diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*sfPanelTone,sfSandPanel*.58);',
+     // The photographed HQ atlas is visibly darker than the genuine Meshy
+     // vehicle factory. Correct that source-specific exposure only on the
+     // tan facade, not radar dishes/doors/blue piping/transparent glazing.
+     kind==='headquarters'?
+      'diffuseColor.rgb+=vec3(.075,.068,.053)*sfSandPanel;':
+      kind==='factory'?
+       'diffuseColor.rgb+=vec3(.010,.011,.010)*sfSandPanel;':
+       'diffuseColor.rgb+=vec3(.018,.017,.014)*sfSandPanel;',
+     'diffuseColor.rgb=clamp(diffuseColor.rgb,vec3(0.0),vec3(1.0));'
     ];
     if(owner===1)industrial.push(
      'float sfBlue=clamp((diffuseColor.b-max(diffuseColor.r,diffuseColor.g))*5.2,0.0,1.0);',
