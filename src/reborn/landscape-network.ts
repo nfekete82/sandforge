@@ -487,6 +487,15 @@ function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[]
     for(let t=mesa.topRadius;t<=mesa.rampEnd;t+=85){
      const p={x:mesa.center.x+d.x*t,y:mesa.center.y+d.y*t};
      if(p.x<210||p.y<210||p.x>size-210||p.y>size-210)return false;
+     // Extra ramp elevation must never modify the flatter HQ start area.
+     if(homeClear.some(h=>distance(h,p)<
+       TERRAIN_GRADING_V3.homeFlatRadius+TERRAIN_GRADING_V3.homeShoulder+80))
+       return false;
+     // Equally preserve other Bastions' level building pads; own summit is safe.
+     if(sites.some((site,i)=>i!==mesa.siteIndex&&
+       distance(site,p)<
+       TERRAIN_GRADING_V3.bastionFlatRadius+TERRAIN_GRADING_V3.bastionShoulder*.45))
+       return false;
      if(plateaus.some(other=>other!==mesa&&
        distance(p,other.center)<other.footRadius+135))return false;
      for(const ridge of original.ridges){
