@@ -255,7 +255,7 @@ test('reference-style trousers replace four rigid stilt legs with one smoothly s
  assert.equal(root.userData.sandforgeHumanSkinnedLegs,true);
  const pants=root.getObjectByName('SF_Human_SkinnedTrousers');
  assert.ok(pants?.isSkinnedMesh,'the game must render a genuine bone-skinned pair of pants');
- assert.equal(SKINNED_TROUSERS_REVISION,'human-articulated-cargo-pants-v3-20261122');
+ assert.equal(SKINNED_TROUSERS_REVISION,'human-articulated-cargo-pants-v4-soft-knee-20261122');
  assert.deepEqual(pants.skeleton.bones.map(b=>b.name),
   ['UpperLegL','LowerLegL','FootL','UpperLegR','LowerLegR','FootR']);
  assert.ok(pants.geometry.attributes.position.count>700,'high enough topology for round calves and knees');
@@ -375,4 +375,38 @@ test('missing bones use anatomically fuller rigid-fabric fallback rather than th
   assert.ok(thigh.visible&&calf.visible);
   assert.ok(thigh.scale.x>.12&&calf.scale.x>.12,'fallback must be wider');
  }
+});
+
+test('skinned knees use soft fabric contour, not hard square plates or exposed straps',()=>{
+ const {root}=riggedAtlas();
+ assert.equal(humanizeInfantry(root,0),true);
+ assert.equal(root.userData.sandforgeTrouserStatus,'skinned');
+ for(const side of ['L','R']){
+  const pad=root.getObjectByName('SF_Human_SoftKneepad'+side);
+  const strap=root.getObjectByName('SF_Human_KneeStrap'+side);
+  assert.ok(pad,'kneepad should remain on the articulated knee joint');
+  assert.equal(pad.geometry.type,'SphereGeometry','no robot-like rectangular kneecap');
+  assert.equal(strap.visible,false,'old hard knee straps must not poke through fabric');
+ }
+});
+test('trouser rings bend smoothly across an already flexed knee at bind pose',()=>{
+ const {root}=riggedAtlas();
+ const knee=root.getObjectByName('LowerLegL');
+ knee.rotation.z=.65; // realistic angled knee in a paused running animation
+ root.updateMatrixWorld(true);
+ assert.equal(humanizeInfantry(root,0),true);
+ const pants=root.getObjectByName('SF_Human_SkinnedTrousers');
+ const attr=pants.geometry.attributes.position;
+ const radial=16;
+ const sectionDirection=row=>{
+  const a=new THREE.Vector3().fromBufferAttribute(attr,row*radial);
+  const b=new THREE.Vector3().fromBufferAttribute(attr,row*radial+radial/2);
+  return a.sub(b).normalize();
+ };
+ // The old geometry snapped the frame from one segment to the other,
+ // producing an abrupt elbow-shaped kink in the trousers at the knee.
+ const around=[12,13,14,15,16,17].map(sectionDirection);
+ for(let i=1;i<around.length;i++)
+  assert.ok(around[i-1].angleTo(around[i])<.20,
+   'ring axes should blend smoothly through bent knee');
 });
