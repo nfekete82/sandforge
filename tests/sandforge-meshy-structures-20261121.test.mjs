@@ -213,7 +213,7 @@ test('actual Meshy double-door opens from centre with ORIGINAL facade texture',(
  assert.ok(mesh);
  assert.equal(mesh.material.map,tex);
  const shader={vertexShader:'#include <common>\n#include <begin_vertex>',
-  fragmentShader:'#include <common>\n#include <map_fragment>\n#include <roughnessmap_fragment>',
+  fragmentShader:'#include <common>\n#include <map_fragment>\n#include <roughnessmap_fragment>\n#include <normal_fragment_maps>',
   uniforms:{}};
  mesh.material.onBeforeCompile(shader);
  assert.match(shader.fragmentShader,/uniform float sfHQDoorOpen/);
@@ -246,5 +246,6 @@ test('emblem shader can coexist with radar vertex shader without shadowing varyi
  assert.match(radar,/vec3 sfHQRootPos=/);
  assert.doesNotMatch(style,/varying vec3 sfHQRootPos/);
  assert.match(style,/sfBadgeY=smoothstep\(\.010,\.045/);
+ assert.match(style,/normal=normalize\(mix\(normal,geometryNormal,sfBadgeMask\)\)/);
  assert.match(style,/sfBadgeZ=smoothstep\(\.24,\.39/);
 });
