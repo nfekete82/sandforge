@@ -33,7 +33,7 @@ import {beginBomberOrbit,advanceBomberOrbit,validBomberOrbit,BOMBER_ORBIT_SPEED,
 import {bomberAttackWaypoints,BOMBER_BOMB_RELEASE_DISTANCE,BOMBER_RUN_WAYPOINT_DISTANCE,BOMBER_BOMB_FALL_SECONDS,steerBomberArc,type BomberAttackRun} from './bomber-attack.js';
 import {AttackAlerts} from './attack-alerts.js';
 import {airfieldPoint,airfieldLerp,airfieldTaxiPoint,validAirfieldService,AIRFIELD_BAYS,AIRFIELD_REPAIR_HP_PER_CREDIT,AIRFIELD_REPAIR_FRACTION_PER_SECOND,AIRFIELD_LANDING_SECONDS,AIRFIELD_TAXI_SECONDS,AIRFIELD_TAKEOFF_SECONDS,type AirfieldService} from './airfield-maintenance.js';
-import {factoryRepairPoint,validFactoryService,FACTORY_REPAIR_BAYS,FACTORY_REPAIR_HP_PER_CREDIT,FACTORY_REPAIR_FRACTION_PER_SECOND,type FactoryService} from './factory-maintenance.js';
+import {validFactoryService,type FactoryService} from './factory-maintenance.js';
 import {factoryDoorExitCandidates,infantryDoorExitCandidates} from './production-exit.js';
 import {eliminationOutcome} from './match-outcome.js';
 // Only legacy save validation uses supply types; no active logistics controller.
@@ -547,75 +547,17 @@ export class Simulation {
     }
     return changed;
   }
-  /** One side-mounted repair platform serves ground vehicles sequentially. */
-  requestFactoryRepair(ids:number[],preferredBaseId?:number):number {
-    if(this.status!=='playing')return 0;
-    let accepted=0;
-    for(const u of this.units){
-      if(!ids.includes(u.id)||u.hp<=0||u.carrier||
-        !['rover','tank','artillery'].includes(u.kind)||u.factoryService||
-        u.hp>=this.maxUnitHp(u)-1e-6)continue;
-      const factory=this.bases.find(b=>b.owner===u.owner&&b.kind==='factory'&&b.hp>0&&b.buildRemaining<=0&&
-        (preferredBaseId===undefined||b.id===preferredBaseId));
-      if(!factory)continue;
-      const occupied=new Set(this.units.filter(other=>other.hp>0&&other.factoryService?.baseId===factory.id)
-        .map(other=>other.factoryService!.bay));
-      const bay=([0] as const).find(n=>!occupied.has(n));
-      if(bay===undefined||occupied.size>=FACTORY_REPAIR_BAYS)continue;
-      u.factoryService={baseId:factory.id,bay,phase:'approach',paidHp:0};
-      u.orders=[];u.path=[];u.repath=0;u.hold=false;u.pursuitOrigin=null;u.combatTarget=null;
-      this.cancelProductionDeparture(u.id);
-      if(u.owner===0)this.notices.push(`${unitSpec(u).name}: Werkstattplatz ${bay+1} zugeteilt.`);
-      accepted++;
-    }
-    return accepted;
+  /** No ground-vehicle factory repair: only Pioniere may restore vehicle HP.
+   * Keep these legacy API names as safe no-ops for old saved UI/event callers. */
+  requestFactoryRepair(_ids:number[],_preferredBaseId?:number):number {
+    return 0;
   }
-  releaseFactoryRepair(ids:number[]):number {
-    let released=0;
-    for(const u of this.units)if(ids.includes(u.id)&&u.hp>0&&u.factoryService?.phase==='ready'){
-      delete u.factoryService;u.path=[];u.repath=0;released++;
-    }
-    return released;
+  releaseFactoryRepair(_ids:number[]):number {
+    return 0;
   }
-  setAutoFactoryRepair(ids:number[],enabled:boolean):number {
-    let changed=0;
-    for(const u of this.units)if(ids.includes(u.id)&&u.owner===0&&u.hp>0&&
-      ['rover','tank','artillery'].includes(u.kind)){u.autoFactoryRepair=enabled;changed++;}
-    return changed;
-  }
-  private advanceFactoryService(u:Unit,dt:number):void {
-    const state=u.factoryService;if(!state)return;
-    const b=this.bases.find(site=>site.id===state.baseId&&site.kind==='factory'&&
-      site.owner===u.owner&&site.hp>0&&site.buildRemaining<=0);
-    if(!b){delete u.factoryService;u.path=[];u.repath=0;return;}
-    if(state.phase==='approach'||state.phase==='parking'){
-      const goal=factoryRepairPoint(b,state.bay,state.phase==='approach');
-      // Heavy hulls must not get stuck 12.01 units from a waypoint because
-      // navigation stops at its collision-adjusted safe endpoint. The final
-      // drive-on platform is much wider than a tank; 14.5 units is still
-      // inside its lift rails and the exterior approach accepts 23 units.
-      const tolerance=state.phase==='approach'?23:14.5;
-      if(distance(u,goal)<tolerance){
-        if(state.phase==='approach'){state.phase='parking';u.path=[];u.repath=0;}
-        else {state.phase='repair';u.path=[];u.repath=0;u.driveSpeed=0;}
-      }else this.move(u,goal,dt);
-      return;
-    }
-    u.path=[];u.repath=0;u.driveSpeed=0;
-    if(state.phase==='ready')return;
-    const remaining=Math.max(0,this.maxUnitHp(u)-u.hp);
-    if(remaining<1e-5){u.hp=this.maxUnitHp(u);state.phase='ready';return;}
-    const desired=Math.min(remaining,this.maxUnitHp(u)*FACTORY_REPAIR_FRACTION_PER_SECOND*dt);
-    while(state.paidHp+1e-8<desired&&this.credits[u.owner]>=1){
-      this.credits[u.owner]--;state.paidHp+=FACTORY_REPAIR_HP_PER_CREDIT;
-    }
-    const actual=Math.min(desired,state.paidHp);
-    u.hp=Math.min(this.maxUnitHp(u),u.hp+actual);
-    state.paidHp=Math.max(0,state.paidHp-actual);
-    if(this.maxUnitHp(u)-u.hp<1e-5){
-      u.hp=this.maxUnitHp(u);state.phase='ready';
-      if(u.owner===0)this.notices.push(`${unitSpec(u).name}: Werkstattreparatur abgeschlossen.`);
-    }
+  setAutoFactoryRepair(ids:number[],_enabled:boolean):number {
+    for(const u of this.units)if(ids.includes(u.id))delete u.autoFactoryRepair;
+    return 0;
   }
   /** Called once per fixed tick; docking aircraft remain targetable and consume credits. */
   private advanceAirfieldService(u:Unit,dt:number):void {
@@ -2503,9 +2445,12 @@ export class Simulation {
     this.shots=this.shots.filter(s=>(s.life-=dt)>0);
     this.workEffects=this.workEffects.filter(e=>this.time-e.at<.45);
     this.spatial.rebuild(this.units);
-    for(const u of this.units)if(u.hp>0&&!u.airfieldService&&!u.factoryService&&u.autoFactoryRepair&&
-      ['rover','tank','artillery'].includes(u.kind)&&u.hp/this.maxUnitHp(u)<=.30)
-      this.requestFactoryRepair([u.id]);
+    // Vehicle factory servicing is retired: Pioniere own all ground-vehicle repair.
+    // Silently release legacy sessions from previous save formats as well.
+    for(const u of this.units)if(u.factoryService||u.autoFactoryRepair){
+      delete u.factoryService;delete u.autoFactoryRepair;
+      u.path=[];u.repath=0;
+    }
     for(const u of this.units)if(u.hp>0&&!u.airfieldService&&u.autoAirfieldRepair&&
       ['bomber','scout'].includes(u.kind)&&u.hp/this.maxUnitHp(u)<=.30)
       this.requestAirfieldRepair([u.id]);
@@ -2533,7 +2478,8 @@ export class Simulation {
         this.productionDepartureHolds.delete(u.id);
       }
       if(u.airfieldService){this.advanceAirfieldService(u,dt);continue;}
-      if(u.factoryService){this.advanceFactoryService(u,dt);continue;}
+      // No factory lift: ground vehicles continue normal movement and can
+      // receive Pionier repairs through repairNearby().
       const transportBusy=this.transports.step(u,dt);
       if(this.transports.boarding(u,dt))continue;
       if(u.orders[0]?.kind==='garrison'){
@@ -3169,10 +3115,10 @@ export class Simulation {
     if(retired.some(u=>u.owner===0))
       game.notices.push('Nachschubtransporter entfernt · '+(retired.filter(u=>u.owner===0).length*UNITS.supply.cost)+' Credits erstattet.');
     game.units=structuredClone(s.units.filter(u=>u.kind!=='supply')).map(u=>{
-      const p=u.carrier||unitSpec(u).flying||u.factoryService?{x:u.x,y:u.y}:game.world.nearest({x:u.x,y:u.y},[...game.obstacles(),...(unitSpec(u).group==='Infanterie'?infantryStructureColliders(game.obstacles()):vehicleStructureColliders(game.obstacles()))],[],undefined,Math.max(0,unitSpec(u).radius-10))??u;
+      const p=u.carrier||unitSpec(u).flying?{x:u.x,y:u.y}:game.world.nearest({x:u.x,y:u.y},[...game.obstacles(),...(unitSpec(u).group==='Infanterie'?infantryStructureColliders(game.obstacles()):vehicleStructureColliders(game.obstacles()))],[],undefined,Math.max(0,unitSpec(u).radius-10))??u;
       return {...u,xp:sanitizeXp(u.xp),kind:u.kind??'infantry',...(!s.rosterVersion&&u.kind==='heavy'?{hp:u.hp/190*UNITS.heavy.hp}:!s.rosterVersion&&u.kind==='scout'?{hp:u.hp/160*UNITS.scout.hp}:{}),...p,path:[],repath:0,hit:0,fire:0,previousX:p.x,previousY:p.y,
         angle:u.angle??(u.facing<0?Math.PI:0),walkDistance:u.walkDistance??0,lastAttacker:u.lastAttacker??null,defendUntil:u.defendUntil??0,
-        supply:undefined,
+        supply:undefined,factoryService:undefined,autoFactoryRepair:undefined,
         combatTarget:Number.isInteger(u.combatTarget)?u.combatTarget:null,
         pursuitOrigin:u.pursuitOrigin??null};
     });
