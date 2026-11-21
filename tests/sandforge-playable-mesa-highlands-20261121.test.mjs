@@ -74,13 +74,13 @@ test('Each actual cliff has world-height matched stratified PBR geometry, withou
  cliff.removeFromParent();cliff.geometry.dispose();cliff.material.dispose();
 });
 
-test('v7 highlands remain deterministic; old v6 Plateau Crossroads stays loadable alongside new v9',()=>{
+test('v7 highlands remain deterministic; old v6 Plateau Crossroads stays loadable alongside new v10',()=>{
  const a=world(),b=world();
  assert.deepEqual(a.generated.battlefield.heights,b.generated.battlefield.heights);
  assert.deepEqual(a.blocked,b.blocked);
  const map=globalThis.SandforgeDesertMaps.byId('plateau-crossroads');
- assert.equal(map.generatorVersion,9,'new named Plateau Crossroads games receive larger playable heights');
+ assert.equal(map.generatorVersion,10,'new named Plateau Crossroads games receive larger playable heights');
  const old=Simulation.campaign(map.seed,map.mapVersion,map.terrain,6);
  assert.equal(Simulation.load(old.save()).world.generatorVersion,6,
-  'old v6 Plateau Crossroads saves must not silently migrate to v9');
+  'old v6 Plateau Crossroads saves must not silently migrate to v10');
 });
