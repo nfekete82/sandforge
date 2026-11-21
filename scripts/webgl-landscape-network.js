@@ -56,7 +56,13 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
    return tireOffsets.map((offset,j)=>{
     const x=center.x+nx*width*.5*offset,z=center.z+nz*width*.5*offset;
     const elevation=point(x,z,.27);
-    const alpha=ruts[j]*padFade*endFade*
+    // On the playable v7 map paint trails on the actual climb only.
+    // Never smear dirt straight across a steep, non-traversable cliff.
+    const mesaSlope=mapId==='mesa-highlands'?
+      Math.hypot(heightAt(x+18,z)-heightAt(x-18,z),
+       heightAt(x,z+18)-heightAt(x,z-18))/36:0;
+    const slopeMask=mesaSlope>.24?0:1;
+    const alpha=ruts[j]*padFade*endFade*slopeMask*
       (.9+.08*Math.sin(i*.54+offset*3.4));
     const tint=roadColor.clone().multiplyScalar(
       1+.045*Math.sin(center.x*.021+center.z*.017+offset*5));
