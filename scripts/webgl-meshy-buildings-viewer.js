@@ -73,8 +73,9 @@ async function open(){
    }
   });}
   const model=data.scene.clone(true);
-  if(kind==='factory'){if(owner===1)paintMeshyFactoryTeam(model,owner);}
-  else prepareMeshyStructure(model,kind,owner);
+  if(kind==='factory'&&owner===1)paintMeshyFactoryTeam(model,owner);
+  // Use the same PBR colour treatment as the actual Sandforge game.
+  prepareMeshyStructure(model,kind,owner);
   const bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3());
   const w=Math.max(.001,size.x,size.z),factor=width[kind]/w;
   const center=bounds.getCenter(new THREE.Vector3());
