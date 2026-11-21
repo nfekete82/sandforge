@@ -37,6 +37,8 @@ import {limitModelShadowCasters} from '/webgl-shadow-budget.js';
 import {attachScoutRocketPods,detachScoutRocketPods} from '/webgl-scout-rocket-pods.js';
 import {releaseBastionRevision} from '/webgl-bastion-lifecycle.js';
 import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
+import {attachBastionBeacon,setBastionBeaconColor,detachBastionBeacon,
+ bastionOwnerLight} from '/webgl-bastion-beacon.js';
 import {selectedInfantryForTransport,selectedCarrierForPickup,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
 import {pointerGestureIntent,submitConstruction,nearestEngineer,keepPlacementAfterBuild,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
 import {validatedWallDrag,snapWallSiteToMap,WALL_CHAIN_DRAG_THRESHOLD,WALL_CHAIN_MAX} from '/webgl-wall-drag.js';
@@ -1408,14 +1410,19 @@ export class SandforgeBattlefield {
    else if(entry)this.presentation.hideWhenCulled(entry);
   }
   const known=new Set(this.game.territories.map(t=>t.id));
-  for(const [id,entry] of this.bastions)if(!known.has(id)){this.scene.remove(entry.node);this.bastions.delete(id);}
+  for(const [id,entry] of this.bastions)if(!known.has(id)){
+   detachBastionBeacon(entry.ownerBeacon);
+   releaseBastionRevision(entry);
+   this.scene.remove(entry.node);this.bastions.delete(id);
+  }
   for(const territory of this.game.territories){
    const entry=this.bastions.get(territory.id);
    if(entry&&entry.owner!==territory.owner){
     const previousOwner=entry.owner;
     entry.owner=territory.owner;
     entry.core.material.color.set(territory.owner===0?colors.blue:territory.owner===1?colors.red:colors.neutral);
-    entry.halo.material.color.set(territory.owner===0?colors.blue:territory.owner===1?colors.red:colors.neutral);
+    entry.halo.material.color.set(bastionOwnerLight(territory.owner));
+    setBastionBeaconColor(entry.ownerBeacon,territory.owner);
     if(!this.lite)this.loadBastionModel(entry,territory.owner);
     // Only announce ownership changes involving the local faction. Unknown
     // battles between other factions must never leak through Fog of War.
@@ -1435,8 +1442,8 @@ export class SandforgeBattlefield {
      const promoted=territory.upgradeLevel===2;
      entry.halo.scale.setScalar(promoted?1.14:1);
      entry.halo.material.opacity=promoted?.96:.75;
-     entry.halo.material.color.set(promoted?'#e8c15d':
-      territory.owner===0?colors.blue:territory.owner===1?colors.red:colors.neutral);
+     // Income upgrades never override ownership colour: blue / red / white.
+     entry.halo.material.color.set(bastionOwnerLight(territory.owner));
     }
     updateBastionCaptureBar(entry.captureBar,territory,this.game,this.fogEnabled);
     if(active&&entry.motion){
@@ -1516,11 +1523,12 @@ export class SandforgeBattlefield {
    const pad=new THREE.Mesh(base,stone);pad.position.y=5;pad.receiveShadow=true;node.add(pad);
    const core=new THREE.Mesh(ob,new THREE.MeshStandardMaterial({color:t.owner===0?colors.blue:t.owner===1?colors.red:colors.neutral,metalness:.7,roughness:.35}));
    core.position.y=33;core.castShadow=true;node.add(core);
-   const halo=new THREE.Mesh(new THREE.TorusGeometry(49,2,6,48),new THREE.MeshBasicMaterial({color:t.owner===0?colors.blue:t.owner===1?colors.red:colors.neutral,transparent:true,opacity:.75}));
+   const halo=new THREE.Mesh(new THREE.TorusGeometry(49,2,6,48),new THREE.MeshBasicMaterial({color:bastionOwnerLight(t.owner),transparent:true,opacity:.75}));
    halo.rotation.x=-Math.PI/2;halo.position.y=5;node.add(halo);
    const captureBar=createBastionCaptureBar();node.add(captureBar);
+   const ownerBeacon=attachBastionBeacon(node,t.owner);
    this.scene.add(node);
-   const entry={node,core,pad,owner:t.owner,halo,captureBar};
+   const entry={node,core,pad,owner:t.owner,halo,captureBar,ownerBeacon};
    this.bastions.set(t.id,entry);
    if(!this.lite)this.loadBastionModel(entry,t.owner);
   }
