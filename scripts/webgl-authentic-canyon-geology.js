@@ -4,24 +4,27 @@ import * as THREE from 'three';
  * Every color is adjusted to the SMALL UV/PBR sandstone rocks, not flat
  * paint. The same palettes are shared with the long canyon wall renderer.
  */
+// Both the older long canyon ridges and the new playable mesa faces use
+// the same warm, weathered sandstone family. Avoid the charcoal-gray slabs
+// shown in older Stronghold art. Biome identity survives in subtle hue shifts.
 export const CANYON_GEOLOGY=Object.freeze({
  'desert-strike':Object.freeze({
-  base:'#c0ab8a',dark:'#7c6656',accent:'#e0cca8',veins:.36
+  base:'#bfa082',dark:'#756047',accent:'#dcc19b',veins:.33
  }),
  'broken-empire':Object.freeze({
-  base:'#82534f',dark:'#34343a',accent:'#a76b58',veins:.67
+  base:'#aa8061',dark:'#654936',accent:'#c9a27c',veins:.39
  }),
  'burning-horizon':Object.freeze({
-  base:'#9b958c',dark:'#555653',accent:'#c4b5a0',veins:.51
+  base:'#b8a084',dark:'#78614a',accent:'#d4b896',veins:.35
  }),
  'last-stronghold':Object.freeze({
-  base:'#666769',dark:'#2e3338',accent:'#948982',veins:.72
+  base:'#a38160',dark:'#594635',accent:'#c7a37a',veins:.37
  }),
  'plateau-crossroads':Object.freeze({
-  base:'#b58d69',dark:'#564536',accent:'#d0aa7e',veins:.62
+  base:'#b18a67',dark:'#604b38',accent:'#cda783',veins:.38
  }),
  'mesa-highlands':Object.freeze({
-  base:'#b98b60',dark:'#5d4534',accent:'#d5af82',veins:.73
+  base:'#b98b60',dark:'#5d4534',accent:'#d5af82',veins:.42
  })
 });
 const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
