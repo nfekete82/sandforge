@@ -24,21 +24,48 @@ function meshLocalBounds(root){
  });
  return bounds;
 }
-function radarZones(bounds){
+function radarZones(root,bounds){
  const dim=bounds.getSize(new THREE.Vector3());
  if(bounds.isEmpty()||dim.x<.001||dim.y<.001||dim.z<.001)return [];
- // Two visible satellite assemblies, left tower and smaller central array.
- // All coordinates are GLB-root-local and survive calibrated actor scale.
- return [
-  {center:new THREE.Vector3(bounds.min.x+dim.x*.185,0,
-     bounds.min.z+dim.z*.42),
-   cutoff:bounds.min.y+dim.y*.77,
-   radius:Math.max(dim.x,dim.z)*.21},
-  {center:new THREE.Vector3(bounds.min.x+dim.x*.475,0,
-     bounds.min.z+dim.z*.48),
-   cutoff:bounds.min.y+dim.y*.79,
-   radius:Math.max(dim.x,dim.z)*.16}
+ // Meshy image-to-3D may rotate/crop the model differently between exports.
+ // Find the two tallest, most densely triangulated rooftop clusters instead
+ // of assuming the radar tower is on the GLB's local -X face.
+ const N=9,bins=Array.from({length:N*N},()=>({sumX:0,sumZ:0,weight:0}));
+ root.updateWorldMatrix(true,true);
+ const inverse=new THREE.Matrix4().copy(root.matrixWorld).invert(),toRoot=new THREE.Matrix4();
+ root.traverse(mesh=>{
+  if(!mesh.isMesh||mesh.userData?.sandforgeStyleDecoration)return;
+  const positions=mesh.geometry?.getAttribute('position');
+  if(!positions)return;
+  toRoot.multiplyMatrices(inverse,mesh.matrixWorld);
+  const stride=Math.max(1,Math.ceil(positions.count/12000));
+  for(let i=0;i<positions.count;i+=stride){
+   tmp.fromBufferAttribute(positions,i).applyMatrix4(toRoot);
+   const fy=(tmp.y-bounds.min.y)/dim.y;
+   if(fy<.68)continue;
+   const u=Math.max(0,Math.min(N-1,Math.floor((tmp.x-bounds.min.x)/dim.x*N)));
+   const v=Math.max(0,Math.min(N-1,Math.floor((tmp.z-bounds.min.z)/dim.z*N)));
+   const bin=bins[v*N+u],weight=.2+fy*fy;
+   bin.sumX+=tmp.x*weight;bin.sumZ+=tmp.z*weight;bin.weight+=weight;
+  }
+ });
+ const peaks=bins.map((bin,index)=>({index,weight:bin.weight,
+  x:bin.weight?bin.sumX/bin.weight:0,z:bin.weight?bin.sumZ/bin.weight:0}))
+  .sort((a,b)=>b.weight-a.weight);
+ const first=peaks.find(p=>p.weight>0);
+ const second=peaks.find(p=>p.weight>0&&p!==first&&
+  Math.hypot(p.x-first.x,p.z-first.z)>.21*Math.max(dim.x,dim.z));
+ // If a GLB loses visible upper geometry, keep a benign nonanimated zone.
+ // The shader is still safe and the rest of the HQ will never spin.
+ const fallback=[
+  {x:bounds.min.x+dim.x*.19,z:bounds.min.z+dim.z*.42},
+  {x:bounds.min.x+dim.x*.52,z:bounds.min.z+dim.z*.48}
  ];
+ return [first??fallback[0],second??fallback[1]].map((point,i)=>({
+  center:new THREE.Vector3(point.x,0,point.z),
+  cutoff:bounds.min.y+dim.y*(i===0?.72:.76),
+  radius:Math.max(dim.x,dim.z)*(i===0?.18:.15)
+ }));
 }
 function candidateIntersects(box,zone){
  return box.max.y>=zone.cutoff&&
@@ -76,7 +103,7 @@ const uniformsGLSL=[
 export function attachMeshyHeadquartersRadarMotion(model){
  if(!model||model.userData.sandforgeMeshyStructure!=='headquarters')return null;
  if(model.userData.meshyHQSatellites)return model.userData.meshyHQSatellites;
- const bounds=meshLocalBounds(model),zones=radarZones(bounds);
+ const bounds=meshLocalBounds(model),zones=radarZones(model,bounds);
  if(zones.length!==2)return null;
  const rootInv=new THREE.Matrix4().copy(model.matrixWorld).invert();
  const state={kind:'headquarters',mode:'meshy-dishes-gpu',
