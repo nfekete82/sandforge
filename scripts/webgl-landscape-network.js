@@ -16,11 +16,13 @@ const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 
 export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],biome='desert',mapId=null,lowQuality=false,showOutcrops=true}){
  const half=size/2,meshes=[];
+ const authoredPlateau=biome==='desert'&&mapId==='plateau-crossroads';
  const protectedZones=ridges.flatMap(r=>r.clearings??[]);
  const distanceFromBuildPad=(x,z)=>protectedZones.reduce((closest,zone)=>
    Math.min(closest,Math.hypot(x-zone.point.x,z-zone.point.y)-zone.radius),Infinity);
  const point=(x,z,y=.25)=>[x-half,heightAt(x,z)+y,z-half];
- const roadShade={desert:'#aa8b61',snow:'#8e8e83',jungle:'#938061'}[biome]??'#aa8b61';
+ const roadShade=authoredPlateau?'#876447':
+  ({desert:'#aa8b61',snow:'#8e8e83',jungle:'#938061'}[biome]??'#aa8b61');
  const geology=biome==='desert'?CANYON_GEOLOGY[mapId]:null;
  const rockColors=geology?[geology.base,geology.dark,geology.accent,geology.base]:
  ({desert:[desertStyle.mesa,desertStyle.mesaShade,desertStyle.looseStones[0],desertStyle.looseStones[2]],
@@ -30,7 +32,8 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
  // Use a single ribbon with feathered shoulders and subtle twin wheel ruts.
  // The road may cross another road, but never doubles its own opaque geometry.
  const roadPositions=[],roadColors=[],tireOffsets=[-1,-.83,-.56,-.25,0,.25,.56,.83,1];
- const ruts=[0,.045,.17,.26,.135,.26,.17,.045,0];
+ const ruts=authoredPlateau
+  ?[0,.13,.33,.52,.41,.52,.33,.13,0]:[0,.045,.17,.26,.135,.26,.17,.045,0];
  const roadColor=new THREE.Color(roadShade);
  for(const route of roads){
   if(route.length<2)continue;
@@ -45,8 +48,10 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
    const dx=after.x-before.x,dz=after.z-before.z,len=Math.hypot(dx,dz)||1;
    const nx=-dz/len,nz=dx/len;
    // Keep road width in visual units; slight natural wear variation only.
-   const width=51*(.95+.045*Math.sin(center.x*.013+center.z*.021));
-   const padFade=smooth((distanceFromBuildPad(center.x,center.z)-15)/118);
+   const width=(authoredPlateau?98:51)*(.95+.045*Math.sin(center.x*.013+center.z*.021));
+   const padFade=authoredPlateau
+    ?smooth((distanceFromBuildPad(center.x,center.z)+230)/180)
+    :smooth((distanceFromBuildPad(center.x,center.z)-15)/118);
    const endFade=smooth(Math.min(i,count-i)/3.5);
    return tireOffsets.map((offset,j)=>{
     const x=center.x+nx*width*.5*offset,z=center.z+nz*width*.5*offset;
