@@ -174,3 +174,22 @@ test('human-scale proportions stay lean; soft shoulders and waist follow their r
  assert.equal(waist.parent,root.getObjectByName('Atlas_UtilityBelt'));
  assert.equal(waist.material.name,'SF_Human_DesertCombatUniform');
 });
+
+test('front-view infantry silhouette does not regress into oversized toy armour',()=>{
+ const {root,rifle,socket}=atlas();
+ assert.equal(humanizeInfantry(root,0),true);
+ const helmet=root.getObjectByName('SF_Human_HelmetCrown');
+ const vest=root.getObjectByName('SF_Human_PlateCarrier');
+ const jacket=root.getObjectByName('SF_Human_Jacket');
+ const kneepad=root.getObjectByName('SF_Human_SoftKneepadL');
+ const thigh=root.getObjectByName('SF_Human_thighL');
+ const fieldPack=root.getObjectByName('SF_Human_RadioRucksack');
+ assert.ok(helmet.scale.x<=.19,'helmet too wide from game camera');
+ assert.ok(vest.scale.x<=.41&&vest.scale.y<=.29,'bulky plate carrier');
+ assert.ok(jacket.scale.y<=.36,'oversized torso');
+ assert.ok(kneepad.scale.x<=.11,'robotic hard knee');
+ assert.ok(thigh.scale.x<=.10,'oversized lower body');
+ assert.ok(fieldPack.scale.y<=.26,'backpack must stay beneath helmet');
+ assert.equal(root.getObjectByName('Atlas_Rifle'),rifle);
+ assert.equal(rifle.parent,socket);
+});
