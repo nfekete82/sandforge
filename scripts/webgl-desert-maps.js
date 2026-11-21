@@ -38,6 +38,13 @@
    bastions:16,mapVersion:26,seed:260621,terrain:'rocky',biome:'desert',generatorVersion:6,
    subtitle:'Tafelberge und vier Pässe · 16 Bastionen',
    description:'Drei versetzte Sandsteinplateaus, sichtbare Talwege, offene Flanken und vier befestigbare Engstellen.'
+  }),
+  Object.freeze({
+   id:'mesa-highlands',name:'Mesa Highlands',
+   inspiration:'classic buildable highland RTS plateau',kind:'mesa-highlands',
+   bastions:16,mapVersion:26,seed:271121,terrain:'rocky',biome:'desert',generatorVersion:7,
+   subtitle:'Zwei bebaubare Hochplateaus · echte Zu-/Abfahrten',
+   description:'Zwei echte erhöhte Bastionsplateaus mit bebaubarer Oberseite, senkrechten Sandsteinklippen und je einer Panzer-Zufahrtsrampe.'
   })
  ]);
  const byId=id=>maps.find(map=>map.id===id)||null;
