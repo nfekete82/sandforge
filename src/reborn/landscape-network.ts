@@ -1,21 +1,24 @@
 import type {Point} from './config.js';
 import type {CanyonRidge} from './canyon-front.js';
+import type {RaisedMesa} from './raised-mesas.js';
 import {streamSeed,TERRAIN_GRADING_V3} from './battlefield-terrain.js';
 
 /** Seeded road topology and physical mountain passes for generator v3.
  * Roads are visual guides on the *real* navigation surface; ridge gaps are
  * openings in World.blocked, not an independent or decorative collision map. */
-export type LandscapeKind='open-basin'|'broken-escarpment'|'diagonal-ridge'|'serpentine-canyon'|'plateau-crossroads';
+export type LandscapeKind='open-basin'|'broken-escarpment'|'diagonal-ridge'|'serpentine-canyon'|'plateau-crossroads'|'mesa-highlands';
 export const LANDSCAPE_LABELS:Record<LandscapeKind,string>={
  'open-basin':'Weites Dünenmeer',
  'broken-escarpment':'Felsdurchbruch',
  'diagonal-ridge':'Diagonalkamm',
  'serpentine-canyon':'Schlangenpass',
- 'plateau-crossroads':'Plateau-Kreuzung'
+ 'plateau-crossroads':'Plateau-Kreuzung',
+ 'mesa-highlands':'Mesa-Hochland'
 };
 export interface LandscapeNetwork {
   ridges:CanyonRidge[];
   roads:Point[][];
+  plateaus?:RaisedMesa[];
   kind?:LandscapeKind;
 }
 
@@ -42,6 +45,7 @@ function distance(a:Point,b:Point):number{return Math.hypot(a.x-b.x,a.y-b.y);}
 export function generateLandscapeNetwork(seed:number,size:number,sites:readonly Point[],
   columns:number,rows:number,candidate=0,homes:readonly Point[]=[],version=3):LandscapeNetwork{
   // Generator 3 is frozen for existing saves and benchmark seeds.
+  if(version===7)return playableMesaHighlands(seed,size,sites,columns,rows,candidate,homes);
   if(version===6)return authoredPlateauNetwork(seed,size,sites,columns,rows,candidate,homes);
   if(version>=4)return variedLandscape(seed,size,sites,columns,rows,candidate,homes);
   const r=random(streamSeed(seed,'landscape-network',candidate));
@@ -263,4 +267,39 @@ function authoredPlateauNetwork(seed:number,size:number,sites:readonly Point[],
  }
  return {kind:'plateau-crossroads',ridges,
   roads:roads.filter(route=>distance(route[0],route.at(-1)!)>100)};
+}
+
+/** V7 new game mode: actual elevated buildable mesas, not impassable ridges. */
+function playableMesaHighlands(seed:number,size:number,sites:readonly Point[],
+ columns:number,rows:number,candidate:number,homes:readonly Point[]):LandscapeNetwork{
+ const indices=[columns+1,columns*(rows-2)+(columns-2)];
+ // Symmetric pair on the interior diagonals; neither is a headquarters.
+ const plateaus:RaisedMesa[]=indices.map((siteIndex,i)=>({
+  siteIndex,center:{...sites[siteIndex]},
+  topRadius:495,footRadius:735,height:177,rampEnd:1610,rampWidth:340,
+  direction:i===0?{x:0,y:1}:{x:0,y:-1},seed
+ }));
+ const roadAnchor=(index:number):Point[]=>{
+  const mesa=plateaus.find(p=>p.siteIndex===index);
+  if(!mesa)return [sites[index]];
+  const d=mesa.direction,c=mesa.center;
+  return [
+   c,
+   {x:c.x+d.x*(mesa.topRadius*.78),y:c.y+d.y*(mesa.topRadius*.78)},
+   {x:c.x+d.x*(mesa.topRadius+280),y:c.y+d.y*(mesa.topRadius+280)},
+   {x:c.x+d.x*(mesa.topRadius+630),y:c.y+d.y*(mesa.topRadius+630)},
+   {x:c.x+d.x*mesa.rampEnd,y:c.y+d.y*mesa.rampEnd}
+  ];
+ };
+ const roads:Point[][]=[];
+ for(let i=0;i<sites.length;i++)for(const next of [
+  i%columns<columns-1?i+1:-1,i+columns<sites.length?i+columns:-1
+ ]){
+  if(next<0)continue;
+  const from=roadAnchor(i),to=roadAnchor(next);
+  const start=from.at(-1)!,end=to.at(-1)!;
+  const middle={x:(start.x+end.x)*.5,y:(start.y+end.y)*.5};
+  roads.push([...from,middle,...to.slice().reverse()]);
+ }
+ return {kind:'mesa-highlands',ridges:[],roads,plateaus};
 }
