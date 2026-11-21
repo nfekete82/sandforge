@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {createLandscapeMeshes} from '../scripts/webgl-landscape-network.js';
+import {World} from '../dist/src/reborn/world.js';
 
 const makeRidge=()=>({
  spine:[{x:140,y:470},{x:320,y:465},{x:490,y:455},{x:680,y:470},{x:885,y:460}],
@@ -42,4 +43,19 @@ test('open basin intentionally has no cliff mesh; terrain without ridges is stil
   biome:'desert',mapId:'desert-strike',lowQuality:true,showOutcrops:false
  });
  assert.equal(meshes.filter(mesh=>mesh.userData?.erodedRidge).length,0);
+});
+
+test('Broken Empire actual seeded map produces blocked ridges and visible stratified rock meshes',()=>{
+ const world=new World(2026,25,'rocky',0,5);
+ assert.ok(world.generated.ridges.length>0,'Broken Empire needs real mountain ridges');
+ const scene=new THREE.Scene();
+ const meshes=createLandscapeMeshes({
+  scene,size:world.size,
+  heightAt:(x,z)=>world.terrainHeight(x,z),
+  roads:world.generated.roads??[],ridges:world.generated.ridges,
+  biome:'desert',mapId:'broken-empire',lowQuality:true,showOutcrops:false
+ });
+ const cliff=meshes.find(mesh=>mesh.userData?.erodedRidge);
+ assert.ok(cliff,'the playable Broken Empire map must include mountain geometry');
+ assert.ok(cliff.geometry.attributes.position.count>0);
 });
