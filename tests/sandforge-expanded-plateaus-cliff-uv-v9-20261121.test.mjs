@@ -11,7 +11,7 @@ const campaign=(map,version)=>Simulation.campaign(map.seed,map.mapVersion,map.te
 test('five current desert maps use v9, while previously saved v8 terrain and route masks are stable',()=>{
  assert.equal(maps.length,5);
  for(const map of maps){
-  assert.equal(map.generatorVersion,9);
+  assert.equal(map.generatorVersion,10);
   const old=campaign(map,8);
   assert.equal(old.world.generatorVersion,8);
   const restored=Simulation.load(old.save());
