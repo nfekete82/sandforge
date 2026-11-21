@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Sandforge – Einheitlicher Meshy-Gebäudestil</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}
+body{margin:0;overflow:hidden;background:#22262a;color:#eee;font:14px system-ui,Arial,sans-serif}
+#render{position:fixed;inset:0}
+#toolbar{position:fixed;top:16px;left:16px;right:16px;max-width:950px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:14px;background:#171b20e6;border:1px solid #ffffff26;border-radius:11px;z-index:3;box-shadow:0 6px 28px #0007}
+#toolbar strong{font-size:15px;margin-right:6px}
+select,button{color:#f4ead6;background:#323b41;padding:8px 11px;border:1px solid #ffffff35;border-radius:7px;font:inherit;cursor:pointer}
+button:hover{background:#424e57}#status{color:#d3c4a2}
+#metadata{position:fixed;bottom:15px;left:16px;background:#171b20db;padding:9px 13px;border-radius:7px;z-index:3}
+@media(max-width:700px){#toolbar{font-size:12px;gap:5px;padding:8px}}
+</style>
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.js","three/addons/":"/vendor/three/addons/"}}</script>
+</head><body><div id="render"></div>
+<div id="toolbar">
+<strong>SANDFORGE · 3D-GEBÄUDE</strong>
+<select id="building" aria-label="Gebäude">
+<option value="headquarters">Kommandozentrale · Bildvorlage</option>
+<option value="factory">Fahrzeugfabrik · Stilreferenz</option>
+<option value="barracks">Kaserne</option><option value="airfield">Flugfeld</option>
+<option value="bunker">Bunker</option><option value="bastion">Bastion</option>
+<option value="generator">Energiekern</option>
+</select>
+<select id="faction" aria-label="Fraktion">
+<option value="0">Blaue Legion</option><option value="1">Rote Fraktion</option>
+</select>
+<button id="reset" type="button">Kamera zurücksetzen</button>
+<a href="/" style="color:#c4d5ef">Zum Spiel</a>
+<span id="status" aria-live="polite">Lade echtes PBR-3D-Modell …</span>
+</div>
+<div id="metadata">Meshy-Modelle mit Sandforge-Industrie-Palette · Maus ziehen = drehen · Rad = zoomen</div>
+<script type="module" src="/webgl-meshy-buildings-viewer.js"></script></body></html>
