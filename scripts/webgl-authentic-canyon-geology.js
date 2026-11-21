@@ -19,6 +19,9 @@ export const CANYON_GEOLOGY=Object.freeze({
  }),
  'plateau-crossroads':Object.freeze({
   base:'#b58d69',dark:'#564536',accent:'#d0aa7e',veins:.62
+ }),
+ 'mesa-highlands':Object.freeze({
+  base:'#b98b60',dark:'#5d4534',accent:'#d5af82',veins:.73
  })
 });
 const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
