@@ -10,6 +10,7 @@ import {
 import {scoutRocketPodMount,attachScoutRocketPods,detachScoutRocketPods}
  from '../scripts/webgl-scout-rocket-pods.js';
 import {attachTeamMarkings} from '../scripts/webgl-team-markings.js';
+import {FACTION_PAINT} from '../scripts/sandforge-faction-palette.js';
 import {paintBomberWingStripes,bomberWingStripeSpec,BOMBER_WING_STRIPES_REVISION}
  from '../scripts/webgl-bomber-wing-stripes.js';
 
@@ -55,7 +56,7 @@ test('tank and garage door remain proportionate while all simulation dimensions 
  assert.match(gates,/FactoryRollupDoor/);
  assert.match(gates,/productionGatePose/);
 });
-test('restore front-left helicopter rocket pod, keep the already-correct right fixed',()=>{
+test('balance both helicopter rocket pods for the front-view cabin silhouette',()=>{
  assert.deepEqual(scoutRocketPodMount(-1),{x:-25,y:18,z:-5});
  assert.deepEqual(scoutRocketPodMount(1),{x:14,y:18,z:-5});
  const entry={kind:'scout',owner:0,node:new THREE.Group()};
@@ -106,7 +107,7 @@ test('bomber retains both original GLB wings and textures; flush paint never pat
   assert.ok(stripe?.isMesh);
   assert.ok(stripe.geometry.attributes.position.count>0);
   assert.equal(stripe.material.color.getHex(),new THREE.Color(
-   owner===0?'#006de5':'#db3d34').getHex(), 'team-colored real wing geometry');
+   FACTION_PAINT[owner]).getHex(), 'wing geometry uses canonical team paint');
   assert.equal(stripe.material.depthWrite,false);
   assert.equal(stripe.castShadow,false);
   assert.equal(stripe.userData.nonPlayable,true);
