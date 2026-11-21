@@ -82,6 +82,8 @@ export function visualUnitScale(kind){
  if(kind==='tank')return 1.23; // another ~5% smaller; render-only; keep collision, pathing and saves
  if(kind==='scout')return 1.34;
  if(kind==='bomber')return 1.03;
+ // R-01 reconnaissance drone: 18% less visual footprint, unchanged sight/range.
+ if(kind==='drone')return .77;
  return .94;
 }
 
