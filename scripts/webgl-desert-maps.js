@@ -31,6 +31,13 @@
    bastions:16,mapVersion:26,seed:314159,terrain:'mixed',biome:'desert',generatorVersion:5,
    subtitle:'Rote Badlands-Schlucht · 16 Bastionen',
    description:'Erodierte Badlands und echte Sediment-Sandsteinformationen, karge Trockenrinnen, drei Pässe und zentrale Bastionen.'
+  }),
+  Object.freeze({
+   id:'plateau-crossroads',name:'Plateau Crossroads',
+   inspiration:'handcrafted RTS plateau routes',kind:'plateau-crossroads',
+   bastions:16,mapVersion:26,seed:260621,terrain:'rocky',biome:'desert',generatorVersion:6,
+   subtitle:'Tafelberge und vier Pässe · 16 Bastionen',
+   description:'Drei versetzte Sandsteinplateaus, sichtbare Talwege, offene Flanken und vier befestigbare Engstellen.'
   })
  ]);
  const byId=id=>maps.find(map=>map.id===id)||null;
