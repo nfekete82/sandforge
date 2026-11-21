@@ -170,10 +170,15 @@ if(process.env.SANDFORGE_MODULE_AUDIT==='1'){
  console.log('WebGL module audit: browser JS and Three vendor modules packaged.');
  process.exit(0);
 }
-// The final barracks and dome HQ live in existing local PBR worktrees.
-// Verify/import both GLB factions BEFORE building assets; never silently
-// fall back to the old, gold-tinted stock building models in this branch.
-execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs'],{stdio:'inherit'});
+// The original large authored barracks/HQ are optional when BOTH fresh
+// Meshy PBR replacement binaries have been installed by assets:meshy:import.
+// This makes a fresh test worktree buildable without private local art sources.
+// When one replacement is missing, retain the legacy strict PBR check.
+const installedMeshy=['barracks','headquarters'].every(kind=>
+ existsSync('src/assets/reborn/buildings-3d/meshy-structures/'+kind+'.glb'));
+if(!installedMeshy)
+ execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs'],{stdio:'inherit'});
+else console.log('Meshy HQ + Barracks present: old private PBR worktrees not required.');
 // The Bastion, unlike the authored large HQ/barracks binaries, is fully
 // generated from its committed procedural mesh source on every build.
 execFileSync(process.execPath,['scripts/generate-bastion-radar.mjs'],{stdio:'inherit'});
