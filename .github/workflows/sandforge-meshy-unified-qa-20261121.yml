@@ -5,6 +5,7 @@ on:
       - feat/sandforge-meshy-structures-barracks-airfield-bastion-bunker-20261121
     paths:
       - scripts/webgl-meshy-structure.js
+      - scripts/webgl-meshy-hq-radars.js
       - scripts/webgl-battlefield.js
       - scripts/webgl-production-gates.js
       - scripts/webgl-airfield-pbr.js
@@ -13,6 +14,7 @@ on:
       - webgl-meshy-buildings.html
       - scripts/build.mjs
       - tests/sandforge-meshy-structures-20261121.test.mjs
+      - tests/sandforge-meshy-hq-radars-20261121.test.mjs
       - tests/browser/webgl-meshy-unified-buildings-20261121.spec.mjs
       - .github/workflows/sandforge-meshy-unified-qa-20261121.yml
   workflow_dispatch:
@@ -32,7 +34,7 @@ jobs:
       - name: Syntax and TypeScript
         run: |
           npm run typecheck
-          for f in scripts/webgl-meshy-structure.js scripts/webgl-battlefield.js scripts/webgl-airfield-pbr.js scripts/webgl-production-gates.js scripts/webgl-fortified-bunker.js scripts/webgl-meshy-buildings-viewer.js; do node --check "$f"; done
+          for f in scripts/webgl-meshy-structure.js scripts/webgl-meshy-hq-radars.js scripts/webgl-battlefield.js scripts/webgl-airfield-pbr.js scripts/webgl-production-gates.js scripts/webgl-fortified-bunker.js scripts/webgl-meshy-buildings-viewer.js; do node --check "$f"; done
       - name: Six source GLBs have real geometry and embedded PBR materials
         run: |
           node --input-type=module <<'NODE'
@@ -56,6 +58,7 @@ jobs:
       - name: Native simulation and new unified-style tests
         run: |
           node --test tests/sandforge-meshy-structures-20261121.test.mjs
+          node --test tests/sandforge-meshy-hq-radars-20261121.test.mjs
           node --test tests/sandforge-meshy-live-factory-20261121.test.mjs
       - name: Confirm six live GLBs and 3D style gallery shipped in dist
         run: |
