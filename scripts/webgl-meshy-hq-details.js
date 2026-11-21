@@ -171,9 +171,9 @@ export function coverHeadquartersAnnexCrest(model,bounds){
    const point=hit.point.clone().applyMatrix4(worldToHQ);
    // Reject the surrounding fence and the central tower; keep the right
    // annex roof and outer wall only.
-   return point.x>min.x+size.x*.63&&point.x<min.x+size.x*.98&&
+   return point.x>min.x+size.x*.63&&point.x<=bounds.max.x+size.x*.005&&
     point.y>min.y+size.y*.12&&point.y<min.y+size.y*.58&&
-    point.z>min.z+size.z*.31&&point.z<min.z+size.z*.91;
+    point.z>min.z+size.z*.31&&point.z<=bounds.max.z+size.z*.005;
   });
   const center=good?good.point.clone().applyMatrix4(worldToHQ):candidate;
   // Position the volume on the ACTUAL roof/wall surface, not at its
