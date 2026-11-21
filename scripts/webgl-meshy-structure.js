@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import {MESHY_STRUCTURE_ASSETS} from './webgl-meshy-asset-flags.js';
+import {createHeadquartersHingedDoor,coverHeadquartersAnnexCrest} from './webgl-meshy-hq-details.js';
 const hqDoorStates=new WeakMap();
 
 // Vehicle factory is the visual reference for every Sandforge structure:
 // original PBR albedo/normal/ORM, dusty khaki armour, dark steel, restrained
 // blue/red enamel. Do not flatten a Meshy texture atlas into plain-color boxes.
-export const MESHY_STRUCTURE_REVISION='sandforge-hq-stable-rendering-v7';
+export const MESHY_STRUCTURE_REVISION='sandforge-hq-physical-door-crest-decal-v8';
 /** Emergency renderer safeguard. The Meshy HQ has its door and crest baked
  * into shared textured triangles. An experimental GLSL cutout erased the
  * entire building on some GPUs. Keep the original textured HQ visible and
@@ -154,14 +155,17 @@ export function setMeshyHeadquartersDoorOpen(door,amount){
  if(!door)return;
  door.open=Math.max(0,Math.min(1,Number(amount)||0));
  for(const uniform of door.uniforms)uniform.value=door.open;
+ door.setOpen?.(door.open);
 }
 export function disposeMeshyHeadquartersDoor(model){
  const door=meshHeadquartersDoor(model);
  if(!door)return;
  setMeshyHeadquartersDoorOpen(door,0);
- door.inset.removeFromParent();
- door.inset.geometry?.dispose();
- door.inset.material?.dispose();
+ if(door.dispose)door.dispose();
+ else if(door.inset){
+  door.inset.removeFromParent();door.inset.geometry?.dispose();
+  door.inset.material?.dispose();
+ }
  door.uniforms.length=0;
  hqDoorStates.delete(model);
 }
@@ -247,8 +251,13 @@ export function prepareMeshyStructure(model,kind,owner=0){
  const originalBounds=meshyLocalBounds(model);
  if(['barracks','headquarters'].includes(kind)&&!originalBounds.isEmpty())
   addInfantryExitMarkers(model,originalBounds);
- if(kind==='headquarters'&&MESHY_HQ_EXPERIMENTAL_SHADER&&!originalBounds.isEmpty())
-  prepareEmbeddedHeadquartersDoor(model,originalBounds);
+ if(kind==='headquarters'&&!originalBounds.isEmpty()){
+  // Safe real geometry: the original Meshy body shader remains untouched.
+  const door=createHeadquartersHingedDoor(model,originalBounds);
+  if(door)hqDoorStates.set(model,door);
+  if(MESHY_HQ_EXPERIMENTAL_SHADER)
+   prepareEmbeddedHeadquartersDoor(model,originalBounds);
+ }
  const recolored=new Map(),meshes=[];
  model.updateWorldMatrix(true,true);
  const modelInverse=model.matrixWorld.clone().invert();
@@ -357,5 +366,7 @@ export function prepareMeshyStructure(model,kind,owner=0){
  }).sort((a,b)=>b.size-a.size).slice(0,maxShadow);
  const casters=new Set(largest.map(x=>x.mesh));
  for(const mesh of meshes)mesh.castShadow=casters.has(mesh);
+ if(kind==='headquarters'&&!originalBounds.isEmpty())
+  coverHeadquartersAnnexCrest(model,originalBounds);
  return true;
 }
