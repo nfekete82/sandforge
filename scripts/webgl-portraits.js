@@ -407,6 +407,19 @@ function isolatePortraitMeshes(model){
    node.material.map(material=>material.clone()):node.material.clone();
  });
 }
+// Never perform several expensive WebGL readbacks on the same frame: the
+// production menu may request five new role images simultaneously.
+let infantryPortraitRenderTail=Promise.resolve();
+function queueHumanPortraitReadback(model,renderer){
+ const pending=infantryPortraitRenderTail.then(()=>new Promise((resolve,reject)=>{
+  requestAnimationFrame(()=>{
+   try{resolve(renderModelPortrait(model,renderer,{width:192,height:132,infantryCard:true}));}
+   catch(error){reject(error);}
+  });
+ }));
+ infantryPortraitRenderTail=pending.catch(()=>{});
+ return pending;
+}
 async function renderHumanInfantryIcon(kind,renderer){
  const source=humanInfantryPortraitPath(kind);
  if(!source||!renderer)throw new Error('No 3D infantry portrait renderer: '+kind);
@@ -425,7 +438,10 @@ async function renderHumanInfantryIcon(kind,renderer){
  // Clone only after all role-specific gear has been attached, including
  // shared cloth, rocket launcher parts, medical insignia and engineer wrench.
  isolatePortraitMeshes(model);
- return renderModelPortrait(model,renderer,{width:192,height:132,infantryCard:true});
+ const skeletons=new Set();
+ model.traverse(node=>{if(node.isSkinnedMesh&&node.skeleton)skeletons.add(node.skeleton);});
+ try{return await queueHumanPortraitReadback(model,renderer);}
+ finally{for(const skeleton of skeletons)skeleton.dispose();}
 }
 
 export function unitIcon(kind,renderer){
@@ -451,12 +467,7 @@ export function unitIcon(kind,renderer){
   if(!renderer)return rasterizeUnitIcon(kind).catch(()=>
    kind==='rocket'?rocketUnitIconFallback():unitAtlasUrl(kind)+'.png');
   if(!iconCache.has(kind))iconCache.set(kind,
-   new Promise((resolve,reject)=>{
-    // Rendering is deferred so UI construction never stalls a game frame.
-    requestAnimationFrame(()=>{
-     renderHumanInfantryIcon(kind,renderer).then(resolve,reject);
-    });
-   }).catch(async error=>{
+   renderHumanInfantryIcon(kind,renderer).catch(async error=>{
     console.warn('3D infantry HUD portrait fallback:',kind,error);
     iconCache.delete(kind); // retry next time the model becomes available
     if(kind==='rocket')return rocketUnitIconFallback();
