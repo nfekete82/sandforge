@@ -45,6 +45,7 @@ function distance(a:Point,b:Point):number{return Math.hypot(a.x-b.x,a.y-b.y);}
 export function generateLandscapeNetwork(seed:number,size:number,sites:readonly Point[],
   columns:number,rows:number,candidate=0,homes:readonly Point[]=[],version=3):LandscapeNetwork{
   // Generator 3 is frozen for existing saves and benchmark seeds.
+  if(version===8)return expandedClassicHighlands(seed,size,sites,columns,rows,candidate,homes);
   if(version===7)return playableMesaHighlands(seed,size,sites,columns,rows,candidate,homes);
   if(version===6)return authoredPlateauNetwork(seed,size,sites,columns,rows,candidate,homes);
   if(version>=4)return variedLandscape(seed,size,sites,columns,rows,candidate,homes);
@@ -302,4 +303,82 @@ function playableMesaHighlands(seed:number,size:number,sites:readonly Point[],
   roads.push([...from,middle,...to.slice().reverse()]);
  }
  return {kind:'mesa-highlands',ridges:[],roads,plateaus};
+}
+
+
+/**
+ * V8: the CURRENT named maps retain their original mountain/ridge identity
+ * while gaining actual, connected, buildable high ground. Older v4-v7 saves
+ * still regenerate their historical geometry with the original versions.
+ *
+ * The existing 2D/3D terrain, cliff collision and AI all use the same two
+ * (occasionally three) raised mesas. Their site-specific ramp roads are part
+ * of the same deterministic road network, not texture-only shortcuts.
+ */
+function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[],
+ columns:number,rows:number,candidate:number,homes:readonly Point[]):LandscapeNetwork{
+ const original=seed===260621
+  ?authoredPlateauNetwork(seed,size,sites,columns,rows,candidate,homes)
+  :variedLandscape(seed,size,sites,columns,rows,candidate,homes);
+ const kind=original.kind??'open-basin';
+ const rng=random(streamSeed(seed,'authored-highland-expansion-v8',candidate));
+ const total=sites.length;
+ const homeClear=homes.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
+ const siteIds=kind==='open-basin'
+  ?[1,columns*(rows-1)+(columns-2)]
+  :kind==='broken-escarpment'
+   ?[columns+1,columns+(columns-2)]
+   :kind==='plateau-crossroads'
+    ?[columns+1,(rows-2)*columns+(columns-2)]
+    :[columns+1,(rows-2)*columns+(columns-2),columns+(columns-2)];
+ const plateaus:RaisedMesa[]=[];
+ for(const siteIndex of siteIds){
+  if(siteIndex<0||siteIndex>=total||plateaus.some(p=>p.siteIndex===siteIndex))continue;
+  const center=sites[siteIndex],row=Math.floor(siteIndex/columns);
+  const radius=kind==='open-basin'?460:
+    kind==='serpentine-canyon'?530:kind==='broken-escarpment'?535:505;
+  // Higher relief on badlands, gentler rocky mesas on the open dunes.
+  const height=kind==='open-basin'?138:
+    kind==='serpentine-canyon'?226:kind==='plateau-crossroads'?210:
+     kind==='broken-escarpment'?192:175;
+  const footRadius=radius+230;
+  const rampEnd=radius+(kind==='open-basin'?1000:1200);
+  const rampWidth=kind==='open-basin'?430:400;
+  // Exit away from the central spine where possible, without pointing a
+  // ramp through a rival plateau or directly into the map's black boundary.
+  let dy=row<(rows-1)/2?-1:1;
+  if(rows===2)dy=row===0?1:-1;
+  let direction:Point={x:0,y:dy};
+  if(center.y+dy*rampEnd<220||center.y+dy*rampEnd>size-220)
+   direction={x:0,y:-dy};
+  const mesa:RaisedMesa={
+   siteIndex,center:{...center},topRadius:radius,footRadius,
+   rampEnd,height,rampWidth,direction,seed
+  };
+  const overlaps=plateaus.some(other=>
+   distance(center,other.center)<mesa.footRadius+other.footRadius+165);
+  const unsafeHome=homeClear.some(home=>distance(center,home)<radius+330);
+  if(overlaps||unsafeHome)continue;
+  plateaus.push(mesa);
+ }
+ const routeAnchors=(siteIndex:number):Point[]=>{
+  const mesa=plateaus.find(p=>p.siteIndex===siteIndex);
+  if(!mesa)return [];
+  const {center:c,direction:d,topRadius:r,rampEnd:e}=mesa;
+  return [
+   {x:c.x+d.x*(r*.74),y:c.y+d.y*(r*.74)},
+   {x:c.x+d.x*(r+240),y:c.y+d.y*(r+240)},
+   {x:c.x+d.x*(r+620),y:c.y+d.y*(r+620)},
+   {x:c.x+d.x*e,y:c.y+d.y*e}
+  ];
+ };
+ const roads=original.roads.map(road=>{
+  if(road.length<2)return road;
+  const a=sites.findIndex(p=>distance(road[0],p)<.01);
+  const b=sites.findIndex(p=>distance(road[road.length-1],p)<.01);
+  const start=a<0?[]:routeAnchors(a),finish=b<0?[]:routeAnchors(b);
+  return [road[0],...start,...road.slice(1,-1),
+   ...finish.slice().reverse(),road[road.length-1]];
+ });
+ return {...original,kind,ridges:original.ridges,roads,plateaus};
 }
