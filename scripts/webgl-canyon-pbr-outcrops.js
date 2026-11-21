@@ -12,7 +12,11 @@ const randomSeed=seed=>{
 const distance=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y);
 export function planCanyonPbrOutcrops({world,terrain=world?.generated,
  seed=world?.seed??0,mapId='burning-horizon',lowQuality=false}={}){
- if(!['burning-horizon','last-stronghold'].includes(mapId)||!world||!terrain)return [];
+ // Modern terrain uses one continuous UV/PBR cliff mesh. Spawning smaller
+ // authored boulders directly inside it produced the visible rock-in-rock bug.
+ // Keep the legacy helper only for old non-modern maps.
+ if(!world||world.mapVersion>=23||!terrain||
+    !['burning-horizon','last-stronghold'].includes(mapId))return [];
  const random=randomSeed(seed^mapId.length*0x9e3779b9),out=[];
  const ridges=terrain.ridges??[],roads=terrain.roads??[];
  const step=lowQuality?230:135;
