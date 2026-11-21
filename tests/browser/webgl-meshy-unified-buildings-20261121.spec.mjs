@@ -28,6 +28,18 @@ test('seven unified Sandforge industrial PBR buildings render without missing fi
   expect(report.models).toBeGreaterThan(0);
   expect(report.albedo).toBeGreaterThan(0);
   expect(report.error).toBeFalsy();
+  if(kind==='headquarters'){
+   const initial=await page.evaluate(()=>{
+    const state=window.__sandforgeBuildingViewerReady.model.userData.meshyHQSatellites;
+    return {animatedMeshes:state?.animatedMeshes,angles:state?.angles?.slice()};
+   });
+   expect(initial.animatedMeshes).toBeGreaterThan(0);
+   await page.waitForTimeout(850);
+   const advanced=await page.evaluate(()=>
+    window.__sandforgeBuildingViewerReady.model.userData.meshyHQSatellites.angles.slice());
+   expect(Math.abs(advanced[0]-initial.angles[0])).toBeGreaterThan(.001);
+   expect(Math.abs(advanced[1]-initial.angles[1])).toBeGreaterThan(.001);
+  }
   await page.screenshot({path:'artifacts/screenshots/meshy-industrial-'+kind+'-blue.png'});
  }
  for(const kind of ['headquarters','generator','bastion']){
