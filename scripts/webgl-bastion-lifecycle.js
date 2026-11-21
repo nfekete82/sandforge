@@ -24,6 +24,7 @@ export function releaseBastionRevision(entry){
   materials+=disposeTaggedMaterials(entry.detail,'sandforgeBuildingFill');
   materials+=disposeTaggedMaterials(entry.detail,'sandforgeFactionTint');
   materials+=disposeTaggedMaterials(entry.detail,'sandforgeOwnedFlagCloth');
+  materials+=disposeTaggedMaterials(entry.detail,'sandforgeMeshyTeamOwned');
   entry.detail=null;
  }
  entry.motion=null;
