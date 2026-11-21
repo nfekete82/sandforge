@@ -39,6 +39,37 @@ test('seven unified Sandforge industrial PBR buildings render without missing fi
     window.__sandforgeBuildingViewerReady.model.userData.meshyHQSatellites.angles.slice());
    expect(Math.abs(advanced[0]-initial.angles[0])).toBeGreaterThan(.001);
    expect(Math.abs(advanced[1]-initial.angles[1])).toBeGreaterThan(.001);
+   // The HQ must keep its original mesh intact while BOTH independently
+   // animated door leaves open. The Annex star must be covered by projected
+   // real geometry, not a fragile custom shader that can hide the whole HQ.
+   const details=await page.evaluate(async()=>{
+    const {meshHeadquartersDoor,setMeshyHeadquartersDoorOpen}
+     =await import('/webgl-meshy-structure.js');
+    const model=window.__sandforgeBuildingViewerReady.model;
+    const door=meshHeadquartersDoor(model);
+    const crest=model.getObjectByName('SF_HQ_Annex_UnmarkedMetal');
+    const visibleOriginal=model.children.filter(x=>x.isMesh||x.type==='Group').length;
+    setMeshyHeadquartersDoorOpen(door,.97);
+    return {mode:door?.mode,left:door?.left?.rotation.y,
+     right:door?.right?.rotation.y,coverFaces:crest?.userData?.coveredTriangles,
+     originalObjects:visibleOriginal,
+     missingShader:!model.getObjectByName('SF_Meshy_HQ_OriginalDoor_Interior')};
+   });
+   console.log('HQ_DOOR_AND_CRESt '+JSON.stringify(details));
+   expect(details.mode).toBe('hinged-real-entrance');
+   expect(details.left).toBeLessThan(-1);
+   expect(details.right).toBeGreaterThan(1);
+   expect(details.coverFaces).toBeGreaterThan(0);
+   expect(details.originalObjects).toBeGreaterThan(0);
+   expect(details.missingShader).toBeTruthy();
+   await page.waitForTimeout(150);
+   await page.screenshot({path:'artifacts/screenshots/hq-original-door-open-unmarked-hangar.png'});
+   await page.evaluate(async()=>{
+    const {meshHeadquartersDoor,setMeshyHeadquartersDoorOpen}
+     =await import('/webgl-meshy-structure.js');
+    setMeshyHeadquartersDoorOpen(
+     meshHeadquartersDoor(window.__sandforgeBuildingViewerReady.model),0);
+   });
   }
   await page.screenshot({path:'artifacts/screenshots/meshy-industrial-'+kind+'-blue.png'});
  }
