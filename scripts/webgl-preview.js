@@ -1091,7 +1091,15 @@ const chunks=buildTerrain();
 const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
  createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],ridges:terrain.ridges,biome,
   lowQuality:query.get('lite')==='1',mapId:desertRegion?.id??null,
-  showOutcrops:biome!=='desert'||['burning-horizon','last-stronghold'].includes(desertRegion?.id)}):[];
+  // Rock-faced ridges on every actual canyon map, including Broken Empire
+  // and random seed mountains. Open-basin Desert Strike stays deliberately open.
+  showOutcrops:biome!=='desert'||terrain.ridges.length>0}):[];
+const cliffMeshes=landscapeMeshes.filter(mesh=>mesh.userData?.erodedRidge);
+console.info('Sandforge terrain cliffs:',{
+ map:desertRegion?.id??'procedural',kind:terrain.landscapeKind??'legacy',
+ ridges:terrain.ridges.length,cliffMeshes:cliffMeshes.length,
+ triangles:cliffMeshes.reduce((sum,mesh)=>sum+(mesh.geometry?.getAttribute('position')?.count??0)/3,0)
+});
 boundaryCliffs=addBoundaryCliffs({scene,size,heightAt,seed,lowQuality:query.get('lite')==='1',softRim:spacious,hardVoid:spacious});
 const stones=instancedStone();
 // Authored 3D burned civilian cars with actual geometry and PBR weathering.
