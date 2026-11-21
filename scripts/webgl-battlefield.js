@@ -51,6 +51,7 @@ import {finishBuildingFacadeShading} from '/webgl-building-shading.js';
 import {finishDesertBuildingMaterials} from '/webgl-building-pbr.js';
 import {enhanceMilitaryMicroPBR} from '/webgl-military-micro-pbr.js';
 import {attachTeamMarkings,detachTeamMarkings} from '/webgl-team-markings.js';
+import {disposeBomberWingStripes} from '/webgl-bomber-wing-stripes.js';
 import {finishBarracksSides,finishBarracksDesertPalette,disposeBarracksSides} from '/webgl-barracks-shell.js';
 import {SandforgeConstructionPresentation} from '/webgl-construction.js';
 import {createBastionCaptureBar,updateBastionCaptureBar} from '/webgl-bastion-capture.js';
@@ -1267,6 +1268,7 @@ export class SandforgeBattlefield {
     if(e.detail){
      disposeTaggedMaterials(e.detail,'sandforgeHelicopterOwnedPaint');
      disposeTaggedMaterials(e.detail,'sandforgeArmourOwnedPaint');
+     if(e.kind==='bomber')disposeBomberWingStripes(e.detail);
      disposeTaggedMaterials(e.detail,'sandforgeBomberWingOwned');
      disposeTaggedMaterials(e.detail,'sandforgeFactionTint');
      disposeTaggedMaterials(e.detail,'sandforgeMilitaryMicroPBROwned');
