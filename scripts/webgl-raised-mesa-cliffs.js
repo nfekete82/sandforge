@@ -1,6 +1,20 @@
 import * as THREE from 'three';
 import {sharedStoneMaps} from './webgl-rock-materials.js';
-import {mesaRadiusFactor,mesaRampCoverage} from '../src/reborn/raised-mesas.js';
+// Exact shared v7 polar edge and ramp sector equations, duplicated here
+// to keep the standalone JS renderer loadable in Node and WebGL.
+const clamp=v=>Math.max(0,Math.min(1,v));
+const smooth=v=>{const t=clamp(v);return t*t*(3-2*t);};
+const mesaRadiusFactor=(theta,m)=>{
+ const phase=m.seed*.00047+m.siteIndex*1.7;
+ return 1+.045*Math.sin(theta*5+phase)+.025*Math.cos(theta*9-phase*.8);
+};
+const mesaRampCoverage=(p,m)=>{
+ const dx=p.x-m.center.x,dy=p.y-m.center.y;
+ const along=dx*m.direction.x+dy*m.direction.y;
+ const lateral=Math.abs(dx*m.direction.y-dy*m.direction.x);
+ if(along<m.topRadius-80||along>m.rampEnd+80)return 0;
+ return 1-smooth((lateral-m.rampWidth*.56)/(m.rampWidth*.36));
+};
 
 /**
  * A rock-textured SKIN of the real, authoritative WebGL heightfield.
