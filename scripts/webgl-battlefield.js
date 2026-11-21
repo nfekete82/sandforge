@@ -423,6 +423,12 @@ export class SandforgeBattlefield {
    }
   }
   if(entry.kind==='headquarters'){
+   // Meshy headquarters contains the radar tower in its own geometry.
+   // The generic spinning fallback looked like a duplicate floating antenna.
+   if(entry.detail?.userData.sandforgeMeshyStructure==='headquarters'){
+    entry.motion={kind:'headquarters',mode:'meshy-authored-static'};
+    return;
+   }
    // Final HQ PBR has 3 authored pivot nodes. Rotate the actual radar
    // assemblies instead of attaching a fake hovering fallback antenna.
    const rotors=['HQ_Radar_01_LargeDish_Rotor',
@@ -545,10 +551,11 @@ export class SandforgeBattlefield {
     if(type==='building'&&entry.kind==='airfield'&&
        model.getObjectByName('SF_Airfield_PBR_Root'))model.visible=false;
     entry.node.add(model);entry.detail=model;
-    if(type==='building'&&entry.kind==='factory'&&
-       model.getObjectByName('SF_Factory_Meshy_ProductionRig')){
-     const extraFence=entry.yard?.getObjectByName('BasePerimeter_factory');
-     if(extraFence)extraFence.visible=false; // Meshy already has its own detailed fencing
+    if(type==='building'&&
+      (entry.kind==='factory'&&model.getObjectByName('SF_Factory_Meshy_ProductionRig')||
+       hasMeshySkin&&['barracks','headquarters'].includes(entry.kind))){
+     const extraFence=entry.yard?.getObjectByName('BasePerimeter_'+entry.kind);
+     if(extraFence)extraFence.visible=false; // only one perimeter around each facility
     }
     const visualScale=calibratedScale(entry.kind,type,dims,desired)*
       (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
@@ -1249,7 +1256,8 @@ export class SandforgeBattlefield {
     // Never recolor its original camouflage in the sync tick.
     if(entry.detail?.userData.sandforgeOriginalPBR)entry.factionOwner=b.owner;
     else applyFactionAccents(entry,b,'building');
-    if(entry.detail&&['barracks','headquarters'].includes(b.kind)){
+    if(entry.detail&&!entry.detail.userData.sandforgeMeshyStructure&&
+       ['barracks','headquarters'].includes(b.kind)){
      paintFactionRoofStripes(entry.detail,b.kind,b.owner);
      paintFactionEntranceBanners(entry.detail,b.kind,b.owner);
     }
@@ -1344,7 +1352,8 @@ export class SandforgeBattlefield {
      disposeTaggedMaterials(e.detail,'sandforgeBuildingFill');
      disposeTaggedMaterials(e.detail,'sandforgeMilitaryMicroPBROwned');
      disposeTaggedMaterials(e.detail,'sandforgeOwnedFlagCloth');
-     disposeTaggedMaterials(e.detail,'sandforgeMeshyFactionOwned');}
+     disposeTaggedMaterials(e.detail,'sandforgeMeshyFactionOwned');
+     disposeTaggedMaterials(e.detail,'sandforgeMeshyTeamOwned');}
     if(e.motion?.mixer){
      e.motion.mixer.stopAllAction();
      if(e.detail)e.motion.mixer.uncacheRoot(e.detail);
@@ -1471,6 +1480,9 @@ export class SandforgeBattlefield {
     const mixer=new THREE.AnimationMixer(detail),action=mixer.clipAction(radarClip);
     action.setLoop(THREE.LoopRepeat,Infinity);action.play();
     entry.motion={kind:'headquarters',mixer,action,mode:'authored'};
+   }else if(hasMeshySkin){
+    // Meshy Bastion already has a detailed mast; prevent a second old rotor.
+    entry.motion={kind:'headquarters',mode:'meshy-authored-static'};
    }else{
     const rotor=this.createMechanicalRotor('headquarters',115,116);
     entry.node.add(rotor);entry.motion={kind:'headquarters',rotor,mode:'fallback'};
@@ -1632,7 +1644,9 @@ export class SandforgeBattlefield {
    const decor=entry.yard?.getObjectByName('BasePerimeter_'+entry.kind);
    if(!decor)continue;
    const embeddedFence=entry.kind==='factory'&&
-    Boolean(entry.detail?.getObjectByName('SF_Factory_Meshy_ProductionRig'));
+    Boolean(entry.detail?.getObjectByName('SF_Factory_Meshy_ProductionRig'))||
+    ['barracks','headquarters'].includes(entry.kind)&&
+    Boolean(entry.detail?.userData.sandforgeMeshyStructure);
    decor.visible=this.siteDecorEnabled&&!embeddedFence;
    affected++;
   }
