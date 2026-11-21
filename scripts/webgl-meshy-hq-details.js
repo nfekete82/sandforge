@@ -6,7 +6,7 @@ import {DecalGeometry} from 'three/addons/geometries/DecalGeometry.js';
  * mesh triangles; fragment-shader cutouts once made the WHOLE HQ disappear.
  * Never edit the shared GLB, its atlas, its original shader or collider here.
  */
-export const HQ_DETAILS_REVISION='sandforge-hq-physical-door-decal-v1';
+export const HQ_DETAILS_REVISION='sandforge-hq-snug-double-door-surface-crest-v2';
 const visualFlag={sandforgeStyleDecoration:true,visualOnly:true,nonBlocking:true};
 
 function makeDoorPaint(){
@@ -46,14 +46,14 @@ export function createHeadquartersHingedDoor(model,bounds){
  const site=model?.userData?.sandforgeRealHQDoorway;
  if(!site||bounds?.isEmpty())return null;
  const dims=bounds.getSize(new THREE.Vector3());
- const doorWidth=Math.min(dims.x*.135,dims.y*.285);
- const doorHeight=Math.min(dims.y*.205,doorWidth*1.46);
+ const doorWidth=Math.min(dims.x*.116,dims.y*.246);
+ const doorHeight=Math.min(dims.y*.178,doorWidth*1.40);
  if(!Number.isFinite(doorWidth)||doorWidth<=0||doorHeight<=0)return null;
- const faceOffset=Math.max(dims.z*.006,.0008);
+ const faceOffset=Math.max(dims.z*.0023,.00035);
  const rig=new THREE.Group();
  rig.name='SF_HQ_RealEntrance_AnimatedLeaves';
  rig.userData={...visualFlag,hqRealEntrance:true};
- rig.position.set(site.x,bounds.min.y+dims.y*.035,site.z+faceOffset);
+ rig.position.set(site.x,bounds.min.y+dims.y*.039,site.z+faceOffset);
  const backing=new THREE.Mesh(
   new THREE.PlaneGeometry(doorWidth*.99,doorHeight*.99),
   new THREE.MeshStandardMaterial({color:'#141919',metalness:.10,roughness:.95,
@@ -68,7 +68,7 @@ export function createHeadquartersHingedDoor(model,bounds){
  const panels=[];
  for(const [side,pivotX] of [['left',-doorWidth*.5],['right',doorWidth*.5]]){
   const hinge=new THREE.Group();hinge.name='SF_HQ_OriginalDoor_Hinge_'+side;
-  hinge.position.set(pivotX,0,faceOffset*.7);
+  hinge.position.set(pivotX,0,faceOffset*.12);
   hinge.userData={...visualFlag};
   const leaf=new THREE.Mesh(leafGeo,paint);
   leaf.name='SF_HQ_RealDoubleDoor_'+side;
@@ -83,8 +83,8 @@ export function createHeadquartersHingedDoor(model,bounds){
   rig,backing,left:panels[0],right:panels[1],width:doorWidth,height:doorHeight,
   setOpen(amount){
    this.open=Math.max(0,Math.min(1,Number(amount)||0));
-   this.left.rotation.y=-1.35*this.open;
-   this.right.rotation.y=1.35*this.open;
+   this.left.rotation.y=-1.12*this.open;
+   this.right.rotation.y=1.12*this.open;
   },
   dispose(){
    rig.removeFromParent();
