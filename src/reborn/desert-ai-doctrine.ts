@@ -39,7 +39,12 @@ export function selectDesertAIDoctrine(x:{
 }):DesertAIDoctrineMap|null{
  return DESERT_AI_DOCTRINES.find(p=>p.seed===x.seed&&
   p.mapVersion===x.mapVersion&&p.profile===x.profile&&
-  p.kind===x.kind&&p.generatorVersion===x.generatorVersion)??null;
+  p.kind===x.kind&&
+  // Keep the previously validated fixed-map doctrine during the v8 visual
+  // highland upgrade; legacy saves still match their original exact versions.
+  // New random/generated maps cannot inherit this without an exact seed,
+  // profile, size and archetype match.
+  (p.generatorVersion===x.generatorVersion||x.generatorVersion===8))??null;
 }
 
 /** The fast offensive ground doctrine must not silently disable already-paid
