@@ -128,7 +128,7 @@ export class World {
     // Fill only such single-cell pinholes. This never closes any traversable
     // path (it has no walkable cardinal neighbor), never touches old saves,
     // and keeps the collision mask aligned with the continuous PBR cliff.
-    if(this.generatorVersion===8||this.generatorVersion===9){
+    if(this.generatorVersion>=8){
       const grid=RULES.grid;
       for(let y=1;y<grid-1;y++)for(let x=1;x<grid-1;x++){
         const i=y*grid+x;
@@ -149,7 +149,7 @@ export class World {
     // than a real construction pad. Classify only cliff-bounded tiny holes
     // as continuous rock, never clear the original collision or add routes.
     // Do not touch old maps, larger platforms, reachable valleys or Bastions.
-    if(this.generatorVersion===8||this.generatorVersion===9){
+    if(this.generatorVersion>=8){
       const grid=RULES.grid,visited=new Uint8Array(this.blocked.length);
       for(let root=0;root<this.blocked.length;root++){
         if(visited[root]||this.blocked[root])continue;
