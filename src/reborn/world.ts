@@ -122,6 +122,27 @@ export class World {
         if(cliff>=0){this.opaque[i]=1;this.cliffIds[i]=cliff;(this.cliffCells[cliff]??=[]).push(i);}
       }
     }
+    // Physical cliff topology cleanup for the new v8 highland maps only:
+    // a single exposed raster pixel fully enclosed by 4 opaque cliff cells
+    // is actually part of that 3D rock face, not a 32-unit playable island.
+    // Fill only such single-cell pinholes. This never closes any traversable
+    // path (it has no walkable cardinal neighbor), never touches old saves,
+    // and keeps the collision mask aligned with the continuous PBR cliff.
+    if(this.generatorVersion===8){
+      const grid=RULES.grid;
+      for(let y=1;y<grid-1;y++)for(let x=1;x<grid-1;x++){
+        const i=y*grid+x;
+        if(this.blocked[i])continue;
+        const neighbors=[i-1,i+1,i-grid,i+grid];
+        if(neighbors.every(j=>this.blocked[j]!==0)&&
+           neighbors.some(j=>this.cliffIds[j]>=0)){
+          const source=neighbors.find(j=>this.cliffIds[j]>=0)!;
+          const id=this.cliffIds[source];
+          this.blocked[i]=1;this.opaque[i]=1;this.cliffIds[i]=id;
+          (this.cliffCells[id]??=[]).push(i);
+        }
+      }
+    }
     // Static connectivity keeps move destinations out of isolated terrain pockets.
     let component=0;
     for(let i=0;i<this.blocked.length;i++)if(!this.blocked[i]&&this.components[i]<0){
