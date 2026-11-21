@@ -431,7 +431,18 @@ function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[]
     center.x-priorFoot-125,center.y-priorFoot-125,
     size-center.x-priorFoot-125,size-center.y-priorFoot-125);
    const growth=Math.max(0,Math.min(200,Math.floor(clearance/20)*20));
-   if(growth<30)continue; // safer to keep an existing passage than force growth
+   if(growth<30){
+    // Stronghold and Plateau Crossroads are hemmed in by existing passes.
+    // Widen only the flat BUILDABLE crown INSIDE the already reserved foot,
+    // leaving the outside collision footprint and historical pass routes
+    // exactly where they were. The steeper, stratified rock face also better
+    // matches the cliff-edge reference image.
+    const innerWiden=Math.max(0,Math.min(95,
+     mesa.footRadius-mesa.topRadius-135));
+    mesa.topRadius+=innerWiden;
+    mesa.rampWidth+=Math.min(35,Math.round(innerWiden*.38));
+    continue;
+   }
    mesa.topRadius+=growth;
    mesa.footRadius+=growth;
    mesa.rampWidth+=Math.min(110,Math.round(growth*.58));
