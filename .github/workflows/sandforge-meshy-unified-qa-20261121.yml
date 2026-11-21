@@ -5,6 +5,7 @@ on:
       - feat/sandforge-meshy-structures-barracks-airfield-bastion-bunker-20261121
     paths:
       - scripts/webgl-meshy-structure.js
+      - scripts/webgl-meshy-hq-details.js
       - scripts/webgl-meshy-hq-radars.js
       - scripts/webgl-battlefield.js
       - scripts/webgl-production-gates.js
@@ -34,7 +35,7 @@ jobs:
       - name: Syntax and TypeScript
         run: |
           npm run typecheck
-          for f in scripts/webgl-meshy-structure.js scripts/webgl-meshy-hq-radars.js scripts/webgl-battlefield.js scripts/webgl-airfield-pbr.js scripts/webgl-production-gates.js scripts/webgl-fortified-bunker.js scripts/webgl-meshy-buildings-viewer.js; do node --check "$f"; done
+          for f in scripts/webgl-meshy-structure.js scripts/webgl-meshy-hq-details.js scripts/webgl-meshy-hq-radars.js scripts/webgl-battlefield.js scripts/webgl-airfield-pbr.js scripts/webgl-production-gates.js scripts/webgl-fortified-bunker.js scripts/webgl-meshy-buildings-viewer.js; do node --check "$f"; done
       - name: Six source GLBs have real geometry and embedded PBR materials
         run: |
           node --input-type=module <<'NODE'
@@ -68,7 +69,7 @@ jobs:
             if(!existsSync('dist/src/assets/reborn/buildings-3d/meshy-structures/'+kind+'.glb'))
               throw Error('Missing shipped '+kind+' GLB');
           for(const f of ['dist/webgl-meshy-buildings.html','dist/webgl-meshy-buildings-viewer.js',
-            'dist/webgl-meshy-structure.js'])if(!existsSync(f))throw Error('Missing '+f);
+            'dist/webgl-meshy-structure.js','dist/webgl-meshy-hq-details.js'])if(!existsSync(f))throw Error('Missing '+f);
           const flags=readFileSync('dist/webgl-meshy-asset-flags.js','utf8');
           for(const kind of ['barracks','headquarters','airfield','bastion','bunker','generator'])
             if(!flags.includes('"'+kind+'":true'))throw Error('Meshy not enabled: '+kind);
