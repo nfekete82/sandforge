@@ -6,7 +6,7 @@ import {DecalGeometry} from 'three/addons/geometries/DecalGeometry.js';
  * mesh triangles; fragment-shader cutouts once made the WHOLE HQ disappear.
  * Never edit the shared GLB, its atlas, its original shader or collider here.
  */
-export const HQ_DETAILS_REVISION='sandforge-hq-snug-double-door-surface-crest-v2';
+export const HQ_DETAILS_REVISION='sandforge-hq-real-door-cover-and-crest-calibration-v3';
 const visualFlag={sandforgeStyleDecoration:true,visualOnly:true,nonBlocking:true};
 
 function makeDoorPaint(){
@@ -46,21 +46,25 @@ export function createHeadquartersHingedDoor(model,bounds){
  const site=model?.userData?.sandforgeRealHQDoorway;
  if(!site||bounds?.isEmpty())return null;
  const dims=bounds.getSize(new THREE.Vector3());
- const doorWidth=Math.min(dims.x*.116,dims.y*.246);
- const doorHeight=Math.min(dims.y*.178,doorWidth*1.40);
+ const doorWidth=Math.min(dims.x*.158,dims.y*.335);
+ const doorHeight=Math.min(dims.y*.235,doorWidth*1.49);
  if(!Number.isFinite(doorWidth)||doorWidth<=0||doorHeight<=0)return null;
- const faceOffset=Math.max(dims.z*.0023,.00035);
+ const faceOffset=Math.max(dims.z*.0030,.00040);
  const rig=new THREE.Group();
  rig.name='SF_HQ_RealEntrance_AnimatedLeaves';
  rig.userData={...visualFlag,hqRealEntrance:true};
- rig.position.set(site.x,bounds.min.y+dims.y*.039,site.z+faceOffset);
+ // The legacy baked door still exists in the source atlas. Move the new
+ // real-door assembly LEFT to align its centre with the photographed frame.
+ rig.position.set(site.x-dims.x*.016,bounds.min.y+dims.y*.031,site.z+faceOffset);
  const backing=new THREE.Mesh(
   new THREE.PlaneGeometry(doorWidth*.99,doorHeight*.99),
   new THREE.MeshStandardMaterial({color:'#141919',metalness:.10,roughness:.95,
    side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1})
  );
  backing.name='SF_HQ_Doorway_DarkInterior';
- backing.position.set(0,doorHeight*.5,0);
+ // Opaque recess must sit IN FRONT of the old painted closed door, or
+ // the original texture shows through after the new leaves open.
+ backing.position.set(0,doorHeight*.5,faceOffset*.9);
  backing.userData={...visualFlag};
  backing.raycast=()=>{};rig.add(backing);
  const paint=makeDoorPaint(),leafW=doorWidth*.49;
@@ -68,7 +72,7 @@ export function createHeadquartersHingedDoor(model,bounds){
  const panels=[];
  for(const [side,pivotX] of [['left',-doorWidth*.5],['right',doorWidth*.5]]){
   const hinge=new THREE.Group();hinge.name='SF_HQ_OriginalDoor_Hinge_'+side;
-  hinge.position.set(pivotX,0,faceOffset*.12);
+  hinge.position.set(pivotX,0,faceOffset*1.35);
   hinge.userData={...visualFlag};
   const leaf=new THREE.Mesh(leafGeo,paint);
   leaf.name='SF_HQ_RealDoubleDoor_'+side;
