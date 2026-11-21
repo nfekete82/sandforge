@@ -164,7 +164,7 @@ test('HQ badge shader operates in HQ-local GLB coordinates, not per-mesh coordin
  left.material.onBeforeCompile(shaderLeft);
  right.material.onBeforeCompile(shaderRight);
  assert.match(shaderLeft.vertexShader,/sfHQMeshToRoot/);
- assert.match(shaderLeft.vertexShader,/sfHQRootPos/);
+ assert.match(shaderLeft.vertexShader,/sfHQMatRootPos/);
  assert.match(shaderLeft.fragmentShader,/sfBadgeMask/);
  assert.match(shaderLeft.fragmentShader,/sfUnmarkedMetal/);
  assert.notEqual(
