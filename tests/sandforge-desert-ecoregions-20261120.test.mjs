@@ -18,7 +18,7 @@ test('four original deserts and fifth authored plateau use native PBR vegetation
  assert.equal(Object.keys(DESERT_ECOREGIONS).length,5);
  const e=catalog.map(m=>desertEcoregion(m.id));
  assert.ok(e.every(Boolean));
- assert.equal(new Set(e.map(x=>x.key)).size,4);
+ assert.equal(new Set(e.map(x=>x.key)).size,5);
  assert.equal(new Set(e.map(x=>x.terrainSource)).size,4,'plateau reuses Badlands physical source');
  assert.equal(new Set(e.map(x=>x.palette.sand)).size,5);
  assert.equal(e[0].saguaro,0,'Sahara cannot grow North American Saguaro');
