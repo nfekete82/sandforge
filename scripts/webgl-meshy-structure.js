@@ -89,6 +89,12 @@ export function prepareMeshyStructure(model,kind,owner=0){
      'vec3 sfTeamRed=vec3(max(.20,diffuseColor.b*1.45),diffuseColor.b*.11,diffuseColor.b*.08);',
      'diffuseColor.rgb=mix(diffuseColor.rgb,sfTeamRed,sfBlue);'
     );
+    else if(owner!==0)industrial.push(
+     '// Neutral Bastions must not show blue team lights before capture.',
+     'float sfBlue=clamp((diffuseColor.b-max(diffuseColor.r,diffuseColor.g))*5.2,0.0,1.0);',
+     'vec3 sfNeutralMetal=vec3(.39,.41,.37)*max(.28,sfLum);',
+     'diffuseColor.rgb=mix(diffuseColor.rgb,sfNeutralMetal,sfBlue);'
+    );
     shader.fragmentShader=shader.fragmentShader.replace(marker,
       marker+'\n'+industrial.join('\n'));
     // Dusted military surfaces read consistently under the same desert sun,
