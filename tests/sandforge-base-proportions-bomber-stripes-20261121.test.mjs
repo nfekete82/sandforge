@@ -56,12 +56,12 @@ test('tank and garage door remain proportionate while all simulation dimensions 
  assert.match(gates,/productionGatePose/);
 });
 test('restore front-left helicopter rocket pod, keep the already-correct right fixed',()=>{
- assert.deepEqual(scoutRocketPodMount(-1),{x:-22,y:18,z:-5});
- assert.deepEqual(scoutRocketPodMount(1),{x:17,y:18,z:-5});
+ assert.deepEqual(scoutRocketPodMount(-1),{x:-25,y:18,z:-5});
+ assert.deepEqual(scoutRocketPodMount(1),{x:14,y:18,z:-5});
  const entry={kind:'scout',owner:0,node:new THREE.Group()};
  attachScoutRocketPods(entry);
- assert.equal(entry.scoutRocketPods.children[0].position.x,-22);
- assert.equal(entry.scoutRocketPods.children[1].position.x,17);
+ assert.equal(entry.scoutRocketPods.children[0].position.x,-25);
+ assert.equal(entry.scoutRocketPods.children[1].position.x,14);
  assert.equal(entry.scoutRocketMuzzles.length,2);
  detachScoutRocketPods(entry);
 });
@@ -81,51 +81,54 @@ const sampleBomber=()=>{
  model.add(left,right,fuselage,cockpit);
  return {model,left,right,fuselage,cockpit,original,tex};
 };
-test('bomber no longer adds floating flags; both team wing stripes live in PBR triangles',()=>{
+test('bomber retains both original GLB wings and textures; flush paint never patches shaders',()=>{
  for(const owner of [0,1]){
   const {model,left,right,fuselage,cockpit,original,tex}=sampleBomber();
   const entry={kind:'bomber',owner,node:new THREE.Group(),detail:model};
   entry.node.add(model);
-  const oldMeshCount=model.children.length;
+  const originalWingGeometry=[left.geometry,right.geometry];
+  const originalCount=model.children.length;
   attachTeamMarkings(entry,owner,'bomber',180,60);
   assert.equal(entry.teamMarkings,undefined);
   assert.equal(entry.node.getObjectByName('SandforgeTeamUniformAndFlags'),undefined);
-  assert.equal(model.children.length,oldMeshCount);
+  assert.equal(model.children.length,originalCount+1,'only one surface overlay is added');
   assert.equal(model.userData.sandforgeBomberWingPaintedMeshes,2);
   assert.equal(model.userData.sandforgeBomberWingPaintRevision,BOMBER_WING_STRIPES_REVISION);
-  assert.notEqual(left.material,original);
-  assert.notEqual(right.material,original);
-  assert.equal(left.material.map,tex);
-  assert.equal(right.material.map,tex);
+  assert.equal(left.material,original,'original port wing shader is unchanged');
+  assert.equal(right.material,original,'original starboard wing shader is unchanged');
   assert.equal(fuselage.material,original);
   assert.equal(cockpit.material,original);
-  const shader={vertexShader:'#include <common>\n#include <begin_vertex>',
-   fragmentShader:'#include <common>\n#include <color_fragment>',
-   uniforms:{}};
-  left.material.onBeforeCompile(shader);
-  assert.ok(shader.uniforms.sfBomberMeshToRoot.value.isMatrix4);
-  assert.match(shader.vertexShader,/sfBomberLocal/);
-  assert.match(shader.fragmentShader,/sfWingInk/);
-  assert.match(shader.fragmentShader,/sfWingTop/);
-  assert.match(shader.fragmentShader,/diffuseColor.rgb=mix/);
-  assert.equal(model.children.length,oldMeshCount);
+  assert.equal(left.geometry,originalWingGeometry[0]);
+  assert.equal(right.geometry,originalWingGeometry[1]);
+  assert.equal(left.material.map,tex);
+  assert.equal(right.material.map,tex);
+  const stripe=model.getObjectByName('SandforgeBomberFlushWingPaint');
+  assert.ok(stripe?.isMesh);
+  assert.ok(stripe.geometry.attributes.position.count>0);
+  assert.equal(stripe.material.color.getHex(),new THREE.Color(
+   owner===0?'#006de5':'#db3d34').getHex(), 'team-colored real wing geometry');
+  assert.equal(stripe.material.depthWrite,false);
+  assert.equal(stripe.castShadow,false);
+  assert.equal(stripe.userData.nonPlayable,true);
+  const box=new THREE.Box3().setFromObject(left);
+  assert.ok(box.getSize(new THREE.Vector3()).x>20,'port wing still exists');
  }
 });
-test('bomber stripes recolour after faction change without double-injecting GLSL',()=>{
- const {model,left,right}=sampleBomber();
+test('bomber surface bands recolour without stacking geometry or altering wing shaders',()=>{
+ const {model,left,right,original}=sampleBomber();
  assert.equal(paintBomberWingStripes(model,0),2);
- const first=left.material,second=right.material;
+ const first=model.getObjectByName('SandforgeBomberFlushWingPaint');
+ const blue=first.material.color.getHex();
+ assert.equal(paintBomberWingStripes(model,0),2);
+ assert.equal(model.getObjectByName('SandforgeBomberFlushWingPaint'),first);
  assert.equal(paintBomberWingStripes(model,1),2);
- assert.equal(left.material,first);
- assert.equal(right.material,second);
- assert.equal(first.userData.sandforgeBomberStripeOwner,1);
- assert.equal(second.userData.sandforgeBomberStripeOwner,1);
- const shader={vertexShader:'#include <common>\n#include <begin_vertex>',
-   fragmentShader:'#include <common>\n#include <color_fragment>',
-   uniforms:{}};
- first.onBeforeCompile(shader);
- assert.match(shader.fragmentShader,/sfWingBand/);
- assert.equal((shader.vertexShader.match(/sfBomberMeshToRoot/g)||[]).length,3);
+ const second=model.getObjectByName('SandforgeBomberFlushWingPaint');
+ assert.notEqual(second,first);
+ assert.notEqual(second.material.color.getHex(),blue);
+ assert.equal(first.parent,null);
+ assert.equal(model.children.filter(c=>c.name==='SandforgeBomberFlushWingPaint').length,1);
+ assert.equal(left.material,original);
+ assert.equal(right.material,original);
 });
 test('physical wing band mask is narrow and limited to top-facing upper-wing metal',()=>{
  const box=new THREE.Box3(new THREE.Vector3(-40,0,-22),new THREE.Vector3(40,9,22));
