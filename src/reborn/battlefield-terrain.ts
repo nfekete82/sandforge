@@ -6,7 +6,7 @@ import {raisedMesaHeight,type RaisedMesa} from './raised-mesas.js';
 /** Revision 2: roomier buildable pads around bastions / headquarters.
  * Revision 1 remains reproducible for existing saves. */
 export const BATTLEFIELD_GENERATOR = 2;
-export type BattlefieldGeneratorVersion=1|2|3|4|5|6|7|8;
+export type BattlefieldGeneratorVersion=1|2|3|4|5|6|7|8|9;
 export const TERRAIN_GRADING_V2={
  bastionFlatRadius:540,bastionShoulder:360,
  homeFlatRadius:775,homeShoulder:460,
@@ -171,7 +171,7 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
  // These are depressions in the actual terrain mesh (not dark decals).
  // Gentle >600-unit shoulders keep all normal vehicle slopes accessible.
  // Graded Bastion/HQ pads remain unchanged, even beside a valley.
- if(generatorVersion===8){
+ if(generatorVersion===8||generatorVersion===9){
   const valleyCenters=[
    {x:size*.27,y:size*.52,r:size*.13,depth:44},
    {x:size*.74,y:size*.47,r:size*.12,depth:36}
@@ -193,7 +193,7 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
  // height envelope. Their sheer rock edges must not be artificially graded
  // into round slopes; only the long carved ramps are vehicle-safe.
  // The exact SAME final height grid drives rendering, physics and fog.
- if((generatorVersion===7||generatorVersion===8)&&plateaus.length){
+ if(generatorVersion>=7&&plateaus.length){
   for(let j=0;j<n;j++)for(let i=0;i<n;i++){
    const k=j*n+i,p={x:i*step,y:j*step};
    let h=heights[k];
