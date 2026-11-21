@@ -169,8 +169,10 @@ export class World {
           }
         }
         if(queue.length>64||cliffId<0||!this.generated||
-           queue.some(i=>this.generated!.sites.some(site=>
-             distance(site,this.center(i))<190)))continue;
+           queue.some(i=>this.generated!.sites.some(site=>{
+             const p=this.center(i);
+             return Math.hypot(site.x-p.x,site.y-p.y)<190;
+           })))continue;
         for(const i of queue){
           this.blocked[i]=1;this.opaque[i]=1;this.cliffIds[i]=cliffId;
           (this.cliffCells[cliffId]??=[]).push(i);
