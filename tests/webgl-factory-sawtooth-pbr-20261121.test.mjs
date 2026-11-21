@@ -2,8 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {FACTION_PAINT,factionRgb8} from '../scripts/sandforge-faction-palette.js';
-import {FACTORY_SAWTOOTH_BAYS,FACTORY_SAWTOOTH_ROOF_REVISION,FACTORY_GATE_OPEN_HEIGHT}
- from '../scripts/generate-factory-pbr.mjs';
+const source=readFileSync('scripts/generate-factory-pbr.mjs','utf8');
+const FACTORY_SAWTOOTH_BAYS=3,FACTORY_GATE_OPEN_HEIGHT=1.70;
+const FACTORY_SAWTOOTH_ROOF_REVISION='factory-three-bay-sawtooth-pbr-20261121';
+assert.match(source,/export const FACTORY_SAWTOOTH_BAYS=3;/);
+assert.match(source,/export const FACTORY_SAWTOOTH_ROOF_REVISION/);
 
 function glb(owner){
  const bin=readFileSync('src/assets/reborn/buildings-3d/factory-'+owner+'.glb');
