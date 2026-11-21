@@ -11,7 +11,7 @@ import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
  * per-frame updates are needed. Shared textures/geometries avoid per-unit GPU
  * resource growth.
  */
-export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v5-natural-silhouette-20261121';
+export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v6-proportioned-stature-20261121';
 
 const ellipsoid=new THREE.SphereGeometry(1,20,14);
 const rounded=new RoundedBoxGeometry(1,1,1,3,.13);
@@ -286,6 +286,12 @@ export function humanizeInfantry(model,owner=0){
  // Remove the remaining ceramic belt pouches without losing the functional
  // strap and buckle. All rifle and IK wrist anchors remain untouched.
  hideNamed(model,/^Atlas_(AmmoPouch|PouchLid|PouchFastener)$/);
+ // Make the entire articulated human slightly taller without moving any
+ // bones relative to the two-hand rifle: the old torso/legs read as a squat
+ // toy at normal RTS zoom. Apply to this model clone once before battlefield
+ // normalizes the GLB bounds; collision and unit scale remain authoritative.
+ // Scaling the WHOLE animated root keeps every grip, recoil and muzzle aligned.
+ model.scale.y*=1.095;
  // Do not rebind or touch Atlas_WeaponSocket / Atlas_Rifle / Atlas_MuzzleBore.
  model.userData={...model.userData,sandforgeHumanInfantryRevision:HUMAN_INFANTRY_REVISION};
  return true;
