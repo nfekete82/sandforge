@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {buildingFacingAngle} from './webgl-scale.js';
 import {rolloutWheelsShouldRoll} from './webgl-wheel-motion.js';
 import {meshyFactoryPortal} from './webgl-meshy-factory-team.js';
+import {meshHeadquartersDoor,setMeshyHeadquartersDoorOpen} from './webgl-meshy-structure.js';
 import {prepareBarracksPortal,updateBarracksPortalPlanes,setBarracksDoorOpen,disposeBarracksPortal} from './webgl-barracks-portal.js';
 import {prepareHeadquartersPortal,setHeadquartersDoorOpen,disposeHeadquartersPortal} from './webgl-headquarters-portal.js';
 
@@ -39,7 +40,11 @@ export class SandforgeProductionGates {
    const meshyStart=entry.detail.getObjectByName('SF_Meshy_InfantryRolloutStart');
    const meshyExit=entry.detail.getObjectByName('SF_Meshy_InfantryRolloutExit');
    if(!meshyStart||!meshyExit)return null;
-   entry.gate={kind:entry.kind,root:entry.detail,openBay:true,
+   const meshHQDoor=entry.kind==='headquarters'?
+    meshHeadquartersDoor(entry.detail):null;
+   entry.gate={kind:entry.kind,root:entry.detail,
+    // Engineer only starts after the ACTUAL closed double door opens.
+    openBay:!meshHQDoor,meshHQDoor,
     meshyInfantry:true,meshyStart,meshyExit,
     portal:null,door:null,hall:null,lamp:null,dust:null,ramp:null};
    return entry.gate;
@@ -127,6 +132,7 @@ export class SandforgeProductionGates {
  }
  reset(entry){
   const gate=entry?.gate;if(!gate)return;
+  if(gate.meshHQDoor){setMeshyHeadquartersDoorOpen(gate.meshHQDoor,0);return;}
   if(gate.openBay)return; // Nothing on the open factory to close.
   if(gate.meshyShutter){
    gate.door.position.y=gate.doorClosedY;
@@ -263,7 +269,9 @@ export class SandforgeProductionGates {
     this.active.delete(id);continue;
    }
    const gate=entry.gate;
-   if(gate.kind==='barracks'&&!gate.openBay){
+   if(gate.meshHQDoor){
+    setMeshyHeadquartersDoorOpen(gate.meshHQDoor,pose.open);
+   }else if(gate.kind==='barracks'&&!gate.openBay){
     updateBarracksPortalPlanes(gate.portal);
     setBarracksDoorOpen(gate.portal,pose.open);
    }else if(gate.kind==='headquarters'&&!gate.openBay)setHeadquartersDoorOpen(gate.portal,pose.open);
@@ -339,7 +347,7 @@ export class SandforgeProductionGates {
    let p,yaw;
    const facing=buildingFacingAngle(base.facing);
    if(fraction<clearFraction){
-    if(state.directFoot||gate.openBay||gate.meshyShutter){
+    if(state.directFoot||gate.openBay||gate.meshyShutter||gate.meshyInfantry){
      // Physical distance divided by authoritative foot speed, without
      // the previous acceleration/deceleration at the portal.
      p=state.walkStart.clone().lerp(state.walkExit,clamp(fraction/clearFraction));
