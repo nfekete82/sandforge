@@ -428,14 +428,26 @@ function createDefensiveWall(owner,gate=false,span=2){
  */
 export function createDefensiveBunker(owner=0){
  const root=new THREE.Group();root.name='Sandforge_DefenseBunker';
+ // Visual-only compact profile, without modifying gameplay footprint,
+ // selection/collision radius or the five usable garrison slots.
+ root.scale.setScalar(.90);
  root.userData.visualOnly=true;root.userData.bunkerFiringPorts=5;
+ root.userData.bunkerVisualScale=.90;
  const paint=FACTION_PAINT[owner];
  const mat=(color,metalness=.1,roughness=.85)=>new THREE.MeshStandardMaterial({
   color,map:materialGrain,bumpMap:materialGrain,bumpScale:.16,
   metalness,roughness
  });
- const concrete=mat('#b6a58b',.09,.95),armor=mat('#64685b',.65,.53),
-  stone=mat('#d0bb93',.06,.94),sandbag=mat('#b7a076',.03,.95),
+ // Same baked sand/khaki/olive military camouflage family as the
+ // barracks facade. Shared PBR atlas; NO fragile dynamic shader patches.
+ const camo=new THREE.MeshStandardMaterial({
+  color:'#efe9d6',map:siloDesertCamo,bumpMap:materialGrain,
+  bumpScale:.13,metalness:.04,roughness:.92
+ });
+ camo.userData={sandforgeAuthoredBunker:true,
+  bunkerCamo:'barracks-sand-khaki-olive'};
+ const concrete=camo,armor=mat('#64685b',.65,.53),
+  stone=camo,sandbag=mat('#b7a076',.03,.95),
   rubber=new THREE.MeshStandardMaterial({color:'#1b2221',metalness:.25,roughness:.88}),
   stripe=new THREE.MeshStandardMaterial({color:paint,metalness:.33,roughness:.4}),
   brass=mat('#858572',.7,.35);
@@ -463,9 +475,34 @@ export function createDefensiveBunker(owner=0){
  add(new THREE.BoxGeometry(17,2,3),brass,0,18,-64);
  add(new THREE.CylinderGeometry(16,18,6,8),armor,18,59,-3);
  add(new THREE.CylinderGeometry(11,11,3,8),stripe,18,63,-3);
- for(let i=0;i<6;i++){
-  const a=i*Math.PI/3,x=Math.sin(a)*63,z=Math.cos(a)*63;
-  add(new THREE.BoxGeometry(25,10,11),sandbag,x,8,z,0,a,0);
+ // Two staggered, low sandbag rows trace the entire octagonal perimeter.
+ // Leave a 52-degree OPEN entrance at the real rear (-Z) bunker door.
+ // Capsule silhouettes + woven cloth grain, instanced in just two draw calls.
+ const bagGeo=new THREE.CapsuleGeometry(3.6,14,4,10);
+ bagGeo.rotateZ(Math.PI*.5); // long fabric roll lies tangential to the wall
+ const yAxis=new THREE.Vector3(0,1,0);
+ const helper=new THREE.Object3D();
+ for(let row=0;row<2;row++){
+  const angles=[],radius=row===0?78:79.5;
+  for(let i=0;i<24;i++){
+   const a=(i+(row?0.5:0))*Math.PI/12;
+   const delta=Math.atan2(Math.sin(a-Math.PI),Math.cos(a-Math.PI));
+   if(Math.abs(delta)<.46)continue; // no blockage at the bunker entrance
+   angles.push(a);
+  }
+  const ring=new THREE.InstancedMesh(bagGeo,sandbag,angles.length);
+  ring.name='Bunker_SandbagPerimeter_Row_'+row;
+  ring.userData={visualOnly:true,nonPlayable:true,bunkerSandbags:true,
+   openEntrance:true,casualtiesDoNotBlock:true};
+  for(const [i,a] of angles.entries()){
+   helper.position.set(Math.sin(a)*radius,4.2+row*6.2,Math.cos(a)*radius);
+   helper.quaternion.setFromAxisAngle(yAxis,a);
+   helper.scale.set(1,1,1);
+   helper.updateMatrix();ring.setMatrixAt(i,helper.matrix);
+  }
+  ring.instanceMatrix.needsUpdate=true;
+  ring.computeBoundingSphere();ring.castShadow=true;ring.receiveShadow=true;
+  ring.raycast=()=>{};root.add(ring);
  }
  for(let i=0;i<3;i++){
   add(new THREE.BoxGeometry(32,2.5,6),armor,-23+i*16,49,28,0,.2,0);
