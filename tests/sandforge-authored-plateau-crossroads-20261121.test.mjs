@@ -19,11 +19,11 @@ const distanceSegment=(p,a,b)=>{
 
 test('authored Plateau Crossroads: deterministic playable geometry with 3 plateaus, 4 real gaps',()=>{
  assert.ok(map);
- assert.equal(map.generatorVersion,9);
+ assert.equal(map.generatorVersion,10);
  assert.equal(map.bastions,16);
  const game=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion);
  const world=game.world;
- assert.equal(world.generatorVersion,9);
+ assert.equal(world.generatorVersion,10);
  assert.equal(world.generated.landscapeKind,'plateau-crossroads');
  assert.equal(world.generated.ridges.length,3);
  assert.equal(world.generated.ridges.reduce((n,r)=>n+r.ramps.length,0),4);
@@ -31,7 +31,7 @@ test('authored Plateau Crossroads: deterministic playable geometry with 3 platea
  assert.equal(world.validation?.valid,true,JSON.stringify(world.validation));
  assert.equal(world.validation?.reachableSites,16);
  assert.equal(world.validation?.tankReachableSites,16);
- assert.equal(Simulation.load(game.save()).world.generatorVersion,9);
+ assert.equal(Simulation.load(game.save()).world.generatorVersion,10);
  const second=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion);
  assert.deepEqual(world.generated.ridges,second.world.generated.ridges);
  assert.deepEqual(world.generated.roads,second.world.generated.roads);
