@@ -40,6 +40,9 @@ const kinds=['barracks','airfield','bastion','bunker','headquarters','generator'
 const available=Object.fromEntries(kinds.map(kind=>[
  kind,existsSync(structureDir+'/'+kind+'.glb')
 ]));
+// A new full airfield from the user's reference screenshot; preserve
+// the old compact airfield GLB as a safe fallback.
+available.airfieldReference=existsSync(structureDir+'/airfield-reference-20261121.glb');
 writeFileSync('dist/webgl-meshy-asset-flags.js',
  'export const MESHY_STRUCTURE_ASSETS=Object.freeze('+JSON.stringify(available)+');\n');
 console.log('Meshy structure assets:',JSON.stringify(available));
