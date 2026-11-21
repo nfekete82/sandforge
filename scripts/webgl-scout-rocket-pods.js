@@ -51,17 +51,15 @@ export function scoutPodCamouflageTexture(owner=0){
  return texture;
 }
 
-/** The authored helicopter does not have a symmetric cabin silhouette.
- * Player-confirmed front view: RIGHT rocket pod (starboard, +17) is correct.
- * LEFT rocket pod (port) was moved too far into the cabin at x=-17.
- * Restore ONLY port to -22; leave the other launcher, both pod muzzle
- * pivots, and gameplay projectile trajectory untouched.
+/** Front-view correction (viewer right is local starboard / +X):
+ * the right pod was visually too far out, the left pod too close in.
+ * Move starboard inward by 3 units and port outward by 3 units.
+ * Neither launcher bore, muzzle, model scale nor gameplay aim is altered.
  */
 export function scoutRocketPodMount(side){
- const starboard=side===1;
- return starboard
-  ?{x:17,y:18,z:-5}
-  :{x:-22,y:18,z:-5};
+ return side===1
+  ?{x:14,y:18,z:-5}  // right in front view: inward
+  :{x:-25,y:18,z:-5}; // left in front view: outward
 }
 
 /** Visual-only twin pods flush with the side of the real heli cabin.
