@@ -340,7 +340,7 @@ test('factory and airfield use real PBR camouflage/data textures, roof details a
  const {servicePaint}=await import('../scripts/webgl-service-materials.js');
  const material=servicePaint(['#727a5e','#a79976','#bdac88'],{seed:7});
  assert.ok(material.map?.isDataTexture);
- assert.equal(material.map.image.data.length,96*96*4);
+ assert.equal(material.map.image.data.length,256*256*4);
  assert.equal(material.map.colorSpace,'srgb');
  material.map.dispose();material.dispose();
  const yard=createFactoryServiceYard(),hangar=createAirfieldServiceYard();
@@ -371,7 +371,7 @@ test('WebGL airfield runway has no generic crates/lamp posts and has low-profile
  const runwayCenter=airfield.position.x+airfield.scale.x*runway.position.x;
  const runwayHalfWidth=runway.geometry.parameters.width*airfield.scale.x*.5;
  const lamps=airfield.children.filter(x=>x.name==='AirfieldRunwayLamp');
- assert.equal(lamps.length,20,'retain symmetric real landing-zone markers');
+ assert.equal(lamps.length,24,'retain all 24 symmetric low-profile landing-zone markers');
  for(const lamp of lamps){
   const wx=airfield.position.x+airfield.scale.x*lamp.position.x;
   const lampHalf=lamp.geometry.parameters.width*airfield.scale.x*.5;
