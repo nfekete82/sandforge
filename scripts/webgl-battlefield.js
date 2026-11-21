@@ -3079,14 +3079,12 @@ export class SandforgeBattlefield {
     const facility=this.maintenanceFacilityAtPointer(event,serviceKind);
     if(facility){
      const ids=[...this.selected];
-     const count=serviceKind==='airfield'
-      ?this.game.requestAirfieldRepair(ids,facility.id)
-      :this.game.requestFactoryRepair(ids,facility.id);
+     const count=this.game.requestAirfieldRepair(ids,facility.id);
      const needsService=this.game.units.some(u=>ids.includes(u.id)&&u.owner===0&&
       u.hp>0&&!u.carrier&&(u.hp<this.game.maxUnitHp(u)||
       serviceKind==='airfield'&&u.kind==='scout'&&
       (u.rocketAmmo??SCOUT_ROCKETS.maxAmmo)<SCOUT_ROCKETS.maxAmmo));
-     const noun=serviceKind==='airfield'?'Hangar':'Fahrzeugwerkstatt';
+     const noun='Hangar';
      this.message(count
       ?count+' Einheit(en): '+noun+' · Reparaturplatz reserviert'
       :needsService?noun+' belegt oder Wartung bereits beauftragt':
