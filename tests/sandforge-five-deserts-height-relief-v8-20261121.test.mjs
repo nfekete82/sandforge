@@ -16,10 +16,10 @@ const legacyVersions=new Map([
 function play(p,generator=p.generatorVersion){
  return Simulation.campaign(p.seed,p.mapVersion,p.terrain,generator);
 }
-test('Five existing worlds explicitly use v8; historical v4-v6 saves remain unchanged',()=>{
+test('Five existing worlds explicitly use v9; historical v4-v6 saves remain unchanged',()=>{
  assert.equal(current.length,5);
  for(const p of current){
-  assert.equal(p.generatorVersion,8,p.id+' should select new geography');
+  assert.equal(p.generatorVersion,9,p.id+' should select new geography');
   const old=play(p,legacyVersions.get(p.id));
   const restored=Simulation.load(old.save());
   assert.equal(restored.world.generatorVersion,legacyVersions.get(p.id));
@@ -33,7 +33,7 @@ test('Five existing worlds explicitly use v8; historical v4-v6 saves remain unch
 
 for(const p of current)test(p.name+': real buildable connected highlands and genuine lowland relief',()=>{
  const game=play(p),w=game.world,g=w.generated;
- assert.equal(w.generatorVersion,8);
+ assert.equal(w.generatorVersion,9);
  assert.equal(w.validation?.valid,true,JSON.stringify(w.validation));
  assert.equal(w.validation.reachableSites,p.bastions);
  assert.equal(w.validation.tankReachableSites,p.bastions);
@@ -58,7 +58,7 @@ for(const p of current)test(p.name+': real buildable connected highlands and gen
   }
  }
  const restored=Simulation.load(game.save());
- assert.equal(restored.world.generatorVersion,8);
+ assert.equal(restored.world.generatorVersion,9);
  assert.deepEqual(restored.world.generated.plateaus,g.plateaus);
  const next=play(p);
  assert.deepEqual(next.world.generated.battlefield.heights,g.battlefield.heights,
