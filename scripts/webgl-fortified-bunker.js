@@ -41,7 +41,8 @@ function installMeshyBunkerSkin(root,owner){
   root.add(skin);root.userData.meshySkinInstalled=true;
   for(const child of root.children)if(child!==skin&&
      (child.name.startsWith('Bunker_PBR_StaticBatch_')||
-      child.name.startsWith('Bunker_Embrasure_')))child.visible=false;
+      child.name.startsWith('Bunker_Embrasure_')||
+      child.userData?.bunkerFlag))child.visible=false;
  }).catch(err=>console.warn('Bunker Meshy skin fallback:',err.message));
 }
 
