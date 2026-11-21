@@ -127,6 +127,11 @@ function makeUnmarkedMetal(){
  */
 export function coverHeadquartersAnnexCrest(model,bounds){
  if(!model||bounds.isEmpty())return null;
+ const saved=readHQEmblemAnchor();
+ if(saved){
+  const patched=projectExactHeadquartersCrest(model,bounds,saved);
+  if(patched)return patched;
+ }
  const existing=model.getObjectByName('SF_HQ_Annex_UnmarkedMetal');
  if(existing)return existing;
  model.updateWorldMatrix(true,true);
@@ -224,4 +229,133 @@ export function coverHeadquartersAnnexCrest(model,bounds){
  group.userData.coveredTriangles=triangles;
  group.userData.projectionSurfaces=successfulProjections;
  return group;
+}
+
+// Never invent a decal position when the source Meshy GLB is arbitrarily
+// rotated/cropped: the screenshot's shield location cannot be deduced from
+// the full model bounding box. The 3D building viewer can calibrate the
+// actual emblem with ONE surface raycast and persist it for this origin.
+export const HQ_EMBLEM_ANCHOR_KEY='sandforge.hq.emblem-anchor.v1';
+export function readHQEmblemAnchor(){
+ try{
+  const raw=globalThis.localStorage?.getItem(HQ_EMBLEM_ANCHOR_KEY);
+  const data=raw?JSON.parse(raw):null;
+  if(!data||!Array.isArray(data.p)||data.p.length!==3||
+    !Array.isArray(data.n)||data.n.length!==3||
+    !data.p.every(Number.isFinite)||!data.n.every(Number.isFinite)||
+    data.p.some(v=>v<-.05||v>1.05)||
+    Math.hypot(...data.n)<.9)return null;
+  return data;
+ }catch{return null;}
+}
+function freeCrestCover(model){
+ const previous=model.getObjectByName('SF_HQ_Annex_UnmarkedMetal');
+ if(!previous)return;
+ const materials=new Set();
+ previous.traverse(obj=>{
+  if(obj.isMesh){obj.geometry?.dispose();if(obj.material)materials.add(obj.material);}
+ });
+ previous.removeFromParent();
+ for(const mat of materials){mat.map?.dispose();mat.dispose();}
+}
+function projectorFromNormal(n){
+ const up=new THREE.Vector3(0,0,1);
+ const q=new THREE.Quaternion().setFromUnitVectors(up,n.clone().normalize());
+ return new THREE.Euler().setFromQuaternion(q);
+}
+function sourceHQMeshes(model){
+ const meshes=[];
+ model.traverse(obj=>{
+  if(obj.isMesh&&obj.geometry&&!obj.userData?.sandforgeStyleDecoration)
+   meshes.push(obj);
+ });
+ return meshes;
+}
+function projectExactHeadquartersCrest(model,bounds,anchor){
+ const dim=bounds.getSize(new THREE.Vector3());
+ const posLocal=new THREE.Vector3(
+  bounds.min.x+dim.x*anchor.p[0],
+  bounds.min.y+dim.y*anchor.p[1],
+  bounds.min.z+dim.z*anchor.p[2]);
+ model.updateWorldMatrix(true,true);
+ const posWorld=model.localToWorld(posLocal.clone());
+ const nLocal=new THREE.Vector3(...anchor.n).normalize();
+ const nWorld=nLocal.clone().transformDirection(model.matrixWorld);
+ const orientation=projectorFromNormal(nWorld);
+ const sx=Math.max(dim.x*.15,dim.z*.12),sy=dim.y*.23;
+ const scale=model.getWorldScale(new THREE.Vector3());
+ const width=sx*Math.max(scale.x,scale.z);
+ const height=sy*scale.y;
+ const depth=Math.max(width,height)*.60;
+ const size=new THREE.Vector3(width,height,depth);
+ const mat=makeUnmarkedMetal();
+ const group=new THREE.Group();group.name='SF_HQ_Annex_UnmarkedMetal';
+ group.userData={...visualFlag,hqCrestCover:true,
+  calibrated:true,anchor,sourceRevision:HQ_DETAILS_REVISION};
+ const inv=model.matrixWorld.clone().invert();
+ const lift=Math.max(.0003,Math.min(dim.x,dim.z)*.004);
+ let triangles=0;
+ for(const mesh of sourceHQMeshes(model)){
+  try{
+   const geo=new DecalGeometry(mesh,posWorld,orientation,size);
+   const verts=geo.getAttribute('position'),normals=geo.getAttribute('normal');
+   if(!verts||verts.count===0){geo.dispose();continue;}
+   geo.applyMatrix4(inv);
+   if(normals){
+    const v=new THREE.Vector3(),n=new THREE.Vector3();
+    for(let i=0;i<verts.count;i++){
+     v.fromBufferAttribute(verts,i);
+     n.fromBufferAttribute(normals,i).normalize();
+     v.addScaledVector(n,lift);
+     verts.setXYZ(i,v.x,v.y,v.z);
+    }
+    verts.needsUpdate=true;
+   }
+   geo.computeBoundingSphere();
+   const patch=new THREE.Mesh(geo,mat);
+   patch.name='SF_HQ_Annex_ExactEmblemPatch';
+   patch.userData={...visualFlag,hqExactEmblem:true};
+   patch.renderOrder=18;patch.raycast=()=>{};
+   patch.castShadow=false;patch.receiveShadow=true;
+   group.add(patch);triangles+=verts.count/3;
+  }catch(error){console.warn('Sandforge exact HQ emblem patch',error);}
+ }
+ if(!triangles){mat.map?.dispose();mat.dispose();return null;}
+ model.add(group);
+ group.userData.coveredTriangles=triangles;
+ group.userData.projectionSurfaces=1;
+ return group;
+}
+/** One-time 3D viewer calibration: click directly on the embossed logo.
+ * Saves HQ-local normalized coordinates so rotation and scale never matter.
+ * The original Meshy textures, door and radar shaders remain untouched. */
+export function calibrateHeadquartersCrestAtHit(model,hit){
+ if(!model||!hit?.object?.isMesh||!hit?.face)return null;
+ const bounds=new THREE.Box3().makeEmpty();
+ model.updateWorldMatrix(true,true);
+ const inv=model.matrixWorld.clone().invert();
+ for(const mesh of sourceHQMeshes(model)){
+  if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
+  bounds.union(mesh.geometry.boundingBox.clone().applyMatrix4(
+   inv.clone().multiply(mesh.matrixWorld)));
+ }
+ if(bounds.isEmpty())return null;
+ const dim=bounds.getSize(new THREE.Vector3());
+ const p=model.worldToLocal(hit.point.clone());
+ const worldNormal=hit.face.normal.clone().applyMatrix3(
+  new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)).normalize();
+ const normal=worldNormal.transformDirection(
+  new THREE.Matrix4().copy(model.matrixWorld).invert());
+ const anchor={
+  p:[(p.x-bounds.min.x)/dim.x,(p.y-bounds.min.y)/dim.y,
+   (p.z-bounds.min.z)/dim.z],
+  n:[normal.x,normal.y,normal.z],version:1
+ };
+ if(!anchor.p.every(Number.isFinite))return null;
+ freeCrestCover(model);
+ const cover=projectExactHeadquartersCrest(model,bounds,anchor);
+ if(!cover)return null;
+ try{globalThis.localStorage?.setItem(HQ_EMBLEM_ANCHOR_KEY,
+  JSON.stringify(anchor));}catch{}
+ return {anchor,coveredTriangles:cover.userData.coveredTriangles};
 }
