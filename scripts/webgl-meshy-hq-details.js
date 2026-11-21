@@ -122,39 +122,101 @@ function makeUnmarkedMetal(){
  */
 export function coverHeadquartersAnnexCrest(model,bounds){
  if(!model||bounds.isEmpty())return null;
- if(model.getObjectByName('SF_HQ_Annex_UnmarkedMetal'))return null;
+ const existing=model.getObjectByName('SF_HQ_Annex_UnmarkedMetal');
+ if(existing)return existing;
  model.updateWorldMatrix(true,true);
  const size=bounds.getSize(new THREE.Vector3()),min=bounds.min;
- // The original insignia is on the right utility hangar's curved side.
- const position=new THREE.Vector3(min.x+size.x*.86,
-  min.y+size.y*.30,min.z+size.z*.61);
- const decalSize=new THREE.Vector3(size.z*.29,size.y*.25,size.x*.33);
- const orientation=new THREE.Euler(0,Math.PI/2,0);
+ const worldToHQ=model.matrixWorld.clone().invert();
+ const worldScale=model.getWorldScale(new THREE.Vector3());
+ const worldRotation=model.getWorldQuaternion(new THREE.Quaternion());
+ // The logo is on the arched RIGHT hangar flank, not on its main door.
+ // Project from two perpendicular outside directions. Earlier we placed
+ // one projector in the empty space of the whole-HQ bounding box, with no
+ // surface offset; valid geometry counts still left the crest visible.
+ const targets=[
+  {name:'right-side',x:.83,y:.32,z:.59,axis:'x',sign:1,
+   rotation:new THREE.Euler(0,Math.PI/2,0),
+   size:new THREE.Vector3(size.x*.27,size.y*.32,size.z*.39)},
+  {name:'front-curve',x:.77,y:.34,z:.70,axis:'z',sign:1,
+   rotation:new THREE.Euler(0,0,0),
+   size:new THREE.Vector3(size.x*.30,size.y*.28,size.z*.22)}
+ ];
+ const original=[];
+ model.traverse(node=>{
+  if(node.isMesh&&node.geometry&&!node.userData?.sandforgeStyleDecoration)
+   original.push(node);
+ });
  const group=new THREE.Group();group.name='SF_HQ_Annex_UnmarkedMetal';
- group.userData={...visualFlag,hqCrestCover:true};
- const mat=makeUnmarkedMetal(),worldToHQ=model.matrixWorld.clone().invert();
- let faces=0;
- for(const mesh of model.children.slice()){
-  // Iterate the genuine source mesh descendants, not the new door rig.
-  mesh.traverse(node=>{
-   if(!node.isMesh||node.userData?.sandforgeStyleDecoration||!node.geometry)return;
-   if(faces>22000)return; // never flood the GPU with a duplicate whole building
+ group.userData={...visualFlag,hqCrestCover:true,sourceRevision:HQ_DETAILS_REVISION};
+ const mat=makeUnmarkedMetal();
+ // A tiny normal offset removes z-fighting against both the GLB's painted
+ // shield and any embossed 3D crest, without hiding surrounding panels.
+ const surfaceLift=Math.max(.0002,Math.min(size.x,size.z)*.004);
+ let triangles=0,successfulProjections=0;
+ for(const target of targets){
+  const candidate=new THREE.Vector3(
+   min.x+size.x*target.x,min.y+size.y*target.y,min.z+size.z*target.z);
+  const outside=candidate.clone();
+  const direction=new THREE.Vector3();
+  if(target.axis==='x'){
+   outside.x=bounds.max.x+size.x*.22;direction.set(-1,0,0);
+  }else{
+   outside.z=bounds.max.z+size.z*.22;direction.set(0,0,-1);
+  }
+  const worldOrigin=model.localToWorld(outside);
+  const worldDirection=direction.transformDirection(model.matrixWorld);
+  const hits=new THREE.Raycaster(worldOrigin,worldDirection,0,
+   Math.max(size.x*worldScale.x,size.z*worldScale.z)*2).intersectObjects(original,false);
+  const good=hits.find(hit=>{
+   const point=hit.point.clone().applyMatrix4(worldToHQ);
+   // Reject the surrounding fence and the central tower; keep the right
+   // annex roof and outer wall only.
+   return point.x>min.x+size.x*.63&&point.x<min.x+size.x*.98&&
+    point.y>min.y+size.y*.12&&point.y<min.y+size.y*.58&&
+    point.z>min.z+size.z*.31&&point.z<min.z+size.z*.91;
+  });
+  const center=good?good.point.clone().applyMatrix4(worldToHQ):candidate;
+  // Position the volume on the ACTUAL roof/wall surface, not at its
+  // estimated bounding-box centre. This is why prior decals missed.
+  const pos=model.localToWorld(center);
+  const rotation=new THREE.Euler().setFromQuaternion(
+   worldRotation.clone().multiply(new THREE.Quaternion().setFromEuler(target.rotation)));
+  const worldSize=target.size.clone().multiply(worldScale);
+  let passes=0;
+  for(const mesh of original){
+   if(triangles>18000)break;
    try{
-    const geo=new DecalGeometry(node,position,orientation,decalSize);
-    const n=geo.getAttribute('position')?.count??0;
-    if(n<3){geo.dispose();return;}
+    const geo=new DecalGeometry(mesh,pos,rotation,worldSize);
+    const count=geo.getAttribute('position')?.count??0;
+    if(count<3){geo.dispose();continue;}
+    geo.applyMatrix4(worldToHQ);
+    const vertices=geo.getAttribute('position');
+    const normals=geo.getAttribute('normal');
+    if(vertices&&normals){
+     const point=new THREE.Vector3(),normal=new THREE.Vector3();
+     for(let i=0;i<vertices.count;i++){
+      point.fromBufferAttribute(vertices,i);
+      normal.fromBufferAttribute(normals,i).normalize();
+      point.addScaledVector(normal,surfaceLift);
+      vertices.setXYZ(i,point.x,point.y,point.z);
+     }
+     vertices.needsUpdate=true;geo.computeBoundingSphere();
+    }
     const patch=new THREE.Mesh(geo,mat);
     patch.name='SF_HQ_Annex_NeutralPanelTriangles';
-    patch.geometry.applyMatrix4(worldToHQ);
     patch.castShadow=false;patch.receiveShadow=true;patch.raycast=()=>{};
-    patch.userData={...visualFlag};
-    group.add(patch);faces+=n/3;
+    patch.renderOrder=11;
+    patch.userData={...visualFlag,decalDirection:target.name};
+    group.add(patch);triangles+=count/3;passes++;
    }catch(error){
-    console.warn('HQ crest decal skipped for unsupported surface',error);
+    console.warn('HQ crest cover skipped unsupported surface',error);
    }
-  });
+  }
+  if(passes)successfulProjections++;
  }
  if(!group.children.length){mat.map?.dispose();mat.dispose();return null;}
- model.add(group);group.userData.coveredTriangles=faces;
+ model.add(group);
+ group.userData.coveredTriangles=triangles;
+ group.userData.projectionSurfaces=successfulProjections;
  return group;
 }
