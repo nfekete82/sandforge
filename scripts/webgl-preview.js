@@ -1102,7 +1102,7 @@ const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
 // sloping entrances left clear. Summit and ramp remain ordinary ground.
 const raisedMesaMeshes=terrain.battlefield?.generatorVersion>=7
  ?createPlayableMesaCliffs({scene,size,heightAt,plateaus:terrain.plateaus??[],
-    lowQuality:query.get('lite')==='1'}):[];
+    lowQuality:query.get('lite')==='1',mapId:desertRegion?.id??null}):[];
 const cliffMeshes=landscapeMeshes.filter(mesh=>mesh.userData?.erodedRidge);
 console.info('Sandforge terrain cliffs:',{
  map:desertRegion?.id??'procedural',kind:terrain.landscapeKind??'legacy',
