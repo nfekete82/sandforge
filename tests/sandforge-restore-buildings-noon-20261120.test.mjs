@@ -40,6 +40,7 @@ test('original generated airfield, bastion, reactor and bunker fallback remain a
  assert.match(strategic,/Bunker_Embrasure_/);
  assert.doesNotMatch(strategic,/return createFortifiedBunker\(owner\)/);
  assert.match(read('scripts/webgl-battlefield.js'),/meshyStructurePath\('bastion'\)/);
+ assert.match(read('scripts/webgl-battlefield.js'),/const ownerBeacon=meshyStructurePath\('bastion'\)\?/);
  const manifest=read('scripts/webgl-meshy-asset-flags.js');
  for(const kind of ['barracks','airfield','bastion','bunker','headquarters','generator'])
   assert.match(manifest,new RegExp(kind+':false'));
