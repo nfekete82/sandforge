@@ -51,19 +51,16 @@ export function scoutPodCamouflageTexture(owner=0){
  return texture;
 }
 
-/** The pilot's front view is the authority for the launcher mounts.
- * Port is already aligned with its cabin hardpoint: never move that pod
- * while fixing the starboard one. Previously starboard x=19/y=18.5/z=-6
- * made its nose appear farther outside/behind the airframe from the front.
- * Move only the starboard pod 2 units toward the centre, 1 unit forward,
- * and level its mounting height with port; keep both animated muzzles
- * attached to their own pod so missiles still originate at the launcher.
+/** Front view: preserve the closer/right launcher position and bring its
+ * mirrored counterpart IN to the same distance from the fuselage.
+ * Earlier port x=-23 vs starboard x=17 left a persistent six-unit offset.
+ * These are visual attachment coordinates only, not combat muzzle origins.
  */
 export function scoutRocketPodMount(side){
  const starboard=side===1;
  return starboard
   ?{x:17,y:18,z:-5}
-  :{x:-23,y:18,z:-5};
+  :{x:-17,y:18,z:-5};
 }
 
 /** Visual-only twin pods flush with the side of the real heli cabin.
