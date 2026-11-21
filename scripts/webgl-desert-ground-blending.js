@@ -36,6 +36,11 @@ export const DESERT_GROUND_PROFILES=Object.freeze({
   layers:['sonoran','mojave','sand'],base:'badlands',
   zone:[.74,.67,.52],tiles:[360,260,510],seed:0x174abd,
   title:'Eroded badlands / dark clay / cobbles / dry wash'
+ }),
+ 'plateau-crossroads':Object.freeze({
+  layers:['mojave','sand','sonoran'],base:'badlands',
+  zone:[.68,.64,.43],tiles:[385,300,530],seed:0x6ea14c,
+  title:'Canyon valley roads / compacted sandstone / hardpan / gravel'
  })
 });
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,v));
