@@ -12,13 +12,14 @@ import {installSkinnedTrousers,disposeSkinnedTrousers} from './webgl-human-skinn
  * per-frame updates are needed. Shared textures/geometries avoid per-unit GPU
  * resource growth.
  */
-export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v7-skinned-pants-20261121';
+export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v8-full-trouser-20261122';
 
 const ellipsoid=new THREE.SphereGeometry(1,20,14);
 const rounded=new RoundedBoxGeometry(1,1,1,3,.13);
 const dark=new THREE.MeshStandardMaterial({
  name:'SF_Human_RubberWebbing',color:'#31352f',roughness:.93,metalness:.015
 });
+const humanInfantryWarnings=new Set();
 const skin=new THREE.MeshStandardMaterial({
  name:'SF_Human_Face',color:'#aa8166',roughness:.91,metalness:0
 });
@@ -292,9 +293,11 @@ export function humanizeInfantry(model,owner=0){
  // No additional animation pass or gameplay change is required.
  // Emergency A/B switch for comparing with the previous rigid legs:
  // ?pants=rigid (the default is the continuous, bone-skinned pair).
- const forceRigid=typeof location!=='undefined'&&
-  new URLSearchParams(location.search).get('pants')==='rigid';
- if(!forceRigid&&installSkinnedTrousers(model,uniform)){
+ const params=typeof location!=='undefined'
+  ?new URLSearchParams(location.search):new URLSearchParams();
+ const forceRigid=params.get('pants')==='rigid';
+ const hasSkinnedPants=!forceRigid&&installSkinnedTrousers(model,uniform);
+ if(hasSkinnedPants){
   for(const side of ['L','R']){
    for(const part of ['thigh','calf','TrouserKnee']){
     const rigid=model.getObjectByName('SF_Human_'+part+side);
@@ -302,6 +305,17 @@ export function humanizeInfantry(model,owner=0){
    }
   }
   model.userData.sandforgeHumanSkinnedLegs=true;
+ }else{
+  model.userData.sandforgeHumanSkinnedLegs=false;
+  if(forceRigid)model.userData.sandforgeTrouserStatus='forced-rigid';
+  // Report the precise fallback and real bone names when requested. No
+  // repeated logs for dozens of infantry in a late-game battle.
+  if(params.get('soldierDebug')==='1'&&!humanInfantryWarnings.has(model.userData.sandforgeTrouserStatus)){
+   const names=[];model.traverse(node=>{if(node.isBone)names.push(node.name);});
+   console.warn('[Sandforge infantry] rigid legs fallback:',
+    model.userData.sandforgeTrouserStatus,'bone names:',names);
+   humanInfantryWarnings.add(model.userData.sandforgeTrouserStatus);
+  }
  }
  // Make the entire articulated human slightly taller without moving any
  // bones relative to the two-hand rifle: the old torso/legs read as a squat
