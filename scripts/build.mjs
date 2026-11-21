@@ -39,12 +39,13 @@ cpSync('scripts/webgl-meshy-hq-radars.js','dist/webgl-meshy-hq-radars.js');
 // The legacy authored PBR models remain the playable fallback otherwise.
 const structureDir='src/assets/reborn/buildings-3d/meshy-structures';
 const kinds=['barracks','airfield','bastion','bunker','headquarters','generator'];
-const available=Object.fromEntries(kinds.map(kind=>[
- kind,existsSync(structureDir+'/'+kind+'.glb')
-]));
-// A new full airfield from the user's reference screenshot; preserve
-// the old compact airfield GLB as a safe fallback.
-available.airfieldReference=existsSync(structureDir+'/airfield-reference-20261121.glb');
+// The requested playable art preset is the PBR building set from
+// 2026-11-20 11:20 CET, BEFORE evening Meshy building replacements.
+// Preserve newer game/AI/maps but never load experimental HQ/barracks,
+// bunker, airfield, Bastion or generator skins from the 21 Nov work.
+const BUILDING_ART_REFERENCE='2026-11-20T11:20:39+01:00';
+const available=Object.fromEntries(kinds.map(kind=>[kind,false]));
+available.airfieldReference=false;
 writeFileSync('dist/webgl-meshy-asset-flags.js',
  'export const MESHY_STRUCTURE_ASSETS=Object.freeze('+JSON.stringify(available)+');\n');
 console.log('Meshy structure assets:',JSON.stringify(available));
@@ -178,31 +179,16 @@ if(process.env.SANDFORGE_MODULE_AUDIT==='1'){
  console.log('WebGL module audit: browser JS and Three vendor modules packaged.');
  process.exit(0);
 }
-// The original large authored barracks/HQ are optional when BOTH fresh
-// Meshy PBR replacement binaries have been installed by assets:meshy:import.
-// This makes a fresh test worktree buildable without private local art sources.
-// When one replacement is missing, retain the legacy strict PBR check.
-const installedMeshy=['barracks','headquarters'].every(kind=>
- existsSync('src/assets/reborn/buildings-3d/meshy-structures/'+kind+'.glb'));
-if(!installedMeshy)
- execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs'],{stdio:'inherit'});
-else console.log('Meshy HQ + Barracks present: old private PBR worktrees not required.');
+// Reconcile authentic pre-Meshy HQ and Barracks, including the original
+// door rigs and antennas. Their source is the user's existing PBR worktrees.
+execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs'],{stdio:'inherit'});
+console.log('Sandforge buildings restored to:',BUILDING_ART_REFERENCE);
 // The Bastion, unlike the authored large HQ/barracks binaries, is fully
 // generated from its committed procedural mesh source on every build.
 execFileSync(process.execPath,['scripts/generate-bastion-radar.mjs'],{stdio:'inherit'});
-// Factory GLBs are deterministic, checked-in as a generator rather than 10MB binaries.
-// Preserve the open procedural backup in the GLB viewer; live game uses
-// the new genuine, textured Meshy model and its animated factory shutter.
+// The midday 20 Nov authentic procedural PBR factory is the production
+// asset again. Never overwrite its GLB with Meshy after generating it.
 execFileSync(process.execPath,['scripts/generate-factory-pbr.mjs'],{stdio:'inherit'});
-// The procedurally sculpted factory is a tested reference/fallback only.
-// Production art is now the original optimized Meshy 7.1 PBR building with
-// actual extracted shutter geometry and four-cardinal exit markers.
-for(const team of [0,1])cpSync(
- `src/assets/reborn/buildings-3d/factory-${team}.glb`,
- `src/assets/reborn/buildings-3d/factory-procedural-${team}.glb`);
-if(existsSync('src/assets/reborn/buildings-3d/factory-meshy-optimized.glb')||
-   existsSync('src/assets/reborn/buildings-3d/factory-meshy-source.glb'))
- execFileSync(process.execPath,['scripts/prepare-meshy-factory.mjs'],{stdio:'inherit'});
 // The Energy Core is generated for BOTH factions from one compact PBR source.
 execFileSync(process.execPath,['scripts/generate-energy-core-pbr.mjs'],{stdio:'inherit'});
 // Both airfield factions are deterministic low-poly PBR assets in Git source.
