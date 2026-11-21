@@ -283,9 +283,19 @@ export class World {
   sightLine(a:Point,b:Point):boolean{
     const end=this.index(b);if(end<0)return false;
     const steps=Math.max(1,Math.ceil(Math.hypot(a.x-b.x,a.y-b.y)/(this.cell*.4)));
+    // The optional v7 summit is REALLY elevated. Test visibility against
+    // the same physical terrain triangles rather than a flat 2D cliff mask:
+    // high units can see over a ledge, low units cannot see through its wall.
+    const raised=this.generatorVersion===7&&Boolean(this.generated?.plateaus?.length);
+    const eyeA=raised?this.terrainHeight(a.x,a.y)+25:0;
+    const eyeB=raised?this.terrainHeight(b.x,b.y)+25:0;
     for(let i=1;i<=steps;i++){
-      const index=this.indexXY(a.x+(b.x-a.x)*i/steps,a.y+(b.y-a.y)*i/steps);
-      if(index<0)return false;if(index===end)return true;if(this.opaque[index])return false;
+      const t=i/steps,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;
+      const index=this.indexXY(x,y);
+      if(index<0)return false;if(index===end)return true;
+      if(raised){
+        if(this.terrainHeight(x,y)+8>eyeA+(eyeB-eyeA)*t)return false;
+      }else if(this.opaque[index])return false;
     }
     return true;
   }
