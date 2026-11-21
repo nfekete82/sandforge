@@ -10,7 +10,7 @@ import {FACTION_PAINT} from './sandforge-faction-palette.js';
  * Instead clip the original upward-facing wing triangles to narrow bands and
  * paint them with a small, render-only surface mesh. No hovering flag planes.
  */
-export const BOMBER_WING_STRIPES_REVISION='bomber-physical-surface-bands-v2-20261121';
+export const BOMBER_WING_STRIPES_REVISION='bomber-mirrored-surface-bands-v3-20261121';
 const exclude=/cockpit|canopy|glass|window|rotor|propeller|engine|exhaust|gear|wheel|tire|tyre|weapon|gun|antenna|flag|emblem|shadow|landing|light|lamp|sensor|thruster/i;
 
 function localBounds(model){
@@ -86,9 +86,8 @@ export function paintBomberWingStripes(model,owner){
  const sides=[-1,1].map(side=>({
   min:spec.centerX+Math.min(side*spec.inside,side*spec.outside)*spec.halfSpan,
   max:spec.centerX+Math.max(side*spec.inside,side*spec.outside)*spec.halfSpan,
-  vertices:0
+  vertices:0,positions:[]
  }));
- const positions=[];
  model.traverse(mesh=>{
   if(!mesh.isMesh||!mesh.geometry||mesh.isSkinnedMesh||
      mesh.userData?.teamMarking||mesh.userData?.sandforgeBomberWingSurfacePaint||
@@ -140,13 +139,32 @@ export function paintBomberWingStripes(model,owner){
     // while the decal follows every original wing triangle precisely.
     for(let k=1;k<polygon.length-1;k++)
      for(const v of [polygon[0],polygon[k],polygon[k+1]])
-      positions.push(v.x,v.y+.075,v.z);
+      side.positions.push(v.x,v.y+.075,v.z);
     side.vertices+=(polygon.length-2)*3;
    }
   }
  });
- const count=sides.filter(side=>side.vertices>0).length;
- if(!positions.length)return 0;
+ // Rear-view starboard (+X) has the desired stripe proportions.
+ // Derive the other wing from exactly the same triangles, mirrored about
+ // the real bomber root centre. Both bars therefore have identical size,
+ // chord extent and transverse placement, independent of GLB tessellation.
+ // Never paint a floating strip when either wing is missing.
+ if(sides.some(side=>side.vertices===0))return 0;
+ const reference=sides[1].positions.length?sides[1]:sides[0];
+ const positions=[];
+ for(const side of sides){
+  const mirror=side!==reference;
+  const source=reference.positions;
+  for(let i=0;i<source.length;i+=9){
+   // Reflection changes handedness; swap triangle winding to retain normals.
+   const order=mirror?[0,2,1]:[0,1,2];
+   for(const k of order){
+    const x=source[i+k*3],y=source[i+k*3+1],z=source[i+k*3+2];
+    positions.push(mirror?spec.centerX*2-x:x,y,z);
+   }
+  }
+ }
+ const count=2;
  const geometry=new THREE.BufferGeometry();
  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
  geometry.computeVertexNormals();
