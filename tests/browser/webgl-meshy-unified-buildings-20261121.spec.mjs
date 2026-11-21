@@ -43,15 +43,20 @@ test('seven unified Sandforge industrial PBR buildings render without missing fi
    // animated door leaves open. The Annex star must be covered by projected
    // real geometry, not a fragile custom shader that can hide the whole HQ.
    const details=await page.evaluate(async()=>{
-    const {meshHeadquartersDoor,setMeshyHeadquartersDoorOpen}
+    const {meshHeadquartersDoor,setMeshyHeadquartersDoorOpen,meshyLocalBounds}
      =await import('/webgl-meshy-structure.js');
     const model=window.__sandforgeBuildingViewerReady.model;
     const door=meshHeadquartersDoor(model);
     const crest=model.getObjectByName('SF_HQ_Annex_UnmarkedMetal');
     const visibleOriginal=model.children.filter(x=>x.isMesh||x.type==='Group').length;
     setMeshyHeadquartersDoorOpen(door,.97);
+    const THREE=await import('three');
+    const dimensions=meshyLocalBounds(model).getSize(new THREE.Vector3());
     return {mode:door?.mode,left:door?.left?.rotation.y,
      right:door?.right?.rotation.y,coverFaces:crest?.userData?.coveredTriangles,
+     crestProjections:crest?.userData?.projectionSurfaces,
+     doorRatio:door?.width/dimensions.x,
+     doorDepthRatio:(door?.rig?.position.z-model.userData?.sandforgeRealHQDoorway?.z)/dimensions.z,
      originalObjects:visibleOriginal,
      missingShader:!model.getObjectByName('SF_Meshy_HQ_OriginalDoor_Interior')};
    });
@@ -60,6 +65,9 @@ test('seven unified Sandforge industrial PBR buildings render without missing fi
    expect(details.left).toBeLessThan(-1);
    expect(details.right).toBeGreaterThan(1);
    expect(details.coverFaces).toBeGreaterThan(0);
+   expect(details.crestProjections).toBeGreaterThan(0);
+   expect(details.doorRatio).toBeLessThanOrEqual(.117);
+   expect(details.doorDepthRatio).toBeLessThan(.004);
    expect(details.originalObjects).toBeGreaterThan(0);
    expect(details.missingShader).toBeTruthy();
    await page.waitForTimeout(150);
