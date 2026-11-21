@@ -19,12 +19,22 @@ export const BOMBER_VISUAL_STRETCH=Object.freeze({horizontal:1.12,vertical:1.05}
 // The authored model, streaming fallback and construction ghost share this.
 // Do NOT change BUILDINGS.turret radius/width or weapon range.
 export const TURRET_VISUAL_SCALE=0.88;
-// Ten percent smaller factory: visuals and construction ghost only.
-// Collision radius, door logic, production spawn and gameplay width stay unchanged.
-export const FACTORY_VISUAL_SCALE=0.90;
+/** Coherent barracks / research / command / vehicle-factory silhouette
+ * calibrated against real military base composition, not arbitrary GLB sizes.
+ * Keep gameplay footprints, collision radii, entrance coordinates and costs.
+ * Research is procedural and uses the same factor in createFallback().
+ * Airfield runways and base-capture Bastions must never be resized here.
+ */
+export const BASE_BUILDING_VISUAL_SCALE=Object.freeze({
+ headquarters:.92,
+ barracks:1.10,
+ research:1.08,
+ factory:.92
+});
+export const FACTORY_VISUAL_SCALE=BASE_BUILDING_VISUAL_SCALE.factory;
 export function visualBuildingScale(kind){
  return kind==='turret'?TURRET_VISUAL_SCALE:
-  kind==='factory'?FACTORY_VISUAL_SCALE:1;
+  BASE_BUILDING_VISUAL_SCALE[kind]??1;
 }
 
 /** Wider selection footprint at tactical zoom. Render-only: never changes
@@ -79,7 +89,7 @@ export function visualUnitScale(kind){
  // Only the rendered mesh changes; navigation/collision/save width stays 76.
  if(kind==='rover'||kind==='supply')return 1.34;
  if(kind==='artillery')return 1.42; // +7.6% for the 6x6 rocket launcher, render-only
- if(kind==='tank')return 1.23; // another ~5% smaller; render-only; keep collision, pathing and saves
+ if(kind==='tank')return 1.16; // matches the 8% tighter factory door without touching tank collision
  if(kind==='scout')return 1.34;
  if(kind==='bomber')return 1.03;
  // R-01 reconnaissance drone: 18% less visual footprint, unchanged sight/range.
@@ -127,7 +137,7 @@ export function calibratedScale(kind,type,bounds,targetWidth){
  // dimensions, while their gameplay collision/placement footprint is intact.
  // Keeping this after width/height normalization avoids it being cancelled by
  // the GLB calibration for large authored turret meshes.
- // Other buildings retain their previous visual size.
+ // HQ, barracks, factory and research use coherent architectural proportions.
  return Math.min(byWidth,(MODEL_HEIGHTS[kind]??135)/height)*
   (type==='building'?visualBuildingScale(kind):1);
 }
