@@ -137,7 +137,21 @@ export class World {
     if(mapVersion>=23){
       this.validation=validateBattlefield(this);
       if(!this.validation.valid){
-        if(candidate>=3)throw new Error('Battlefield validation failed: '+this.validation.errors.join(', '));
+        if(candidate>=3){
+          if(this.generatorVersion===7&&this.validation.errors.includes('isolated-ground')){
+            const groups=new Map<number,{count:number;example:Point}>();
+            for(let i=0;i<this.blocked.length;i++){
+              if(this.blocked[i])continue;
+              const id=this.components[i],g=groups.get(id);
+              if(g)g.count++;
+              else groups.set(id,{count:1,example:this.center(i)});
+            }
+            console.error('Mesa v7 disconnected navigation:',[...groups.entries()]
+              .map(([id,g])=>({id,count:g.count,example:g.example}))
+              .sort((a,b)=>b.count-a.count));
+          }
+          throw new Error('Battlefield validation failed: '+this.validation.errors.join(', '));
+        }
         const corrected=new World(seed,mapVersion,profile,candidate+1,generatorVersion);
         this.generated=corrected.generated;this.rocks=corrected.rocks;this.validation=corrected.validation;
         this.blocked.set(corrected.blocked);this.opaque.set(corrected.opaque);this.cliffIds.set(corrected.cliffIds);this.components.set(corrected.components);
