@@ -131,7 +131,8 @@ else if(terrain.battlefield)document.title='Sandforge · '+biomeStyle.label+' ·
  (terrain.landscapeKind?({
   'open-basin':'Weites Dünenmeer','broken-escarpment':'Felsdurchbruch',
   'diagonal-ridge':'Diagonalkamm','serpentine-canyon':'Schlangenpass',
-   'plateau-crossroads':'Plateau-Kreuzung'
+   'plateau-crossroads':'Plateau-Kreuzung',
+   'mesa-highlands':'Mesa-Hochland'
  })[terrain.landscapeKind]+' · ':'')+TERRAIN_LABELS[terrain.battlefield.profile]+' · '+seed;
 const spacious=world.mapVersion>=19;
 const status=$('status'),errorNode=$('error'),stage=$('stage');
