@@ -19,9 +19,9 @@ const geometryHash=world=>createHash('sha256')
  .update(world.blocked)
  .digest('hex');
 
-test('four original maps stay unchanged and the fifth authored Plateau Crossroads is versioned',()=>{
+test('four original maps stay unchanged and both authored plateau maps are versioned',()=>{
  assert.equal(classicMaps.length,4);
- assert.equal(catalog.maps.length,5);
+ assert.equal(catalog.maps.length,6);
  const custom=catalog.byId('plateau-crossroads');
  assert.equal(custom.generatorVersion,6);
  assert.equal(custom.kind,'plateau-crossroads');
@@ -34,7 +34,7 @@ test('four original maps stay unchanged and the fifth authored Plateau Crossroad
   'Tournament Desert','Fallen Empire','Twilight Flame','Defcon 6']);
  assert.deepEqual(classicMaps.map(x=>x.kind),[
   'open-basin','broken-escarpment','diagonal-ridge','serpentine-canyon']);
- assert.equal(new Set(catalog.maps.map(x=>x.seed)).size,5);
+ assert.equal(new Set(catalog.maps.map(x=>x.seed)).size,6);
  for(const map of classicMaps){
   assert.equal(map.generatorVersion,map.id==='burning-horizon'?4:5,'retain v4 on the measured Burning Horizon regression');
   assert.equal(map.biome,'desert','only original desert graphics');
@@ -163,7 +163,7 @@ test('main menu offers four original maps plus Plateau Crossroads',()=>{
   assert.match(html,new RegExp('value="'+map.id+'"'));
   assert.match(html,new RegExp(map.name.toUpperCase()));
  }
- assert.equal((html.match(/<option value="(?:desert-strike|broken-empire|burning-horizon|last-stronghold|plateau-crossroads)"/g)||[]).length,5);
+ assert.equal((html.match(/<option value="(?:desert-strike|broken-empire|burning-horizon|last-stronghold|plateau-crossroads|mesa-highlands)"/g)||[]).length,6);
  assert.doesNotMatch(html,/id="sf3d-biome"/);
  assert.doesNotMatch(html,/id="sf3d-terrain"/);
  assert.doesNotMatch(html,/id="sf3d-landscape"/);
