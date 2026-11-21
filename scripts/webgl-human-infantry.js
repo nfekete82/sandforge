@@ -290,7 +290,11 @@ export function humanizeInfantry(model,owner=0){
  // One continuous two-leg skin now replaces the four hard-surface tubes.
  // AnimationMixer continues driving the SAME original knee/hip/ankle bones.
  // No additional animation pass or gameplay change is required.
- if(installSkinnedTrousers(model,uniform)){
+ // Emergency A/B switch for comparing with the previous rigid legs:
+ // ?pants=rigid (the default is the continuous, bone-skinned pair).
+ const forceRigid=typeof location!=='undefined'&&
+  new URLSearchParams(location.search).get('pants')==='rigid';
+ if(!forceRigid&&installSkinnedTrousers(model,uniform)){
   for(const side of ['L','R']){
    for(const part of ['thigh','calf','TrouserKnee']){
     const rigid=model.getObjectByName('SF_Human_'+part+side);
