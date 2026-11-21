@@ -24,7 +24,7 @@ import {addBarracksContactShadows} from '/webgl-barracks-contact-shadows.js';
 import {createAirfieldServiceYard,conformAirfieldSurface,updateAirfieldServiceYard,hideOldAirfieldHangar,disposeAirfieldServiceYard} from '/webgl-airfield-service.js';
 import {detachAirfieldPbr} from '/webgl-airfield-pbr.js';
 import {removeRunwaySkidArtifacts} from '/webgl-airfield-runway-clearance.js';
-import {disposeFactoryServiceYard} from '/webgl-factory-service.js';
+import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '/webgl-factory-service.js';
 import {disposeServicePaint,previewServiceMaterial} from '/webgl-service-materials.js';
 import {createSegmentedSelectionRing} from '/webgl-selection-ring.js';
 import {serviceVisualGround,approachGroundHeight} from '/webgl-service-grounding.js';
@@ -493,7 +493,7 @@ export class SandforgeBattlefield {
       model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
       (entry.kind==='factory'&&model.getObjectByName('SF_Factory_Meshy_ProductionRig'))||
       (entry.kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
-       model.getObjectByName('SF_Factory_PBR_OpenBay'))||
+       (model.getObjectByName('SF_Factory_PBR_OpenBay')||model.getObjectByName('FactoryRollupDoor')))||
       (entry.kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root'))||
       (entry.kind==='generator'&&model.getObjectByName('SF_EnergyCore_PBR_Housing')))){
      // Preserve authored HQ and factory desert PBR albedo, not legacy recolors.
@@ -884,11 +884,11 @@ export class SandforgeBattlefield {
    tint(yard,false,.34);
    group.add(yard);group.userData.previewYard=yard;
   }
-  const service=kind==='airfield'?createAirfieldServiceYard(0,{ghost:true}):null;
+  const service=kind==='airfield'?createAirfieldServiceYard(0,{ghost:true}):
+   kind==='factory'?createFactoryServiceYard():null;
   if(service){
    tint(service,true,.38);
-   // Airfield apron stays visible in the ghost. The factory's redundant
-   // external repair platform is deliberately omitted.
+   // Airfield apron and midday factory repair platform remain in the ghost.
    group.add(service);group.userData.previewService=service;
   }
   const circle=new THREE.Mesh(
@@ -908,7 +908,7 @@ export class SandforgeBattlefield {
      model.getObjectByName('HQ_Static_SF_OriginalPBR_walls'))||
      (kind==='factory'&&model.getObjectByName('SF_Factory_Meshy_ProductionRig'))||
      (kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')&&
-      model.getObjectByName('SF_Factory_PBR_OpenBay'))||
+      (model.getObjectByName('SF_Factory_PBR_OpenBay')||model.getObjectByName('FactoryRollupDoor')))||
      (kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root'))||
      (kind==='generator'&&model.getObjectByName('SF_EnergyCore_PBR_Housing')) )
     model.userData.sandforgeOriginalPBR=true;
@@ -1349,10 +1349,15 @@ export class SandforgeBattlefield {
     }
     if(b.buildRemaining<=0)updateAirfieldServiceYard(entry,b,this.game.units,this.game.time,dt,active);
    }
-   // Integrated workshop model only: no separate exterior factory pad.
-   // Dispose any previously attached visual service yard on older actors.
-   if(b.kind==='factory'&&entry.factoryServiceYard)
-    disposeFactoryServiceYard(entry);
+   // Restore midday 20 Nov factory repair yard, including active servicing.
+   if(b.kind==='factory'){
+    if(!entry.factoryServiceYard){
+     entry.factoryServiceYard=createFactoryServiceYard();
+     entry.node.add(entry.factoryServiceYard);
+    }
+    if(b.buildRemaining<=0)
+     updateFactoryServiceYard(entry,b,this.game.units,this.game.time);
+   }
    this.animateBuildingMotion(entry,b,dt,active);
    if(b.buildRemaining<=0&&!this.announcedBuildings.has(b.id)){
     this.announcedBuildings.add(b.id);
