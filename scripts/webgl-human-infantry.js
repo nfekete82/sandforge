@@ -11,7 +11,7 @@ import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
  * per-frame updates are needed. Shared textures/geometries avoid per-unit GPU
  * resource growth.
  */
-export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v2-anatomical-limbs-20261121';
+export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v3-human-proportions-20261121';
 
 const ellipsoid=new THREE.SphereGeometry(1,20,14);
 const rounded=new RoundedBoxGeometry(1,1,1,3,.13);
@@ -129,12 +129,17 @@ function replaceLimb(model,part,side,profile){
  // These rigid old pieces are responsible for the visible robot limbs.
  // They remain on their joints but are not rendered, even while running.
  joint.traverse(node=>{if(node.isMesh&&node.name.startsWith('Atlas_'))node.visible=false;});
+ // A trouser leg is wider than a forearm, but never twice its bone width.
+ // Previous .71/.69 radii made both thighs look like pneumatic robot armour.
+ const widths={
+  sleeve:[.66,.65],forearm:[.61,.60],thigh:[.63,.64],calf:[.60,.61]
+ }[profile];
  mount(joint,profile+side,garment[profile],
   profile==='forearm'?skin:uniform,[0,0,0],
-  [size.x*.71,size.y*1.10,size.z*.69]);
+  [size.x*widths[0],size.y*1.13,size.z*widths[1]]);
  if(profile==='forearm')
   mount(joint,'RolledSleeveCuff'+side,garment.sleeve,uniform,
-   [0,-size.y*.44,0],[size.x*.77,size.y*.15,size.z*.76]);
+   [0,-size.y*.46,0],[size.x*.72,size.y*.17,size.z*.70]);
  return true;
 }
 
@@ -160,8 +165,8 @@ export function humanizeInfantry(model,owner=0){
  hideChildren(head);
  oval(head,'Face',skin,[0,-.046,.104],[.137,.154,.115]);
  oval(head,'Nose',skin,[0,-.080,.214],[.022,.033,.026]);
- oval(head,'HelmetCrown',helmetFabric,[0,.100,-.009],[.209,.139,.192]);
- shaped(head,'HelmetBrow',helmetFabric,[0,.070,.143],[.350,.044,.128]);
+ oval(head,'HelmetCrown',helmetFabric,[0,.095,-.009],[.198,.129,.184]);
+ shaped(head,'HelmetBrow',helmetFabric,[0,.069,.143],[.335,.040,.119]);
  shaped(head,'GoggleFrame',dark,[0,-.009,.205],[.300,.070,.045]);
  for(const side of [-1,1]){
   oval(head,'GoggleLens'+side,goggles,[side*.073,-.004,.231],[.064,.023,.012]);
@@ -173,7 +178,7 @@ export function humanizeInfantry(model,owner=0){
 
  // A human torso and short vest replace the square robot chest armour.
  hideChildren(chest);
- shaped(chest,'Jacket',uniform,[0,0,0],[.510,.385,.305]);
+ shaped(chest,'Jacket',uniform,[0,0,0],[.493,.385,.305]);
  shaped(chest,'PlateCarrier',vest,[0,.005,.149],[.436,.318,.137]);
  for(const side of [-1,1]){
   shaped(chest,'Harness'+side,dark,[side*.177,.015,.224],[.034,.326,.036]);
@@ -183,13 +188,36 @@ export function humanizeInfantry(model,owner=0){
   shaped(chest,'PouchFlap'+x,dark,[x,-.005,.300],[.106,.018,.012]);
  }
  shaped(chest,'VestBuckle',hardware,[0,.099,.231],[.075,.031,.019]);
+ // Close the armpit gap while the animated arms swing: fabric, not rigid
+ // shoulder plates. These caps stay with the torso, sleeves with arm bones.
+ for(const side of [-1,1])
+  oval(chest,'ShoulderFabric'+side,uniform,
+   [side*.233,.088,-.016],[.094,.100,.107]);
  hideChildren(abdomen);
- shaped(abdomen,'JacketWaist',uniform,[0,.016,.023],[.426,.224,.268]);
+ shaped(abdomen,'JacketWaist',uniform,[0,.016,.023],[.415,.229,.252]);
+ // Bridge the gap between abdominal cloth and the animated upper legs.
+ // The original belt is a large metallic-looking straight-edged block.
+ const hips=model.getObjectByName('Atlas_UtilityBelt');
+ if(hips){
+  hideChildren(hips);
+  oval(hips,'TrouserHips',uniform,[0,-.068,.008],[.225,.124,.150]);
+  shaped(hips,'EquipmentBelt',dark,[0,.031,.032],[.438,.055,.260]);
+  shaped(hips,'BeltBuckle',hardware,[0,.031,.175],[.068,.045,.019]);
+ }
+ // Remove the black, spherical robot-like neck and keep a short human collar.
+ const neck=model.getObjectByName('Atlas_NeckSeal');
+ if(neck){
+  hideChildren(neck);
+  oval(neck,'HumanNeck',skin,[0,.008,.051],[.078,.100,.077]);
+  shaped(neck,'ShirtCollar',uniform,[0,-.052,.055],[.218,.055,.168]);
+ }
 
  // Toned-down cloth rucksack; remove exposed sci-fi cooling fins/antenna.
  hideChildren(pack);
- shaped(pack,'RadioRucksack',uniform,[0,-.016,-.061],[.300,.348,.174]);
- shaped(pack,'RucksackPocket',vest,[0,-.080,-.164],[.215,.155,.051]);
+ // The original box silhouette dwarfed the soldier at side-view RTS zoom.
+ // A shorter, rounded field bag stays clearly below the helmet.
+ shaped(pack,'RadioRucksack',uniform,[0,-.038,-.048],[.255,.290,.142]);
+ shaped(pack,'RucksackPocket',vest,[0,-.084,-.130],[.177,.114,.047]);
 
  // Replace the ENTIRE boxy exoskeleton. Each garment section is mounted
  // on the identical Atlas upper/lower limb joint and therefore moves with
