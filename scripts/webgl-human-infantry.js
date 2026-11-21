@@ -126,8 +126,12 @@ function replaceLimb(model,part,side,profile){
  // These rigid old pieces are responsible for the visible robot limbs.
  // They remain on their joints but are not rendered, even while running.
  joint.traverse(node=>{if(node.isMesh&&node.name.startsWith('Atlas_'))node.visible=false;});
- mount(joint,profile+side,garment[profile],uniform,[0,0,0],
+ mount(joint,profile+side,garment[profile],
+  profile==='forearm'?skin:uniform,[0,0,0],
   [size.x*.71,size.y*1.10,size.z*.69]);
+ if(profile==='forearm')
+  mount(joint,'RolledSleeveCuff'+side,garment.sleeve,uniform,
+   [0,-size.y*.44,0],[size.x*.77,size.y*.15,size.z*.76]);
  return true;
 }
 
@@ -196,8 +200,8 @@ export function humanizeInfantry(model,owner=0){
   const shoulder=model.getObjectByName('Atlas_UpperArm'+side);
   if(shoulder){
    // Cloth armband moves with the sleeve, not in world coordinates.
-   oval(shoulder,'SleeveArmband'+side,faction,[0,-.005,0],
-    [.094,.040,.093]);
+   mount(shoulder,'SleeveArmband'+(side==='L'?0:1),
+    garment.sleeve,faction,[0,-.005,0],[.099,.065,.099]);
   }
 
   const knee=model.getObjectByName('Atlas_Knee'+side);
