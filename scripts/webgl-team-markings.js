@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {FACTION_PAINT,factionRgb8} from './sandforge-faction-palette.js';
+import {paintBomberWingStripes} from './webgl-bomber-wing-stripes.js';
 
 /** Strong blue/red unit identification without replacing desert camouflage.
  * One shared procedural emblem texture per team. Render-only; no save changes.
@@ -224,6 +225,13 @@ export function attachTeamMarkings(entry,owner,kind,footprint=90,height=44){
   // Remove these visual-only patches on all five infantry roles, including
   // legacy actors when their GLB finishes streaming; keep original PBR.
   detachTeamMarkings(entry);
+  return null;
+ }
+ if(kind==='bomber'){
+  // Remove ALL old floating blue/red wing/flag planes. Paint two thin
+  // colour bands on the actual authored bomber wing triangles instead.
+  detachTeamMarkings(entry);
+  paintBomberWingStripes(entry.detail,owner);
   return null;
  }
  if(kind==='scout'){
