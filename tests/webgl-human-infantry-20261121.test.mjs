@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {HUMAN_INFANTRY_REVISION,humanizeInfantry,disposeHumanInfantry} from '../scripts/webgl-human-infantry.js';
 import {SKINNED_TROUSERS_REVISION,findTrouserRig} from '../scripts/webgl-human-skinned-trousers.js';
+import {HUMAN_STANCE_REVISION,createHumanStance,restoreHumanStance,applyHumanStance,disposeHumanStance} from '../scripts/webgl-human-stance.js';
 
 function atlas(){
  const root=new THREE.Group();
@@ -409,4 +410,91 @@ test('trouser rings bend smoothly across an already flexed knee at bind pose',()
  for(let i=1;i<around.length;i++)
   assert.ok(around[i-1].angleTo(around[i])<.20,
    'ring axes should blend smoothly through bent knee');
+});
+
+
+test('natural idle pose narrows feet and bends knees without changing hands or rifle binding',()=>{
+ const {root,rifle,socket}=riggedAtlas();
+ const arm=new THREE.Bone();arm.name='Index1R';arm.position.set(0,1.36,.2);
+ root.add(arm);arm.attach(socket);
+ root.updateMatrixWorld(true);
+ const beforeL=root.getObjectByName('FootL').getWorldPosition(new THREE.Vector3());
+ const beforeR=root.getObjectByName('FootR').getWorldPosition(new THREE.Vector3());
+ const beforeDistance=Math.abs(beforeL.x-beforeR.x);
+ const handRotation=arm.quaternion.clone();
+ const rifleRotation=rifle.quaternion.clone();
+ const pose=createHumanStance(root);
+ assert.ok(pose&&pose.legs.length===2);
+ assert.equal(HUMAN_STANCE_REVISION,'human-infantry-stance-v1-20261122');
+ assert.equal(applyHumanStance(pose,{dt:.05,moving:false}),true);
+ root.updateMatrixWorld(true);
+ const afterL=root.getObjectByName('FootL').getWorldPosition(new THREE.Vector3());
+ const afterR=root.getObjectByName('FootR').getWorldPosition(new THREE.Vector3());
+ assert.ok(Math.abs(afterL.x-afterR.x)<beforeDistance,
+  'idle legs should stand closer together');
+ assert.ok(pose.legs.every(l=>Math.abs(l.knee.bone.quaternion.x)>0),
+  'the knees must no longer be perfectly rigid');
+ assert.ok(arm.quaternion.equals(handRotation),'no arm/hand IK changes');
+ assert.ok(rifle.quaternion.equals(rifleRotation),'rifle orientation untouched');
+ assert.equal(rifle.parent,socket);
+ assert.equal(restoreHumanStance(pose),true);
+ root.updateMatrixWorld(true);
+ assert.ok(root.getObjectByName('FootL').getWorldPosition(new THREE.Vector3()).distanceTo(beforeL)<1e-6);
+ assert.ok(root.getObjectByName('FootR').getWorldPosition(new THREE.Vector3()).distanceTo(beforeR)<1e-6);
+ assert.equal(restoreHumanStance(pose),false);
+ assert.equal(disposeHumanStance(pose),true);
+ assert.equal(root.userData.sandforgeHumanStance,undefined);
+});
+test('natural walk stance follows original clip phase without cumulative joint drift',()=>{
+ const {root}=riggedAtlas();
+ const pose=createHumanStance(root);
+ const joints=pose.legs.flatMap(l=>[l.upper,l.knee,l.foot]);
+ const originals=joints.map(j=>j.bone.quaternion.clone());
+ applyHumanStance(pose,{moving:true,dt:.08,walkPhase:.1});
+ const a=pose.legs[0].upper.bone.quaternion.clone();
+ restoreHumanStance(pose);
+ applyHumanStance(pose,{moving:true,dt:.08,walkPhase:.6});
+ const b=pose.legs[0].upper.bone.quaternion.clone();
+ assert.ok(a.angleTo(b)>.005,'run follows clip phases instead of a static stiff pose');
+ restoreHumanStance(pose);
+ for(let i=0;i<joints.length;i++)
+  assert.ok(joints[i].bone.quaternion.angleTo(originals[i])<1e-7,'no drift between mixer frames');
+ for(let j=0;j<300;j++){
+  applyHumanStance(pose,{dt:.016,walkPhase:(j%40)/40,moving:j%4!==0});
+  restoreHumanStance(pose);
+ }
+ for(let i=0;i<joints.length;i++)
+  assert.ok(joints[i].bone.quaternion.angleTo(originals[i])<1e-7,'no long-session pose drift');
+});
+test('firing is braced but original hit/death animation is never modified',()=>{
+ const pose=createHumanStance(riggedAtlas().root);
+ applyHumanStance(pose,{dt:.08,moving:false});
+ const strong=pose.legs[0].knee.bone.quaternion.angleTo(new THREE.Quaternion());
+ restoreHumanStance(pose);
+ applyHumanStance(pose,{dt:.08,moving:false,shooting:true});
+ const firing=pose.legs[0].knee.bone.quaternion.angleTo(new THREE.Quaternion());
+ assert.ok(firing<strong,'firing should use smaller supporting-leg corrections');
+ restoreHumanStance(pose);
+ assert.equal(applyHumanStance(pose,{dt:.016,hurt:true}),false);
+ assert.equal(pose.modified,false);
+ assert.equal(applyHumanStance(pose,{dt:.016,death:true}),false);
+ assert.equal(pose.modified,false);
+});
+test('unsupported model has no secondary pose controller or new per-frame work',()=>{
+ const noRig=new THREE.Group();
+ assert.equal(createHumanStance(noRig),null);
+ assert.equal(applyHumanStance(null,{moving:true,dt:.02}),false);
+ assert.equal(restoreHumanStance(null),false);
+ assert.equal(disposeHumanStance(null),false);
+});
+test('WebGL production runtime wires stance around mixer and packs the module',()=>{
+ const battlefield=readFileSync('scripts/webgl-battlefield.js','utf8');
+ const presenter=readFileSync('scripts/webgl-actor-presentation.js','utf8');
+ const build=readFileSync('scripts/build.mjs','utf8');
+ assert.match(battlefield,/entry\.humanStance=createHumanStance\(model\)/);
+ assert.match(battlefield,/disposeHumanStance\(e\.humanStance\)/);
+ assert.match(presenter,/restoreHumanStance\(entry\.humanStance\)/);
+ assert.match(presenter,/clips\.mixer\.update\(Math\.min\(\.08,dt\)\)/);
+ assert.match(presenter,/applyHumanStance\(entry\.humanStance,/);
+ assert.match(build,/cpSync\('scripts\/webgl-human-stance\.js','dist\/webgl-human-stance\.js'\)/);
 });
