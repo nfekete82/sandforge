@@ -98,7 +98,7 @@ export class World {
       // V7 authentic buildable mesas: only their measured CLIFF RIM is
       // opaque/blocked. Flat summit and the single carved vehicle ramp stay
       // fully walkable. Ground height is the same WebGL terrain field.
-      if(this.generatorVersion===7)for(const [n,mesa] of
+      if(this.generatorVersion>=7)for(const [n,mesa] of
         (this.generated.plateaus??[]).entries()){
         const id=this.generated.mesas.length+this.generated.ridges.length+n;
         this.cliffCells[id]=[];
@@ -138,7 +138,7 @@ export class World {
       this.validation=validateBattlefield(this);
       if(!this.validation.valid){
         if(candidate>=3){
-          if(this.generatorVersion===7&&this.validation.errors.includes('isolated-ground')){
+          if(this.generatorVersion>=7&&this.validation.errors.includes('isolated-ground')){
             const groups=new Map<number,{count:number;example:Point}>();
             for(let i=0;i<this.blocked.length;i++){
               if(this.blocked[i])continue;
@@ -300,7 +300,7 @@ export class World {
     // The optional v7 summit is REALLY elevated. Test visibility against
     // the same physical terrain triangles rather than a flat 2D cliff mask:
     // high units can see over a ledge, low units cannot see through its wall.
-    const raised=this.generatorVersion===7&&Boolean(this.generated?.plateaus?.length);
+    const raised=this.generatorVersion>=7&&Boolean(this.generated?.plateaus?.length);
     const eyeA=raised?this.terrainHeight(a.x,a.y)+25:0;
     const eyeB=raised?this.terrainHeight(b.x,b.y)+25:0;
     for(let i=1;i<=steps;i++){
