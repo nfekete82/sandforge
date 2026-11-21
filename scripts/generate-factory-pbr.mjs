@@ -103,9 +103,9 @@ function buildSawtoothRoof(){
   }
  }
  // The stack occupies the rear, away from all 3 glazing rows.
- box('steel_dark',[1.97,3.64,-1.92],[.26,.78,.26]);
- box('roof_trim',[1.97,4.06,-1.92],[.38,.10,.38]);
- box('vent',[1.97,4.12,-1.92],[.25,.035,.25]);
+ box('steel_dark',[1.97,3.48,-1.92],[.26,.45,.26]);
+ box('roof_trim',[1.97,3.74,-1.92],[.38,.09,.38]);
+ box('vent',[1.97,3.80,-1.92],[.25,.035,.25]);
 }
 function frustum(mat,y0,y1,r0,r1,sides=12,angle=PI/8){
  const g=material(mat);for(let i=0;i<sides;i++){let a=i*TAU/sides+angle,b=(i+1)*TAU/sides+angle;
@@ -329,18 +329,39 @@ function exportTeam(owner){
    array.forEach((v,i)=>{const k=i%dimensions;a.min[k]=Math.min(a.min[k],v);a.max[k]=Math.max(a.max[k],v)});}
   const id=gltf.accessors.length;gltf.accessors.push(a);return id;
  }
- const names=new Map();for(const g of groups.values()){
+ const names=new Map();
+ const appendTexture=(bytes)=>{
+  const image=gltf.images.length;
+  gltf.images.push({bufferView:append(bytes),mimeType:'image/png'});
+  const idx=gltf.textures.length;
+  gltf.textures.push({sampler:0,source:image});
+  return idx;
+ };
+ for(const g of groups.values()){
   if(!names.has(g.name)){
-   const mat=gltf.materials.length,color=pal[g.name],image=gltf.images.length;
-   const factionSurface=g.name==='team';
-   gltf.images.push({bufferView:append(png(color,g.name)),mimeType:'image/png'});
-   gltf.textures.push({sampler:0,source:image});
-   gltf.materials.push({name:'Sandforge_Factory_'+g.name,pbrMetallicRoughness:{
-    baseColorTexture:{index:image},metallicFactor:/metal|bronze|gunmetal/.test(g.name)?.45:.07,
-    roughnessFactor:.83},
+   const mat=gltf.materials.length,color=pal[g.name];
+   const factionSurface=g.name==='team',sawPbr=g.name.startsWith('roof');
+   const glass=g.name==='roof_glass';
+   const albedo=appendTexture(png(color,g.name));
+   const normal=sawPbr?appendTexture(roofNormalPng()):null;
+   const orm=sawPbr?appendTexture(roofOrmPng(g.name)):null;
+   gltf.materials.push({
+    name:'Sandforge_Factory_'+g.name,
+    pbrMetallicRoughness:{
+     baseColorTexture:{index:albedo},
+     metallicFactor:glass?.05:sawPbr?.48:.07,
+     roughnessFactor:glass?.65:sawPbr?.94:.83,
+     ...(glass?{baseColorFactor:[1,1,1,.82]}:{}),
+     ...(orm!==null?{metallicRoughnessTexture:{index:orm}}:{})
+    },
+    ...(normal!==null?{normalTexture:{index:normal,scale:.48}}:{}),
+    ...(glass?{
+     alphaMode:'BLEND',doubleSided:true,
+     emissiveFactor:[.25,.17,.08]
+    }:{}),
     ...(factionSurface?{extensions:{KHR_materials_unlit:{}}}:{}),
-    // No cyan emissive boost on painted team identifiers.
-    emissiveFactor:[0,0,0],doubleSided:true});
+    ...(glass?{}:{emissiveFactor:[0,0,0],doubleSided:true})
+   });
    names.set(g.name,mat);
   }
   const pos=accessor(g.p,'VEC3',3,5126,true),norm=accessor(g.n,'VEC3',3,5126),
