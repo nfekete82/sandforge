@@ -324,13 +324,17 @@ function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[]
  const rng=random(streamSeed(seed,'authored-highland-expansion-v8',candidate));
  const total=sites.length;
  const homeClear=homes.filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
+ // Existing ridge passes must remain fully unobstructed. On the old
+ // diagonal and serpentine maps the middle two rows already contain those
+ // canyon routes, so place new buildable highlands on the OUTER terraces.
+ // Otherwise the rim of a new mesa can close a legitimate tank passage.
  const siteIds=kind==='open-basin'
   ?[1,columns*(rows-1)+(columns-2)]
-  :kind==='broken-escarpment'
-   ?[columns+1,columns+(columns-2)]
-   :kind==='plateau-crossroads'
-    ?[columns+1,(rows-2)*columns+(columns-2)]
-    :[columns+1,(rows-2)*columns+(columns-2),columns+(columns-2)];
+  :kind==='plateau-crossroads'
+   ?[columns+1,(rows-2)*columns+(columns-2)]
+   :kind==='broken-escarpment'
+    ?[1,columns*(rows-1)+(columns-2)]
+    :[1,columns*(rows-1)+(columns-2),columns-2];
  const plateaus:RaisedMesa[]=[];
  for(const siteIndex of siteIds){
   if(siteIndex<0||siteIndex>=total||plateaus.some(p=>p.siteIndex===siteIndex))continue;
@@ -358,7 +362,18 @@ function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[]
   const overlaps=plateaus.some(other=>
    distance(center,other.center)<mesa.footRadius+other.footRadius+165);
   const unsafeHome=homeClear.some(home=>distance(center,home)<radius+330);
-  if(overlaps||unsafeHome)continue;
+  // Keep the entire authoritative ridge/pass corridor free of other rock
+  // blockers. It includes the full 1.9x collision skirt, not just the
+  // painted line. Existing v4/v5 passes are restored without moving them.
+  const nearbyRidge=kind!=='plateau-crossroads'&&original.ridges.some(ridge=>
+   ridge.spine.slice(1).some((to,i)=>{
+    const from=ridge.spine[i],dx=to.x-from.x,dy=to.y-from.y;
+    const t=Math.max(0,Math.min(1,
+      ((center.x-from.x)*dx+(center.y-from.y)*dy)/(dx*dx+dy*dy||1)));
+    const dist=Math.hypot(center.x-from.x-t*dx,center.y-from.y-t*dy);
+    return dist<mesa.footRadius+ridge.width*1.9+190;
+   }));
+  if(overlaps||unsafeHome||nearbyRidge)continue;
   plateaus.push(mesa);
  }
  const routeAnchors=(siteIndex:number):Point[]=>{
