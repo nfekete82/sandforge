@@ -43,6 +43,7 @@ import {installMatchResultOverlay} from '/webgl-match-result.js';
 import {installBattleDebrief} from '/webgl-battle-debrief.js';
 import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry,applyRockMineralVeins} from '/webgl-rock-materials.js';
 import {CANYON_GEOLOGY,buildGeologicalMesaSurface} from '/webgl-authentic-canyon-geology.js';
+import {createPlayableMesaCliffs} from '/webgl-raised-mesa-cliffs.js';
 import {makeSmallRuinFragments,isSmallRuin} from '/webgl-ruin-fragments.js';
 import {chooseRareScenicHouseIndex,createScenicDesertHouse} from '/webgl-scenic-desert-houses.js';
 import {createBurnedSedanWrecks} from '/webgl-burned-sedan-3d.js';
@@ -1095,10 +1096,16 @@ const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
   // on its face looked like separate floating rocks; desert cliffs now have
   // one continuous geological surface instead of duplicated outcrops.
   showOutcrops:biome!=='desert'}):[];
+// Thin PBR cliff facing follows the physical heightfield, with the real
+// sloping entrances left clear. Summit and ramp remain ordinary ground.
+const raisedMesaMeshes=terrain.battlefield?.generatorVersion===7
+ ?createPlayableMesaCliffs({scene,size,heightAt,plateaus:terrain.plateaus??[],
+    lowQuality:query.get('lite')==='1'}):[];
 const cliffMeshes=landscapeMeshes.filter(mesh=>mesh.userData?.erodedRidge);
 console.info('Sandforge terrain cliffs:',{
  map:desertRegion?.id??'procedural',kind:terrain.landscapeKind??'legacy',
- ridges:terrain.ridges.length,cliffMeshes:cliffMeshes.length,
+ ridges:terrain.ridges.length,raisedMesas:terrain.plateaus?.length??0,
+ raisedMesaMeshes:raisedMesaMeshes.length,cliffMeshes:cliffMeshes.length,
  triangles:cliffMeshes.reduce((sum,mesh)=>sum+(mesh.geometry?.getAttribute('position')?.count??0)/3,0)
 });
 boundaryCliffs=addBoundaryCliffs({scene,size,heightAt,seed,lowQuality:query.get('lite')==='1',softRim:spacious,hardVoid:spacious});
