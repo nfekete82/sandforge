@@ -143,6 +143,40 @@ export class World {
         }
       }
     }
+    // V8 layered ridge-and-mesa geology can leave sub-64-cell sand flecks
+    // trapped *inside* two adjoining cliff faces. These are not playable
+    // islands: no ground unit can enter or leave them, and they are smaller
+    // than a real construction pad. Classify only cliff-bounded tiny holes
+    // as continuous rock, never clear the original collision or add routes.
+    // Do not touch old maps, larger platforms, reachable valleys or Bastions.
+    if(this.generatorVersion===8){
+      const grid=RULES.grid,visited=new Uint8Array(this.blocked.length);
+      for(let root=0;root<this.blocked.length;root++){
+        if(visited[root]||this.blocked[root])continue;
+        const queue=[root];visited[root]=1;let cliffId=-1;
+        for(let head=0;head<queue.length;head++){
+          const i=queue[head],x=i%grid,y=Math.floor(i/grid);
+          for(const neighbor of [
+            x?i-1:-1,x<grid-1?i+1:-1,
+            y?i-grid:-1,y<grid-1?i+grid:-1
+          ]){
+            if(neighbor<0)continue;
+            if(this.blocked[neighbor]){
+              if(this.cliffIds[neighbor]>=0)cliffId=this.cliffIds[neighbor];
+            }else if(!visited[neighbor]){
+              visited[neighbor]=1;queue.push(neighbor);
+            }
+          }
+        }
+        if(queue.length>64||cliffId<0||!this.generated||
+           queue.some(i=>this.generated!.sites.some(site=>
+             distance(site,this.center(i))<190)))continue;
+        for(const i of queue){
+          this.blocked[i]=1;this.opaque[i]=1;this.cliffIds[i]=cliffId;
+          (this.cliffCells[cliffId]??=[]).push(i);
+        }
+      }
+    }
     // Static connectivity keeps move destinations out of isolated terrain pockets.
     let component=0;
     for(let i=0;i<this.blocked.length;i++)if(!this.blocked[i]&&this.components[i]<0){
