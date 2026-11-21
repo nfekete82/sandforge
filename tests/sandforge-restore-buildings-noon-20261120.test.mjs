@@ -35,6 +35,10 @@ test('original generated airfield, bastion, reactor and bunker fallback remain a
  }
  const bunker=read('scripts/webgl-fortified-bunker.js');
  assert.match(bunker,/meshyStructurePath\('bunker'\)/);
+ const strategic=read('scripts/webgl-strategic-buildings.js');
+ assert.match(strategic,/export function createDefensiveBunker\(owner=0\)/);
+ assert.match(strategic,/Bunker_Embrasure_/);
+ assert.doesNotMatch(strategic,/return createFortifiedBunker\(owner\)/);
  assert.match(read('scripts/webgl-battlefield.js'),/meshyStructurePath\('bastion'\)/);
  const manifest=read('scripts/webgl-meshy-asset-flags.js');
  for(const kind of ['barracks','airfield','bastion','bunker','headquarters','generator'])
