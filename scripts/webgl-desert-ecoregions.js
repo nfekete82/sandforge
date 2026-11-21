@@ -65,6 +65,19 @@ export const DESERT_ECOREGIONS=Object.freeze({
   palette:Object.freeze({sand:'#d8b894',highlight:'#e9cfad',stone:'#b58d69',wash:'#ae8b6a'}),
   uvMeters:440,rocks:24,saguaro:0,joshua:0,
   description:'Drei geschichtete Hochplateaus mit echten Pässen und erdigen Talwegen.'
+ }),
+ 'mesa-highlands':Object.freeze({
+  id:'mesa-highlands',key:'highlands',title:'Bebaubare Felsplateaus',
+  geography:'Colorado Plateau / Utah',
+  terrainSource:'polyhaven-rock-ground-cc0',
+  ground:Object.freeze({
+   base:'/src/assets/reborn/terrain/desert-badlands-albedo.webp',
+   normal:'/src/assets/reborn/terrain/desert-badlands-normal.webp',
+   rough:'/src/assets/reborn/terrain/desert-badlands-rough.webp'
+  }),
+  palette:Object.freeze({sand:'#d7b89a',highlight:'#e8cfad',stone:'#b98b60',wash:'#aa8565'}),
+  uvMeters:440,rocks:16,saguaro:0,joshua:0,
+  description:'Zwei bebaubare Bastionsplateaus mit echten 3D-Klippen und befahrbaren Rampen.'
  })
 });
 export const DESERT_MODEL_FILES=Object.freeze({
