@@ -67,6 +67,28 @@ test('Desert Strike contains a genuinely CENTRAL broad buildable plateau with fo
  }
 });
 
+test('real tank slope samples confirm all four central access roads can be driven',()=>{
+ const w=campaign(map).world;
+ const m=w.generated.plateaus.find(p=>p.siteIndex===-1);
+ assert.ok(m);
+ for(const d of m.ramps){
+  const at=(t)=>({x:m.center.x+d.x*t,y:m.center.y+d.y*t});
+  for(const r of [m.topRadius+150,m.topRadius+430,
+   m.topRadius+700,m.rampEnd-160]){
+   const p=at(r);
+   assert.ok(w.walkable(p,[],20),'tank route collides with mountain');
+   assert.ok(w.groundVehicleSlopeSafe(p,.215,20),
+    'tank-grade ramp exceeds real contact slope '+JSON.stringify({
+      d,r,slope:w.terrainSlope(p.x,p.y)}));
+  }
+  const from=at(m.rampEnd-140),to=at(m.topRadius*.75);
+  const route=w.path(from,to,[],20,undefined,false,false,false,.215);
+  assert.ok(route.length>0&&
+   Math.hypot(route.at(-1).x-to.x,route.at(-1).y-to.y)<w.cell*1.5,
+   'actual tank path cannot ascend this physical ramp '+JSON.stringify(d));
+ }
+});
+
 test('older highlands gain optional 2-way approaches only where safe',()=>{
  let twoWay=0;
  for(const m of maps){
