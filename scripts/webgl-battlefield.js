@@ -1267,6 +1267,7 @@ export class SandforgeBattlefield {
     if(e.detail){
      disposeTaggedMaterials(e.detail,'sandforgeHelicopterOwnedPaint');
      disposeTaggedMaterials(e.detail,'sandforgeArmourOwnedPaint');
+     disposeTaggedMaterials(e.detail,'sandforgeBomberWingOwned');
      disposeTaggedMaterials(e.detail,'sandforgeFactionTint');
      disposeTaggedMaterials(e.detail,'sandforgeMilitaryMicroPBROwned');
      if(e.kind==='rocket')disposeRocketLauncher(e.detail);
