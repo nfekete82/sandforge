@@ -4,7 +4,7 @@ import type {Point} from './config.js';
 export interface RaisedMesa {
  center:Point; topRadius:number; footRadius:number;
  height:number; rampEnd:number; rampWidth:number;
- direction:Point; seed:number; siteIndex:number;
+ direction:Point; ramps?:Point[]; seed:number; siteIndex:number;
 }
 const clamp=(v:number)=>Math.max(0,Math.min(1,v));
 const smooth=(v:number)=>{const t=clamp(v);return t*t*(3-2*t);};
@@ -22,22 +22,40 @@ export function mesaLocation(p:Point,mesa:RaisedMesa){
  const lateral=Math.abs(dx*mesa.direction.y-dy*mesa.direction.x);
  return {radius,along,lateral,angle};
 }
-export function mesaRampCoverage(p:Point,mesa:RaisedMesa):number{
- const {along,lateral}=mesaLocation(p,mesa);
+/** Explicit multi-entry plateaus are opt-in for v10; old saves still
+ * have the original single direction and regenerate byte-identically. */
+export function mesaRampDirections(mesa:RaisedMesa):readonly Point[]{
+ return mesa.ramps?.length?mesa.ramps:[mesa.direction];
+}
+function directionCoverage(p:Point,mesa:RaisedMesa,d:Point){
+ const dx=p.x-mesa.center.x,dy=p.y-mesa.center.y;
+ const along=dx*d.x+dy*d.y;
+ const lateral=Math.abs(dx*d.y-dy*d.x);
  if(along<mesa.topRadius-80||along>mesa.rampEnd+80)return 0;
  return 1-smooth((lateral-mesa.rampWidth*.56)/(mesa.rampWidth*.36));
 }
+export function mesaRampCoverage(p:Point,mesa:RaisedMesa):number{
+ let coverage=0;
+ for(const d of mesaRampDirections(mesa))
+  coverage=Math.max(coverage,directionCoverage(p,mesa,d));
+ return coverage;
+}
 export function raisedMesaHeight(base:number,p:Point,mesa:RaisedMesa):number{
- const {radius,along}=mesaLocation(p,mesa);
+ const {radius}=mesaLocation(p,mesa);
  if(radius>mesa.rampEnd+100)return base;
  const cliff=1-smooth((radius-mesa.topRadius)/(mesa.footRadius-mesa.topRadius));
- // The single motorable slope descends over nearly a kilometre. The other
- // sides remain steep cliffs, with a naturally varied eroded outline.
+ // Exact historical single-ramp formulation is preserved for old v7-v9
+ // mesas. V10 picks the most open authored entrance on each cliff side.
+ let coverage=0,along=0;
+ for(const d of mesaRampDirections(mesa)){
+  const c=directionCoverage(p,mesa,d);
+  if(c>coverage){
+   coverage=c;
+   along=(p.x-mesa.center.x)*d.x+(p.y-mesa.center.y)*d.y;
+  }
+ }
  const ramp=clamp((mesa.rampEnd-along)/(mesa.rampEnd-mesa.topRadius));
- const coverage=mesaRampCoverage(p,mesa);
  const lift=cliff*(1-coverage)+ramp*coverage;
- // The top is a real LEVEL gameplay surface; the ramp merges continuously
- // with the already-graded world ground at its bottom.
  return base+(mesa.height-base)*lift;
 }
 /** Physically impassable cliff band surrounding an otherwise buildable top.
