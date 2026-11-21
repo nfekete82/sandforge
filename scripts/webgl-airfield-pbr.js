@@ -6,7 +6,14 @@ import * as THREE from 'three';
 
 // Rendering-only swap: the actual runway, taxi/landing path, serviced aircraft,
 // fuel props, crew animations and one-bay game rules are never touched.
-const assetCache=new Map();
+const assetCache=new Map(),meshyAssetCache=new Map();
+function meshyModel(url){
+ if(!meshyAssetCache.has(url))
+  meshyAssetCache.set(url,new GLTFLoader().loadAsync(url).catch(error=>{
+   meshyAssetCache.delete(url);throw error;
+  }));
+ return meshyAssetCache.get(url);
+}
 const legacyHangar=/^(?:Hangar(?:Bay|Camo|Vertical|Roof|Side|Rear|Entry|Door|Center|Apron|Recessed|Hazard|Maintenance|Safety|Security|Angled|Service|Repair|Fuel)|AirfieldLeftControlTower)/;
 const keepGround=/^(?:HangarCenterGuide|HangarApronStop|HangarSafetyChevron|HangarRepairSparks|HangarSecurityLamp)/;
 export const AIRFIELD_PBR_REVISION='sandforge-airfield-pbr-v2-rollup-satellite-20261116';
@@ -46,7 +53,8 @@ function releaseGhost(model){
   if(!mesh.isMesh)return;
   const materials=Array.isArray(mesh.material)?mesh.material:[mesh.material];
   for(const material of materials){
-   if(material?.userData?.sandforgeBuildingPBROwned)owned.add(material);
+   if(material?.userData?.sandforgeBuildingPBROwned||
+      material?.userData?.sandforgeMeshyTeamOwned)owned.add(material);
   }
  });
  for(const material of owned)material.dispose();
@@ -127,7 +135,7 @@ export function ensureAirfieldPbr(group,owner=0,{ghost=false}={}){
   // loaded. The runway, taxi paths and air-service rules are unaffected.
   const meshyUrl=meshyStructurePath('airfield');
   if(!meshyUrl)return true;
-  return new GLTFLoader().loadAsync(meshyUrl).then(({scene})=>{
+  return meshyModel(meshyUrl).then(({scene})=>{
    if(group.userData.airfieldPbrDisposed||group.userData.airfieldPbrToken!==token)
     return false;
    const skin=scene.clone(true),box=new THREE.Box3().setFromObject(skin);
@@ -138,8 +146,8 @@ export function ensureAirfieldPbr(group,owner=0,{ghost=false}={}){
    skin.scale.multiplyScalar(scale);
    skin.position.set(-175-center.x*scale,3-box.min.y*scale,-77-center.z*scale);
    skin.name='SandforgeMeshyAirfieldSkin';
-   prepareMeshyStructure(skin,'airfield',owner);
    if(ghost)styleGhost(skin);
+   prepareMeshyStructure(skin,'airfield',owner);
    const previous=group.userData.airfieldMeshySkin;
    if(previous){previous.removeFromParent();releaseGhost(previous);}
    group.add(skin);group.userData.airfieldMeshySkin=skin;
