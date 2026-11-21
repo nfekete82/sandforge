@@ -12,7 +12,7 @@ import {installSkinnedTrousers,disposeSkinnedTrousers} from './webgl-human-skinn
  * per-frame updates are needed. Shared textures/geometries avoid per-unit GPU
  * resource growth.
  */
-export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v9-real-leg-anchors-20261122';
+export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v10-soft-knees-20261122';
 
 const ellipsoid=new THREE.SphereGeometry(1,20,14);
 const rounded=new RoundedBoxGeometry(1,1,1,3,.13);
@@ -256,10 +256,10 @@ export function humanizeInfantry(model,owner=0){
    if(cap)cap.scale.multiplyScalar(.77); // preserve historical size contract
    hideChildren(knee); // neither the sci-fi ball joint nor ceramic hinge
    oval(knee,'TrouserKnee'+side,uniform,[0,0,.020],[.087,.100,.089]);
-   shaped(knee,'SoftKneepad'+side,vest,[0,-.008,.102],
-    [.091,.068,.020]);
-   shaped(knee,'KneeStrap'+side,dark,[0,-.044,.099],
-    [.096,.009,.013]);
+   oval(knee,'SoftKneepad'+side,vest,[0,-.006,.105],
+    [.083,.066,.024]);
+   shaped(knee,'KneeStrap'+side,dark,[0,-.047,.093],
+    [.087,.008,.012]);
   }
 
   const boot=model.getObjectByName('Atlas_Boot'+side);
@@ -312,13 +312,13 @@ export function humanizeInfantry(model,owner=0){
  const hasSkinnedPants=!forceRigid&&installSkinnedTrousers(model,uniform);
  if(hasSkinnedPants){
   for(const side of ['L','R']){
-   for(const part of ['thigh','calf','TrouserKnee']){
+   for(const part of ['thigh','calf','TrouserKnee','KneeStrap']){
     const rigid=model.getObjectByName('SF_Human_'+part+side);
     if(rigid)rigid.visible=false;
    }
   }
   model.userData.sandforgeHumanSkinnedLegs=true;
-  if(params.get('soldierDebug')==='1')showTrouserDiagnostic('SKINNED V3 – active (normal leg animation)');
+  if(params.get('soldierDebug')==='1')showTrouserDiagnostic('SKINNED V4 – soft knee + natural calf');
   if(params.get('soldierDebug')==='1'&&!humanInfantryWarnings.has('skinned')){
    const pants=model.getObjectByName('SF_Human_SkinnedTrousers');
    console.info('[Sandforge infantry] anatomical skinned trousers active:',
