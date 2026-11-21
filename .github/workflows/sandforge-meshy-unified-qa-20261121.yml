@@ -15,6 +15,7 @@ on:
       - webgl-meshy-buildings.html
       - scripts/build.mjs
       - tests/sandforge-meshy-structures-20261121.test.mjs
+      - tests/sandforge-meshy-hq-details-20261121.test.mjs
       - tests/sandforge-meshy-hq-radars-20261121.test.mjs
       - tests/browser/webgl-meshy-unified-buildings-20261121.spec.mjs
       - .github/workflows/sandforge-meshy-unified-qa-20261121.yml
@@ -59,6 +60,7 @@ jobs:
       - name: Native simulation and new unified-style tests
         run: |
           node --test tests/sandforge-meshy-structures-20261121.test.mjs
+          node --test tests/sandforge-meshy-hq-details-20261121.test.mjs
           node --test tests/sandforge-meshy-hq-radars-20261121.test.mjs
           node --test tests/sandforge-meshy-live-factory-20261121.test.mjs
       - name: Confirm six live GLBs and 3D style gallery shipped in dist
