@@ -164,8 +164,8 @@ test('human-scale proportions stay lean; soft shoulders and waist follow their r
   const calf=root.getObjectByName('SF_Human_calf'+side);
   const forearm=root.getObjectByName('SF_Human_forearm'+side);
   assert.ok(thigh&&calf&&forearm);
-  assert.ok(thigh.scale.x<.11,'oversized robotic thigh');
-  assert.ok(calf.scale.x<.11,'oversized mechanical calf');
+  assert.ok(thigh.scale.x>.12&&thigh.scale.x<.16,'fallback trousers must not be spindly or oversized');
+  assert.ok(calf.scale.x>.12&&calf.scale.x<.16,'fallback calves must have human volume');
   assert.ok(forearm.scale.x<.11,'oversized robotic forearm');
   assert.ok(root.getObjectByName('SF_Human_ShoulderFabric'+(side==='L'?-1:1)));
  }
@@ -191,7 +191,7 @@ test('front-view infantry silhouette does not regress into oversized toy armour'
  assert.ok(vest.scale.x<=.41&&vest.scale.y<=.29,'bulky plate carrier');
  assert.ok(jacket.scale.y<=.36,'oversized torso');
  assert.ok(kneepad.scale.x<=.11,'robotic hard knee');
- assert.ok(thigh.scale.x<=.10,'oversized lower body');
+ assert.ok(thigh.scale.x>.12&&thigh.scale.x<.16,'fallback lower body must not be thin sticks');
  assert.ok(fieldPack.scale.y<=.26,'backpack must stay beneath helmet');
  assert.equal(root.getObjectByName('Atlas_Rifle'),rifle);
  assert.equal(rifle.parent,socket);
@@ -214,7 +214,7 @@ test('front silhouette is uniform rather than bare robot arms with oversized arm
   assert.equal(forearm.material.name,'SF_Human_DesertCombatUniform',
    'forearms should be fabric, not oversized bare skin');
   assert.ok(forearm.scale.x<.09);
-  assert.ok(calf.scale.x<.10);
+  assert.ok(calf.scale.x>.12&&calf.scale.x<.16);
   assert.ok(ankle.scale.x<.08&&toe.scale.x<.09);
   assert.ok(root.getObjectByName('SF_Human_RolledSleeveCuff'+side));
  }
@@ -255,7 +255,7 @@ test('reference-style trousers replace four rigid stilt legs with one smoothly s
  assert.equal(root.userData.sandforgeHumanSkinnedLegs,true);
  const pants=root.getObjectByName('SF_Human_SkinnedTrousers');
  assert.ok(pants?.isSkinnedMesh,'the game must render a genuine bone-skinned pair of pants');
- assert.equal(SKINNED_TROUSERS_REVISION,'human-articulated-cargo-pants-v2-full-width-20261122');
+ assert.equal(SKINNED_TROUSERS_REVISION,'human-articulated-cargo-pants-v3-20261122');
  assert.deepEqual(pants.skeleton.bones.map(b=>b.name),
   ['UpperLegL','LowerLegL','FootL','UpperLegR','LowerLegR','FootR']);
  assert.ok(pants.geometry.attributes.position.count>700,'high enough topology for round calves and knees');
@@ -338,4 +338,41 @@ test('unsupported skeleton gets explicit diagnostic without breaking older model
  assert.equal(root.userData.sandforgeTrouserStatus,'missing-compatible-leg-bones');
  assert.equal(root.getObjectByName('SF_Human_thighL').visible,true);
  assert.equal(root.getObjectByName('SF_Human_calfR').visible,true);
+});
+
+test('nonstandard bone names recover from the exported Atlas joint attachments',()=>{
+ const {root}=riggedAtlas();
+ for(const side of ['L','R']){
+  const hip=root.getObjectByName('UpperLeg'+side);
+  const knee=root.getObjectByName('LowerLeg'+side);
+  const foot=root.getObjectByName('Foot'+side);
+  const thigh=root.getObjectByName('Atlas_Thigh'+side);
+  const shin=root.getObjectByName('Atlas_Shin'+side);
+  const boot=root.getObjectByName('Atlas_Boot'+side);
+  hip.attach(thigh);knee.attach(shin);foot.attach(boot);
+  hip.name='CustomUpper'+side;
+  knee.name='CustomKnee'+side;
+  foot.name='CustomFoot'+side;
+ }
+ root.updateMatrixWorld(true);
+ const actual=findTrouserRig(root);
+ assert.ok(actual,'must discover real leg bones from Atlas geometry parents');
+ assert.deepEqual(actual.map(b=>b.name),
+  ['CustomUpperL','CustomKneeL','CustomFootL',
+   'CustomUpperR','CustomKneeR','CustomFootR']);
+ assert.equal(humanizeInfantry(root,0),true);
+ assert.equal(root.userData.sandforgeTrouserStatus,'skinned');
+ assert.ok(root.getObjectByName('SF_Human_SkinnedTrousers'));
+});
+test('missing bones use anatomically fuller rigid-fabric fallback rather than thin sticks',()=>{
+ const {root}=atlas();
+ humanizeInfantry(root,0);
+ assert.equal(root.userData.sandforgeHumanSkinnedLegs,false);
+ assert.equal(root.userData.sandforgeTrouserStatus,'missing-compatible-leg-bones');
+ for(const side of ['L','R']){
+  const thigh=root.getObjectByName('SF_Human_thigh'+side);
+  const calf=root.getObjectByName('SF_Human_calf'+side);
+  assert.ok(thigh.visible&&calf.visible);
+  assert.ok(thigh.scale.x>.12&&calf.scale.x>.12,'fallback must be wider');
+ }
 });
