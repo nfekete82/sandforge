@@ -10,6 +10,7 @@ import {ridgeHeightAtX} from '../dist/src/reborn/ai36-terrain-routes.js';
 import {selectDesertAIDoctrine,DESERT_AI_DOCTRINES,fixedDesertLateAirSupport} from '../dist/src/reborn/desert-ai-doctrine.js';
 
 const catalog=globalThis.SandforgeDesertMaps;
+const classicMaps=catalog.maps.filter(map=>map.id!=='plateau-crossroads');
 const geometryHash=world=>createHash('sha256')
  .update(JSON.stringify(world.generated.sites))
  .update(JSON.stringify(world.generated.ridges))
@@ -18,18 +19,23 @@ const geometryHash=world=>createHash('sha256')
  .update(world.blocked)
  .digest('hex');
 
-test('exactly four named classic desert maps, with empirically selected road grading',()=>{
- assert.equal(catalog.maps.length,4);
- assert.deepEqual(catalog.maps.map(x=>x.id),[
+test('four original maps stay unchanged and the fifth authored Plateau Crossroads is versioned',()=>{
+ assert.equal(classicMaps.length,4);
+ assert.equal(catalog.maps.length,5);
+ const custom=catalog.byId('plateau-crossroads');
+ assert.equal(custom.generatorVersion,6);
+ assert.equal(custom.kind,'plateau-crossroads');
+ assert.equal(custom.bastions,16);
+ assert.deepEqual(classicMaps.map(x=>x.id),[
   'desert-strike','broken-empire','burning-horizon','last-stronghold']);
- assert.deepEqual(catalog.maps.map(x=>x.name),[
+ assert.deepEqual(classicMaps.map(x=>x.name),[
   'Desert Strike','Broken Empire','Burning Horizon','Last Stronghold']);
- assert.deepEqual(catalog.maps.map(x=>x.inspiration),[
+ assert.deepEqual(classicMaps.map(x=>x.inspiration),[
   'Tournament Desert','Fallen Empire','Twilight Flame','Defcon 6']);
- assert.deepEqual(catalog.maps.map(x=>x.kind),[
+ assert.deepEqual(classicMaps.map(x=>x.kind),[
   'open-basin','broken-escarpment','diagonal-ridge','serpentine-canyon']);
- assert.equal(new Set(catalog.maps.map(x=>x.seed)).size,4);
- for(const map of catalog.maps){
+ assert.equal(new Set(catalog.maps.map(x=>x.seed)).size,5);
+ for(const map of classicMaps){
   assert.equal(map.generatorVersion,map.id==='burning-horizon'?4:5,'retain v4 on the measured Burning Horizon regression');
   assert.equal(map.biome,'desert','only original desert graphics');
   assert.ok(Object.isFrozen(map),'locked battlefields are immutable');
@@ -84,7 +90,7 @@ for(const map of catalog.maps.filter(p=>p.generatorVersion===5&&p.kind!=='open-b
 });
 
 test('historical v4 saves remain untouched after grading only new v5 fixed maps',()=>{
- const p=catalog.maps.at(-1),old=Simulation.campaign(p.seed,p.mapVersion,p.terrain,4);
+ const p=catalog.byId('last-stronghold'),old=Simulation.campaign(p.seed,p.mapVersion,p.terrain,4);
  const version5=Simulation.campaign(p.seed,p.mapVersion,p.terrain,5);
  assert.equal(old.world.generatorVersion,4);
  assert.equal(version5.world.generatorVersion,5);
@@ -98,7 +104,7 @@ test('historical v4 saves remain untouched after grading only new v5 fixed maps'
 test('four map-specific AI doctrines are calibrated from paid A/B results',()=>{
  assert.equal(DESERT_AI_DOCTRINES.length,4);
  const expected=['off','coordinated','coordinated','off'];
- for(const [i,p] of catalog.maps.entries()){
+ for(const [i,p] of classicMaps.entries()){
   const world=Simulation.campaign(p.seed,p.mapVersion,p.terrain,p.generatorVersion);
   assert.equal(world.tactical.ai37Mode,expected[i],p.name+' doctrine');
   const match=selectDesertAIDoctrine({
@@ -146,7 +152,7 @@ test('paid late-game air support survives the offensive ground doctrine only on 
   'unknown maps never get free air-support privileges');
 });
 
-test('main menu contains only the four desert maps, locked to the existing renderer',()=>{
+test('main menu offers four original maps plus Plateau Crossroads',()=>{
  const html=readFileSync('webgl-preview.html','utf8');
  const menu=readFileSync('scripts/webgl-title-menu.js','utf8');
  const renderer=readFileSync('scripts/webgl-preview.js','utf8');
@@ -157,7 +163,7 @@ test('main menu contains only the four desert maps, locked to the existing rende
   assert.match(html,new RegExp('value="'+map.id+'"'));
   assert.match(html,new RegExp(map.name.toUpperCase()));
  }
- assert.equal((html.match(/<option value="(?:desert-strike|broken-empire|burning-horizon|last-stronghold)"/g)||[]).length,4);
+ assert.equal((html.match(/<option value="(?:desert-strike|broken-empire|burning-horizon|last-stronghold|plateau-crossroads)"/g)||[]).length,5);
  assert.doesNotMatch(html,/id="sf3d-biome"/);
  assert.doesNotMatch(html,/id="sf3d-terrain"/);
  assert.doesNotMatch(html,/id="sf3d-landscape"/);
