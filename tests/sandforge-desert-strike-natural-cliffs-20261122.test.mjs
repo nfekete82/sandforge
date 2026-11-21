@@ -117,7 +117,7 @@ test('cliff facades are nonfloating, clipped cleanly around all four ramp cuts',
  assert.ok(largestFloating<.045);
  const vertexColors=[];
  for(let i=0;i<color.count;i+=Math.max(1,Math.floor(color.count/250))){
-  vertexColors.push(color.getR(i));
+  vertexColors.push(color.getX(i));
  }
  assert.ok(Math.max(...vertexColors)-Math.min(...vertexColors)>.09,
   'the rock face needs pale rim, warm middle and weathered foot');
