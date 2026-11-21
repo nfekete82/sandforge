@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {MESHY_STRUCTURE_ASSETS} from '../scripts/webgl-meshy-asset-flags.js';
-import {meshyStructurePath,prepareMeshyStructure,meshyLocalBounds,SANDFORGE_INDUSTRIAL_PALETTE,MESHY_HQ_ENGINEER_DOOR}
+import {meshyStructurePath,prepareMeshyStructure,meshyLocalBounds,SANDFORGE_INDUSTRIAL_PALETTE,MESHY_HQ_ENGINEER_DOOR,removeHeadquartersEmblemMeshes}
  from '../scripts/webgl-meshy-structure.js';
 
 test('missing Meshy binaries never break existing Sandforge PBR buildings',()=>{
@@ -182,4 +182,17 @@ test('HQ spawn anchors are on the photographed double-door, not the right-hand a
  const gates=readFileSync('scripts/webgl-production-gates.js','utf8');
  assert.doesNotMatch(gates,/meshyHQShutter/);
  assert.match(gates,/meshyInfantry:true,meshyStart,meshyExit/);
+});
+
+test('any separately modeled HQ crest is removed without touching the real door',()=>{
+ const root=new THREE.Group();
+ const material=new THREE.MeshStandardMaterial();
+ const actualDoor=new THREE.Mesh(new THREE.BoxGeometry(1,2,.15),material);
+ actualDoor.name='HQ_Original_Double_Door';
+ const crest=new THREE.Mesh(new THREE.BoxGeometry(1,1,.1),material);
+ crest.name='Star_Emblem';
+ root.add(actualDoor,crest);
+ assert.equal(removeHeadquartersEmblemMeshes(root),1);
+ assert.equal(root.getObjectByName('Star_Emblem'),undefined);
+ assert.equal(root.getObjectByName('HQ_Original_Double_Door'),actualDoor);
 });
