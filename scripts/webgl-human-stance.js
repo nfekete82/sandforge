@@ -9,7 +9,7 @@ import {findTrouserRig} from './webgl-human-skinned-trousers.js';
  * No changes to the original clips, upper-body IK, rifle, muzzle, collisions,
  * navigation or unit physics. Never replace the walk/run animation itself.
  */
-export const HUMAN_STANCE_REVISION='human-infantry-stance-v1-20261122';
+export const HUMAN_STANCE_REVISION='human-infantry-stance-v2-grounded-gait-20261122';
 const AXIS_X=new THREE.Vector3(1,0,0);
 const AXIS_Z=new THREE.Vector3(0,0,1);
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
@@ -86,22 +86,29 @@ export function applyHumanStance(pose,{moving=false,shooting=false,hurt=false,
  if(death||hurt)return false;
  dt=clamp(Number.isFinite(dt)?dt:0,0,.08);
  pose.elapsed+=dt;
+ // Smooth the locomotion layer, but trust the authored Run_Gun clip for
+ // actual strides and foot contacts. Large secondary bends created the
+ // doubled-up, bouncing knees seen in the last side-view screenshot.
  const target=moving?1:0;
- pose.movingBlend+=(target-pose.movingBlend)*clamp(dt*6,0,1);
+ pose.movingBlend+=(target-pose.movingBlend)*clamp(dt*5,0,1);
  const run=pose.movingBlend,idle=1-run;
  const breath=Math.sin(pose.elapsed*2.15);
  const cycle=(Number.isFinite(walkPhase)?walkPhase:0)*Math.PI*2;
  // On fire, attenuate leg corrections so the original two-hand rifle
  // animation and authoritative muzzle heading retain visual precedence.
- const strength=shooting?.42:1;
+ const strength=shooting?.40:1;
  for(const leg of pose.legs){
   const stride=Math.sin(cycle+leg.phase);
-  const sideShift=-leg.outward*(.034*idle+.010*run);
-  const idleShift=leg.outward*.007*breath*idle;
-  const upperPitch=(-.029*idle+.024*run*stride)*strength;
-  const kneeBend=(.058*idle+.020*run+.014*run*Math.max(0,-stride))*strength;
-  // Compensate the boot for the deliberately subtle new knee flexion.
-  const anklePitch=-(upperPitch+kneeBend)*.63;
+  // Keep the relaxed standing feet slightly closer but DO NOT narrow the
+  // feet during running; that produces crossed knees in the forward swing.
+  const sideShift=-leg.outward*(.027*idle+.002*run);
+  const idleShift=leg.outward*.004*breath*idle;
+  // In motion the original authored clip already lifts knees and boots.
+  // Only a tiny phase-linked correction remains, without additional crouch.
+  const upperPitch=(-.014*idle+.009*run*stride)*strength;
+  const kneeBend=(.032*idle+.002*run+.005*run*Math.max(0,-stride))*strength;
+  // Ankle counter-rotation is smaller to avoid a pointed-toe "hopping" look.
+  const anklePitch=-(upperPitch+kneeBend)*.50;
   applyJoint(leg.upper,upperPitch,sideShift+idleShift);
   applyJoint(leg.knee,kneeBend,0);
   applyJoint(leg.foot,anklePitch,0);
