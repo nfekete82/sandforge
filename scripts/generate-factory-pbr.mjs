@@ -222,26 +222,88 @@ const crcTable=Array.from({length:256},(_,n)=>{let c=n;for(let i=0;i<8;i++)c=c&1
 function crc32(buffer){let c=0xffffffff;for(const b of buffer)c=crcTable[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0}
 const be=n=>{const b=Buffer.alloc(4);b.writeUInt32BE(n);return b};
 function pngChunk(type,data){const name=Buffer.from(type);return Buffer.concat([be(data.length),name,data,be(crc32(Buffer.concat([name,data])))]);}
-function png(color,key){
- // Roof paint needs fine quiet mineral grain, not a magnified 48px pattern
- // that looks like deep parallel grooves under golden-hour grazing light.
- const width=key==='roof'?256:48,height=key==='roof'?256:48;
- let state=(color[0]*2161+color[1]*3191+color[2]*5779)>>>0;
+const clampByte=v=>Math.max(0,Math.min(255,Math.round(v)));
+function rasterPng(width,height,sample){
  const scan=Buffer.alloc((width*4+1)*height);
- const random=()=>{state=(1664525*state+1013904223)>>>0;return state/4294967296};
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-  // Uniform paint: same sRGB as the team roof stripes and the static flags.
-  const i=y*(width*4+1)+1+x*4,
-  noise=(key==='team'||key==='white')?0:
-   Math.round((random()-.5)*(['roof','camo'].includes(key)?5:17));
-  let rgb=color;
-  // Do not bake the old 48px sine-wave camouflage into the exterior:
-  // the factory uses the same high-detail wall atlas as HQ and barracks.
-  // A quiet sandy base remains visible briefly before PBR shader upload.
-  for(let c=0;c<3;c++)scan[i+c]=Math.max(0,Math.min(255,rgb[c]+noise));scan[i+3]=255;
+  const p=y*(width*4+1)+1+x*4,rgba=sample(x,y,width,height);
+  for(let c=0;c<4;c++)scan[p+c]=clampByte(rgba[c]??255);
  }
- const hdr=Buffer.alloc(13);hdr.writeUInt32BE(width,0);hdr.writeUInt32BE(height,4);hdr[8]=8;hdr[9]=6;
- return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),pngChunk('IHDR',hdr),pngChunk('IDAT',deflateSync(scan,{level:8})),pngChunk('IEND',Buffer.alloc(0))]);
+ const hdr=Buffer.alloc(13);hdr.writeUInt32BE(width,0);
+ hdr.writeUInt32BE(height,4);hdr[8]=8;hdr[9]=6;
+ return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),
+  pngChunk('IHDR',hdr),pngChunk('IDAT',deflateSync(scan,{level:8})),
+  pngChunk('IEND',Buffer.alloc(0))]);
+}
+function png(color,key){
+ // New materials have real locally baked high-resolution albedo textures,
+ // without fetching external files at runtime. All are deterministic.
+ const detailed=['roof','roof_metal','roof_trim','roof_glass','camo'].includes(key);
+ const size=detailed?512:48;
+ let state=(color[0]*2161+color[1]*3191+color[2]*5779)>>>0;
+ const random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296};
+ return rasterPng(size,size,(x,y,w,h)=>{
+  const u=x/w,v=y/h,r=random(),fine=(r-.5)*7;
+  if(key==='roof_metal'||key==='roof'){
+   // Weathered charcoal standing-seam sheet metal, fine granular finish.
+   const rib=x%64,fold=rib<3?-21:rib<7?12:rib<10?-7:0;
+   const grime=8*Math.sin(v*22+u*8)*Math.sin(u*19-v*7);
+   const shade=fold+grime+fine;
+   return [...color.map(c=>c+shade),255];
+  }
+  if(key==='roof_trim'){
+   const brush=5*Math.sin(v*130)+fine;
+   const seam=(x%96<2||y%112<2)?-13:0;
+   return [...color.map(c=>c+brush+seam),255];
+  }
+  if(key==='roof_glass'){
+   // Translucent amber clerestory panes, grime and muted factory interior.
+   // The actual steel mullions are geometry, not pixels.
+   const light=8*Math.sin(v*10+u*2)+6*Math.sin(u*27-v*4);
+   const shadow=(y>h*.62&&Math.sin(u*47)*Math.cos(v*22)>.38)?-54:0;
+   const dust=(r-.5)*12;
+   return [...color.map((c,i)=>c+light+shadow+dust-(i===2?17:0)),240];
+  }
+  if(key==='camo'){
+   // Soft-edged irregular desert camouflage, not flat painted color or
+   // high-contrast graphic stickers. Different from roof material.
+   const shape=Math.sin(u*14+Math.cos(v*13)*1.8)*.41+
+    Math.cos(v*20+Math.sin(u*9)*1.5)*.34+
+    Math.sin(u*25+v*18)*.16;
+   const variation=shape>.33?[-36,-31,-21]:shape<-.28?[23,20,15]:[0,0,0];
+   const grain=(r-.5)*9;
+   return [...color.map((c,i)=>c+variation[i]+grain),255];
+  }
+  const noise=(key==='team'||key==='white')?0:(r-.5)*17;
+  return [...color.map(c=>c+noise),255];
+ });
+}
+// PBR tangent-space detail: ridged roof micro-geometry and weathered metal.
+// This uses the glTF standard NORMAL and ORM channels, not a renderer hack.
+function roofMicroHeight(x,y,size){
+ const ribs=x%(size/8),edge=Math.min(ribs,size/8-ribs);
+ const seam=edge<2?-.39:edge<5?.12:0;
+ return seam+.13*Math.sin(x*.18+y*.05)+.06*Math.sin(y*.42);
+}
+function roofNormalPng(){
+ const size=256;
+ return rasterPng(size,size,(x,y)=>{
+  const dx=(roofMicroHeight((x+1)%size,y,size)-
+   roofMicroHeight((x+size-1)%size,y,size))*.26;
+  const dy=(roofMicroHeight(x,(y+1)%size,size)-
+   roofMicroHeight(x,(y+size-1)%size,size))*.26;
+  const n=Math.hypot(dx,dy,1);
+  return [(1-dx/n)*127.5,(1-dy/n)*127.5,(1+1/n)*127.5,255];
+ });
+}
+function roofOrmPng(key){
+ const size=256,glass=key==='roof_glass',trim=key==='roof_trim';
+ return rasterPng(size,size,(x,y)=>{
+  const grains=Math.sin(x*.065+y*.18)*5;
+  // occlusion 255, ROUGHNESS in G, METALNESS in B per glTF.
+  const rough=(glass?92:trim?163:209)+grains;
+  return [255,rough,glass?25:trim?180:121,255];
+ });
 }
 function exportTeam(owner){
  const pal=JSON.parse(JSON.stringify(colors));
