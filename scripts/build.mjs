@@ -24,11 +24,13 @@ cpSync('model-preview.html','dist/model-preview.html');
 cpSync('model-3d.html','dist/model-3d.html');
 cpSync('webgl-preview.html','dist/webgl-preview.html');
 cpSync('webgl-meshy-factory.html','dist/webgl-meshy-factory.html');
+cpSync('webgl-meshy-buildings.html','dist/webgl-meshy-buildings.html');
 // Optional A/B visual lab is isolated from gameplay and its startup.
 cpSync('desert-look-lab.html','dist/desert-look-lab.html');
 cpSync('scripts/desert-look-lab.js','dist/desert-look-lab.js');
 cpSync('scripts/webgl-preview.js','dist/webgl-preview.js');
 cpSync('scripts/webgl-meshy-factory-viewer.js','dist/webgl-meshy-factory-viewer.js');
+cpSync('scripts/webgl-meshy-buildings-viewer.js','dist/webgl-meshy-buildings-viewer.js');
 cpSync('scripts/webgl-meshy-factory-team.js','dist/webgl-meshy-factory-team.js');
 cpSync('scripts/webgl-meshy-structure.js','dist/webgl-meshy-structure.js');
 // Only enable real Meshy geometry after the model binary is present in Git.
