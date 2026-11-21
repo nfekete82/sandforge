@@ -44,7 +44,7 @@ export function selectDesertAIDoctrine(x:{
   // highland upgrade; legacy saves still match their original exact versions.
   // New random/generated maps cannot inherit this without an exact seed,
   // profile, size and archetype match.
-  (p.generatorVersion===x.generatorVersion||x.generatorVersion===8))??null;
+  (p.generatorVersion===x.generatorVersion||x.generatorVersion>=8))??null;
 }
 
 /** The fast offensive ground doctrine must not silently disable already-paid
