@@ -66,6 +66,7 @@ import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-
 import {unifyModelFactionFlags} from '/webgl-faction-flags.js';
 import {paintMeshyFactoryTeam} from '/webgl-meshy-factory-team.js';
 import {meshyStructurePath,prepareMeshyStructure} from '/webgl-meshy-structure.js';
+import {attachMeshyHeadquartersRadarMotion,updateMeshyHeadquartersRadarMotion} from '/webgl-meshy-hq-radars.js';
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
 import {createReconDrone,animateReconDrone} from '/webgl-recon-drone.js';
@@ -432,10 +433,11 @@ export class SandforgeBattlefield {
    }
   }
   if(entry.kind==='headquarters'){
-   // Meshy headquarters contains the radar tower in its own geometry.
-   // The generic spinning fallback looked like a duplicate floating antenna.
+   // Image-to-3D Meshy HQ has no authored pivots. Rotate ONLY the roof
+   // satellite dishes' original PBR vertices in the shader; no second tower.
    if(entry.detail?.userData.sandforgeMeshyStructure==='headquarters'){
-    entry.motion={kind:'headquarters',mode:'meshy-authored-static'};
+    const motion=attachMeshyHeadquartersRadarMotion(entry.detail);
+    entry.motion=motion??{kind:'headquarters',mode:'meshy-authored-static'};
     return;
    }
    // Final HQ PBR has 3 authored pivot nodes. Rotate the actual radar
@@ -469,7 +471,9 @@ export class SandforgeBattlefield {
    const angle=Number.isFinite(base.turretAngle)?base.turretAngle:0;
    if(motion.rotor)motion.rotor.rotation.y=turretAimLocalYaw(angle,base.facing,motion.mode==='fallback');
   }else if(active){
-   if(motion.rotors){
+   if(motion.mode==='meshy-dishes-gpu')
+    updateMeshyHeadquartersRadarMotion(motion,dt);
+   else if(motion.rotors){
     const speeds=[.18,-.13,.24];
     motion.rotors.forEach((rotor,i)=>rotor.rotation.y+=dt*speeds[i]);
    }else if(motion.mixer)motion.mixer.update(dt);
