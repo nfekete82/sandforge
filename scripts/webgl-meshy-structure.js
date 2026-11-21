@@ -304,6 +304,14 @@ export function prepareMeshyStructure(model,kind,owner=0){
     );
     shader.fragmentShader=shader.fragmentShader.replace(marker,
       marker+'\n'+industrial.join('\n'));
+    if(kind==='headquarters'){
+     // The shield is embossed in some Meshy normal-map texels. Suppress its
+     // fake relief ONLY within the now-neutral right-annex patch as well.
+     const normalChunk='#include <normal_fragment_maps>';
+     if(shader.fragmentShader.includes(normalChunk))
+      shader.fragmentShader=shader.fragmentShader.replace(normalChunk,
+       normalChunk+'\nnormal=normalize(mix(normal,geometryNormal,sfBadgeMask));');
+    }
     // Dusted military surfaces read consistently under the same desert sun,
     // while roughness maps and physical metal reflections remain effective.
     const rough='#include <roughnessmap_fragment>';
