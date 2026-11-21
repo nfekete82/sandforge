@@ -217,10 +217,7 @@ function perimeterBarracksWire(group,width,{factory=false,generator=false,resear
   research?Math.max(width*.56,cacheBounds?cacheBounds.max.z+18:width*.56):
   silo?Math.max(width*.52,cacheBounds?cacheBounds.max.z+20:width*.52):
   width*.28;
- // The permanently open vehicle factory needs a genuinely broad front
- // drive corridor. Thin scenery wire must not visually clip the hull of
- // a 90-unit battle tank while leaving its open 3D production hall.
- const gateHalf=width*(factory?.36:generator?.30:research?.28:silo?.24:.23);
+ const gateHalf=width*(generator?.30:research?.28:silo?.24:.23);
  if(generator||research||silo)group.userData[
   generator?'generatorFenceBounds':research?'researchFenceBounds':'siloFenceBounds']={
   leftX,rightX,rear,front,gateHalf,
@@ -380,10 +377,7 @@ function addSiteDecor(root,kind,width){
  * fabric without a new downloaded texture or a separate terrain pass.
  */
 export const CAMO_NET_DETAIL_VERSION='limited-rear-side-camo-mesh-v1';
-// Command HQ owns an authentic Meshy radar tower and structured apron.
-// The old side tarp looked like a detached tent next to its steel mast.
-// Keep this optional scenery on barracks/research only, never headquarters.
-export const CAMO_NET_BUILDING_KINDS=Object.freeze(['barracks','research']);
+export const CAMO_NET_BUILDING_KINDS=Object.freeze(['headquarters','barracks','research']);
 const netPaint=new THREE.MeshStandardMaterial({
  color:'#e2ddce',vertexColors:true,roughness:1,metalness:0,
  side:THREE.DoubleSide,transparent:true,opacity:.83,depthWrite:false
