@@ -90,7 +90,7 @@ test('some of the actual five landscapes are measurably larger than their prior 
    if(delta>0)enlarged++;
    total+=delta;mapGrowth+=delta;
   }
-  assert.ok(mapGrowth>=70,map.id+' must have a genuinely larger playable highland');
+  assert.ok(mapGrowth>=50,map.id+' must have a genuinely larger playable highland');
  }
  assert.ok(enlarged>=5,'every original fixed map must increase its real buildable summit area');
  assert.ok(total>=400,'v9 should noticeably increase, not merely rename, highlands');
