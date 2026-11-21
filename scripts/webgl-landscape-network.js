@@ -89,8 +89,9 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
   scene.add(mesh);meshes.push(mesh);
  }
 
- // Continuous terrain-following massif with irregular profile, layered
- // colors and gradually rounded ends. No sharp top teeth or squared pillars.
+ // Generals-style escarpment: broad, nearly level upper plateaus and
+ // asymmetric, stratified near-vertical cliff faces, never a round dune.
+ // The underlying blocked canyon ridge and its real passes remain authoritative.
  const rockPositions=[],rockRgb=[],rockUv=[];
  // Reuse the exact fractured rock geometry used by the existing loose stones.
  const outcropMatrices=[[],[],[]];
@@ -100,12 +101,15 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
  // Uneven shelves form dramatic high cliff faces and natural eroded
  // slot canyons instead of a single round mountain wave. Each sample is
  // confined to the same blocked ridge spine; passes still fade to zero.
+ // Contour of a rocky mesa rather than a symmetrical bell/rounded hill.
+ // Wide tabletop from -0.78 to +0.76, steep fractured shoulders at +/-1.
+ // Use fixed geometry profile so each seeded ridge stays reproducible.
  const offsets=[-1.55,-1.35,-1.22,-1.12,-1.045,-.995,-.94,-.87,
                 -.78,-.64,-.47,-.28,-.10,.06,.25,.43,.60,.76,
                 .90,1.02,1.12,1.27,1.52];
- const silhouette=[0,.014,.038,.082,.17,.34,.49,.53,
-                   .64,.70,.78,.85,.91,.94,.82,.78,.68,.59,
-                   .51,.35,.18,.06,0];
+ const silhouette=[0,.013,.036,.09,.24,.53,.81,.94,
+                   .978,.989,.995,1,.998,1,.994,.989,.977,.96,
+                   .88,.57,.19,.05,0];
  for(const ridge of ridges){
   const spine=ridge.spine;
   if(spine.length<2)continue;
@@ -129,8 +133,10 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
    const dx=next.x-prev.x,dz=next.z-prev.z,len=Math.hypot(dx,dz)||1;
    const nx=-dz/len,nz=dx/len;
    const phase=center.along*.014+spine[0].x*.00071+spine[0].y*.00037;
-   const ridgeRoll=.73+.19*Math.sin(phase*.48+.25)+
-     .12*Math.sin(phase*1.14+1.7)+.045*Math.cos(phase*2.3);
+   // Geological ledges remain mostly level along the crest; the faces
+   // keep enough longitudinal erosion variation to avoid repeated slabs.
+   const ridgeRoll=.985+.035*Math.sin(phase*.48+.25)+
+     .025*Math.sin(phase*1.14+1.7)+.018*Math.cos(phase*2.3);
    const edgeTaper=smooth(Math.min(center.along,along-center.along)/105);
    const nearestPass=ridge.ramps.reduce((d,ramp)=>
      Math.min(d,Math.abs(center.x-ramp.x)-ramp.width*.5),Infinity);
@@ -142,20 +148,29 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
       z=center.z+nz*ridge.width*offset*jitter;
     // Fade for every vertex, not just the centerline; ensures cliffs never
     // visually invade the physically protected HQ/Bastion construction pads.
-    const padTaper=smooth((distanceFromBuildPad(x,z)-ridge.width*.58)/135);
+    // Do not erase the entire mountain between dense Bastion clearings.
+    // Outside the authoritative protected circle the rock face quickly
+    // becomes visible; inside it stays completely absent.
+    const padTaper=smooth(distanceFromBuildPad(x,z)/105);
     // Fractured shelves replace a rounded, uniformly smooth dune.
     const fractures=.89+.12*Math.sin(phase*.88+offset*5.5)+
       .06*Math.sin(phase*2.47-offset*9.4)+
       .038*Math.cos(phase*4.6+offset*17.2);
-    const height=ridge.height*silhouette[j]*ridgeRoll*fractures*
+    const height=ridge.height*1.27*silhouette[j]*ridgeRoll*fractures*
       edgeTaper*passTaper*padTaper;
     const position=point(x,z,.16+Math.max(0,height));
     const grains=.13*Math.sin(center.along*.02+offset*7)+
       .055*Math.sin(center.along*.066+offset*13);
+    // Layered dark mineral faces, sand-dusted light plateau crowns.
+    // Keep variation in vertex tint and actual UV/PBR stone maps.
+    const wall=clamp01((1-silhouette[j])*1.65+
+      .20*Math.cos((center.along*.014+offset*4.5)*3));
+    const shelfBand=.5+.5*Math.sin((heightAt(x,z)+height)*.105+
+      center.along*.018+offset*9.2);
     const color=rockPalette[0].clone()
-      .lerp(rockPalette[1],clamp01(.30+Math.abs(offset)*.34+grains))
-      .lerp(rockPalette[2],clamp01(.15+silhouette[j]*.24))
-      .lerp(rockPalette[3],clamp01(.035+Math.max(0,grains)*.25));
+      .lerp(rockPalette[1],clamp01(.20+wall*.55+shelfBand*.20+grains*.25))
+      .lerp(rockPalette[2],clamp01(.12+(1-wall)*.38))
+      .lerp(rockPalette[3],clamp01(.025+Math.max(0,grains)*.20));
     return {position,color,rise:Math.max(0,height)};
    });
   });
