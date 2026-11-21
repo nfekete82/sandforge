@@ -129,7 +129,8 @@ if(desertMap)document.title='Sandforge · '+desertMap.name+' · Wüste · '+seed
 else if(terrain.battlefield)document.title='Sandforge · '+biomeStyle.label+' · '+
  (terrain.landscapeKind?({
   'open-basin':'Weites Dünenmeer','broken-escarpment':'Felsdurchbruch',
-  'diagonal-ridge':'Diagonalkamm','serpentine-canyon':'Schlangenpass'
+  'diagonal-ridge':'Diagonalkamm','serpentine-canyon':'Schlangenpass',
+   'plateau-crossroads':'Plateau-Kreuzung'
  })[terrain.landscapeKind]+' · ':'')+TERRAIN_LABELS[terrain.battlefield.profile]+' · '+seed;
 const spacious=world.mapVersion>=19;
 const status=$('status'),errorNode=$('error'),stage=$('stage');
