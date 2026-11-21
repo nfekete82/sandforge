@@ -218,3 +218,16 @@ test('front silhouette is uniform rather than bare robot arms with oversized arm
  assert.equal(root.getObjectByName('Atlas_Rifle'),rifle);
  assert.equal(rifle.parent,socket);
 });
+
+test('taller human stature preserves the hand and rifle as one animated coordinate space',()=>{
+ const {root,rifle,socket}=atlas();
+ const originalScale=root.scale.y;
+ assert.equal(humanizeInfantry(root,0),true);
+ assert.ok(root.scale.y>originalScale*1.09&&root.scale.y<originalScale*1.10,
+  'the standing human should be taller, not squatter');
+ assert.equal(root.getObjectByName('Atlas_Rifle'),rifle);
+ assert.equal(rifle.parent,socket);
+ const once=root.scale.y;
+ assert.equal(humanizeInfantry(root,0),true);
+ assert.equal(root.scale.y,once,'no cumulative scaling when an actor reloads');
+});
