@@ -16,7 +16,7 @@ const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 
 export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],biome='desert',mapId=null,lowQuality=false,showOutcrops=true}){
  const half=size/2,meshes=[];
- const authoredPlateau=biome==='desert'&&mapId==='plateau-crossroads';
+ const authoredPlateau=biome==='desert'&&['plateau-crossroads','mesa-highlands'].includes(mapId);
  const protectedZones=ridges.flatMap(r=>r.clearings??[]);
  const distanceFromBuildPad=(x,z)=>protectedZones.reduce((closest,zone)=>
    Math.min(closest,Math.hypot(x-zone.point.x,z-zone.point.y)-zone.radius),Infinity);
