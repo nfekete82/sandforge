@@ -3,6 +3,7 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {FACTION_PAINT} from './sandforge-faction-palette.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {meshyStructurePath,prepareMeshyStructure} from './webgl-meshy-structure.js';
+import {disposeTaggedMaterials} from './webgl-resource-lifecycle.js';
 import {factionFlagMaterial,FACTION_FLAG_REVISION} from './webgl-faction-flags.js';
 
 /** Fully original visual-only bunker revision:
@@ -20,13 +21,28 @@ export const BUNKER_VISUAL_SCALE=.72;
 export const BUNKER_VISUAL_PORT_COUNT=5;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 let meshyBunkerAsset=null;
+/** Detach imported shared GLB geometry before the generic placeholder GPU
+ * disposer frees its owned procedural concrete. Imported PBR meshes share
+ * GLTFLoader-cached buffers with other friendly/enemy bunkers. */
+export function detachMeshyBunkerSkin(root){
+ const bunker=root?.name==='Sandforge_DefenseBunker'?root:
+  root?.getObjectByName?.('Sandforge_DefenseBunker');
+ if(!bunker)return false;
+ bunker.userData.meshySkinDisposed=true;
+ const skin=bunker.getObjectByName('SandforgeMeshyBunkerSkin');
+ if(!skin)return false;
+ disposeTaggedMaterials(skin,'sandforgeMeshyTeamOwned');
+ skin.removeFromParent();
+ bunker.userData.meshySkinInstalled=false;
+ return true;
+}
 function installMeshyBunkerSkin(root,owner){
  const url=meshyStructurePath('bunker');
  if(!url||typeof window==='undefined')return;
  if(!meshyBunkerAsset)meshyBunkerAsset=new GLTFLoader().loadAsync(url)
   .catch(err=>{meshyBunkerAsset=null;throw err;});
  void meshyBunkerAsset.then(({scene})=>{
-  if(root.userData.meshySkinInstalled)return;
+  if(root.userData.meshySkinInstalled||root.userData.meshySkinDisposed)return;
   const skin=scene.clone(true);
   const bounds=new THREE.Box3().setFromObject(skin);
   const size=bounds.getSize(new THREE.Vector3()),width=Math.max(size.x,size.z);
