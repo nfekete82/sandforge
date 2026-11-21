@@ -133,7 +133,7 @@ test('existing Meshy headquarters door produces infantry without new fake garage
  assert.doesNotMatch(structure,/addHeadquartersEngineerShutter/);
  assert.doesNotMatch(structure,/new THREE\.BoxGeometry\(doorW/);
  assert.doesNotMatch(producer,/meshyHQShutter|SF_Meshy_HQ_Shutter/);
- assert.match(producer,/openBay:true,[\s\S]{0,100}meshyInfantry:true,meshyStart,meshyExit/);
+ assert.match(producer,/openBay:!meshHQDoor,meshHQDoor,[\s\S]{0,100}meshyInfantry:true,meshyStart,meshyExit/);
  assert.match(producer,/gate\.meshyInfantry\?gate\.meshyExit\.getWorldPosition/);
  assert.match(producer,/if\(!gate\.meshyShutter&&!gate\.meshyInfantry\)root\.localToWorld\(outside\)/);
  assert.match(structure,/MESHY_HQ_ENGINEER_DOOR/);
