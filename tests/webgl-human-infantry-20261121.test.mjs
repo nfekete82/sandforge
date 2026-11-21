@@ -640,5 +640,5 @@ test('role decorator refuses incompatible assets and never alters an unhumanized
  const root=riggedAtlas().root;
  assert.equal(decorateHumanInfantryRole(root,'medic',0),false);
  assert.equal(decorateHumanInfantryRole(root,'tank',0),false);
- assert.equal(root.getObjectByName('SF_Role_MedicChestCrossVertical'),null);
+ assert.equal(root.getObjectByName('SF_Role_MedicChestCrossVertical'),undefined);
 });
