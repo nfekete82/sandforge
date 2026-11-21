@@ -3,6 +3,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {meshyStructurePath,prepareMeshyStructure} from './webgl-meshy-structure.js';
 import {paintMeshyFactoryTeam} from './webgl-meshy-factory-team.js';
+import {attachMeshyHeadquartersRadarMotion,updateMeshyHeadquartersRadarMotion} from './webgl-meshy-hq-radars.js';
 const body=document.getElementById('render'),status=document.getElementById('status');
 const metadata=document.getElementById('metadata');
 const choose=document.getElementById('building'),team=document.getElementById('faction');
@@ -30,6 +31,7 @@ const loader=new GLTFLoader(),cached=new Map();
 const width={headquarters:225,factory:212,barracks:158,airfield:218,
  bunker:112,bastion:116,generator:112};
 let active=null,activeSize=new THREE.Vector3(200,95,200),loadVersion=0;
+let hqDishes=null;const animationClock=new THREE.Clock();
 function location(kind,owner){
  if(kind==='factory')return '/src/assets/reborn/buildings-3d/factory-'+owner+'.glb';
  return meshyStructurePath(kind);
@@ -82,6 +84,7 @@ async function open(){
   model.scale.multiplyScalar(factor);
   model.position.set(-center.x*factor,-bounds.min.y*factor,-center.z*factor);
   scene.add(model);active=model;
+  hqDishes=kind==='headquarters'?attachMeshyHeadquartersRadarMotion(model):null;
   activeSize=size.multiplyScalar(factor);reset();
   const stats=info(model);
   metadata.textContent=stats.tris.toLocaleString('de-DE')+' Dreiecke · '+stats.meshes+
@@ -100,5 +103,11 @@ addEventListener('resize',()=>{
  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
  renderer.setSize(innerWidth,innerHeight);
 });
-function draw(){requestAnimationFrame(draw);controls.update();renderer.render(scene,camera);}
+function draw(){
+ requestAnimationFrame(draw);
+ if(hqDishes)updateMeshyHeadquartersRadarMotion(hqDishes,
+  Math.min(.10,animationClock.getDelta()));
+ else animationClock.getDelta();
+ controls.update();renderer.render(scene,camera);
+}
 draw();open();
