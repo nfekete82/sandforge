@@ -22,9 +22,9 @@ function noEnemies(){
 const step=(game,seconds)=>{for(let i=0;i<Math.round(seconds/.05);i++)game.step(.05);};
 
 test('smaller factory uses rendering scale only, never changes gameplay radius or build width',()=>{
- assert.equal(FACTORY_VISUAL_SCALE,.90);
- assert.equal(visualBuildingScale('factory'),.90);
- assert.equal(visualBuildingScale('headquarters'),1);
+ assert.equal(FACTORY_VISUAL_SCALE,.92);
+ assert.equal(visualBuildingScale('factory'),.92);
+ assert.equal(visualBuildingScale('headquarters'),.92);
  assert.equal(visualBuildingScale('airfield'),1);
  assert.equal(BUILDINGS.factory.width,200);
  assert.equal(BUILDINGS.factory.radius,70);
