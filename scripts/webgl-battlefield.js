@@ -1535,7 +1535,10 @@ export class SandforgeBattlefield {
    const halo=new THREE.Mesh(new THREE.TorusGeometry(49,2,6,48),new THREE.MeshBasicMaterial({color:bastionOwnerLight(t.owner),transparent:true,opacity:.75}));
    halo.rotation.x=-Math.PI/2;halo.position.y=5;node.add(halo);
    const captureBar=createBastionCaptureBar();node.add(captureBar);
-   const ownerBeacon=attachBastionBeacon(node,t.owner);
+   // Midday PBR Bastion has its ORIGINAL capture halo; extra 21 Nov
+   // Meshy-era metal-beacon geometry is not part of the restored building.
+   const ownerBeacon=meshyStructurePath('bastion')?
+    attachBastionBeacon(node,t.owner):null;
    this.scene.add(node);
    const entry={node,core,pad,owner:t.owner,halo,captureBar,ownerBeacon};
    this.bastions.set(t.id,entry);
