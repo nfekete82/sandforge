@@ -1091,7 +1091,8 @@ new ResizeObserver(resize).observe(stage);resize();
 const chunks=buildTerrain();
 // One-time geometry; roads and physical cliffs are never updated per frame.
 const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
- createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],ridges:terrain.ridges,biome,
+ createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],ridges:terrain.ridges,
+  plateaus:terrain.plateaus??[],biome,
   lowQuality:query.get('lite')==='1',mapId:desertRegion?.id??null,
   // The physical PBR cliff surface IS the rock. Nested 3D boulders
   // on its face looked like separate floating rocks; desert cliffs now have
