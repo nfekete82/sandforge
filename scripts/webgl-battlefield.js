@@ -61,7 +61,7 @@ import {attackBlinkAlpha} from '/src/reborn/attack-alerts.js';
 import {UPGRADES,UPGRADE_KINDS,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
 import {createStrategicBuilding,isStrategicBuilding,trimSiloRocketForGhost} from '/webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry,disposeRocketLauncher} from '/webgl-rocket-infantry.js';
-import {humanizeInfantry} from '/webgl-human-infantry.js';
+import {humanizeInfantry,disposeHumanInfantry} from '/webgl-human-infantry.js';
 import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building-roof-stripes.js';
 import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette.js';
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
@@ -1278,6 +1278,7 @@ export class SandforgeBattlefield {
      disposeTaggedMaterials(e.detail,'sandforgeFactionTint');
      disposeTaggedMaterials(e.detail,'sandforgeMilitaryMicroPBROwned');
      if(e.kind==='rocket')disposeRocketLauncher(e.detail);
+     if(e.kind==='infantry')disposeHumanInfantry(e.detail);
     }
     if(e.kind==='scout')detachScoutRocketPods(e);
     this.scene.remove(e.node);this.units.delete(id);this.selected.delete(id);
