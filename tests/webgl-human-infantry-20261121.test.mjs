@@ -193,3 +193,28 @@ test('front-view infantry silhouette does not regress into oversized toy armour'
  assert.equal(root.getObjectByName('Atlas_Rifle'),rifle);
  assert.equal(rifle.parent,socket);
 });
+
+test('front silhouette is uniform rather than bare robot arms with oversized armour',()=>{
+ const {root,rifle,socket}=atlas();
+ assert.equal(humanizeInfantry(root,0),true);
+ const jacket=root.getObjectByName('SF_Human_Jacket');
+ assert.equal(jacket.geometry.type,'SphereGeometry','torso must be rounded, not a rectangular robotic block');
+ const chest=root.getObjectByName('SF_Human_PlateCarrier');
+ assert.ok(chest.scale.x<=.39&&chest.scale.y<=.27,'vest too bulky');
+ for(const side of ['L','R']){
+  const sleeve=root.getObjectByName('SF_Human_sleeve'+side);
+  const forearm=root.getObjectByName('SF_Human_forearm'+side);
+  const ankle=root.getObjectByName('SF_Human_CombatBootAnkle'+side);
+  const toe=root.getObjectByName('SF_Human_CombatBootToe'+side);
+  const calf=root.getObjectByName('SF_Human_calf'+side);
+  assert.equal(sleeve.material.name,'SF_Human_DesertCombatUniform');
+  assert.equal(forearm.material.name,'SF_Human_DesertCombatUniform',
+   'forearms should be fabric, not oversized bare skin');
+  assert.ok(forearm.scale.x<.09);
+  assert.ok(calf.scale.x<.10);
+  assert.ok(ankle.scale.x<.08&&toe.scale.x<.09);
+  assert.ok(root.getObjectByName('SF_Human_RolledSleeveCuff'+side));
+ }
+ assert.equal(root.getObjectByName('Atlas_Rifle'),rifle);
+ assert.equal(rifle.parent,socket);
+});
