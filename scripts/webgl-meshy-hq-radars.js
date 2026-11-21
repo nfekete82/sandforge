@@ -108,7 +108,7 @@ export function attachMeshyHeadquartersRadarMotion(model){
  const rootInv=new THREE.Matrix4().copy(model.matrixWorld).invert();
  const state={kind:'headquarters',mode:'meshy-dishes-gpu',
   angles:[0,0],shaderUniforms:[],animatedMeshes:0,zones,
-  model,revision:MESHY_HQ_RADAR_REVISION};
+  revision:MESHY_HQ_RADAR_REVISION};
  model.traverse(mesh=>{
   if(!mesh.isMesh||!mesh.geometry||mesh.userData?.sandforgeStyleDecoration)return;
   mesh.updateWorldMatrix(true,false);
