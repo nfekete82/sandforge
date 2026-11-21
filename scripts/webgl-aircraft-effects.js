@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {unitRenderAltitude,MODEL_HEIGHTS} from './webgl-scale.js';
 import {disposeOwnedMeshes,disposeTaggedMaterials} from './webgl-resource-lifecycle.js';
+import {disposeBomberWingStripes} from './webgl-bomber-wing-stripes.js';
 
 export const aircraftModelKind=kind=>kind==='scout'||kind==='bomber';
 export const crashDurationFor=kind=>kind==='scout'?CRASH_HELICOPTER_SECONDS:CRASH_BOMBER_SECONDS;
@@ -77,6 +78,10 @@ export function disposeAircraftCrash(c){
  if(!c)return;
  c.mesh.removeFromParent();
  if(c.wasFallback)disposeOwnedMeshes(c.model);
- else disposeTaggedMaterials(c.model,'sandforgeFactionTint');
+ else {
+  // Render-only wing paint belongs to this aircraft, not the shared GLB.
+  disposeBomberWingStripes(c.model);
+  disposeTaggedMaterials(c.model,'sandforgeFactionTint');
+ }
  c.mesh.clear();
 }
