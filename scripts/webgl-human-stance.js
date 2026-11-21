@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {findTrouserRig} from './webgl-human-skinned-trousers.js';
 
 /**
  * A restrained, reversible secondary pose over the existing GLB animation.
@@ -14,20 +15,16 @@ const AXIS_Z=new THREE.Vector3(0,0,1);
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
 
 function findLegBones(root){
- const bones=new Map();
- root?.traverse(n=>{if(n.isBone)bones.set(n.name,n);});
- return ['L','R'].map(side=>{
-  const upper=bones.get('UpperLeg'+side);
-  const knee=bones.get('LowerLeg'+side);
-  const foot=bones.get('Foot'+side);
-  if(!upper||!knee||!foot)return null;
-  // Exclude similarly named attachments that are not an anatomical leg.
-  let p=knee.parent,hipValid=false;
-  while(p){if(p===upper){hipValid=true;break;}p=p.parent;}
-  p=foot.parent;let shinValid=false;
-  while(p){if(p===knee){shinValid=true;break;}p=p.parent;}
-  return hipValid&&shinValid?{side,upper,knee,foot}:null;
- });
+ // Reuse the proven anatomical rig resolver: Quaternius, Mixamo and
+ // exported Atlas attachment parents must behave identically here.
+ const bones=findTrouserRig(root);
+ if(!bones)return [null,null];
+ return [0,1].map(i=>({
+  side:i===0?'L':'R',
+  upper:bones[i*3],
+  knee:bones[i*3+1],
+  foot:bones[i*3+2]
+ }));
 }
 function poseJoint(bone){
  return {bone,original:new THREE.Quaternion(),delta:new THREE.Quaternion(),
