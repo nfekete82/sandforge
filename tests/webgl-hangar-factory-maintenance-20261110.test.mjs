@@ -348,7 +348,7 @@ test('factory and airfield use real PBR camouflage/data textures, roof details a
    'FactoryRepairToolTray_0','FactoryPlatformEdgeMarker_0'])
   assert.ok(yard.getObjectByName(name),name);
  for(const name of ['HangarRoofVent_0','HangarDoorCorrugation_0_0',
-   'HangarRearVent_0','AirfieldTouchdownRubber'])
+   'HangarRearVent_0','AirfieldRunwayLandingBars'])
   assert.ok(hangar.getObjectByName(name),name);
  for(const root of [yard,hangar]){
   let textureCount=0;
