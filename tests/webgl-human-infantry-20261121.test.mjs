@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
-import {HUMAN_INFANTRY_REVISION,humanizeInfantry} from '../scripts/webgl-human-infantry.js';
+import {HUMAN_INFANTRY_REVISION,humanizeInfantry,disposeHumanInfantry} from '../scripts/webgl-human-infantry.js';
+import {SKINNED_TROUSERS_REVISION} from '../scripts/webgl-human-skinned-trousers.js';
 
 function atlas(){
  const root=new THREE.Group();
@@ -104,11 +105,13 @@ test('unknown legacy assets fail open without hiding or modifying the source',()
 test('WebGL production build includes the visual module and applies it only to riflemen',()=>{
  const battlefield=readFileSync('scripts/webgl-battlefield.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
- assert.match(battlefield,/import \{humanizeInfantry\} from '\/webgl-human-infantry\.js'/);
+ assert.match(battlefield,/import \{humanizeInfantry,disposeHumanInfantry\} from '\/webgl-human-infantry\.js'/);
  assert.match(battlefield,/entry\.kind==='infantry'&&/);
  assert.match(battlefield,/humanizeInfantry\(model,entry\.owner\)/);
  assert.match(battlefield,/\?soldier=legacy/);
  assert.match(build,/cpSync\('scripts\/webgl-human-infantry\.js','dist\/webgl-human-infantry\.js'\)/);
+ assert.match(build,/cpSync\('scripts\/webgl-human-skinned-trousers\.js','dist\/webgl-human-skinned-trousers\.js'\)/);
+ assert.match(battlefield,/if\(e\.kind==='infantry'\)disposeHumanInfantry\(e\.detail\)/);
 });
 test('the old mechanical arms, robot legs, ankle blocks and rigid mitts are actually hidden',()=>{
  const {root,bone}=atlas();
@@ -230,4 +233,71 @@ test('taller human stature preserves the hand and rifle as one animated coordina
  const once=root.scale.y;
  assert.equal(humanizeInfantry(root,0),true);
  assert.equal(root.scale.y,once,'no cumulative scaling when an actor reloads');
+});
+
+function riggedAtlas(){
+ const actor=atlas(),{root}=actor;
+ for(const side of ['L','R']){
+  const hip=new THREE.Bone();hip.name='UpperLeg'+side;
+  hip.position.set(side==='L'?.125:-.125,1.0,0);
+  const knee=new THREE.Bone();knee.name='LowerLeg'+side;
+  knee.position.set(0,-.45,.045);
+  const ankle=new THREE.Bone();ankle.name='Foot'+side;
+  ankle.position.set(0,-.45,-.05);
+  root.add(hip);hip.add(knee);knee.add(ankle);
+ }
+ root.updateMatrixWorld(true);
+ return actor;
+}
+test('reference-style trousers replace four rigid stilt legs with one smoothly skinned mesh',()=>{
+ const {root,rifle}=riggedAtlas();
+ assert.equal(humanizeInfantry(root,0),true);
+ assert.equal(root.userData.sandforgeHumanSkinnedLegs,true);
+ const pants=root.getObjectByName('SF_Human_SkinnedTrousers');
+ assert.ok(pants?.isSkinnedMesh,'the game must render a genuine bone-skinned pair of pants');
+ assert.equal(SKINNED_TROUSERS_REVISION,'human-articulated-cargo-pants-v1-20261121');
+ assert.deepEqual(pants.skeleton.bones.map(b=>b.name),
+  ['UpperLegL','LowerLegL','FootL','UpperLegR','LowerLegR','FootR']);
+ assert.ok(pants.geometry.attributes.position.count>700,'high enough topology for round calves and knees');
+ assert.equal(pants.geometry.attributes.skinIndex.count,
+  pants.geometry.attributes.position.count);
+ const weight=pants.geometry.attributes.skinWeight;
+ const joints=pants.geometry.attributes.skinIndex;
+ for(let i=0;i<weight.count;i+=19){
+  const sum=weight.getX(i)+weight.getY(i)+weight.getZ(i)+weight.getW(i);
+  assert.ok(Math.abs(sum-1)<1e-5,'bone weights must sum to 1');
+  assert.ok(joints.getX(i)<6&&joints.getY(i)<6&&joints.getZ(i)<6);
+ }
+ for(const side of ['L','R']){
+  assert.equal(root.getObjectByName('SF_Human_thigh'+side).visible,false,
+   'robot thigh tube must not show behind the real trousers');
+  assert.equal(root.getObjectByName('SF_Human_calf'+side).visible,false,
+   'robot shin tube must not poke through the trousers');
+  assert.equal(root.getObjectByName('SF_Human_TrouserKnee'+side).visible,false,
+   'old knee ball must not interrupt the continuous fabric');
+ }
+ assert.equal(root.getObjectByName('Atlas_Rifle'),rifle);
+ assert.equal(humanizeInfantry(root,0),true);
+ assert.equal(root.getObjectByName('SF_Human_SkinnedTrousers'),pants);
+ assert.equal(disposeHumanInfantry(root),true);
+ assert.equal(root.userData.sandforgeHumanPants,null);
+ assert.equal(disposeHumanInfantry(root),false);
+});
+test('knee bending deforms lower fabric with the existing walking skeleton',()=>{
+ const {root}=riggedAtlas();
+ humanizeInfantry(root,1);
+ const pants=root.getObjectByName('SF_Human_SkinnedTrousers');
+ assert.ok(pants);
+ root.updateMatrixWorld(true);
+ const vertexIndex=20*14+4; // L shin: should be almost fully weighted to LowerLegL
+ const before=pants.getVertexPosition(vertexIndex,new THREE.Vector3()).clone();
+ root.getObjectByName('LowerLegL').rotation.z=.43;
+ root.updateMatrixWorld(true);
+ const after=pants.getVertexPosition(vertexIndex,new THREE.Vector3());
+ assert.ok(before.distanceTo(after)>.025,
+  'skinned lower leg must bend with the animated knee, not move like a rigid stilt');
+ const rightIndex=(26+1)*14+20*14+4;
+ const rightBefore=pants.getVertexPosition(rightIndex,new THREE.Vector3()).clone();
+ assert.ok(rightBefore.distanceTo(pants.getVertexPosition(rightIndex,new THREE.Vector3()))<1e-6,
+  'opposite team leg remains independently skinned');
 });
