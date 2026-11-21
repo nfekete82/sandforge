@@ -378,10 +378,10 @@ export class SandforgeActorPresentation {
        ?infantry.has(entity.kind)?1:clamp((entity.driveSpeed??80)/80,.15,3):1);
     // Reset only the prior secondary leg pose, then let the original GLB
     // mixer author all bones (including both weapon grip hands) as usual.
-    if(entity.kind==='infantry'&&entry.humanStance)
+    if(entry.humanStance)
      restoreHumanStance(entry.humanStance);
     clips.mixer.update(Math.min(.08,dt));
-    if(entity.kind==='infantry'&&entry.humanStance){
+    if(entry.humanStance){
      const walking=clips.mixer.existingAction(clips.walk);
      const phase=walking&&clips.walk.duration>0?
       (walking.time/clips.walk.duration)%1:0;
