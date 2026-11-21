@@ -135,3 +135,25 @@ test('physical wing band mask is narrow and limited to top-facing upper-wing met
  assert.ok(spec.inside>.5);
  assert.ok(spec.topNormal>.5);
 });
+
+test('authored bomber GLB reports the actual wing surfaces for in-game paint calibration',()=>{
+ const file=readFileSync('src/assets/reborn/animation/bomber-0.glb');
+ assert.equal(file.toString('ascii',0,4),'glTF');
+ const jsonLength=file.readUInt32LE(12);
+ const gltf=JSON.parse(file.toString('utf8',20,20+jsonLength));
+ assert.ok(gltf.meshes?.length>0);
+ const samples=gltf.nodes?.filter(n=>Number.isInteger(n.mesh)).map(n=>{
+  const mesh=gltf.meshes[n.mesh];
+  const volumes=(mesh.primitives||[]).map(p=>{
+   const a=gltf.accessors[p.attributes?.POSITION];
+   if(!a?.min||!a?.max)return null;
+   const span=a.max.map((v,i)=>+(v-a.min[i]).toFixed(2));
+   return span;
+  }).filter(Boolean);
+  return {name:n.name||mesh.name||'unnamed',position:n.translation,
+   rot:n.rotation,scale:n.scale,extents:volumes};
+ })??[];
+ // Real model reference, never replace the GLB to get team markings.
+ console.info('SANDFORGE_REAL_BOMBER_NODES',JSON.stringify(samples.slice(0,90)));
+ assert.ok(samples.length>0);
+});
