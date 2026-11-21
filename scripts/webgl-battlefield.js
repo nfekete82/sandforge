@@ -604,7 +604,10 @@ export class SandforgeBattlefield {
     // material stacks. A second micro-shader can darken or invalidate the
     // existing walls (black facade regression). Use this opt-in detail ONLY
     // on genuine vehicle GLBs, preserving every original building texture.
-    if(type==='unit')
+    // The bomber relies on its authored albedo, normal and ORM textures.
+    // The newer generic triplanar microshader darkened the aircraft to a
+    // black silhouette; preserve its unmodified PBR paint instead.
+    if(type==='unit'&&entry.kind!=='bomber')
      entry.microSurface=enhanceMilitaryMicroPBR(model,{kind:entry.kind,type});
     // Only the biggest model surfaces need shadow-map passes. Small
     // bolts, rivets and vents keep their complete PBR visual render.
