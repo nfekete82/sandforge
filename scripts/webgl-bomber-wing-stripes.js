@@ -11,7 +11,6 @@ import {FACTION_PAINT} from './sandforge-faction-palette.js';
  */
 export const BOMBER_WING_STRIPES_REVISION='bomber-pbr-flush-wingbands-v1-20261121';
 const exclude=/cockpit|canopy|glass|window|rotor|propeller|engine|exhaust|gear|wheel|tire|tyre|weapon|gun|antenna|flag|emblem|shadow|landing|light|lamp|sensor|thruster/i;
-const finite=n=>Number.isFinite(n);
 const f=n=>Number(n).toFixed(7);
 
 function localBounds(model){
@@ -49,7 +48,6 @@ export function paintBomberWingStripes(model,owner){
  if(!model||(owner!==0&&owner!==1))return 0;
  const bounds=localBounds(model),spec=bomberWingStripeSpec(bounds);
  if(!spec)return 0;
- const color=new THREE.Color(FACTION_PAINT[owner]);
  const inverse=model.matrixWorld.clone().invert();
  const rootToLocal=new THREE.Matrix4();
  let count=0;
@@ -69,8 +67,13 @@ export function paintBomberWingStripes(model,owner){
   const meshToRoot=rootToLocal.clone();
   const upgrade=source=>{
    if(!source?.isMeshStandardMaterial)return source;
-   if(source.userData?.sandforgeBomberStripeRevision===BOMBER_WING_STRIPES_REVISION&&
-      source.userData?.sandforgeBomberStripeOwner===owner)return source;
+   if(source.userData?.sandforgeBomberStripeRevision===BOMBER_WING_STRIPES_REVISION){
+    // Recolours after capture must reuse the material; no stacked GLSL.
+    source.userData.sandforgeBomberStripeOwner=owner;
+    source.needsUpdate=true;
+    painted.add(mesh.uuid);
+    return source;
+   }
    // Isolate this bomber's paint: no shared glTF template or other plane
    // receives this material change.
    const material=source.clone();
@@ -92,7 +95,7 @@ export function paintBomberWingStripes(model,owner){
      +'\nsfBomberNormal=normalize(mat3(sfBomberMeshToRoot)*normal);');
     shader.fragmentShader=shader.fragmentShader.replace('#include <common>',
      '#include <common>\n'+fragDecl);
-    const c=color;
+    const c=new THREE.Color(FACTION_PAINT[this.userData.sandforgeBomberStripeOwner]);
     // Top-facing GLB triangles only. Two isolated bands over physical wings.
     // No extra draw calls, no billboard planes and no floating team badges.
     const body=[
@@ -111,7 +114,7 @@ export function paintBomberWingStripes(model,owner){
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',body);
    };
    material.customProgramCacheKey=()=>oldKey()+'|'+BOMBER_WING_STRIPES_REVISION+
-    '|'+owner+'|'+mesh.uuid;
+    '|'+material.userData.sandforgeBomberStripeOwner+'|'+mesh.uuid;
    material.needsUpdate=true;
    painted.add(mesh.uuid);return material;
   };
