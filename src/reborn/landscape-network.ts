@@ -45,6 +45,7 @@ function distance(a:Point,b:Point):number{return Math.hypot(a.x-b.x,a.y-b.y);}
 export function generateLandscapeNetwork(seed:number,size:number,sites:readonly Point[],
   columns:number,rows:number,candidate=0,homes:readonly Point[]=[],version=3):LandscapeNetwork{
   // Generator 3 is frozen for existing saves and benchmark seeds.
+  if(version===10)return expandedClassicHighlands(seed,size,sites,columns,rows,candidate,homes,true,true);
   if(version===9)return expandedClassicHighlands(seed,size,sites,columns,rows,candidate,homes,true);
   if(version===8)return expandedClassicHighlands(seed,size,sites,columns,rows,candidate,homes);
   if(version===7)return playableMesaHighlands(seed,size,sites,columns,rows,candidate,homes);
@@ -317,7 +318,7 @@ function playableMesaHighlands(seed:number,size:number,sites:readonly Point[],
  * of the same deterministic road network, not texture-only shortcuts.
  */
 function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[],
- columns:number,rows:number,candidate:number,homes:readonly Point[],expanded=false):LandscapeNetwork{
+ columns:number,rows:number,candidate:number,homes:readonly Point[],expanded=false,multiAccess=false):LandscapeNetwork{
  const original=seed===260621
   ?authoredPlateauNetwork(seed,size,sites,columns,rows,candidate,homes)
   :variedLandscape(seed,size,sites,columns,rows,candidate,homes);
@@ -453,6 +454,58 @@ function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[]
    mesa.rampEnd+=Math.max(0,Math.min(growth*.85,edgeClear-mesa.rampEnd));
   }
  }
+ // V10: real CENTRAL buildable shelf, not another little hill near an edge.
+ // Four physical cardinal ramps lead up from the valley; old v7-v9 maps
+ // retain their old single-way terrain and unchanged save geometry.
+ if(multiAccess){
+  if(kind==='open-basin'){
+   const center:Point={x:size*.5,y:size*.5};
+   const nearest=plateaus.reduce((n,m)=>
+    Math.min(n,distance(center,m.center)-m.footRadius),Infinity);
+   const topRadius=760,footRadius=Math.min(970,nearest-100);
+   const nearestHome=homeClear.reduce((n,h)=>
+    Math.min(n,distance(center,h)),Infinity);
+   if(footRadius>=topRadius+165&&nearestHome>footRadius+430){
+    const rampEnd=Math.min(topRadius+1250,size*.5-190);
+    plateaus.push({
+     siteIndex:-1,center,topRadius,footRadius,
+     height:180,rampEnd,rampWidth:470,
+     direction:{x:1,y:0},
+     ramps:[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}],
+     seed
+    });
+   }
+  }
+  // Side mesas receive a SECOND entrance only if its whole approach is
+  // contained in the world and remains clear of old cliffs and new mesas.
+  for(const mesa of plateaus){
+   if(mesa.ramps?.length)continue;
+   const candidates:Point[]=mesa.direction.x?
+    [{x:0,y:1},{x:0,y:-1},{x:-mesa.direction.x,y:0}]:
+    [{x:1,y:0},{x:-1,y:0},{x:0,y:-mesa.direction.y}];
+   const corridorSafe=(d:Point)=>{
+    for(let t=mesa.topRadius;t<=mesa.rampEnd;t+=85){
+     const p={x:mesa.center.x+d.x*t,y:mesa.center.y+d.y*t};
+     if(p.x<210||p.y<210||p.x>size-210||p.y>size-210)return false;
+     if(plateaus.some(other=>other!==mesa&&
+       distance(p,other.center)<other.footRadius+135))return false;
+     for(const ridge of original.ridges){
+      for(let i=1;i<ridge.spine.length;i++){
+       const a=ridge.spine[i-1],b=ridge.spine[i];
+       const dx=b.x-a.x,dy=b.y-a.y;
+       const u=Math.max(0,Math.min(1,
+        ((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy||1)));
+       if(Math.hypot(p.x-a.x-u*dx,p.y-a.y-u*dy)<
+          ridge.width*1.9+110)return false;
+      }
+     }
+    }
+    return true;
+   };
+   const additional=candidates.find(corridorSafe);
+   if(additional)mesa.ramps=[mesa.direction,additional];
+  }
+ }
  const routeAnchors=(siteIndex:number):Point[]=>{
   const mesa=plateaus.find(p=>p.siteIndex===siteIndex);
   if(!mesa)return [];
@@ -472,5 +525,17 @@ function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[]
   return [road[0],...start,...road.slice(1,-1),
    ...finish.slice().reverse(),road[road.length-1]];
  });
+ if(multiAccess)for(const mesa of plateaus){
+  const directions=mesa.ramps??[mesa.direction];
+  for(const d of directions){
+   // Existing primary approach is already integrated in site-to-site roads.
+   if(mesa.siteIndex>=0&&d===directions[0])continue;
+   const at=(t:number):Point=>({
+    x:mesa.center.x+d.x*t,y:mesa.center.y+d.y*t
+   });
+   roads.push([mesa.center,at(mesa.topRadius*.76),
+    at(mesa.topRadius+260),at(mesa.topRadius+620),at(mesa.rampEnd)]);
+  }
+ }
  return {...original,kind,ridges:original.ridges,roads,plateaus};
 }
