@@ -12,10 +12,11 @@ import {planDesertLakeVegetation} from '../scripts/webgl-desert-lake-vegetation-
 import {planBurnedSedans} from '../scripts/webgl-burned-sedan-plan.js';
 
 const maps=globalThis.SandforgeDesertMaps.maps;
-const names=['desert-strike','broken-empire','burning-horizon','last-stronghold'];
-test('all four canyon palettes are distinct, last stronghold darker gray',()=>{
+const originalMaps=maps.filter(map=>map.id!=='plateau-crossroads');
+const names=['desert-strike','broken-empire','burning-horizon','last-stronghold','plateau-crossroads'];
+test('original canyon palettes plus the authored plateau palette remain distinct',()=>{
  assert.deepEqual(Object.keys(CANYON_GEOLOGY),names);
- assert.equal(new Set(Object.values(CANYON_GEOLOGY).map(g=>g.base)).size,4);
+ assert.equal(new Set(Object.values(CANYON_GEOLOGY).map(g=>g.base)).size,5);
  assert.ok(GEOLOGICAL_RINGS.length>=14,'stepped shelves need real density');
  const gray=CANYON_GEOLOGY['last-stronghold'];
  assert.match(gray.dark,/^#2e3338$/);
@@ -43,7 +44,7 @@ test('fractured legacy mesa geometry has no sunken flat-colored polygon skirt',(
  const low=buildGeologicalMesaSurface({...args,quality:'low'});
  assert.ok(low.triangles<a.triangles);
 });
-for(const map of maps)test(map.name+': canyons, dry planted lagoons and small wrecks do not alter navigation',()=>{
+for(const map of originalMaps)test(map.name+': canyons, dry planted lagoons and small wrecks do not alter navigation',()=>{
  const game=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion);
  const world=game.world,terrain=world.generated;
  const blocked=world.blocked.slice(),opaque=world.opaque.slice(),save=JSON.stringify(game.save());
@@ -66,11 +67,7 @@ for(const map of maps)test(map.name+': canyons, dry planted lagoons and small wr
  const outcrops=planCanyonPbrOutcrops({world,terrain,seed:map.seed,mapId:map.id});
  const again=planCanyonPbrOutcrops({world,terrain,seed:map.seed,mapId:map.id});
  assert.deepEqual(outcrops,again,'PBR rock clusters must be repeatable');
- if(['burning-horizon','last-stronghold'].includes(map.id)){
-  assert.ok(outcrops.length>0,'genuine small rock models should appear on mountain cliff faces');
-  assert.ok(outcrops.every(p=>!world.walkable(p,[],28)),
-   'large cliff rocks must remain on originally impassable terrain');
- }else assert.equal(outcrops.length,0);
+ assert.equal(outcrops.length,0,'there must be no separate stones embedded in modern cliff meshes');
  assert.ok(painted.every(mesh=>mesh.userData.visualOnly===true));
  for(const mesh of painted){
   mesh.geometry.dispose();mesh.material.dispose();
@@ -110,7 +107,6 @@ test('large canyon and small-rock PBR materials share authentic geological visua
  assert.match(scene,/createDesertLakeVegetation/);
  assert.match(scene,/lakeVegetation\?\.dispose\(\)/);
  assert.match(scene,/lakeVegetation\?\.update/);
- assert.match(scene,/createCanyonPbrOutcrops/);
- assert.match(scene,/canyonOutcrops\?\.dispose/);
+ assert.doesNotMatch(scene,/createCanyonPbrOutcrops\(/,'no duplicated GLB boulders inside real cliff surface');
  assert.match(scene,/waterLayout:plannedDesertWater/);
 });
