@@ -119,7 +119,7 @@ function prepareEmbeddedHeadquartersDoor(model,bounds){
  const bottom=bounds.min.y+dim.y*.027;
  const height=dim.y*.235;
  const halfWidth=dim.x*.073;
- const depth=Math.max(dim.z*.008,.0005);
+ const depth=Math.max(dim.z*.015,.0005);
  const inset=new THREE.Mesh(
   new THREE.PlaneGeometry(halfWidth*1.94,height*.96),
   new THREE.MeshStandardMaterial({
@@ -209,7 +209,7 @@ function removeHeadquartersAnnexStar(shader,bounds,meshToHQ,door){
   'float sfBadgeY=smoothstep(.010,.045,sfHQNormalized.y)*(1.0-smoothstep(.48,.57,sfHQNormalized.y));',
   'float sfBadgeZ=smoothstep(.24,.39,sfHQNormalized.z);',
   'float sfBadgeFacing=.78+.22*abs(sfHQMatRootNormal.z);',
-  'float sfBadgeMask=sfBadgeX*sfBadgeY*sfBadgeZ*sfBadgeFacing;',
+  'float sfBadgeMask=clamp(sfBadgeX*sfBadgeY*sfBadgeZ*sfBadgeFacing*3.0,0.0,1.0);'
   // Preserve weathering and subtle metal variation, not the high-contrast
   // atlas logo. Material normal/roughness/metallic textures remain unchanged.
   'float sfSteelWeather=.92+.05*fract(sin(dot(sfHQMatRootPos.xz,vec2(12.9898,78.233)))*43758.5453);',
