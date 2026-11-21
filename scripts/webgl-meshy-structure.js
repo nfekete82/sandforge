@@ -106,22 +106,40 @@ function addInfantryExitMarkers(model,bounds){
 /** Original photographed HQ carried a painted WHITE star on the right annex.
  * Its Meshy atlas is shared across body and canopy; remove only white
  * near the right hand annex using UV-preserving PBR shader filtering. */
-function removeHeadquartersAnnexStar(shader,bounds){
- const bb=bounds.getSize(new THREE.Vector3()),min=bounds.min;
+/** Hide the entire baked crest on the RIGHT annex (not just bright star
+ * pixels). Each Meshy mesh has its own local coordinate space; apply the
+ * mesh-to-HQ transform BEFORE comparing it to the common building bounds.
+ * The old filter compared local vertex positions with whole-HQ bounds,
+ * so it simply missed most of the photographed emblem. */
+function removeHeadquartersAnnexStar(shader,bounds,meshToHQ){
+ const dim=bounds.getSize(new THREE.Vector3()),min=bounds.min;
  const f=n=>Number(n).toFixed(6);
- const hdr='varying vec3 sfHQLocalVertex;';
- shader.vertexShader=shader.vertexShader.replace('#include <common>',
-  '#include <common>\n'+hdr);
+ const decl='varying vec3 sfHQRootPos; varying vec3 sfHQRootNormal;';
+ const marker='#include <common>';
+ shader.uniforms.sfHQMeshToRoot={value:meshToHQ.clone()};
+ shader.vertexShader=shader.vertexShader.replace(marker,marker+'\n'+
+  'uniform mat4 sfHQMeshToRoot;\n'+decl);
  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',
-  '#include <begin_vertex>\nsfHQLocalVertex=position;');
- shader.fragmentShader=shader.fragmentShader.replace('#include <common>',
-  '#include <common>\n'+hdr);
+  '#include <begin_vertex>\n'+
+  'sfHQRootPos=(sfHQMeshToRoot*vec4(position,1.0)).xyz;\n'+
+  'sfHQRootNormal=normalize(mat3(sfHQMeshToRoot)*normal);');
+ shader.fragmentShader=shader.fragmentShader.replace(marker,marker+'\n'+decl);
  return [
-  '// The white star emblem is no longer part of Sandforge HQ identity.',
-  'float sfRightAnnex=smoothstep('+f(min.x+bb.x*.54)+','+f(min.x+bb.x*.68)+',sfHQLocalVertex.x);',
-  'float sfHQOnFacade=1.0-smoothstep('+f(min.y+bb.y*.74)+','+f(min.y+bb.y*.90)+',sfHQLocalVertex.y);',
-  'float sfWhiteLogo=smoothstep(.67,.84,sfLum)*(1.0-smoothstep(.04,.12,sfMax-sfMin));',
-  'diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.235,.252,.249),sfRightAnnex*sfHQOnFacade*sfWhiteLogo*.98);'
+  '// Paint out the complete right-hangar emblem: shield AND star.',
+  'vec3 sfHQNormalized=(sfHQRootPos-vec3('+[min.x,min.y,min.z].map(f).join(',')+'))',
+  ' / vec3('+[dim.x,dim.y,dim.z].map(v=>f(Math.max(.0001,v))).join(',')+');',
+  // The annex is on the +X right and faces front +Z. Smooth borders blend
+  // the replacement into the existing dirty gunmetal, not a flat badge.
+  'float sfBadgeX=smoothstep(.57,.66,sfHQNormalized.x)*(1.0-smoothstep(.91,.995,sfHQNormalized.x));',
+  'float sfBadgeY=smoothstep(.13,.24,sfHQNormalized.y)*(1.0-smoothstep(.70,.80,sfHQNormalized.y));',
+  'float sfBadgeZ=smoothstep(.46,.61,sfHQNormalized.z);',
+  'float sfBadgeFacing=smoothstep(.08,.50,sfHQRootNormal.z);',
+  'float sfBadgeMask=sfBadgeX*sfBadgeY*sfBadgeZ*sfBadgeFacing;',
+  // Preserve weathering and subtle metal variation, not the high-contrast
+  // atlas logo. Material normal/roughness/metallic textures remain unchanged.
+  'float sfSteelWeather=.94+.09*clamp(sfLum,0.0,1.0);',
+  'vec3 sfUnmarkedMetal=vec3(.175,.189,.183)*sfSteelWeather;',
+  'diffuseColor.rgb=mix(diffuseColor.rgb,sfUnmarkedMetal,sfBadgeMask*.985);'
  ];
 }
 export function prepareMeshyStructure(model,kind,owner=0){
@@ -136,12 +154,18 @@ export function prepareMeshyStructure(model,kind,owner=0){
  if(['barracks','headquarters'].includes(kind)&&!originalBounds.isEmpty())
   addInfantryExitMarkers(model,originalBounds);
  const recolored=new Map(),meshes=[];
+ model.updateWorldMatrix(true,true);
+ const modelInverse=model.matrixWorld.clone().invert();
  model.traverse(node=>{
   if(!node.isMesh||node.userData?.sandforgeStyleDecoration)return;
   node.receiveShadow=true;meshes.push(node);
+  // Meshy uses shared atlas materials across multiple submeshes, but the
+  // HQ emblem shader requires a different mesh-to-root matrix per mesh.
+  const localCache=kind==='headquarters'?new Map():recolored;
+  const meshToHQ=new THREE.Matrix4().multiplyMatrices(modelInverse,node.matrixWorld);
   const paint=source=>{
    if(!source?.isMeshStandardMaterial||!source.map)return source;
-   if(recolored.has(source))return recolored.get(source);
+   if(localCache.has(source))return localCache.get(source);
    const mat=source.clone(),previous=source.onBeforeCompile;
    const oldKey=source.customProgramCacheKey.bind(source);
    mat.onBeforeCompile=function(shader,renderer){
@@ -176,7 +200,7 @@ export function prepareMeshyStructure(model,kind,owner=0){
        'diffuseColor.rgb+=vec3(.018,.017,.014)*sfSandPanel;',
      'diffuseColor.rgb=clamp(diffuseColor.rgb,vec3(0.0),vec3(1.0));'
     ];
-    if(kind==='headquarters')industrial.push(...removeHeadquartersAnnexStar(shader,originalBounds));
+    if(kind==='headquarters')industrial.push(...removeHeadquartersAnnexStar(shader,originalBounds,meshToHQ));
     if(owner===1)industrial.push(
      'float sfBlue=clamp((diffuseColor.b-max(diffuseColor.r,diffuseColor.g))*5.2,0.0,1.0);',
      'vec3 sfTeamRed=vec3(max(.20,diffuseColor.b*1.45),diffuseColor.b*.11,diffuseColor.b*.08);',
@@ -212,7 +236,7 @@ export function prepareMeshyStructure(model,kind,owner=0){
    mat.userData={...source.userData,sandforgeMeshyTeamOwned:true,
     sandforgeMeshyStyleRevision:MESHY_STRUCTURE_REVISION};
    mat.needsUpdate=true;
-   recolored.set(source,mat);return mat;
+   localCache.set(source,mat);return mat;
   };
   node.material=Array.isArray(node.material)?node.material.map(paint):paint(node.material);
  });
