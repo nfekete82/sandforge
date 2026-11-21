@@ -32,21 +32,16 @@ export class SandforgeProductionGates {
  }
  prepare(entry){
   if(entry.gate||!entry.detail)return entry.gate;
-  // A Meshy visual shell does not yet carry authored hinge nodes. Treat its
-  // main frontage as an open infantry exit rather than waiting on a missing rig.
+  // Meshy infantry exits use the real imported facade's own doorway.
+  // In particular, HQ must NEVER generate a freestanding shutter.
   if(entry.detail.userData.sandforgeMeshyStructure&&
      ['barracks','headquarters'].includes(entry.kind)){
    const meshyStart=entry.detail.getObjectByName('SF_Meshy_InfantryRolloutStart');
    const meshyExit=entry.detail.getObjectByName('SF_Meshy_InfantryRolloutExit');
    if(!meshyStart||!meshyExit)return null;
-   const hqDoor=entry.kind==='headquarters'?
-    entry.detail.getObjectByName('SF_Meshy_HQ_Shutter'):null;
-   const isHQ=entry.kind==='headquarters'&&Boolean(hqDoor);
-   entry.gate={kind:entry.kind,root:entry.detail,openBay:!isHQ,
-    meshyInfantry:true,meshyHQShutter:isHQ,
-    meshyStart,meshyExit,portal:null,door:hqDoor,hall:null,lamp:null,dust:null,ramp:null,
-    doorClosedY:hqDoor?.position.y??0,doorScaleY:hqDoor?.scale.y??1,
-    doorLiftHeight:hqDoor?.userData?.doorHeight??0};
+   entry.gate={kind:entry.kind,root:entry.detail,openBay:true,
+    meshyInfantry:true,meshyStart,meshyExit,
+    portal:null,door:null,hall:null,lamp:null,dust:null,ramp:null};
    return entry.gate;
   }
   if(entry.kind==='barracks'){
@@ -133,11 +128,6 @@ export class SandforgeProductionGates {
  reset(entry){
   const gate=entry?.gate;if(!gate)return;
   if(gate.openBay)return; // Nothing on the open factory to close.
-  if(gate.meshyHQShutter){
-   gate.door.position.y=gate.doorClosedY;
-   gate.door.scale.y=gate.doorScaleY;
-   return;
-  }
   if(gate.meshyShutter){
    gate.door.position.y=gate.doorClosedY;
    gate.door.scale.y=gate.doorScaleY;
@@ -276,11 +266,6 @@ export class SandforgeProductionGates {
    if(gate.kind==='barracks'&&!gate.openBay){
     updateBarracksPortalPlanes(gate.portal);
     setBarracksDoorOpen(gate.portal,pose.open);
-   }else if(gate.kind==='headquarters'&&gate.meshyHQShutter){
-    // Engineer departs via the LEFT gate, which lifts vertically above
-    // the opening. Never animate the decorative right-side hangar.
-    gate.door.position.y=gate.doorClosedY+gate.doorLiftHeight*.94*pose.open;
-    gate.door.scale.y=gate.doorScaleY*(1-.94*pose.open);
    }else if(gate.kind==='headquarters'&&!gate.openBay)setHeadquartersDoorOpen(gate.portal,pose.open);
    else if(gate.meshyShutter){
     // Collapse the real shutter into a narrow stripe under its lintel;
