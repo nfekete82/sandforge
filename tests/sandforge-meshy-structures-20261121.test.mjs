@@ -157,6 +157,10 @@ test('stable HQ textures never inject unverified badge/door GLSL',()=>{
  assert.ok(door);
  assert.equal(door.mode,'hinged-real-entrance');
  assert.ok(model.getObjectByName('SF_HQ_RealEntrance_AnimatedLeaves'));
+ const neutralCover=model.getObjectByName('SF_HQ_Annex_UnmarkedMetal');
+ assert.ok(neutralCover,'real-geometry decal must cover the baked emblem');
+ assert.ok(neutralCover.userData.coveredTriangles>0);
+ assert.ok(neutralCover.children.every(x=>x.isMesh));
  assert.equal(model.getObjectByName('SF_Meshy_HQ_OriginalDoor_Interior'),undefined);
  assert.equal(left.material.map,tex);
  assert.equal(right.material.map,tex);
@@ -206,6 +210,7 @@ test('HQ door hinges really open, with no freestanding garage or shader cutout',
  assert.equal(door.left.rotation.y,0);
  assert.equal(door.right.rotation.y,0);
  assert.ok(root.getObjectByName('SF_HQ_RealEntrance_AnimatedLeaves'));
+ assert.ok(root.getObjectByName('SF_HQ_Annex_UnmarkedMetal'));
  assert.ok(root.getObjectByName('SF_HQ_RealDoubleDoor_left'));
  assert.ok(root.getObjectByName('SF_HQ_RealDoubleDoor_right'));
  assert.equal(root.getObjectByName('SF_Meshy_HQ_Shutter'),undefined);
