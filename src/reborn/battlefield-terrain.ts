@@ -5,7 +5,7 @@ import {ridgeCenterY} from './canyon-height.js';
 /** Revision 2: roomier buildable pads around bastions / headquarters.
  * Revision 1 remains reproducible for existing saves. */
 export const BATTLEFIELD_GENERATOR = 2;
-export type BattlefieldGeneratorVersion=1|2|3|4|5;
+export type BattlefieldGeneratorVersion=1|2|3|4|5|6;
 export const TERRAIN_GRADING_V2={
  bastionFlatRadius:540,bastionShoulder:360,
  homeFlatRadius:775,homeShoulder:460,
@@ -140,7 +140,7 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
  // Existing .22 per-axis Lipschitz grading permits .31 diagonal slopes,
  // above paid rover (.195), tank (.215), artillery (.185) driving limits.
  // A LOWER-ONLY envelope at the drawn gaps brings every triangle below .15.
- if(generatorVersion===5&&ridges.some(r=>r.ramps.length)){
+ if(generatorVersion>=5&&ridges.some(r=>r.ramps.length)){
   const passCells=new Uint8Array(n*n);
   for(const ridge of ridges)for(const ramp of ridge.ramps){
    const left=Math.max(0,Math.floor((ramp.x-ramp.width*.5-115)/step));
