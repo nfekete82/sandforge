@@ -1,4 +1,4 @@
-name: Sandforge – restore PBR building visuals from 20 November noon
+name: Sandforge – base proportions and original PBR aircraft markings
 on:
   push:
     branches:
@@ -8,6 +8,8 @@ on:
       - scripts/webgl-battlefield.js
       - scripts/webgl-maintenance-input.js
       - scripts/webgl-scale.js
+      - scripts/webgl-team-markings.js
+      - scripts/webgl-bomber-wing-stripes.js
       - scripts/webgl-strategic-buildings.js
       - scripts/webgl-recon-drone.js
       - scripts/webgl-scout-rocket-pods.js
@@ -19,6 +21,7 @@ on:
       - tests/sandforge-restore-buildings-noon-20261120.test.mjs
       - tests/sandforge-engineer-only-factory-repair-20261121.test.mjs
       - tests/sandforge-visual-tuning-bunker-drone-heli-20261121.test.mjs
+      - tests/sandforge-base-proportions-bomber-stripes-20261121.test.mjs
       - tests/sandforge-scout-pods-rover-air-evasion-20261119.test.mjs
       - tests/webgl-hangar-factory-maintenance-20261110.test.mjs
       - .github/workflows/sandforge-meshy-unified-qa-20261121.yml
@@ -45,6 +48,8 @@ jobs:
           node --check scripts/webgl-strategic-buildings.js
           node --check scripts/webgl-recon-drone.js
           node --check scripts/webgl-scout-rocket-pods.js
+          node --check scripts/webgl-team-markings.js
+          node --check scripts/webgl-bomber-wing-stripes.js
           node --check scripts/webgl-maintenance-input.js
           node --check scripts/webgl-building-yard.js
           node --check scripts/generate-factory-pbr.mjs
@@ -55,6 +60,7 @@ jobs:
           node --test tests/sandforge-restore-buildings-noon-20261120.test.mjs
           node --test tests/sandforge-engineer-only-factory-repair-20261121.test.mjs
           node --test tests/sandforge-visual-tuning-bunker-drone-heli-20261121.test.mjs
+          node --test tests/sandforge-base-proportions-bomber-stripes-20261121.test.mjs
           node --test tests/sandforge-scout-pods-rover-air-evasion-20261119.test.mjs
           node --test tests/webgl-hangar-factory-maintenance-20261110.test.mjs
       - name: Verify real rolled-door GLB and disabled Meshy skins
