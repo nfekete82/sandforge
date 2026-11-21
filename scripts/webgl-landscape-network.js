@@ -14,9 +14,9 @@ const clamp01=v=>Math.min(1,Math.max(0,v));
 const smooth=v=>{const t=clamp01(v);return t*t*(3-2*t);};
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 
-export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],biome='desert',mapId=null,lowQuality=false,showOutcrops=true}){
+export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],plateaus=[],biome='desert',mapId=null,lowQuality=false,showOutcrops=true}){
  const half=size/2,meshes=[];
- const authoredPlateau=biome==='desert'&&['plateau-crossroads','mesa-highlands'].includes(mapId);
+ const authoredPlateau=biome==='desert'&&(plateaus.some(m=>m.ramps?.length>1)||['plateau-crossroads','mesa-highlands'].includes(mapId));
  const protectedZones=ridges.flatMap(r=>r.clearings??[]);
  const distanceFromBuildPad=(x,z)=>protectedZones.reduce((closest,zone)=>
    Math.min(closest,Math.hypot(x-zone.point.x,z-zone.point.y)-zone.radius),Infinity);
@@ -58,7 +58,7 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
     const elevation=point(x,z,.27);
     // On the playable v7 map paint trails on the actual climb only.
     // Never smear dirt straight across a steep, non-traversable cliff.
-    const mesaSlope=mapId==='mesa-highlands'?
+    const mesaSlope=(mapId==='mesa-highlands'||plateaus.some(m=>m.ramps?.length>1))?
       Math.hypot(heightAt(x+18,z)-heightAt(x-18,z),
        heightAt(x,z+18)-heightAt(x,z-18))/36:0;
     const slopeMask=mesaSlope>.24?0:1;
@@ -144,6 +144,7 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
    const dx=next.x-prev.x,dz=next.z-prev.z,len=Math.hypot(dx,dz)||1;
    const nx=-dz/len,nz=dx/len;
    const phase=center.along*.014+spine[0].x*.00071+spine[0].y*.00037;
+   let faceArc=0,lastPoint=null;
    // Geological ledges remain mostly level along the crest; the faces
    // keep enough longitudinal erosion variation to avoid repeated slabs.
    const ridgeRoll=.985+.035*Math.sin(phase*.48+.25)+
@@ -170,6 +171,10 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
     const height=ridge.height*1.27*silhouette[j]*ridgeRoll*fractures*
       edgeTaper*passTaper*padTaper;
     const position=point(x,z,.16+Math.max(0,height));
+    if(lastPoint)faceArc+=Math.hypot(
+      position[0]-lastPoint[0],position[1]-lastPoint[1],
+      position[2]-lastPoint[2]);
+    lastPoint=position;
     const grains=.13*Math.sin(center.along*.02+offset*7)+
       .055*Math.sin(center.along*.066+offset*13);
     // Layered dark mineral faces, sand-dusted light plateau crowns.
@@ -182,7 +187,8 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
       .lerp(rockPalette[1],clamp01(.20+wall*.55+shelfBand*.20+grains*.25))
       .lerp(rockPalette[2],clamp01(.12+(1-wall)*.38))
       .lerp(rockPalette[3],clamp01(.025+Math.max(0,grains)*.20));
-    return {position,color,rise:Math.max(0,height)};
+    return {position,color,rise:Math.max(0,height),
+     uv:[center.along/150,faceArc/150]};
    });
   });
   // Anchor uneven PBR sandstone fragments into the blocked ridge. These are
@@ -230,7 +236,7 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
      rockPositions.push(...vertex.position);
      rockRgb.push(vertex.color.r,vertex.color.g,vertex.color.b);
      // Same world-scale mineral atlas mapping as physical-battlefield-rocks.
-     rockUv.push((vertex.position[0]+half)/150,vertex.position[1]/120);
+     rockUv.push(...vertex.uv);
     }
    }
   }
@@ -253,7 +259,8 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],bi
   const mesh=new THREE.Mesh(geometry,material);
   mesh.name='procedural-v3-eroded-sandstone';
   mesh.castShadow=true;mesh.receiveShadow=true;mesh.raycast=()=>{};
-  mesh.userData={visualOnly:true,physicalCliffPresentation:true,erodedRidge:true};
+  mesh.userData={visualOnly:true,physicalCliffPresentation:true,erodedRidge:true,
+   cliffUvMapping:'shared-sandstone-arc-length-v10'};
   scene.add(mesh);meshes.push(mesh);
  }
  // 1–3 instanced PBR groups for the entire map; no per-rock draw calls.
