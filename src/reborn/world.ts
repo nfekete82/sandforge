@@ -6,6 +6,7 @@ import { TERRAIN_BLOCKED, TERRAIN_CLIFFS } from './terrain-art.js';
 import { generateMap, polygonContains, segmentDistance, type GeneratedMap } from './world-generation.js';
 import { navigationLine } from './navigation-line.js';
 import {canyonCliffBlocked,canyonRuinBlocked} from './canyon-front.js';
+import {raisedMesaCliffBlocked} from './raised-mesas.js';
 import {canyonPassWaypoint} from './ai36-terrain-routes.js';
 
 export interface Territory {
@@ -90,6 +91,20 @@ export class World {
         for(let i=0;i<this.blocked.length;i++){
           const p=this.center(i);
           if(!canyonCliffBlocked(p,collisionRidge))continue;
+          this.blocked[i]=1;this.opaque[i]=1;this.cliffIds[i]=id;
+          this.cliffCells[id].push(i);
+        }
+      }
+      // V7 authentic buildable mesas: only their measured CLIFF RIM is
+      // opaque/blocked. Flat summit and the single carved vehicle ramp stay
+      // fully walkable. Ground height is the same WebGL terrain field.
+      if(this.generatorVersion===7)for(const [n,mesa] of
+        (this.generated.plateaus??[]).entries()){
+        const id=this.generated.mesas.length+this.generated.ridges.length+n;
+        this.cliffCells[id]=[];
+        for(let i=0;i<this.blocked.length;i++){
+          const p=this.center(i);
+          if(!raisedMesaCliffBlocked(p,mesa,this.terrainSlope(p.x,p.y)))continue;
           this.blocked[i]=1;this.opaque[i]=1;this.cliffIds[i]=id;
           this.cliffCells[id].push(i);
         }
