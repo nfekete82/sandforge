@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {MESHY_STRUCTURE_ASSETS} from '../scripts/webgl-meshy-asset-flags.js';
-import {meshyStructurePath,prepareMeshyStructure,meshyLocalBounds,SANDFORGE_INDUSTRIAL_PALETTE}
+import {meshyStructurePath,prepareMeshyStructure,meshyLocalBounds,SANDFORGE_INDUSTRIAL_PALETTE,MESHY_HQ_ENGINEER_DOOR}
  from '../scripts/webgl-meshy-structure.js';
 
 test('missing Meshy binaries never break existing Sandforge PBR buildings',()=>{
@@ -67,11 +67,17 @@ test('measured local infantry exits stay just outside the physical GLB at any sc
  assert.ok(start&&exit);
  // Headquarters engineer starts INSIDE the actual front double doors,
  // then crosses the threshold to the outdoor rally exit; no fake gate.
- assert.ok(start.position.z<b.max.z);
- assert.ok(exit.position.z>b.max.z);
+ const size=b.getSize(new THREE.Vector3());
+ const facade=b.min.z+size.z*MESHY_HQ_ENGINEER_DOOR.facadeZFraction;
+ assert.ok(start.position.z<facade);
+ assert.ok(exit.position.z>facade);
  assert.ok(exit.position.z>start.position.z);
  assert.equal(start.position.x,exit.position.x);
- assert.ok(start.position.x>b.min.x+b.getSize(new THREE.Vector3()).x*.5);
+ assert.ok(start.position.x>b.min.x+size.x*.38);
+ assert.ok(start.position.x<b.min.x+size.x*.54);
+ // The real entrance lies inside the overall HQ bounds: the annex sticks
+ // farther forward, but should not dictate where an engineer materializes.
+ assert.ok(exit.position.z<b.max.z);
  assert.equal(start.userData.realHeadquartersDoor,true);
  assert.equal(exit.userData.realHeadquartersDoor,true);
  assert.equal(building.getObjectByName('SF_Meshy_HQ_Shutter'),undefined);
@@ -135,4 +141,46 @@ test('existing Meshy headquarters door produces infantry without new fake garage
  // No changes to real factory roll-up shutter or barracks authored doors.
  assert.match(producer,/meshyShutter:true/);
  assert.match(producer,/prepareBarracksPortal/);
+});
+
+test('HQ badge shader operates in HQ-local GLB coordinates, not per-mesh coordinates',()=>{
+ const model=new THREE.Group();
+ const tex=new THREE.DataTexture(new Uint8Array([153,142,115,255]),1,1);
+ const original=new THREE.MeshStandardMaterial({map:tex,roughness:.76});
+ const left=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),original);
+ left.position.set(-4,1,0);
+ const right=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),original);
+ right.position.set(4,1,0);
+ model.add(left,right);
+ prepareMeshyStructure(model,'headquarters',0);
+ assert.notEqual(left.material,right.material); // different mesh transforms
+ assert.equal(left.material.map,tex);
+ assert.equal(right.material.map,tex);
+ const template=()=>{
+  return {uniforms:{},vertexShader:
+   '#include <common>\\n#include <begin_vertex>',
+   fragmentShader:'#include <common>\\n#include <map_fragment>\\n#include <roughnessmap_fragment>'};
+ };
+ const shaderLeft=template(),shaderRight=template();
+ left.material.onBeforeCompile(shaderLeft);
+ right.material.onBeforeCompile(shaderRight);
+ assert.match(shaderLeft.vertexShader,/sfHQMeshToRoot/);
+ assert.match(shaderLeft.vertexShader,/sfHQRootPos/);
+ assert.match(shaderLeft.fragmentShader,/sfBadgeMask/);
+ assert.match(shaderLeft.fragmentShader,/sfUnmarkedMetal/);
+ assert.notEqual(
+  shaderLeft.uniforms.sfHQMeshToRoot.value.elements[12],
+  shaderRight.uniforms.sfHQMeshToRoot.value.elements[12]
+ );
+});
+test('HQ spawn anchors are on the photographed double-door, not the right-hand annex',()=>{
+ const src=readFileSync('scripts/webgl-meshy-structure.js','utf8');
+ assert.equal(MESHY_HQ_ENGINEER_DOOR.xFraction,.47);
+ assert.ok(MESHY_HQ_ENGINEER_DOOR.outsideOffsetFraction<.1);
+ assert.match(src,/findHeadquartersDoorFacadeZ/);
+ assert.match(src,/ray\.intersectObject\(model,true\)/);
+ assert.match(src,/doorwayZ\+size\.z\*MESHY_HQ_ENGINEER_DOOR\.outsideOffsetFraction/);
+ const gates=readFileSync('scripts/webgl-production-gates.js','utf8');
+ assert.doesNotMatch(gates,/meshyHQShutter/);
+ assert.match(gates,/meshyInfantry:true,meshyStart,meshyExit/);
 });
