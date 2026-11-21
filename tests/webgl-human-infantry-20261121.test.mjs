@@ -9,12 +9,33 @@ function atlas(){
  const bone=new THREE.Bone();bone.name='Head';root.add(bone);
  const names=['Atlas_Helmet','Atlas_Breastplate','Atlas_AbdominalLames',
   'Atlas_PowerPack','Atlas_UpperArmL','Atlas_UpperArmR',
-  'Atlas_KneeL','Atlas_KneeR'];
+  'Atlas_KneeL','Atlas_KneeR',
+  'Atlas_ForearmL','Atlas_ForearmR','Atlas_ThighL','Atlas_ThighR',
+  'Atlas_ShinL','Atlas_ShinR','Atlas_BootL','Atlas_BootR',
+  'Atlas_GloveL','Atlas_GloveR','Atlas_UtilityBelt'];
  for(const name of names){
   const parent=new THREE.Group();parent.name=name;bone.add(parent);
   const old=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),
    new THREE.MeshStandardMaterial({color:'orange'}));
   old.name='Atlas_ChestCeramic';parent.add(old);
+ }
+ // Representative exported joint hierarchy: the robot parts are meshes
+ // under their animated limb groups and have the same geometric dimensions.
+ for(const side of ['L','R']){
+  for(const part of ['UpperArm','Forearm','Thigh','Shin']){
+   const parent=root.getObjectByName('Atlas_'+part+side);
+   const suit=new THREE.Mesh(new THREE.BoxGeometry(.16,.30,.18),
+    new THREE.MeshStandardMaterial());suit.name='Atlas_'+part+side+'Suit';
+   const armour=new THREE.Mesh(new THREE.BoxGeometry(.20,.20,.11),
+    new THREE.MeshStandardMaterial());armour.name='Atlas_RobotPlate_'+part+side;
+   parent.add(suit,armour);
+  }
+  for(const [group,part] of [['Boot','BootUpper'],['Glove','KnucklePlate']]){
+   const mesh=new THREE.Mesh(new THREE.BoxGeometry(.2,.2,.2),
+    new THREE.MeshStandardMaterial());
+   mesh.name='Atlas_'+part;
+   root.getObjectByName('Atlas_'+group+side).add(mesh);
+  }
  }
  const helmet=root.getObjectByName('Atlas_Helmet');
  const visor=new THREE.Mesh(new THREE.BoxGeometry(.1,.1,.1),
@@ -82,4 +103,40 @@ test('WebGL production build includes the visual module and applies it only to r
  assert.match(battlefield,/humanizeInfantry\(model,entry\.owner\)/);
  assert.match(battlefield,/\?soldier=legacy/);
  assert.match(build,/cpSync\('scripts\/webgl-human-infantry\.js','dist\/webgl-human-infantry\.js'\)/);
+});
+test('the old mechanical arms, robot legs, ankle blocks and rigid mitts are actually hidden',()=>{
+ const {root,bone}=atlas();
+ assert.equal(humanizeInfantry(root),true);
+ for(const side of ['L','R']){
+  for(const [part,garment] of [
+   ['UpperArm','sleeve'],['Forearm','forearm'],['Thigh','thigh'],['Shin','calf']
+  ]){
+   const limb=root.getObjectByName('Atlas_'+part+side);
+   const metal=limb.getObjectByName('Atlas_RobotPlate_'+part+side);
+   const suit=limb.getObjectByName('Atlas_'+part+side+'Suit');
+   const replacement=limb.getObjectByName('SF_Human_'+garment+side);
+   assert.equal(metal.visible,false,part+side+' still shows robot plates');
+   assert.equal(suit.visible,false,part+side+' still shows square robotic limb');
+   assert.ok(replacement,'missing cloth '+part+side);
+   assert.equal(replacement.parent,limb,'limbs must follow authored joints');
+   assert.ok(replacement.geometry.attributes.normal.getX(0)>0,
+    'fabric triangles must be wound outward for correct face culling');
+  }
+  const boot=root.getObjectByName('Atlas_Boot'+side);
+  assert.equal(boot.getObjectByName('Atlas_BootUpper').visible,false);
+  assert.ok(boot.getObjectByName('SF_Human_CombatBootToe'+side));
+  assert.ok(boot.getObjectByName('SF_Human_CombatBootSole'+side));
+  const glove=root.getObjectByName('Atlas_Glove'+side);
+  assert.equal(glove.getObjectByName('Atlas_KnucklePlate').visible,false);
+  assert.ok(glove.getObjectByName('SF_Human_TacticalGlove'+side));
+  assert.ok(root.getObjectByName('SF_Human_CargoPocket'+side));
+ }
+ const sleeve=root.getObjectByName('SF_Human_sleeveL');
+ const testPoint=new THREE.Vector3(0,.07,.10);
+ root.updateMatrixWorld(true);
+ const before=sleeve.localToWorld(testPoint.clone());
+ bone.rotation.y=.73;
+ root.updateMatrixWorld(true);
+ const after=sleeve.localToWorld(testPoint.clone());
+ assert.ok(before.distanceTo(after)>.02,'new cloth must move with animated bone');
 });
