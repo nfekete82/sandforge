@@ -52,6 +52,10 @@ export function planDesertEcoregion({
    if((terrain.ridges??[]).some(ridge=>
      (ridge.spine??[]).slice(1).some((q,i)=>
        distSegment(p,ridge.spine[i],q)<ridge.width*2.1+(kind==='sandstone'?90:65))))continue;
+   // Do not bury small decorative rocks inside the real elevated mesa skin.
+   // A generous margin keeps talus and the vehicle ramp free of 3D props.
+   if((terrain.plateaus??[]).some(mesa=>
+     Math.hypot(x-mesa.center.x,y-mesa.center.y)<mesa.footRadius+130))continue;
    // Prevent all genuine 3D succulents / dry trees / rocks from floating
    // in lagoons, rivers or the muddy banks. Water is planned BEFORE props.
    if(desertWaterExclusion(p,waterLayout,{margin:kind==='sandstone'?26:49}))continue;
