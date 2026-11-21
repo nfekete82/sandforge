@@ -5,7 +5,13 @@ const hqDoorStates=new WeakMap();
 // Vehicle factory is the visual reference for every Sandforge structure:
 // original PBR albedo/normal/ORM, dusty khaki armour, dark steel, restrained
 // blue/red enamel. Do not flatten a Meshy texture atlas into plain-color boxes.
-export const MESHY_STRUCTURE_REVISION='sandforge-hq-door-badge-glsl-radar-safe-v6';
+export const MESHY_STRUCTURE_REVISION='sandforge-hq-stable-rendering-v7';
+/** Emergency renderer safeguard. The Meshy HQ has its door and crest baked
+ * into shared textured triangles. An experimental GLSL cutout erased the
+ * entire building on some GPUs. Keep the original textured HQ visible and
+ * use the already-correct engineer exit until a browser-tested mesh-level
+ * animation can replace it. NEVER ship that cutout as default again. */
+export const MESHY_HQ_EXPERIMENTAL_SHADER=false;
 export const SANDFORGE_INDUSTRIAL_PALETTE=Object.freeze({
  sand:'#c3ae8a',armour:'#a08d6d',steel:'#444a45',concrete:'#aaa08b',
  blue:'#1b508d',red:'#a7332e'
@@ -241,7 +247,7 @@ export function prepareMeshyStructure(model,kind,owner=0){
  const originalBounds=meshyLocalBounds(model);
  if(['barracks','headquarters'].includes(kind)&&!originalBounds.isEmpty())
   addInfantryExitMarkers(model,originalBounds);
- if(kind==='headquarters'&&!originalBounds.isEmpty())
+ if(kind==='headquarters'&&MESHY_HQ_EXPERIMENTAL_SHADER&&!originalBounds.isEmpty())
   prepareEmbeddedHeadquartersDoor(model,originalBounds);
  const recolored=new Map(),meshes=[];
  model.updateWorldMatrix(true,true);
@@ -290,7 +296,8 @@ export function prepareMeshyStructure(model,kind,owner=0){
        'diffuseColor.rgb+=vec3(.018,.017,.014)*sfSandPanel;',
      'diffuseColor.rgb=clamp(diffuseColor.rgb,vec3(0.0),vec3(1.0));'
     ];
-    if(kind==='headquarters')industrial.push(...removeHeadquartersAnnexStar(shader,originalBounds,meshToHQ,meshHeadquartersDoor(model)));
+    if(kind==='headquarters'&&MESHY_HQ_EXPERIMENTAL_SHADER)
+     industrial.push(...removeHeadquartersAnnexStar(shader,originalBounds,meshToHQ,meshHeadquartersDoor(model)));
     if(owner===1)industrial.push(
      'float sfBlue=clamp((diffuseColor.b-max(diffuseColor.r,diffuseColor.g))*5.2,0.0,1.0);',
      'vec3 sfTeamRed=vec3(max(.20,diffuseColor.b*1.45),diffuseColor.b*.11,diffuseColor.b*.08);',
@@ -304,7 +311,7 @@ export function prepareMeshyStructure(model,kind,owner=0){
     );
     shader.fragmentShader=shader.fragmentShader.replace(marker,
       marker+'\n'+industrial.join('\n'));
-    if(kind==='headquarters'){
+    if(kind==='headquarters'&&MESHY_HQ_EXPERIMENTAL_SHADER){
      // The shield is embossed in some Meshy normal-map texels. Suppress its
      // fake relief ONLY within the now-neutral right-annex patch as well.
      const normalChunk='#include <normal_fragment_maps>';
