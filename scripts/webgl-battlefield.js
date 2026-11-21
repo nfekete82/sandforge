@@ -61,6 +61,9 @@ import {attackBlinkAlpha} from '/src/reborn/attack-alerts.js';
 import {UPGRADES,UPGRADE_KINDS,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
 import {createStrategicBuilding,isStrategicBuilding,trimSiloRocketForGhost} from '/webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry,disposeRocketLauncher} from '/webgl-rocket-infantry.js';
+import {humanizeInfantry,disposeHumanInfantry} from '/webgl-human-infantry.js';
+import {decorateHumanInfantryRole,HUMAN_INFANTRY_ROLES} from '/webgl-human-infantry-roles.js';
+import {createHumanStance,disposeHumanStance} from '/webgl-human-stance.js';
 import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building-roof-stripes.js';
 import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette.js';
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
@@ -520,6 +523,20 @@ export class SandforgeBattlefield {
      paintFactionRoofStripes(model,entry.kind,entry.owner);
      paintFactionEntranceBanners(model,entry.kind,entry.owner);
     }
+    // ?soldier=legacy remains the explicit A/B fallback for ALL ground infantry.
+    // Share the successful humanoid soldier base across ALL ground infantry,
+    // then attach each specialist's own tools/weapon and medical kit.
+    // Rifleman, Medic, Pioneer, Heavy MG and Rocket keep distinct equipment,
+    // all authored animations, team identity, gameplay and weapon sockets.
+    if(type==='unit'&&HUMAN_INFANTRY_ROLES.includes(entry.kind)&&
+       new URLSearchParams(window.location.search).get('soldier')!=='legacy'){
+     if(humanizeInfantry(model,entry.owner)){
+      decorateHumanInfantryRole(model,entry.kind,entry.owner);
+      entry.humanStance=createHumanStance(model);
+     }
+    }
+    // Equipment must be mounted AFTER the robotic armour was replaced:
+    // otherwise the shared base would hide genuine role badges/kit.
     if(type==='unit'&&entry.kind==='medic')polishMedicModel(model);
     if(type==='unit'&&entry.kind==='engineer')
      entry.engineerTools=equipEngineerTools(model);
@@ -1273,6 +1290,11 @@ export class SandforgeBattlefield {
      disposeTaggedMaterials(e.detail,'sandforgeFactionTint');
      disposeTaggedMaterials(e.detail,'sandforgeMilitaryMicroPBROwned');
      if(e.kind==='rocket')disposeRocketLauncher(e.detail);
+     if(HUMAN_INFANTRY_ROLES.includes(e.kind)){
+      if(e.humanStance)disposeHumanStance(e.humanStance);
+      e.humanStance=null;
+      disposeHumanInfantry(e.detail);
+     }
     }
     if(e.kind==='scout')detachScoutRocketPods(e);
     this.scene.remove(e.node);this.units.delete(id);this.selected.delete(id);

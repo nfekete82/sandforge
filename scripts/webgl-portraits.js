@@ -3,6 +3,10 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
 import {createStrategicBuilding,isStrategicBuilding,prepareSiloForPortrait} from './webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry} from './webgl-rocket-infantry.js';
+import {humanizeInfantry} from './webgl-human-infantry.js';
+import {decorateHumanInfantryRole,HUMAN_INFANTRY_ROLES} from './webgl-human-infantry-roles.js';
+import {polishMedicModel} from './webgl-medic-polish.js';
+import {equipEngineerTools,updateEngineerTools} from './webgl-engineer-tools.js';
 import {createReconDrone} from './webgl-recon-drone.js';
 import {createResearchArtwork,RESEARCH_ARTWORK_KINDS} from './webgl-research-artworks.js';
 import {tintFactionMaterials} from './webgl-faction-accents.js';
@@ -366,6 +370,80 @@ function droneUnitIconFallback(){
 
  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
 }
+/**
+ * The actual gameplay GLB for every production-card infantry role. Unlike
+ * the old idle atlas PNGs, these are the exact animated 3D models/skins used
+ * in the WebGL battlefield (including the rocket specialist's rifleman rig).
+ */
+export const HUMAN_INFANTRY_PORTRAIT_REVISION='hud-actual-human-3d-v1-20261122';
+export const humanInfantryPortraitPath=kind=>
+ HUMAN_INFANTRY_ROLES.includes(kind)?
+  '/src/assets/reborn/prototype/'+(kind==='rocket'?'infantry':kind)+'-0.glb':null;
+
+/** Match in-game model assembly order; pure Three.js, no canvas required. */
+export function dressHumanInfantryPortrait(model,kind,owner=0){
+ if(!model||!HUMAN_INFANTRY_ROLES.includes(kind))return false;
+ if(!humanizeInfantry(model,owner))return false;
+ decorateHumanInfantryRole(model,kind,owner);
+ if(kind==='medic')polishMedicModel(model);
+ if(kind==='engineer'){
+  const tools=equipEngineerTools(model);
+  // The menu should communicate "pioneer / repairs" rather than portray a
+  // generic rifleman holding the little idle pistol.
+  if(tools)updateEngineerTools(tools,true,0);
+ }
+ if(kind==='rocket')attachRocketLauncherToInfantry(model,owner);
+ tintFactionMaterials(model,owner,kind,'unit');
+ return true;
+}
+/** The HUD renderer owns and disposes ONLY its temporary buffers/materials.
+ * The cached glTF source and shared human/role geometries are never disposed.
+ */
+function isolatePortraitMeshes(model){
+ model.traverse(node=>{
+  if(!node.isMesh)return;
+  node.geometry=node.geometry.clone();
+  node.material=Array.isArray(node.material)?
+   node.material.map(material=>material.clone()):node.material.clone();
+ });
+}
+// Never perform several expensive WebGL readbacks on the same frame: the
+// production menu may request five new role images simultaneously.
+let infantryPortraitRenderTail=Promise.resolve();
+function queueHumanPortraitReadback(model,renderer){
+ const pending=infantryPortraitRenderTail.then(()=>new Promise((resolve,reject)=>{
+  requestAnimationFrame(()=>{
+   try{resolve(renderModelPortrait(model,renderer,{width:192,height:132,infantryCard:true}));}
+   catch(error){reject(error);}
+  });
+ }));
+ infantryPortraitRenderTail=pending.catch(()=>{});
+ return pending;
+}
+async function renderHumanInfantryIcon(kind,renderer){
+ const source=humanInfantryPortraitPath(kind);
+ if(!source||!renderer)throw new Error('No 3D infantry portrait renderer: '+kind);
+ const data=await new GLTFLoader().loadAsync(source);
+ const model=cloneSkeleton(data.scene);
+ if(!dressHumanInfantryPortrait(model,kind,0))
+  throw new Error('No compatible human Atlas rig for HUD portrait: '+kind);
+ // Use the *authored* idle clip so the HUD never shows a T-pose. Same clip
+ // priorities as the battlefield; no new/custom pose or separate illustration.
+ const idle=data.animations?.find(c=>/idle|stand/i.test(c.name))??data.animations?.[0];
+ if(idle){
+  const mixer=new THREE.AnimationMixer(model);
+  mixer.clipAction(idle).play();
+  mixer.update(.11);
+ }
+ // Clone only after all role-specific gear has been attached, including
+ // shared cloth, rocket launcher parts, medical insignia and engineer wrench.
+ isolatePortraitMeshes(model);
+ const skeletons=new Set();
+ model.traverse(node=>{if(node.isSkinnedMesh&&node.skeleton)skeletons.add(node.skeleton);});
+ try{return await queueHumanPortraitReadback(model,renderer);}
+ finally{for(const skeleton of skeletons)skeleton.dispose();}
+}
+
 export function unitIcon(kind,renderer){
  if(kind==='drone'){
   // Exactly the same procedural 3D R-01 mesh as the battle renderer:
@@ -383,33 +461,20 @@ export function unitIcon(kind,renderer){
   }));
   return iconCache.get(kind);
  }
- if(kind==='rocket'&&!renderer)return Promise.resolve(rocketUnitIconFallback());
- if(kind==='rocket'&&!iconCache.has(kind)){
-  iconCache.set(kind,new Promise((resolve,reject)=>{
-   requestAnimationFrame(async()=>{
-    try{
-     // The catalog uses the SAME animated Atlas body and physical launcher
-     // as the battle. Do not crop a static, unrelated toy-like placeholder.
-     const data=await new GLTFLoader().loadAsync('/src/assets/reborn/prototype/infantry-0.glb');
-     const model=cloneSkeleton(data.scene);
-     // renderModelPortrait disposes temporary geometry/materials: clone them
-     // so the loader's cached GLB assets never become unusable in gameplay.
-     model.traverse(node=>{
-      if(!node.isMesh)return;
-      node.geometry=node.geometry.clone();
-      node.material=Array.isArray(node.material)?
-       node.material.map(m=>m.clone()):node.material.clone();
-     });
-     attachRocketLauncherToInfantry(model,0);
-     resolve(renderModelPortrait(model,renderer,{width:192,height:132,infantryCard:true}));
-    }catch(error){reject(error);}
-   });
-  }).catch(error=>{
-   iconCache.delete(kind);
-   console.warn('Animated rocket 3D portrait fallback:',error);
-   try{return renderModelPortrait(createRocketInfantry(0),renderer,{width:192,height:132,infantryCard:true});}
-   catch{return rocketUnitIconFallback();}
-  }));
+ if(HUMAN_INFANTRY_ROLES.includes(kind)){
+  // Both production-card thumbnails and selected-unit HUD portraits call
+  // this one cached Promise: one accurate 3D preview per unit role.
+  if(!renderer)return rasterizeUnitIcon(kind).catch(()=>
+   kind==='rocket'?rocketUnitIconFallback():unitAtlasUrl(kind)+'.png');
+  if(!iconCache.has(kind))iconCache.set(kind,
+   renderHumanInfantryIcon(kind,renderer).catch(async error=>{
+    console.warn('3D infantry HUD portrait fallback:',kind,error);
+    iconCache.delete(kind); // retry next time the model becomes available
+    if(kind==='rocket')return rocketUnitIconFallback();
+    // Preserve existing atlas sprite extraction for unsupported legacy GLBs.
+    return rasterizeUnitIcon(kind);
+   }));
+  return iconCache.get(kind);
  }
  if(!iconCache.has(kind))iconCache.set(kind,rasterizeUnitIcon(kind).catch(error=>{
   iconCache.delete(kind);throw error;
