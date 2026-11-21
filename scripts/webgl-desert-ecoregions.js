@@ -52,6 +52,19 @@ export const DESERT_ECOREGIONS=Object.freeze({
   palette:Object.freeze({sand:'#dec2ac',highlight:'#e9cbb1',stone:'#b87f63',wash:'#c9a489'}),
   uvMeters:420,rocks:54,saguaro:0,joshua:0,
   description:'Geschichtete rote Schluchten, felsige Trockenrinnen und nahezu vegetationslose Hochflächen.'
+ }),
+ 'plateau-crossroads':Object.freeze({
+  id:'plateau-crossroads',key:'plateau',title:'Tafelberg-Schluchtwüste',
+  geography:'Arizona / Colorado Plateau',
+  terrainSource:'polyhaven-rock-ground-cc0',
+  ground:Object.freeze({
+   base:'/src/assets/reborn/terrain/desert-badlands-albedo.webp',
+   normal:'/src/assets/reborn/terrain/desert-badlands-normal.webp',
+   rough:'/src/assets/reborn/terrain/desert-badlands-rough.webp'
+  }),
+  palette:Object.freeze({sand:'#d8b894',highlight:'#e9cfad',stone:'#b58d69',wash:'#ae8b6a'}),
+  uvMeters:440,rocks:24,saguaro:0,joshua:0,
+  description:'Drei geschichtete Hochplateaus mit echten Pässen und erdigen Talwegen.'
  })
 });
 export const DESERT_MODEL_FILES=Object.freeze({
