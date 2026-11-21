@@ -4,7 +4,7 @@ import {MESHY_STRUCTURE_ASSETS} from './webgl-meshy-asset-flags.js';
 // Vehicle factory is the visual reference for every Sandforge structure:
 // original PBR albedo/normal/ORM, dusty khaki armour, dark steel, restrained
 // blue/red enamel. Do not flatten a Meshy texture atlas into plain-color boxes.
-export const MESHY_STRUCTURE_REVISION='sandforge-meshy-matched-hq-factory-albedo-v3-20261121';
+export const MESHY_STRUCTURE_REVISION='sandforge-meshy-matched-hq-factory-albedo-v4-no-emblem-20261121';
 export const SANDFORGE_INDUSTRIAL_PALETTE=Object.freeze({
  sand:'#c3ae8a',armour:'#a08d6d',steel:'#444a45',concrete:'#aaa08b',
  blue:'#1b508d',red:'#a7332e'
@@ -133,7 +133,7 @@ function removeHeadquartersAnnexStar(shader,bounds,meshToHQ){
   'float sfBadgeX=smoothstep(.57,.66,sfHQNormalized.x)*(1.0-smoothstep(.91,.995,sfHQNormalized.x));',
   'float sfBadgeY=smoothstep(.13,.24,sfHQNormalized.y)*(1.0-smoothstep(.70,.80,sfHQNormalized.y));',
   'float sfBadgeZ=smoothstep(.46,.61,sfHQNormalized.z);',
-  'float sfBadgeFacing=smoothstep(.08,.50,sfHQRootNormal.z);',
+  'float sfBadgeFacing=smoothstep(.08,.50,abs(sfHQRootNormal.z));',
   'float sfBadgeMask=sfBadgeX*sfBadgeY*sfBadgeZ*sfBadgeFacing;',
   // Preserve weathering and subtle metal variation, not the high-contrast
   // atlas logo. Material normal/roughness/metallic textures remain unchanged.
