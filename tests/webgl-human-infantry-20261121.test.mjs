@@ -425,7 +425,7 @@ test('natural idle pose narrows feet and bends knees without changing hands or r
  const rifleRotation=rifle.quaternion.clone();
  const pose=createHumanStance(root);
  assert.ok(pose&&pose.legs.length===2);
- assert.equal(HUMAN_STANCE_REVISION,'human-infantry-stance-v1-20261122');
+ assert.equal(HUMAN_STANCE_REVISION,'human-infantry-stance-v2-grounded-gait-20261122');
  assert.equal(applyHumanStance(pose,{dt:.05,moving:false}),true);
  root.updateMatrixWorld(true);
  const afterL=root.getObjectByName('FootL').getWorldPosition(new THREE.Vector3());
@@ -450,10 +450,16 @@ test('natural walk stance follows original clip phase without cumulative joint d
  const pose=createHumanStance(root);
  const joints=pose.legs.flatMap(l=>[l.upper,l.knee,l.foot]);
  const originals=joints.map(j=>j.bone.quaternion.clone());
- applyHumanStance(pose,{moving:true,dt:.08,walkPhase:.1});
+ // Compare phases at equivalent RUN blend, not one transition frame
+ // against the next. The secondary run correction is intentionally subtle.
+ for(let i=0;i<40;i++){
+  applyHumanStance(pose,{moving:true,dt:.08,walkPhase:0});
+  restoreHumanStance(pose);
+ }
+ applyHumanStance(pose,{moving:true,dt:0,walkPhase:.1});
  const a=pose.legs[0].upper.bone.quaternion.clone();
  restoreHumanStance(pose);
- applyHumanStance(pose,{moving:true,dt:.08,walkPhase:.6});
+ applyHumanStance(pose,{moving:true,dt:0,walkPhase:.6});
  const b=pose.legs[0].upper.bone.quaternion.clone();
  assert.ok(a.angleTo(b)>.005,'run follows clip phases instead of a static stiff pose');
  restoreHumanStance(pose);
@@ -514,4 +520,25 @@ test('natural stance supports alternate Mixamo leg names with unchanged weapon p
  assert.equal(restoreHumanStance(pose),true);
  assert.equal(root.getObjectByName('Atlas_Rifle'),rifle);
  assert.equal(disposeHumanStance(pose),true);
+});
+
+test('running no longer doubles the authored crouch or pushes both knees forward',()=>{
+ const pose=createHumanStance(riggedAtlas().root);
+ const knee=pose.legs[0].knee.bone;
+ applyHumanStance(pose,{dt:.08,moving:false});
+ const idleKnee=knee.quaternion.angleTo(new THREE.Quaternion());
+ restoreHumanStance(pose);
+ for(let i=0;i<40;i++){
+  applyHumanStance(pose,{dt:.08,moving:true,walkPhase:i/40});
+  restoreHumanStance(pose);
+ }
+ applyHumanStance(pose,{dt:0,moving:true,walkPhase:.25});
+ const runKnee=knee.quaternion.angleTo(new THREE.Quaternion());
+ const upper=pose.legs[0].upper.bone.quaternion;
+ const runHipPitch=2*Math.atan2(Math.abs(upper.x),Math.abs(upper.w));
+ assert.ok(idleKnee<.04,'idle knee flexion should be relaxed');
+ assert.ok(runKnee<.011,'run should let the authored clip control actual knee bending');
+ assert.ok(runKnee<idleKnee/2,'do not add a second crouch while running');
+ assert.ok(runHipPitch<.012,'secondary hip swing must not create hopping');
+ restoreHumanStance(pose);
 });
