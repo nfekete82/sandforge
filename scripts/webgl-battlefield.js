@@ -32,6 +32,7 @@ import {factoryRepairPoint} from '/src/reborn/factory-maintenance.js';
 import {selectedMaintenanceKind,serviceFootprintContains,maintenanceClickAllowed} from '/webgl-maintenance-input.js';
 import {SCOUT_ROCKETS} from '/src/reborn/scout-rockets.js';
 import {disposeOwnedMeshes,disposeTaggedMaterials} from '/webgl-resource-lifecycle.js';
+import {detachMeshyBunkerSkin} from '/webgl-fortified-bunker.js';
 import {limitModelShadowCasters} from '/webgl-shadow-budget.js';
 import {attachScoutRocketPods,detachScoutRocketPods} from '/webgl-scout-rocket-pods.js';
 import {releaseBastionRevision} from '/webgl-bastion-lifecycle.js';
@@ -70,6 +71,12 @@ import {createReconDrone,animateReconDrone} from '/webgl-recon-drone.js';
 // Runtime adapter: game state, movement, combat, production and AI are owned
 // exclusively by the original Simulation. 3D nodes are presentation only.
 const UP=new THREE.Vector3(0,1,0);
+// Strategic bunker placeholders contain shared, cached Meshy GLB meshes.
+// Detach them before disposing owned procedural concrete on despawn.
+const disposeActorPlaceholder=root=>{
+ detachMeshyBunkerSkin(root);
+ return disposeOwnedMeshes(root);
+};
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const colors={blue:FACTION_BLUE,red:FACTION_RED,neutral:'#d3c09b'};
 const title=(v)=>v.name||v.kind||'';
@@ -543,7 +550,7 @@ export class SandforgeBattlefield {
      if(type==='unit'&&['tank','artillery'].includes(entry.kind))
       detachTeamMarkings(entry);
      entry.node.remove(entry.placeholder);
-     disposeOwnedMeshes(entry.placeholder);
+     disposeActorPlaceholder(entry.placeholder);
      entry.placeholder=null;
     }
     // Modern airfield hangar/tower is loaded at its proper flightline anchor
@@ -918,7 +925,7 @@ export class SandforgeBattlefield {
    if(!model.userData.sandforgeOriginalPBR)
     finishDesertBuildingMaterials(model,kind);
    model.visible=!(kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root')); // no duplicate hangar
-   group.remove(placeholder);disposeOwnedMeshes(placeholder);
+   group.remove(placeholder);disposeActorPlaceholder(placeholder);
    group.userData.previewPlaceholder=null;group.userData.previewDetail=model;
    group.add(model);
   }).catch(error=>console.warn('Baupreview: vereinfachtes 3D-Modell',error));
@@ -935,7 +942,7 @@ export class SandforgeBattlefield {
   if(this.buildPreview){
    const preview=this.buildPreview;
    this.buildPreviewScene.remove(preview);
-   if(preview.userData.previewPlaceholder)disposeOwnedMeshes(preview.userData.previewPlaceholder);
+   if(preview.userData.previewPlaceholder)disposeActorPlaceholder(preview.userData.previewPlaceholder);
    if(preview.userData.previewCircle)disposeOwnedMeshes(preview.userData.previewCircle);
    if(preview.userData.previewFoundation)disposeBuildingFoundation(preview.userData.previewFoundation);
    if(preview.userData.previewYard)disposeOwnedMeshes(preview.userData.previewYard);
@@ -1233,7 +1240,7 @@ export class SandforgeBattlefield {
      e.animation.mixer.stopAllAction();
      if(e.detail)e.animation.mixer.uncacheRoot(e.detail);
     }
-    if(e.placeholder){disposeOwnedMeshes(e.placeholder);e.placeholder=null;}
+    if(e.placeholder){disposeActorPlaceholder(e.placeholder);e.placeholder=null;}
     // Authored model geometries are shared, but team-tinted materials are
     // actor-owned. Release only our owned PBR clones on death/despawn.
     if(e.detail){
@@ -1342,7 +1349,7 @@ export class SandforgeBattlefield {
     this.grounding.detachBuilding(id);
     if(e.yard){disposeBuildingYard(e.yard);e.yard=null;}
     disposeAirfieldServiceYard(e);disposeFactoryServiceYard(e);
-    if(e.placeholder){disposeOwnedMeshes(e.placeholder);e.placeholder=null;}
+    if(e.placeholder){disposeActorPlaceholder(e.placeholder);e.placeholder=null;}
     if(e.detail){disposeFactionRoofStripes(e.detail);
      disposeFactionEntranceBanners(e.detail);
      disposeBarracksSides(e.detail);
@@ -1826,7 +1833,7 @@ export class SandforgeBattlefield {
      const entry=this.bases.get(wallId);
      if(!entry)continue;
      if(entry.yard)disposeBuildingYard(entry.yard);
-     if(entry.placeholder)disposeOwnedMeshes(entry.placeholder);
+     if(entry.placeholder)disposeActorPlaceholder(entry.placeholder);
      this.scene.remove(entry.node);this.bases.delete(wallId);
     }
     this.sync(true);this.drawInterface();
