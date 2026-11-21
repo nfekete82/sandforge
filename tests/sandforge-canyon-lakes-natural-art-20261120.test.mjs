@@ -12,11 +12,11 @@ import {planDesertLakeVegetation} from '../scripts/webgl-desert-lake-vegetation-
 import {planBurnedSedans} from '../scripts/webgl-burned-sedan-plan.js';
 
 const maps=globalThis.SandforgeDesertMaps.maps;
-const originalMaps=maps.filter(map=>map.id!=='plateau-crossroads');
-const names=['desert-strike','broken-empire','burning-horizon','last-stronghold','plateau-crossroads'];
+const originalMaps=maps.filter(map=>!['plateau-crossroads','mesa-highlands'].includes(map.id));
+const names=['desert-strike','broken-empire','burning-horizon','last-stronghold','plateau-crossroads','mesa-highlands'];
 test('original canyon palettes plus the authored plateau palette remain distinct',()=>{
  assert.deepEqual(Object.keys(CANYON_GEOLOGY),names);
- assert.equal(new Set(Object.values(CANYON_GEOLOGY).map(g=>g.base)).size,5);
+ assert.equal(new Set(Object.values(CANYON_GEOLOGY).map(g=>g.base)).size,6);
  assert.ok(GEOLOGICAL_RINGS.length>=14,'stepped shelves need real density');
  const gray=CANYON_GEOLOGY['last-stronghold'];
  assert.match(gray.dark,/^#2e3338$/);
