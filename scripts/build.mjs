@@ -179,9 +179,15 @@ if(process.env.SANDFORGE_MODULE_AUDIT==='1'){
  console.log('WebGL module audit: browser JS and Three vendor modules packaged.');
  process.exit(0);
 }
-// Reconcile authentic pre-Meshy HQ and Barracks, including the original
-// door rigs and antennas. Their source is the user's existing PBR worktrees.
-execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs'],{stdio:'inherit'});
+// Prefer original fully authored, animated HQ/Barracks PBR worktrees from
+// 20 Nov midday. Their private source GLBs are not necessarily on GitHub;
+// preserve the tracked pre-Meshy fallbacks if no local PBR source is mounted.
+try{
+ execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs'],{stdio:'inherit'});
+}catch(error){
+ if(process.env.SANDFORGE_REQUIRE_FINAL_PBR==='1')throw error;
+ console.warn('Final HQ/Barracks PBR source not mounted. Using tracked pre-Meshy GLBs instead.');
+}
 console.log('Sandforge buildings restored to:',BUILDING_ART_REFERENCE);
 // The Bastion, unlike the authored large HQ/barracks binaries, is fully
 // generated from its committed procedural mesh source on every build.
