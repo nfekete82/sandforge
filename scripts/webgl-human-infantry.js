@@ -12,7 +12,7 @@ import {installSkinnedTrousers,disposeSkinnedTrousers} from './webgl-human-skinn
  * per-frame updates are needed. Shared textures/geometries avoid per-unit GPU
  * resource growth.
  */
-export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v8-full-trouser-20261122';
+export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v9-real-leg-anchors-20261122';
 
 const ellipsoid=new THREE.SphereGeometry(1,20,14);
 const rounded=new RoundedBoxGeometry(1,1,1,3,.13);
@@ -20,6 +20,19 @@ const dark=new THREE.MeshStandardMaterial({
  name:'SF_Human_RubberWebbing',color:'#31352f',roughness:.93,metalness:.015
 });
 const humanInfantryWarnings=new Set();
+function showTrouserDiagnostic(status){
+ if(typeof document==='undefined'||!document.body)return;
+ let panel=document.getElementById('sf-soldier-leg-debug');
+ if(!panel){
+  panel=document.createElement('div');
+  panel.id='sf-soldier-leg-debug';
+  panel.style.cssText='position:fixed;top:8px;right:8px;z-index:999999;max-width:360px;padding:9px 12px;'
+   +'background:#151b19;color:#e7f1e8;border:1px solid #6f8f76;border-radius:5px;'
+   +'font:12px/1.4 monospace;pointer-events:none;white-space:pre-wrap';
+  document.body.appendChild(panel);
+ }
+ panel.textContent='Soldier legs: '+status;
+}
 const skin=new THREE.MeshStandardMaterial({
  name:'SF_Human_Face',color:'#aa8166',roughness:.91,metalness:0
 });
@@ -305,6 +318,7 @@ export function humanizeInfantry(model,owner=0){
    }
   }
   model.userData.sandforgeHumanSkinnedLegs=true;
+  if(params.get('soldierDebug')==='1')showTrouserDiagnostic('SKINNED V3 – active (normal leg animation)');
   if(params.get('soldierDebug')==='1'&&!humanInfantryWarnings.has('skinned')){
    const pants=model.getObjectByName('SF_Human_SkinnedTrousers');
    console.info('[Sandforge infantry] anatomical skinned trousers active:',
@@ -314,6 +328,16 @@ export function humanizeInfantry(model,owner=0){
  }else{
   model.userData.sandforgeHumanSkinnedLegs=false;
   if(forceRigid)model.userData.sandforgeTrouserStatus='forced-rigid';
+  // The safety fallback must ALSO look like fabric trousers, not two sticks.
+  // Keep the old joint animation, but broaden the existing cloth cylinders.
+  for(const side of ['L','R']){
+   const thigh=model.getObjectByName('SF_Human_thigh'+side);
+   const calf=model.getObjectByName('SF_Human_calf'+side);
+   if(thigh){thigh.scale.x*=1.43;thigh.scale.z*=1.35;}
+   if(calf){calf.scale.x*=1.53;calf.scale.z*=1.48;}
+  }
+  if(params.get('soldierDebug')==='1')
+   showTrouserDiagnostic('FALLBACK – '+model.userData.sandforgeTrouserStatus);
   // Report the precise fallback and real bone names when requested. No
   // repeated logs for dozens of infantry in a late-game battle.
   if(params.get('soldierDebug')==='1'&&!humanInfantryWarnings.has(model.userData.sandforgeTrouserStatus)){
