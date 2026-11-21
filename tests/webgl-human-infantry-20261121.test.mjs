@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {HUMAN_INFANTRY_REVISION,humanizeInfantry,disposeHumanInfantry} from '../scripts/webgl-human-infantry.js';
-import {SKINNED_TROUSERS_REVISION} from '../scripts/webgl-human-skinned-trousers.js';
+import {SKINNED_TROUSERS_REVISION,findTrouserRig} from '../scripts/webgl-human-skinned-trousers.js';
 
 function atlas(){
  const root=new THREE.Group();
@@ -255,7 +255,7 @@ test('reference-style trousers replace four rigid stilt legs with one smoothly s
  assert.equal(root.userData.sandforgeHumanSkinnedLegs,true);
  const pants=root.getObjectByName('SF_Human_SkinnedTrousers');
  assert.ok(pants?.isSkinnedMesh,'the game must render a genuine bone-skinned pair of pants');
- assert.equal(SKINNED_TROUSERS_REVISION,'human-articulated-cargo-pants-v1-20261121');
+ assert.equal(SKINNED_TROUSERS_REVISION,'human-articulated-cargo-pants-v2-full-width-20261122');
  assert.deepEqual(pants.skeleton.bones.map(b=>b.name),
   ['UpperLegL','LowerLegL','FootL','UpperLegR','LowerLegR','FootR']);
  assert.ok(pants.geometry.attributes.position.count>700,'high enough topology for round calves and knees');
@@ -289,15 +289,53 @@ test('knee bending deforms lower fabric with the existing walking skeleton',()=>
  const pants=root.getObjectByName('SF_Human_SkinnedTrousers');
  assert.ok(pants);
  root.updateMatrixWorld(true);
- const vertexIndex=20*14+4; // L shin: should be almost fully weighted to LowerLegL
+ const vertexIndex=20*16+4; // L shin: should be almost fully weighted to LowerLegL
  const before=pants.getVertexPosition(vertexIndex,new THREE.Vector3()).clone();
  root.getObjectByName('LowerLegL').rotation.z=.43;
  root.updateMatrixWorld(true);
  const after=pants.getVertexPosition(vertexIndex,new THREE.Vector3());
  assert.ok(before.distanceTo(after)>.025,
   'skinned lower leg must bend with the animated knee, not move like a rigid stilt');
- const rightIndex=(26+1)*14+20*14+4;
+ const rightIndex=(30+1)*16+20*16+4;
  const rightBefore=pants.getVertexPosition(rightIndex,new THREE.Vector3()).clone();
  assert.ok(rightBefore.distanceTo(pants.getVertexPosition(rightIndex,new THREE.Vector3()))<1e-6,
   'opposite team leg remains independently skinned');
+});
+
+test('padded full-width trouser profile has anatomical thigh, knee and calf diameter',()=>{
+ const {root}=riggedAtlas();
+ assert.equal(humanizeInfantry(root,0),true);
+ assert.equal(root.userData.sandforgeTrouserStatus,'skinned');
+ const pants=root.getObjectByName('SF_Human_SkinnedTrousers');
+ const positions=pants.geometry.getAttribute('position');
+ const circumference=(row)=>{
+  const xs=[];
+  for(let i=0;i<16;i++)xs.push(positions.getX(row*16+i));
+  return Math.max(...xs)-Math.min(...xs);
+ };
+ assert.ok(positions.count>=990,'denser hose must allow rounded contours');
+ assert.ok(circumference(2)>.32,'upper thigh still looks like a stick');
+ assert.ok(circumference(14)>.27,'knee should be anatomically wide');
+ assert.ok(circumference(23)>.25,'calf must have natural bulk');
+ assert.ok(circumference(28)>.21,'trousers must blend into boots');
+});
+test('Mixamo exported bone names also produce skinned trousers, not stilt fallback',()=>{
+ const {root}=riggedAtlas();
+ const names={UpperLegL:'mixamorig:LeftUpLeg',LowerLegL:'mixamorig:LeftLeg',
+  FootL:'mixamorig:LeftFoot',UpperLegR:'mixamorig:RightUpLeg',
+  LowerLegR:'mixamorig:RightLeg',FootR:'mixamorig:RightFoot'};
+ root.traverse(node=>{if(node.isBone&&names[node.name])node.name=names[node.name];});
+ assert.equal(findTrouserRig(root)?.length,6);
+ assert.equal(humanizeInfantry(root),true);
+ assert.equal(root.userData.sandforgeHumanSkinnedLegs,true);
+ assert.equal(root.userData.sandforgeTrouserStatus,'skinned');
+ assert.ok(root.getObjectByName('SF_Human_SkinnedTrousers'));
+});
+test('unsupported skeleton gets explicit diagnostic without breaking older model',()=>{
+ const {root}=atlas();
+ assert.equal(humanizeInfantry(root),true);
+ assert.equal(root.userData.sandforgeHumanSkinnedLegs,false);
+ assert.equal(root.userData.sandforgeTrouserStatus,'missing-compatible-leg-bones');
+ assert.equal(root.getObjectByName('SF_Human_thighL').visible,true);
+ assert.equal(root.getObjectByName('SF_Human_calfR').visible,true);
 });
