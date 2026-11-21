@@ -178,36 +178,16 @@ function buildParts(){
  box('steel_light',[.18,1.83,2.40],[2.18,.085,.085]);
  for(const x of [-1.06,1.42])
   box('steel',[x,.83,2.36],[.075,1.58,.12]);
- // Stacked roof slab, weathered grey-green flat finish and real overhang.
+ // The same structural soffit remains, with real sloped industrial
+ // sawtooth construction entirely ABOVE the old roof. Gameplay hitbox and
+ // the animated vehicle door node are deliberately unchanged.
  box('steel_dark',[0,2.40,0],[5.22,.19,4.85]);
- box('roof',[0,2.52,0],[5.08,.10,4.70]);
+ box('roof',[0,2.50,0],[5.08,.10,4.70]);
  for(const x of [-2.40,2.40])
-  box('steel_light',[x,2.56,0],[.12,.17,4.81]);
+  box('steel_light',[x,2.55,0],[.12,.16,4.81]);
  for(const z of [-2.31,2.31])
-  box('steel_light',[0,2.56,z],[4.96,.16,.12]);
- // Exactly two team roof stripes, with a split around the raised skylight /
- // ventilation housings. Four short paint sections total, NEVER under vents.
- // Keep both strips symmetric; the same gaps persist for blue and red GLBs.
- for(const x of [-1.55,1.55])for(const [z0,z1] of [
-  [-1.71,FACTORY_ROOF_VENT_GAP[0]],[FACTORY_ROOF_VENT_GAP[1],1.51]
- ]){
-  const length=z1-z0;
-  box('team',[x,2.586,(z0+z1)/2],[.16,.018,length]);
- }
- // Broad exhaust plenums and dark angled ventilation grilles.
- box('stone',[-.88,2.70,-.66],[1.13,.28,.95]);
- box('steel_dark',[-.88,2.85,-.66],[.97,.11,.81]);
- for(let i=0;i<6;i++)
-  box('vent',[-1.29+i*.16,2.915,-.66],[.074,.026,.64]);
- box('stone',[1.34,2.68,-.77],[1.05,.25,.77]);
- box('steel',[1.34,2.86,-.77],[.90,.14,.61]);
- for(let i=0;i<5;i++)box('vent',[.99+i*.18,2.955,-.77],[.075,.026,.50]);
- // Two modest industrial exhaust stacks, separate from exit vehicle path.
- for(const [x,z,h] of [[-1.92,-1.48,.65],[1.91,-1.46,.84]]){
-  box('steel_dark',[x,2.69+h*.5,z],[.22,h,.22]);
-  box('steel_light',[x,2.70+h,z],[.34,.12,.33]);
-  box('vent',[x,2.77+h,z],[.21,.065,.20]);
- }
+  box('steel_light',[0,2.55,z],[4.96,.16,.12]);
+ buildSawtoothRoof();
  // Side wall cooling ribs, conduit pipes and functional windows.
  for(const x of [-2.49,2.49]){
   for(const z of [-1.54,-.92,-.30,.32,.95])
@@ -269,7 +249,7 @@ function exportTeam(owner){
  
  
  buildParts();
- const gltf={asset:{version:'2.0',generator:'sandforge-factory-pbr-v1-20261116'},
+ const gltf={asset:{version:'2.0',generator:FACTORY_SAWTOOTH_ROOF_REVISION},
  extensionsUsed:['KHR_materials_unlit'],scene:0,
  scenes:[{nodes:[0]}],nodes:[{name:'SF_Factory_PBR_Root',children:[]}],
  meshes:[],materials:[],images:[],textures:[],samplers:[{magFilter:9729,minFilter:9987,wrapS:10497,wrapT:10497}],
