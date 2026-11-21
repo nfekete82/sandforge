@@ -35,11 +35,37 @@ export function meshyLocalBounds(root){
 // of the radar tower and to the left of the annex. These ratios describe
 // the existing Meshy door location, not a new geometric garage prop.
 export const MESHY_HQ_ENGINEER_DOOR=Object.freeze({
- xFraction:.60,
- facadeZFraction:.82,
- insideOffsetFraction:.055,
- outsideOffsetFraction:.18
+ // Photographed ORIGINAL double-door, between the radar mast and the annex.
+ // The previously used x=.60 was too far toward the right-side hangar.
+ xFraction:.47,
+ facadeZFraction:.77,
+ insideOffsetFraction:.045,
+ outsideOffsetFraction:.085
 });
+// Raycast ONCE when the HQ GLB loads. This finds the actual wall surface at
+// the illustrated door; the annex and fence make the overall +Z bounding
+// box a poor approximation of the entrance.
+function findHeadquartersDoorFacadeZ(model,bounds,x,y){
+ const size=bounds.getSize(new THREE.Vector3());
+ const estimated=bounds.min.z+size.z*MESHY_HQ_ENGINEER_DOOR.facadeZFraction;
+ try{
+  model.updateWorldMatrix(true,true);
+  const origin=model.localToWorld(new THREE.Vector3(
+   x,y,bounds.max.z+size.z*.20));
+  const forward=new THREE.Vector3(0,0,-1).transformDirection(model.matrixWorld);
+  const ray=new THREE.Raycaster(origin,forward,0,size.z*1.5);
+  const inv=new THREE.Matrix4().copy(model.matrixWorld).invert();
+  const hits=ray.intersectObject(model,true)
+   .filter(hit=>hit.object?.isMesh&&!hit.object.userData?.sandforgeStyleDecoration)
+   .map(hit=>hit.point.clone().applyMatrix4(inv).z)
+   .filter(z=>z>bounds.min.z+size.z*.58&&z<bounds.min.z+size.z*.95);
+  hits.sort((a,b)=>Math.abs(a-estimated)-Math.abs(b-estimated));
+  if(hits.length)return hits[0];
+ }catch(error){
+  console.warn('Meshy HQ facade probe: using surveyed doorway fallback',error);
+ }
+ return estimated;
+}
 function addInfantryExitMarkers(model,bounds){
  if(model.getObjectByName('SF_Meshy_InfantryRolloutStart'))return;
  const size=bounds.getSize(new THREE.Vector3());
@@ -49,7 +75,8 @@ function addInfantryExitMarkers(model,bounds){
  const doorX=headquarters?
   bounds.min.x+size.x*MESHY_HQ_ENGINEER_DOOR.xFraction:center.x;
  const doorwayZ=headquarters?
-  bounds.min.z+size.z*MESHY_HQ_ENGINEER_DOOR.facadeZFraction:bounds.max.z;
+  findHeadquartersDoorFacadeZ(model,bounds,doorX,bounds.min.y+size.y*.18):
+  bounds.max.z;
  // Start hidden within the actual existing doorway and walk straight out.
  // The previous markers were BOTH in front of the HQ's bounding box;
  // that made engineers spawn beside the artificial freestanding shutter.
@@ -57,7 +84,7 @@ function addInfantryExitMarkers(model,bounds){
   doorwayZ-size.z*MESHY_HQ_ENGINEER_DOOR.insideOffsetFraction:
   doorwayZ+size.z*.05;
  const exitZ=headquarters?
-  bounds.max.z+size.z*MESHY_HQ_ENGINEER_DOOR.outsideOffsetFraction:
+  doorwayZ+size.z*MESHY_HQ_ENGINEER_DOOR.outsideOffsetFraction:
   doorwayZ+size.z*.30;
  for(const [name,z] of [
   ['SF_Meshy_InfantryRolloutStart',startZ],
