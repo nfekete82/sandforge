@@ -24,7 +24,7 @@ import {addBarracksContactShadows} from '/webgl-barracks-contact-shadows.js';
 import {createAirfieldServiceYard,conformAirfieldSurface,updateAirfieldServiceYard,hideOldAirfieldHangar,disposeAirfieldServiceYard} from '/webgl-airfield-service.js';
 import {detachAirfieldPbr} from '/webgl-airfield-pbr.js';
 import {removeRunwaySkidArtifacts} from '/webgl-airfield-runway-clearance.js';
-import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '/webgl-factory-service.js';
+import {disposeFactoryServiceYard} from '/webgl-factory-service.js';
 import {disposeServicePaint,previewServiceMaterial} from '/webgl-service-materials.js';
 import {createSegmentedSelectionRing} from '/webgl-selection-ring.js';
 import {serviceVisualGround,approachGroundHeight} from '/webgl-service-grounding.js';
@@ -884,11 +884,10 @@ export class SandforgeBattlefield {
    tint(yard,false,.34);
    group.add(yard);group.userData.previewYard=yard;
   }
-  const service=kind==='airfield'?createAirfieldServiceYard(0,{ghost:true}):
-   kind==='factory'?createFactoryServiceYard():null;
+  const service=kind==='airfield'?createAirfieldServiceYard(0,{ghost:true}):null;
   if(service){
    tint(service,true,.38);
-   // Airfield apron and midday factory repair platform remain in the ghost.
+   // Only the airfield still has a hangar maintenance platform.
    group.add(service);group.userData.previewService=service;
   }
   const circle=new THREE.Mesh(
@@ -1349,15 +1348,8 @@ export class SandforgeBattlefield {
     }
     if(b.buildRemaining<=0)updateAirfieldServiceYard(entry,b,this.game.units,this.game.time,dt,active);
    }
-   // Restore midday 20 Nov factory repair yard, including active servicing.
-   if(b.kind==='factory'){
-    if(!entry.factoryServiceYard){
-     entry.factoryServiceYard=createFactoryServiceYard();
-     entry.node.add(entry.factoryServiceYard);
-    }
-    if(b.buildRemaining<=0)
-     updateFactoryServiceYard(entry,b,this.game.units,this.game.time);
-   }
+   // The external vehicle repair platform is retired. Recover any old scene node.
+   if(entry.factoryServiceYard)disposeFactoryServiceYard(entry);
    this.animateBuildingMotion(entry,b,dt,active);
    if(b.buildRemaining<=0&&!this.announcedBuildings.has(b.id)){
     this.announcedBuildings.add(b.id);
@@ -1790,57 +1782,43 @@ export class SandforgeBattlefield {
       'Raketenziel-Modus beendet');
     this.drawInterface();return;
    }
-   if(action==='hangar-repair'||action==='factory-repair'){
-    const selected=[...this.selected];
-    const count=action==='hangar-repair'?this.game.requestAirfieldRepair(selected):
-     this.game.requestFactoryRepair(selected);
-    this.message(count?count+' Einheit(en) zur Wartung/Nachladung beordert':
-     'Wartung nicht möglich: freier Platz, Schaden oder fehlende Heliraketen und ggf. leere Transportkabine erforderlich.');
+   if(action==='hangar-repair'){
+    const count=this.game.requestAirfieldRepair([...this.selected]);
+    this.message(count?count+' Flugzeug(e) zur Wartung/Nachladung beordert':
+     'Hangarwartung nicht möglich: Schaden, Raketenbedarf oder kein freier Platz.');
     this.drawInterface();return;
    }
-   if(action==='hangar-launch'||action==='factory-release'){
-    const count=action==='hangar-launch'?this.game.launchRepairedAircraft([...this.selected]):
-      this.game.releaseFactoryRepair([...this.selected]);
-    this.message(count?count+' Einheit(en) wieder einsatzbereit':'Reparatur noch nicht abgeschlossen.');
+   if(action==='hangar-launch'){
+    const count=this.game.launchRepairedAircraft([...this.selected]);
+    this.message(count?count+' Flugzeug(e) gestartet':'Wartung noch nicht abgeschlossen.');
     this.drawInterface();return;
    }
-   if(action==='hangar-repair-all'||action==='factory-repair-all'){
-    const aircraft=action==='hangar-repair-all';
-    const facility=this.game.bases.find(b=>b.id===this.selectedBase&&b.owner===0&&b.hp>0&&
-      b.buildRemaining<=0&&b.kind===(aircraft?'airfield':'factory'));
+   if(action==='hangar-repair-all'||action==='hangar-launch-ready'){
+    const facility=this.game.bases.find(b=>b.id===this.selectedBase&&b.owner===0&&
+      b.hp>0&&b.buildRemaining<=0&&b.kind==='airfield');
     if(!facility)return;
-    const units=this.game.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
-      (aircraft?['bomber','scout']:['rover','tank','artillery']).includes(u.kind)&&
-      (u.hp<this.game.maxUnitHp(u)||
-       aircraft&&u.kind==='scout'&&
-       (u.rocketAmmo??SCOUT_ROCKETS.maxAmmo)<SCOUT_ROCKETS.maxAmmo));
-    const count=aircraft?this.game.requestAirfieldRepair(units.map(u=>u.id),facility.id):
-      this.game.requestFactoryRepair(units.map(u=>u.id),facility.id);
-    this.message(count?count+' Einheiten zur Wartung/Nachladung zurückgerufen':
-      'Keine freien Wartungsplätze oder keine Einheiten mit Wartungsbedarf');
+    if(action==='hangar-repair-all'){
+     const units=this.game.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
+       ['bomber','scout'].includes(u.kind)&&
+       (u.hp<this.game.maxUnitHp(u)||
+        u.kind==='scout'&&(u.rocketAmmo??SCOUT_ROCKETS.maxAmmo)<SCOUT_ROCKETS.maxAmmo));
+     const count=this.game.requestAirfieldRepair(units.map(u=>u.id),facility.id);
+     this.message(count?count+' Flugzeug(e) zur Wartung zurückgerufen':
+      'Keine freien Wartungsplätze oder keine Flugzeuge mit Wartungsbedarf');
+    }else{
+     const ready=this.game.units.filter(u=>u.hp>0&&
+       u.airfieldService?.baseId===facility.id&&u.airfieldService.phase==='ready');
+     const count=this.game.launchRepairedAircraft(ready.map(u=>u.id));
+     this.message(count?count+' Flugzeug(e) gestartet':'Noch kein Flugzeug einsatzbereit');
+    }
     this.drawInterface();return;
    }
-   if(action==='hangar-launch-ready'||action==='factory-release-ready'){
-    const aircraft=action==='hangar-launch-ready';
-    const facility=this.game.bases.find(b=>b.id===this.selectedBase&&b.owner===0&&b.hp>0&&
-      b.buildRemaining<=0&&b.kind===(aircraft?'airfield':'factory'));
-    if(!facility)return;
-    const units=this.game.units.filter(u=>u.owner===0&&u.hp>0&&
-      (aircraft?u.airfieldService?.baseId===facility.id&&u.airfieldService.phase==='ready':
-       u.factoryService?.baseId===facility.id&&u.factoryService.phase==='ready'));
-    const count=aircraft?this.game.launchRepairedAircraft(units.map(u=>u.id)):
-      this.game.releaseFactoryRepair(units.map(u=>u.id));
-    this.message(count?count+' reparierte Einheiten freigegeben':'Noch kein Flugzeug oder Fahrzeug einsatzbereit');
-    this.drawInterface();return;
-   }
-   if(action==='hangar-auto'||action==='factory-auto'){
-    const aircraft=action==='hangar-auto';
-    const selected=this.game.units.filter(u=>this.selected.has(u.id)&&u.owner===0&&u.hp>0&&
-      (aircraft?['bomber','scout']:['rover','tank','artillery']).includes(u.kind));
-    const enabled=!selected.every(u=>aircraft?u.autoAirfieldRepair===true:u.autoFactoryRepair===true);
-    if(aircraft)this.game.setAutoAirfieldRepair(selected.map(u=>u.id),enabled);
-    else this.game.setAutoFactoryRepair(selected.map(u=>u.id),enabled);
-    this.message('Automatische Wartung unter 30 % LP '+(enabled?'aktiviert':'deaktiviert'));
+   if(action==='hangar-auto'){
+    const selected=this.game.units.filter(u=>this.selected.has(u.id)&&u.owner===0&&
+      u.hp>0&&['bomber','scout'].includes(u.kind));
+    const enabled=!selected.every(u=>u.autoAirfieldRepair===true);
+    this.game.setAutoAirfieldRepair(selected.map(u=>u.id),enabled);
+    this.message('Automatische Flugfeldwartung unter 30 % LP '+(enabled?'aktiviert':'deaktiviert'));
     this.drawInterface();return;
    }
    if(action==='select-engineer'){
@@ -2404,46 +2382,31 @@ export class SandforgeBattlefield {
      ?'<div class="sf-strategic-meter">⚙ '+
       (techState.active?UPGRADES[techState.active].name+' · '+Math.ceil(techState.remaining)+' s':
        techState.completed.length+' / '+UPGRADE_KINDS.length+' Technologien')+'</div>':'';
+  // Aircraft only: ground vehicle maintenance belongs to Pioniere now.
   const serviceAircraft=chosen.filter(u=>['bomber','scout'].includes(u.kind));
-  const serviceVehicles=chosen.filter(u=>['rover','tank','artillery'].includes(u.kind));
-  const serviceGroup=serviceAircraft.length?'hangar':serviceVehicles.length?'factory':null;
-  const serviceMembers=serviceAircraft.length?serviceAircraft:serviceVehicles;
-  const parked=serviceMembers.filter(u=>(serviceGroup==='hangar'?u.airfieldService:u.factoryService));
-  const free=serviceMembers.filter(u=>(u.hp<g.maxUnitHp(u)||
-    u.kind==='scout'&&(u.rocketAmmo??SCOUT_ROCKETS.maxAmmo)<SCOUT_ROCKETS.maxAmmo)&&
-    !(serviceGroup==='hangar'?u.airfieldService:u.factoryService));
-  const ready=serviceMembers.filter(u=>serviceGroup==='hangar'?u.airfieldService?.phase==='ready':u.factoryService?.phase==='ready');
-  const auto=serviceMembers.length&&serviceMembers.every(u=>serviceGroup==='hangar'?u.autoAirfieldRepair===true:u.autoFactoryRepair===true);
-  const statusNames={approach:'ANFLUG',landing:'LANDET',taxi:'ROLLT EIN',repair:'REPARATUR',ready:'EINSATZBEREIT',takeoff:'STARTET',
-    parking:'FÄHRT ZUR WERKSTATT'};
-  const serviceState=parked.length===1?
-   (serviceGroup==='hangar'?parked[0].airfieldService:parked[0].factoryService):null;
-  const servicingFacility=base&&['airfield','factory'].includes(base.kind);
-  const occupancy=servicingFacility?g.units.filter(u=>u.hp>0&&
-    (base.kind==='airfield'?u.airfieldService?.baseId===base.id:u.factoryService?.baseId===base.id)).length:0;
-  const readyAtBase=servicingFacility?g.units.filter(u=>u.hp>0&&
-    (base.kind==='airfield'?u.airfieldService?.baseId===base.id&&u.airfieldService.phase==='ready':
-      u.factoryService?.baseId===base.id&&u.factoryService.phase==='ready')).length:0;
-  const damagedAtBase=servicingFacility?g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
-    (base.kind==='airfield'?['bomber','scout']:['rover','tank','artillery']).includes(u.kind)&&
-    (u.hp<g.maxUnitHp(u)||base.kind==='airfield'&&u.kind==='scout'&&
-     (u.rocketAmmo??SCOUT_ROCKETS.maxAmmo)<SCOUT_ROCKETS.maxAmmo)&&
-    !(base.kind==='airfield'?u.airfieldService:u.factoryService)).length:0;
-  // Troop HUD has only the three main commands. Garage/flight maintenance
-  // controls remain on selected FACTORY/AIRFIELD, not every selected vehicle.
-  // Current service status is informational; right-clicking the facility
-  // remains available for repair without an extra troop command.
-  const serviceMarkup=serviceGroup?
-   '<div class="sf-strategic-meter">⚙ '+(serviceState?
-     'PLATZ '+(serviceState.bay+1)+' · '+statusNames[serviceState.phase]:
-     'WARTUNG / '+serviceGroup.toUpperCase())+'</div>':
-   servicingFacility?'<div class="sf-strategic-meter">⚙ WARTUNGSPLÄTZE '+occupancy+' / '+(base.kind==='airfield'?1:2)+'</div>'+
+  const parked=serviceAircraft.filter(u=>u.airfieldService);
+  const state=parked.length===1?parked[0].airfieldService:null;
+  const servicingAirfield=base?.kind==='airfield';
+  const occupancy=servicingAirfield?g.units.filter(u=>u.hp>0&&
+    u.airfieldService?.baseId===base.id).length:0;
+  const readyAtBase=servicingAirfield?g.units.filter(u=>u.hp>0&&
+    u.airfieldService?.baseId===base.id&&u.airfieldService.phase==='ready').length:0;
+  const damagedAtBase=servicingAirfield?g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
+    ['bomber','scout'].includes(u.kind)&&
+    (u.hp<g.maxUnitHp(u)||u.kind==='scout'&&
+    (u.rocketAmmo??SCOUT_ROCKETS.maxAmmo)<SCOUT_ROCKETS.maxAmmo)&&
+    !u.airfieldService).length:0;
+  const statusNames={approach:'ANFLUG',landing:'LANDET',taxi:'ROLLT EIN',
+    repair:'REPARATUR',ready:'EINSATZBEREIT',takeoff:'STARTET'};
+  const serviceMarkup=serviceAircraft.length?
+   '<div class="sf-strategic-meter">⚙ '+(state?
+     'PLATZ '+(state.bay+1)+' · '+statusNames[state.phase]:'WARTUNG / HANGAR')+'</div>':
+   servicingAirfield?'<div class="sf-strategic-meter">⚙ WARTUNGSPLÄTZE '+occupancy+' / 1</div>'+
     '<div class="sf-service-controls">'+
-    '<button type="button" data-action="'+(base.kind==='airfield'?'hangar-repair-all':'factory-repair-all')+
-     '" '+(!damagedAtBase||occupancy>=(base.kind==='airfield'?1:2)?'disabled':'')+'>⬇ ALLE ZURÜCK</button>'+
-    '<button type="button" data-action="'+(base.kind==='airfield'?'hangar-launch-ready':'factory-release-ready')+
-     '" '+(!readyAtBase?'disabled':'')+'>↑ '+(base.kind==='airfield'?'STARTEN':'FREIGEBEN')+
-     ' ('+readyAtBase+')</button></div>':'';
+    '<button type="button" data-action="hangar-repair-all" '+
+     (!damagedAtBase||occupancy>=1?'disabled':'')+'>⬇ ALLE ZURÜCK</button>'+
+    '<button type="button" data-action="hangar-launch-ready" '+
+     (!readyAtBase?'disabled':'')+'>↑ STARTEN ('+readyAtBase+')</button></div>':'';
   const rocketStatus=chosen.length===1&&item?.kind==='scout'?
    '<div class="sf-strategic-meter">🚀 LEICHTE RAKETEN: '+
    (item.rocketAmmo??SCOUT_ROCKETS.maxAmmo)+' / '+SCOUT_ROCKETS.maxAmmo+
@@ -3102,8 +3065,8 @@ export class SandforgeBattlefield {
   // Only enemy-free clicks may be interpreted as hangar/workshop requests.
   const clickedEnemy=event.button===2&&this.selected.size
    ?this.enemyAtPointer(event):null;
-  // Right-click on a friendly factory/airfield routes selected vehicles
-  // or aircraft into a reserved repair slot instead of marching at the wall.
+  // Aircraft may still use the hangar. A right-click by ground vehicles
+  // is an ordinary move/attack order: only Pioniere can repair vehicles.
   // Soldiers, attack-move, strategic targeting and transport boarding retain
   // their existing right-click semantics.
   if(event.button===2&&maintenanceClickAllowed({
