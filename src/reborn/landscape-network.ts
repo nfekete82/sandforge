@@ -45,6 +45,7 @@ function distance(a:Point,b:Point):number{return Math.hypot(a.x-b.x,a.y-b.y);}
 export function generateLandscapeNetwork(seed:number,size:number,sites:readonly Point[],
   columns:number,rows:number,candidate=0,homes:readonly Point[]=[],version=3):LandscapeNetwork{
   // Generator 3 is frozen for existing saves and benchmark seeds.
+  if(version===9)return expandedClassicHighlands(seed,size,sites,columns,rows,candidate,homes,true);
   if(version===8)return expandedClassicHighlands(seed,size,sites,columns,rows,candidate,homes);
   if(version===7)return playableMesaHighlands(seed,size,sites,columns,rows,candidate,homes);
   if(version===6)return authoredPlateauNetwork(seed,size,sites,columns,rows,candidate,homes);
@@ -316,7 +317,7 @@ function playableMesaHighlands(seed:number,size:number,sites:readonly Point[],
  * of the same deterministic road network, not texture-only shortcuts.
  */
 function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[],
- columns:number,rows:number,candidate:number,homes:readonly Point[]):LandscapeNetwork{
+ columns:number,rows:number,candidate:number,homes:readonly Point[],expanded=false):LandscapeNetwork{
  const original=seed===260621
   ?authoredPlateauNetwork(seed,size,sites,columns,rows,candidate,homes)
   :variedLandscape(seed,size,sites,columns,rows,candidate,homes);
@@ -393,6 +394,53 @@ function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[]
    }));
   if(overlaps||unsafeHome||nearExistingPass||nearbyRidge)continue;
   plateaus.push(mesa);
+ }
+ // V9 expands selected, proven v8 sites rather than choosing new
+ // mountains at random. Preserve the full v8 geometry for existing saves.
+ // Favor one/two broad buildable summits over many isolated table islands.
+ if(expanded){
+  for(const mesa of plateaus){
+   const priorFoot=mesa.footRadius,center=mesa.center;
+   let clearance=230;
+   // Keep large plateaus away from all existing canyon collision skirts,
+   // narrow historical passes, other cliffs and protected HQ footprints.
+   for(const other of plateaus){
+    if(other===mesa)continue;
+    clearance=Math.min(clearance,
+     (distance(center,other.center)-priorFoot-other.footRadius-165)*.48);
+   }
+   for(const home of homeClear){
+    clearance=Math.min(clearance,
+     distance(center,home)-priorFoot-320);
+   }
+   for(const ridge of original.ridges){
+    for(let i=1;i<ridge.spine.length;i++){
+     const from=ridge.spine[i-1],to=ridge.spine[i];
+     const dx=to.x-from.x,dy=to.y-from.y;
+     const t=Math.max(0,Math.min(1,
+      ((center.x-from.x)*dx+(center.y-from.y)*dy)/(dx*dx+dy*dy||1)));
+     const d=Math.hypot(center.x-from.x-t*dx,center.y-from.y-t*dy);
+     clearance=Math.min(clearance,d-priorFoot-ridge.width*1.9-200);
+    }
+    for(const pass of ridge.ramps)
+     clearance=Math.min(clearance,
+      distance(center,{x:pass.x,y:ridgeHeightAt(ridge,pass.x)})-priorFoot-685);
+   }
+   // Keep every part of the elevated *top* within the playable map.
+   clearance=Math.min(clearance,
+    center.x-priorFoot-125,center.y-priorFoot-125,
+    size-center.x-priorFoot-125,size-center.y-priorFoot-125);
+   const growth=Math.max(0,Math.min(200,Math.floor(clearance/20)*20));
+   if(growth<30)continue; // safer to keep an existing passage than force growth
+   mesa.topRadius+=growth;
+   mesa.footRadius+=growth;
+   mesa.rampWidth+=Math.min(110,Math.round(growth*.58));
+   // The longer top needs a longer, gentle route to the original valley.
+   const axis=mesa.direction.x?center.x:center.y;
+   const sign=mesa.direction.x||mesa.direction.y;
+   const edgeClear=sign>0?size-axis-165:axis-165;
+   mesa.rampEnd+=Math.max(0,Math.min(growth*.85,edgeClear-mesa.rampEnd));
+  }
  }
  const routeAnchors=(siteIndex:number):Point[]=>{
   const mesa=plateaus.find(p=>p.siteIndex===siteIndex);
