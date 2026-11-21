@@ -33,6 +33,7 @@ cpSync('scripts/webgl-meshy-factory-viewer.js','dist/webgl-meshy-factory-viewer.
 cpSync('scripts/webgl-meshy-buildings-viewer.js','dist/webgl-meshy-buildings-viewer.js');
 cpSync('scripts/webgl-meshy-factory-team.js','dist/webgl-meshy-factory-team.js');
 cpSync('scripts/webgl-meshy-structure.js','dist/webgl-meshy-structure.js');
+cpSync('scripts/webgl-meshy-hq-radars.js','dist/webgl-meshy-hq-radars.js');
 // Only enable real Meshy geometry after the model binary is present in Git.
 // The legacy authored PBR models remain the playable fallback otherwise.
 const structureDir='src/assets/reborn/buildings-3d/meshy-structures';
