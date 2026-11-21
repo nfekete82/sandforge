@@ -61,10 +61,10 @@ export function prepareMeshyStructure(model,kind,owner=0){
  const originalBounds=meshyLocalBounds(model);
  if(['barracks','headquarters'].includes(kind)&&!originalBounds.isEmpty())
   addInfantryExitMarkers(model,originalBounds);
- const recolored=new Map();
+ const recolored=new Map(),meshes=[];
  model.traverse(node=>{
   if(!node.isMesh||node.userData?.sandforgeStyleDecoration)return;
-  node.castShadow=true;node.receiveShadow=true;
+  node.receiveShadow=true;meshes.push(node);
   const paint=source=>{
    if(!source?.isMeshStandardMaterial||!source.map)return source;
    if(recolored.has(source))return recolored.get(source);
@@ -123,5 +123,17 @@ export function prepareMeshyStructure(model,kind,owner=0){
   };
   node.material=Array.isArray(node.material)?node.material.map(paint):paint(node.material);
  });
+ // A Meshy GLB can have hundreds of tiny rivet/detail meshes. Keep all real
+ // PBR detail in the colour pass, but reserve shadow-map passes for the
+ // largest structural shapes. This is particularly important for 5 bunkers.
+ const maxShadow={bastion:9,bunker:10,generator:10,airfield:14,
+  barracks:15,headquarters:18}[kind]??14;
+ const largest=meshes.map(mesh=>{
+  if(!mesh.geometry.boundingSphere)mesh.geometry.computeBoundingSphere();
+  const size=mesh.geometry.boundingSphere?.radius??0;
+  return {mesh,size:size*Math.max(mesh.scale.x,mesh.scale.y,mesh.scale.z)};
+ }).sort((a,b)=>b.size-a.size).slice(0,maxShadow);
+ const casters=new Set(largest.map(x=>x.mesh));
+ for(const mesh of meshes)mesh.castShadow=casters.has(mesh);
  return true;
 }
