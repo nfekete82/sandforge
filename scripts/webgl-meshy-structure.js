@@ -106,6 +106,20 @@ function addInfantryExitMarkers(model,bounds){
 /** Original photographed HQ carried a painted WHITE star on the right annex.
  * Its Meshy atlas is shared across body and canopy; remove only white
  * near the right hand annex using UV-preserving PBR shader filtering. */
+// Meshy occasionally exports the emblem as its own raised mesh. Remove
+// explicit badge geometry in addition to painting over baked atlas pixels.
+// Do not change any wall, door, antenna, flag or hangar structure.
+export function removeHeadquartersEmblemMeshes(model){
+ let removed=0;
+ const emblem=/^(?:.*[_ -])?(?:star[_ -]?emblem|faction[_ -]?crest|shield[_ -]?badge|white[_ -]?star|insignia|emblem)(?:[_ -].*)?$/i;
+ const nodes=[];
+ model.traverse(node=>{
+  if(node!==model&&node.isMesh&&emblem.test(node.name))nodes.push(node);
+ });
+ for(const node of nodes){node.removeFromParent();removed++;}
+ model.userData.sandforgeRemovedHQBadgeMeshes=removed;
+ return removed;
+}
 /** Hide the entire baked crest on the RIGHT annex (not just bright star
  * pixels). Each Meshy mesh has its own local coordinate space; apply the
  * mesh-to-HQ transform BEFORE comparing it to the common building bounds.
@@ -150,6 +164,7 @@ export function prepareMeshyStructure(model,kind,owner=0){
   sandforgeMeshyStructure:kind,meshRevision:MESHY_STRUCTURE_REVISION,
   sandforgeMeshyStyleRevision:MESHY_STRUCTURE_REVISION,
   sandforgeMeshyStyleOwner:owner};
+ if(kind==='headquarters')removeHeadquartersEmblemMeshes(model);
  const originalBounds=meshyLocalBounds(model);
  if(['barracks','headquarters'].includes(kind)&&!originalBounds.isEmpty())
   addInfantryExitMarkers(model,originalBounds);
