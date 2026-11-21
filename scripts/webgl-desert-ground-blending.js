@@ -41,6 +41,11 @@ export const DESERT_GROUND_PROFILES=Object.freeze({
   layers:['mojave','sand','sonoran'],base:'badlands',
   zone:[.68,.64,.43],tiles:[385,300,530],seed:0x6ea14c,
   title:'Canyon valley roads / compacted sandstone / hardpan / gravel'
+ }),
+ 'mesa-highlands':Object.freeze({
+  layers:['sand','mojave','sonoran'],base:'badlands',
+  zone:[.53,.67,.48],tiles:[420,290,510],seed:0x27a121,
+  title:'Rocky mesa summits / dusty roads / compacted dry valley'
  })
 });
 const clamp=(v,lo=0,hi=1)=>Math.max(lo,Math.min(hi,v));
