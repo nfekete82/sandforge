@@ -63,7 +63,7 @@ export function generateMap(seed:number,version:Exclude<MapVersion,0>=MAP_VERSIO
   const homes=layout.headquarters.map(id=>battlefieldStart(sites[id],size));
   const landscape=modern&&generatorVersion>=3?generateLandscapeNetwork(seed,size,sites,cols,rows,candidate,homes,generatorVersion):null;
   if(landscape)canyon.ridges=landscape.ridges;
-  const plateaus=generatorVersion===7?(landscape?.plateaus??[]):[];
+  const plateaus=generatorVersion>=7?(landscape?.plateaus??[]):[];
   if(modern){
     // Ruins keep their own stream and inherit the established road/site exclusions.
     canyon.ruins=generateCanyonFeatures(streamSeed(seed,'ruins',candidate),size,cols,rows,sites,corridors,true).ruins
