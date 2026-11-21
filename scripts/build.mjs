@@ -91,6 +91,7 @@ cpSync('scripts/webgl-frame-scheduling.js','dist/webgl-frame-scheduling.js');
 cpSync('scripts/webgl-simulation-speed.js','dist/webgl-simulation-speed.js');
 cpSync('scripts/webgl-ai-debug.js','dist/webgl-ai-debug.js');
 cpSync('scripts/webgl-bastion-capture.js','dist/webgl-bastion-capture.js');
+cpSync('scripts/webgl-bastion-beacon.js','dist/webgl-bastion-beacon.js');
 cpSync('scripts/webgl-actor-presentation.js','dist/webgl-actor-presentation.js');
 cpSync('scripts/webgl-faction-accents.js','dist/webgl-faction-accents.js');
 cpSync('scripts/webgl-team-markings.js','dist/webgl-team-markings.js');
