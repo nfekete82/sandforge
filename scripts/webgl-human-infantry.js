@@ -11,7 +11,7 @@ import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
  * per-frame updates are needed. Shared textures/geometries avoid per-unit GPU
  * resource growth.
  */
-export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v1-20261121';
+export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v2-anatomical-limbs-20261121';
 
 const ellipsoid=new THREE.SphereGeometry(1,20,14);
 const rounded=new RoundedBoxGeometry(1,1,1,3,.13);
@@ -75,6 +75,62 @@ const mount=(parent,name,geometry,material,position,scale,rotation=null)=>{
 };
 const oval=(parent,name,mat,pos,size)=>mount(parent,name,ellipsoid,mat,pos,size);
 const shaped=(parent,name,mat,pos,size,rot=null)=>mount(parent,name,rounded,mat,pos,size,rot);
+
+// Fabric cylinders are NOT primitive round tubes. Their irregular tapered rings,
+// folds and preserved cloth UVs produce human sleeves and cargo-trouser silhouettes.
+// One immutable geometry per anatomical section is shared across all infantry.
+function garmentGeometry(profile){
+ const positions=[],uv=[],indices=[],radial=12,rings=9;
+ const taper={
+  sleeve:[1.10,1.01,.91,.88,.85,.84,.84,.87,.91],
+  forearm:[1.01,.99,.96,.91,.84,.78,.74,.75,.80],
+  thigh:[1.10,1.06,1.02,.97,.95,.90,.84,.82,.85],
+  calf:[.85,.88,.92,.96,.98,.96,.98,1.04,1.09]
+ }[profile];
+ for(let j=0;j<rings;j++){
+  const t=j/(rings-1),fold=.025*Math.sin(t*Math.PI*8+.55);
+  for(let i=0;i<radial;i++){
+   const a=i/radial*Math.PI*2,r=taper[j]+fold*Math.sin(a*3+j*.61);
+   const creasing=1+.030*Math.sin(a*5+j*.93)+.018*Math.cos(a*7-j*.8);
+   positions.push(Math.cos(a)*r*creasing,t-.5,
+    Math.sin(a)*r*(1+.027*Math.cos(j*2+a*4)));
+   uv.push(i/radial*1.5,t*2.0);
+  }
+ }
+ for(let j=0;j<rings-1;j++)for(let i=0;i<radial;i++){
+  const a=j*radial+i,b=j*radial+(i+1)%radial,c=(j+1)*radial+i,d=(j+1)*radial+(i+1)%radial;
+  indices.push(a,b,c,b,d,c);
+ }
+ const g=new THREE.BufferGeometry();
+ g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+ g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+ g.setIndex(indices);g.computeVertexNormals();
+ return g;
+}
+const garment=Object.freeze({
+ sleeve:garmentGeometry('sleeve'),
+ forearm:garmentGeometry('forearm'),
+ thigh:garmentGeometry('thigh'),
+ calf:garmentGeometry('calf')
+});
+const dimensions=(mesh)=>{
+ if(!mesh?.geometry)return null;
+ if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
+ return mesh.geometry.boundingBox.getSize(new THREE.Vector3());
+};
+function replaceLimb(model,part,side,profile){
+ const joint=model.getObjectByName('Atlas_'+part+side);
+ const suit=joint?.getObjectByName('Atlas_'+part+side+'Suit');
+ const size=dimensions(suit);
+ if(!joint||!size)return false;
+ // These rigid old pieces are responsible for the visible robot limbs.
+ // They remain on their joints but are not rendered, even while running.
+ joint.traverse(node=>{if(node.isMesh&&node.name.startsWith('Atlas_'))node.visible=false;});
+ mount(joint,profile+side,garment[profile],uniform,[0,0,0],
+  [size.x*.71,size.y*1.10,size.z*.69]);
+ return true;
+}
+
 const hideChildren=parent=>{for(const node of parent.children)if(node.isMesh)node.visible=false;};
 const hideNamed=(root,pattern)=>{
  root.traverse(node=>{if(node.isMesh&&pattern.test(node.name))node.visible=false;});
@@ -128,18 +184,73 @@ export function humanizeInfantry(model,owner=0){
  shaped(pack,'RadioRucksack',uniform,[0,-.016,-.061],[.300,.348,.174]);
  shaped(pack,'RucksackPocket',vest,[0,-.080,-.164],[.215,.155,.051]);
 
- // Preserve the actual sleeve/forearm rig and its skinning, but remove the
- // giant shoulder armour and ceramic shin/thigh plating. Identification lives
- // on the moving upper arms, not as floating world-space flags.
- hideNamed(model,/^Atlas_(Pauldron|PauldronRim|PauldronBadge|ForearmPlate|ThighCeramic|ThighStripe|ShinRim|ShinCeramic)$/);
- for(let i=0;i<shoulders.length;i++){
-  oval(shoulders[i],'SleeveArmband'+i,faction,[0,.015,0],[.109,.058,.107]);
- }
+ // Replace the ENTIRE boxy exoskeleton. Each garment section is mounted
+ // on the identical Atlas upper/lower limb joint and therefore moves with
+ // the established walk/run/fire/hit/death GLB animation tracks.
  for(const side of ['L','R']){
+  replaceLimb(model,'UpperArm',side,'sleeve');
+  replaceLimb(model,'Forearm',side,'forearm');
+  replaceLimb(model,'Thigh',side,'thigh');
+  replaceLimb(model,'Shin',side,'calf');
+
+  const shoulder=model.getObjectByName('Atlas_UpperArm'+side);
+  if(shoulder){
+   // Cloth armband moves with the sleeve, not in world coordinates.
+   oval(shoulder,'SleeveArmband'+side,faction,[0,-.005,0],
+    [.094,.040,.093]);
+  }
+
   const knee=model.getObjectByName('Atlas_Knee'+side);
-  const cap=knee?.getObjectByName('Atlas_KneeCap');
-  if(cap)cap.scale.multiplyScalar(.77);
+  if(knee){
+   const cap=knee.getObjectByName('Atlas_KneeCap');
+   if(cap)cap.scale.multiplyScalar(.77); // preserve historical size contract
+   hideChildren(knee); // neither the sci-fi ball joint nor ceramic hinge
+   oval(knee,'TrouserKnee'+side,uniform,[0,0,.026],[.097,.097,.096]);
+   shaped(knee,'SoftKneepad'+side,vest,[0,-.002,.115],
+    [.132,.102,.028]);
+   shaped(knee,'KneeStrap'+side,dark,[0,-.050,.103],
+    [.125,.013,.019]);
+  }
+
+  const boot=model.getObjectByName('Atlas_Boot'+side);
+  if(boot){
+   hideChildren(boot);
+   // Narrow ankle and shaped rounded toe, not huge square robot feet.
+   oval(boot,'CombatBootAnkle'+side,dark,[0,.057,-.014],
+    [.085,.112,.086]);
+   oval(boot,'CombatBootToe'+side,dark,[0,-.008,.114],
+    [.096,.052,.123]);
+   shaped(boot,'CombatBootSole'+side,dark,[0,-.056,.032],
+    [.191,.026,.303]);
+   for(let i=0;i<4;i++)
+    shaped(boot,'BootLace'+side+i,hardware,
+     [0,.074-i*.024,.073],[.058,.006,.009]);
+  }
+
+  // The existing Index1L/Index1R hand joints still own the rifle grip.
+  // Leave individual gripping fingers in place; remove only hard knuckle
+  // plates and rigid cuffs, replacing them with soft black tactical gloves.
+  const glove=model.getObjectByName('Atlas_Glove'+side);
+  if(glove){
+   for(const node of glove.children)
+    if(node.isMesh&&/^Atlas_(KnucklePlate|GloveCuff)/.test(node.name))
+     node.visible=false;
+   oval(glove,'TacticalGlove'+side,dark,
+    [side==='R'?.015:-.015,.008,.023],[.053,.053,.059]);
+  }
+
+  const thigh=model.getObjectByName('Atlas_Thigh'+side);
+  if(thigh){
+   const sign=side==='L'?1:-1;
+   shaped(thigh,'CargoPocket'+side,vest,
+    [sign*.094,-.005,.052],[.052,.105,.061]);
+   shaped(thigh,'CargoPocketFlap'+side,dark,
+    [sign*.094,.042,.057],[.052,.013,.062]);
+  }
  }
+ // Remove the remaining ceramic belt pouches without losing the functional
+ // strap and buckle. All rifle and IK wrist anchors remain untouched.
+ hideNamed(model,/^Atlas_(AmmoPouch|PouchLid|PouchFastener)$/);
  // Do not rebind or touch Atlas_WeaponSocket / Atlas_Rifle / Atlas_MuzzleBore.
  model.userData={...model.userData,sandforgeHumanInfantryRevision:HUMAN_INFANTRY_REVISION};
  return true;
