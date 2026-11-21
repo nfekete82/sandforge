@@ -10,7 +10,7 @@ import * as THREE from 'three';
  * A separate skin instance is required because each GLB has independent
  * skeleton bindings; mesh materials remain shared and no RAF work is added.
  */
-export const SKINNED_TROUSERS_REVISION='human-articulated-cargo-pants-v2-full-width-20261122';
+export const SKINNED_TROUSERS_REVISION='human-articulated-cargo-pants-v3-20261122';
 const TWO_PI=Math.PI*2;
 const radial=16,segments=30;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -19,11 +19,13 @@ const lerp=(a,b,t)=>a+(b-a)*t;
 // Radii in metres, not diameters: the full hip-to-boot silhouette now has
 // normal trouser width, an anatomically full knee and a shaped calf. A mild
 // taper at the boot stops "two sticks" without overlarge straight tubes.
+// Fuller cargo pants: subtle anatomical taper with a properly filled-out calf.
+// Unlike disconnected rigid pieces, the same fabric deforms over the knee.
 const profile=[
- [0.00,.172,.179],[.09,.182,.190],[.20,.177,.185],
- [.33,.164,.174],[.44,.154,.161],[.52,.160,.166],
- [.60,.165,.167],[.70,.160,.162],[.79,.149,.151],
- [.87,.139,.141],[.94,.129,.132],[1.00,.119,.121]
+ [0.00,.184,.191],[.09,.191,.198],[.20,.188,.196],
+ [.33,.178,.185],[.44,.169,.176],[.52,.172,.181],
+ [.60,.179,.183],[.70,.177,.179],[.79,.169,.171],
+ [.87,.160,.162],[.94,.151,.153],[1.00,.142,.144]
 ];
 function measure(ratio,axis){
  for(let i=1;i<profile.length;i++){
@@ -48,6 +50,13 @@ const boneAliases={
 const descendants=(parent,child)=>{let current=child?.parent;
  while(current){if(current===parent)return true;current=current.parent;}return false;
 };
+// Prefer the actual animated bone that already carries the exported Atlas
+// geometry. This is more reliable than guessing third-party skeleton names.
+const owningBone=(model,groupName)=>{
+ let node=model.getObjectByName(groupName)?.parent;
+ while(node&&!node.isBone)node=node.parent;
+ return node?.isBone?node:null;
+};
 export function findTrouserRig(model){
  const bones=[];
  model?.traverse(node=>{if(node.isBone)bones.push(node);});
@@ -55,7 +64,11 @@ export function findTrouserRig(model){
  for(const key of ['UpperLegL','LowerLegL','FootL',
   'UpperLegR','LowerLegR','FootR']){
   const aliases=boneAliases[key].map(normalize);
-  const joint=bones.find(b=>!used.has(b)&&aliases.includes(normalize(b.name)));
+  const side=key.endsWith('L')?'L':'R';
+  const slot=key.startsWith('UpperLeg')?'Thigh':key.startsWith('LowerLeg')?'Shin':'Boot';
+  const anchored=owningBone(model,'Atlas_'+slot+side);
+  const joint=(anchored&&!used.has(anchored)?anchored:null)||
+   bones.find(b=>!used.has(b)&&aliases.includes(normalize(b.name)));
   if(!joint)return null;
   used.add(joint);selected.push(joint);
  }
@@ -72,14 +85,14 @@ function addLeg(sideIndex,hip,knee,ankle,inverse,positions,uv,weights,indices,jo
  const finish=ankle.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
  // Extend *down* into the boot upper, not upwards away from it.
  // Foot sockets are near the ankle. A +.075 Y lift left visible stick gaps.
- finish.y+=.020;
+ finish.y-=.020;
  const upperDistance=start.distanceTo(middle);
  const lowerDistance=middle.distanceTo(finish);
  if(upperDistance<.12||lowerDistance<.12)return false;
  const kneeT=upperDistance/(upperDistance+lowerDistance);
  const total=upperDistance+lowerDistance;
  // Foot-to-hip length scales trouser girth without changing the skeleton.
- const girth=clamp(total/1.02,.98,1.19);
+ const girth=clamp(total/1.02,1.04,1.23);
  const firstIndex=positions.length/3;
  for(let row=0;row<=segments;row++){
   const t=row/segments,top=t<=kneeT;
@@ -97,7 +110,7 @@ function addLeg(sideIndex,hip,knee,ankle,inverse,positions,uv,weights,indices,jo
   for(let col=0;col<radial;col++){
    const a=TWO_PI*col/radial;
    // Folds are intentional *surface* deformation, not rigid armour bands.
-   const fold=1+.036*Math.sin(a*5+t*27)+.021*Math.sin(a*8-t*39);
+   const fold=1+.045*Math.sin(a*5+t*27)+.026*Math.sin(a*8-t*39);
    const creasing=1+.010*Math.sin(t*58+a*3);
    const p=center.clone().addScaledVector(xAxis,Math.cos(a)*rX*fold)
      .addScaledVector(zAxis,Math.sin(a)*rZ*creasing);
