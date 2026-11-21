@@ -5,7 +5,7 @@ const hqDoorStates=new WeakMap();
 // Vehicle factory is the visual reference for every Sandforge structure:
 // original PBR albedo/normal/ORM, dusty khaki armour, dark steel, restrained
 // blue/red enamel. Do not flatten a Meshy texture atlas into plain-color boxes.
-export const MESHY_STRUCTURE_REVISION='sandforge-hq-original-double-door-animated-and-badge-neutral-v5';
+export const MESHY_STRUCTURE_REVISION='sandforge-hq-door-badge-glsl-radar-safe-v6';
 export const SANDFORGE_INDUSTRIAL_PALETTE=Object.freeze({
  sand:'#c3ae8a',armour:'#a08d6d',steel:'#444a45',concrete:'#aaa08b',
  blue:'#1b508d',red:'#a7332e'
@@ -184,7 +184,7 @@ export function removeHeadquartersEmblemMeshes(model){
 function removeHeadquartersAnnexStar(shader,bounds,meshToHQ,door){
  const dim=bounds.getSize(new THREE.Vector3()),min=bounds.min;
  const f=n=>Number(n).toFixed(6);
- const decl='varying vec3 sfHQRootPos; varying vec3 sfHQRootNormal;';
+ const decl='varying vec3 sfHQMatRootPos; varying vec3 sfHQMatRootNormal;';
  const doorUniform={value:door?.open??0};
  shader.uniforms.sfHQDoorOpen=doorUniform;
  if(door)door.uniforms.push(doorUniform);
@@ -194,12 +194,12 @@ function removeHeadquartersAnnexStar(shader,bounds,meshToHQ,door){
   'uniform mat4 sfHQMeshToRoot;\n'+decl);
  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',
   '#include <begin_vertex>\n'+
-  'sfHQRootPos=(sfHQMeshToRoot*vec4(position,1.0)).xyz;\n'+
-  'sfHQRootNormal=normalize(mat3(sfHQMeshToRoot)*normal);');
+  'sfHQMatRootPos=(sfHQMeshToRoot*vec4(position,1.0)).xyz;\n'+
+  'sfHQMatRootNormal=normalize(mat3(sfHQMeshToRoot)*normal);');
  shader.fragmentShader=shader.fragmentShader.replace(marker,marker+'\n'+decl+'\nuniform float sfHQDoorOpen;');
  return [
   '// Paint out the complete right-hangar emblem: shield AND star.',
-  'vec3 sfHQNormalized=(sfHQRootPos-vec3('+[min.x,min.y,min.z].map(f).join(',')+'))',
+  'vec3 sfHQNormalized=(sfHQMatRootPos-vec3('+[min.x,min.y,min.z].map(f).join(',')+'))',
   ' / vec3('+[dim.x,dim.y,dim.z].map(v=>f(Math.max(.0001,v))).join(',')+');',
   // The annex is on the +X right and faces front +Z. Smooth borders blend
   // the replacement into the existing dirty gunmetal, not a flat badge.
@@ -208,23 +208,23 @@ function removeHeadquartersAnnexStar(shader,bounds,meshToHQ,door){
   // emblem sits low in the total height; the former .13-.80 band missed it.
   'float sfBadgeY=smoothstep(.010,.045,sfHQNormalized.y)*(1.0-smoothstep(.48,.57,sfHQNormalized.y));',
   'float sfBadgeZ=smoothstep(.24,.39,sfHQNormalized.z);',
-  'float sfBadgeFacing=.78+.22*abs(sfHQRootNormal.z);',
+  'float sfBadgeFacing=.78+.22*abs(sfHQMatRootNormal.z);',
   'float sfBadgeMask=sfBadgeX*sfBadgeY*sfBadgeZ*sfBadgeFacing;',
   // Preserve weathering and subtle metal variation, not the high-contrast
   // atlas logo. Material normal/roughness/metallic textures remain unchanged.
-  'float sfSteelWeather=.92+.05*fract(sin(dot(sfHQRootPos.xz,vec2(12.9898,78.233)))*43758.5453);',
+  'float sfSteelWeather=.92+.05*fract(sin(dot(sfHQMatRootPos.xz,vec2(12.9898,78.233)))*43758.5453);',
   'vec3 sfUnmarkedMetal=vec3(.175,.189,.183)*sfSteelWeather;',
   'diffuseColor.rgb=mix(diffuseColor.rgb,sfUnmarkedMetal,sfBadgeMask);',
   // Cut only the real double door's front-facing triangles. While closed
   // the ORIGINAL atlas is visible. Opening slides the two visible leaves
   // outward from their centre; the dark interior is already inset behind it.
-  'float sfDoorX=abs(sfHQRootPos.x-'+f(door?.centerX??0)+');',
-  'float sfDoorY=sfHQRootPos.y-'+f(door?.bottom??0)+';',
-  'float sfDoorZ=abs(sfHQRootPos.z-'+f(door?.z??0)+');',
+  'float sfDoorX=abs(sfHQMatRootPos.x-'+f(door?.centerX??0)+');',
+  'float sfDoorY=sfHQMatRootPos.y-'+f(door?.bottom??0)+';',
+  'float sfDoorZ=abs(sfHQMatRootPos.z-'+f(door?.z??0)+');',
   'float sfDoorAllowed=step(sfDoorX,'+f(door?.halfWidth??0)+')',
   ' *step(0.0,sfDoorY)*step(sfDoorY,'+f(door?.height??0)+')',
   ' *step(sfDoorZ,'+f(Math.max(door?.depth??0,.0001)*5)+')',
-  ' *step(.20,abs(sfHQRootNormal.z));',
+  ' *step(.20,abs(sfHQMatRootNormal.z));',
   'if(sfHQDoorOpen>.001 && sfDoorAllowed>.5 &&',
   'sfDoorX<'+f(door?.halfWidth??0)+'*sfHQDoorOpen*.99)discard;'
  ];
