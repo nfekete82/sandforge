@@ -19,11 +19,11 @@ const geometryHash=world=>createHash('sha256')
  .update(world.blocked)
  .digest('hex');
 
-test('four original maps retain their identity; the five existing maps now use v9 expanded highlands',()=>{
+test('four original maps retain their identity; the five existing maps now use v10 multi-ramp highlands',()=>{
  assert.equal(classicMaps.length,4);
  assert.equal(catalog.maps.length,6);
  const custom=catalog.byId('plateau-crossroads');
- assert.equal(custom.generatorVersion,9);
+ assert.equal(custom.generatorVersion,10);
  assert.equal(custom.kind,'plateau-crossroads');
  assert.equal(custom.bastions,16);
  assert.deepEqual(classicMaps.map(x=>x.id),[
@@ -36,7 +36,7 @@ test('four original maps retain their identity; the five existing maps now use v
   'open-basin','broken-escarpment','diagonal-ridge','serpentine-canyon']);
  assert.equal(new Set(catalog.maps.map(x=>x.seed)).size,6);
  for(const map of classicMaps){
-  assert.equal(map.generatorVersion,9,'v9 enlarged plateaus are the new match default');
+  assert.equal(map.generatorVersion,10,'v10 multi-ramp highlands are the new match default');
   assert.equal(map.biome,'desert','only original desert graphics');
   assert.ok(Object.isFrozen(map),'locked battlefields are immutable');
   assert.ok(catalog.matches(map,{...map,terrain:map.terrain,kind:map.kind}));
@@ -66,7 +66,7 @@ for(const map of catalog.maps)test(map.name+': playable fair deterministic origi
   'existing savegame geometry must be byte-for-byte unchanged');
 });
 
-for(const map of catalog.maps.filter(p=>p.generatorVersion===9&&p.kind!=='open-basin'))test(
+for(const map of catalog.maps.filter(p=>p.generatorVersion===10&&p.kind!=='open-basin'))test(
  map.name+': all real mountain passes are physically driveable by paid ground vehicles',()=>{
  const game=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion);
  const world=game.world,ridge=world.generated.ridges[0];
@@ -89,7 +89,7 @@ for(const map of catalog.maps.filter(p=>p.generatorVersion===9&&p.kind!=='open-b
  }
 });
 
-test('historical v4 and v5 maps retain their old geometry even after v9 highlands',()=>{
+test('historical v4 and v5 maps retain their old geometry even after v10 highlands',()=>{
  const p=catalog.byId('last-stronghold'),old=Simulation.campaign(p.seed,p.mapVersion,p.terrain,4);
  const version5=Simulation.campaign(p.seed,p.mapVersion,p.terrain,5);
  assert.equal(old.world.generatorVersion,4);
