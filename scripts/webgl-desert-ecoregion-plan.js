@@ -46,6 +46,12 @@ export function planDesertEcoregion({
    if(x<=margin||y<=margin||x>=size-margin||y>=size-margin)continue;
    const p={x,y};
    if(avoid.some(site=>distance(site,p)<site.r))continue;
+   // No decorative GLB sandstone, cactus, or trees embedded in the single
+   // contiguous plateau/cliff presentation. A clearance band also prevents
+   // half-hidden boulders along the sloping talus at the mountain's foot.
+   if((terrain.ridges??[]).some(ridge=>
+     (ridge.spine??[]).slice(1).some((q,i)=>
+       distSegment(p,ridge.spine[i],q)<ridge.width*2.1+(kind==='sandstone'?90:65))))continue;
    // Prevent all genuine 3D succulents / dry trees / rocks from floating
    // in lagoons, rivers or the muddy banks. Water is planned BEFORE props.
    if(desertWaterExclusion(p,waterLayout,{margin:kind==='sandstone'?26:49}))continue;
