@@ -10,6 +10,8 @@ export const SANDFORGE_INDUSTRIAL_PALETTE=Object.freeze({
  blue:'#1b508d',red:'#a7332e'
 });
 export function meshyStructurePath(kind){
+ if(kind==='airfield'&&MESHY_STRUCTURE_ASSETS.airfieldReference)
+  return '/src/assets/reborn/buildings-3d/meshy-structures/airfield-reference-20261121.glb';
  return MESHY_STRUCTURE_ASSETS[kind]
   ?'/src/assets/reborn/buildings-3d/meshy-structures/'+kind+'.glb':null;
 }
