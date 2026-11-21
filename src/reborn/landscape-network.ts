@@ -334,13 +334,17 @@ function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[]
    // Three stacked east/west ridge systems already own the central routes.
    // Build raised terraces in side sectors, with horizontal access ramps.
    // A vertical 1.7k ramp would cross the actual ridge 2 truck pass.
-   ?[columns,columns*(rows-2)+(columns-1)]
+   ?[
+     columns+(columns-1),columns*(rows-2),
+     1,columns*(rows-1)+(columns-2),columns,columns*(rows-2)+(columns-1)
+    ]
    :kind==='broken-escarpment'
     ?[1,columns*(rows-1)+(columns-2)]
     :[1,columns*(rows-1)+(columns-2),columns-2];
  const plateaus:RaisedMesa[]=[];
  for(const siteIndex of siteIds){
   if(siteIndex<0||siteIndex>=total||plateaus.some(p=>p.siteIndex===siteIndex))continue;
+  if(kind==='plateau-crossroads'&&plateaus.length>=2)break;
   const center=sites[siteIndex],row=Math.floor(siteIndex/columns);
   const radius=kind==='open-basin'?460:
     kind==='serpentine-canyon'?530:kind==='broken-escarpment'?535:505;
@@ -369,6 +373,13 @@ function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[]
   const overlaps=plateaus.some(other=>
    distance(center,other.center)<mesa.footRadius+other.footRadius+165);
   const unsafeHome=homeClear.some(home=>distance(center,home)<radius+330);
+  // On the three-ridge Plateau Crossroads map, the actual driveable mountain
+  // passes are sacred: reserve the full pass and each of its vehicle
+  // approaches BEFORE placing any optional raised terrain near them.
+  const nearExistingPass=kind==='plateau-crossroads'&&
+   original.ridges.some(ridge=>ridge.ramps.some(pass=>
+    distance(center,{x:pass.x,y:ridgeHeightAt(ridge,pass.x)})<
+     footRadius+650));
   // Keep the entire authoritative ridge/pass corridor free of other rock
   // blockers. It includes the full 1.9x collision skirt, not just the
   // painted line. Existing v4/v5 passes are restored without moving them.
@@ -380,7 +391,7 @@ function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[]
     const dist=Math.hypot(center.x-from.x-t*dx,center.y-from.y-t*dy);
     return dist<mesa.footRadius+ridge.width*1.9+190;
    }));
-  if(overlaps||unsafeHome||nearbyRidge)continue;
+  if(overlaps||unsafeHome||nearExistingPass||nearbyRidge)continue;
   plateaus.push(mesa);
  }
  const routeAnchors=(siteIndex:number):Point[]=>{
