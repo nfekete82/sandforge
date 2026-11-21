@@ -12,7 +12,7 @@ import {installSkinnedTrousers,disposeSkinnedTrousers} from './webgl-human-skinn
  * per-frame updates are needed. Shared textures/geometries avoid per-unit GPU
  * resource growth.
  */
-export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v10-soft-knees-20261122';
+export const HUMAN_INFANTRY_REVISION='sandforge-human-infantry-v13-shared-team-kit-20261122';
 
 const ellipsoid=new THREE.SphereGeometry(1,20,14);
 const rounded=new RoundedBoxGeometry(1,1,1,3,.13);
@@ -43,7 +43,7 @@ const hardware=new THREE.MeshStandardMaterial({
  name:'SF_Human_BuckledSteel',color:'#62675b',roughness:.68,metalness:.36
 });
 const teamMats=[
- new THREE.MeshStandardMaterial({name:'SF_Human_BlueArmband',color:'#2b6685',roughness:.89}),
+ new THREE.MeshStandardMaterial({name:'SF_Human_BlueArmband',color:'#3282ad',roughness:.89}),
  new THREE.MeshStandardMaterial({name:'SF_Human_RedArmband',color:'#97483c',roughness:.89})
 ];
 const hash=(x,y)=>{let n=Math.imul(x+47,73856093)^Math.imul(y+31,19349663);
@@ -189,7 +189,7 @@ export function humanizeInfantry(model,owner=0){
   shaped(head,'ChinStrap'+side,dark,[side*.112,-.123,.152],
    [.019,.018,.136],[side*.14,side*.13,0]);
  }
- shaped(head,'HelmetFrontPatch',faction,[0,.119,.156],[.068,.010,.018]);
+ shaped(head,'HelmetFrontPatch',faction,[0,.119,.156],[.077,.013,.022]);
 
  // A human torso and short vest replace the square robot chest armour.
  hideChildren(chest);
@@ -203,6 +203,9 @@ export function humanizeInfantry(model,owner=0){
   shaped(chest,'PouchFlap'+x,dark,[x,-.008,.259],[.088,.012,.008]);
  }
  shaped(chest,'VestBuckle',hardware,[0,.099,.222],[.070,.025,.015]);
+ // One subtle faction stripe above the tactical pouches, clearly readable
+ // at RTS zoom; never recolor the sand-fabric torso or combat trousers.
+ shaped(chest,'VestTeamStripe',faction,[0,.106,.208],[.182,.020,.018]);
  // Close the armpit gap while the animated arms swing: fabric, not rigid
  // shoulder plates. These caps stay with the torso, sleeves with arm bones.
  for(const side of [-1,1])
@@ -233,6 +236,7 @@ export function humanizeInfantry(model,owner=0){
  // A shorter, rounded field bag stays clearly below the helmet.
  shaped(pack,'RadioRucksack',uniform,[0,-.037,-.045],[.219,.238,.123]);
  shaped(pack,'RucksackPocket',vest,[0,-.090,-.126],[.168,.098,.036]);
+ shaped(pack,'RucksackTeamTab',faction,[0,-.115,-.153],[.082,.030,.011]);
 
  // Replace the ENTIRE boxy exoskeleton. Each garment section is mounted
  // on the identical Atlas upper/lower limb joint and therefore moves with
