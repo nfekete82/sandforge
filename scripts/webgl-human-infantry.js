@@ -69,7 +69,10 @@ const mount=(parent,name,geometry,material,position,scale,rotation=null)=>{
  if(rotation)mesh.rotation.set(...rotation);
  mesh.userData={visualOnly:true,nonPlayable:true,factionAccent:true,
   sandforgeHumanInfantry:true,sandforgeSharedToolMesh:true};
- mesh.castShadow=false;mesh.receiveShadow=true;
+ // Shadows only for the 10–12 major silhouette pieces, never 60 tiny straps,
+ // fingers or laces; keep the existing battlefield shadow budget intact.
+ mesh.castShadow=/^(Face|HelmetCrown|Jacket|PlateCarrier|RadioRucksack|sleeve[LR]|forearm[LR]|thigh[LR]|calf[LR]|CombatBootToe[LR])$/.test(name);
+ mesh.receiveShadow=true;
  mesh.raycast=()=>{};
  parent.add(mesh);return mesh;
 };
