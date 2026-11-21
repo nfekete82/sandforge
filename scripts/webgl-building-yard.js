@@ -380,7 +380,10 @@ function addSiteDecor(root,kind,width){
  * fabric without a new downloaded texture or a separate terrain pass.
  */
 export const CAMO_NET_DETAIL_VERSION='limited-rear-side-camo-mesh-v1';
-export const CAMO_NET_BUILDING_KINDS=Object.freeze(['headquarters','barracks','research']);
+// Command HQ owns an authentic Meshy radar tower and structured apron.
+// The old side tarp looked like a detached tent next to its steel mast.
+// Keep this optional scenery on barracks/research only, never headquarters.
+export const CAMO_NET_BUILDING_KINDS=Object.freeze(['barracks','research']);
 const netPaint=new THREE.MeshStandardMaterial({
  color:'#e2ddce',vertexColors:true,roughness:1,metalness:0,
  side:THREE.DoubleSide,transparent:true,opacity:.83,depthWrite:false
