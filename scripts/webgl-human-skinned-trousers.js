@@ -67,8 +67,10 @@ export function findTrouserRig(model){
   const side=key.endsWith('L')?'L':'R';
   const slot=key.startsWith('UpperLeg')?'Thigh':key.startsWith('LowerLeg')?'Shin':'Boot';
   const anchored=owningBone(model,'Atlas_'+slot+side);
-  const joint=(anchored&&!used.has(anchored)?anchored:null)||
-   bones.find(b=>!used.has(b)&&aliases.includes(normalize(b.name)));
+  // Canonical named bones take precedence; older exported Atlas groups can
+  // have a shared parent and must not override a correct named bone.
+  const joint=bones.find(b=>!used.has(b)&&aliases.includes(normalize(b.name)))||
+   (anchored&&!used.has(anchored)?anchored:null);
   if(!joint)return null;
   used.add(joint);selected.push(joint);
  }
