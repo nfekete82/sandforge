@@ -16,7 +16,7 @@ function sampleHeadquarters(){
  model.userData.sandforgeRealHQDoorway={x:0,z:5};
  return {model,material,building,bounds:new THREE.Box3().setFromObject(model)};
 }
-test('HQ has smaller flush-fitting double doors instead of a fake garage',()=>{
+test('HQ double doors cover baked originals and hinge within the real entrance',()=>{
  const {model,building,bounds}=sampleHeadquarters();
  const door=createHeadquartersHingedDoor(model,bounds);
  assert.ok(door);
