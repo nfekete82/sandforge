@@ -131,6 +131,31 @@ test('bomber surface bands recolour without stacking geometry or altering wing s
  assert.equal(left.material,original);
  assert.equal(right.material,original);
 });
+test('rear-right bomber paint is mirrored onto the left wing with identical proportions',()=>{
+ const {model,left,right,original}=sampleBomber();
+ assert.equal(paintBomberWingStripes(model,0),2);
+ const paint=model.getObjectByName('SandforgeBomberFlushWingPaint');
+ const vertices=paint.geometry.getAttribute('position');
+ assert.equal(vertices.count%6,0);
+ const perWing=vertices.count/2;
+ assert.ok(perWing>0);
+ // The two halves use identical source triangles; left reverses winding
+ // because mirroring about the aircraft longitudinal centre flips normals.
+ for(let i=0;i<perWing;i+=3){
+  for(let k=0;k<3;k++){
+   const leftIndex=i+k;
+   const rightIndex=perWing+i+[0,2,1][k];
+   assert.ok(Math.abs(vertices.getX(leftIndex)+vertices.getX(rightIndex))<1e-5,
+    'left/right span must be mirror images');
+   assert.ok(Math.abs(vertices.getY(leftIndex)-vertices.getY(rightIndex))<1e-5,
+    'left/right stripe surfaces must have the same elevation');
+   assert.ok(Math.abs(vertices.getZ(leftIndex)-vertices.getZ(rightIndex))<1e-5,
+    'left/right stripe positions along the chord must match');
+  }
+ }
+ assert.equal(left.material,original);
+ assert.equal(right.material,original);
+});
 test('physical wing band mask is narrow and limited to top-facing upper-wing metal',()=>{
  const box=new THREE.Box3(new THREE.Vector3(-40,0,-22),new THREE.Vector3(40,9,22));
  const spec=bomberWingStripeSpec(box);
