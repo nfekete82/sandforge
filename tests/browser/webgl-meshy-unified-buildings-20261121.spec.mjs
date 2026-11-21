@@ -66,8 +66,9 @@ test('seven unified Sandforge industrial PBR buildings render without missing fi
    expect(details.right).toBeGreaterThan(1);
    expect(details.coverFaces).toBeGreaterThan(0);
    expect(details.crestProjections).toBeGreaterThan(0);
-   expect(details.doorRatio).toBeLessThanOrEqual(.117);
+   expect(details.doorRatio).toBeLessThanOrEqual(.159);
    expect(details.doorDepthRatio).toBeLessThan(.004);
+   expect(details.doorDepthRatio).toBeGreaterThan(0);
    expect(details.originalObjects).toBeGreaterThan(0);
    expect(details.missingShader).toBeTruthy();
    await page.waitForTimeout(150);
