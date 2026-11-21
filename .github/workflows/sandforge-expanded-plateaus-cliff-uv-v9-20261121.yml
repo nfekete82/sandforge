@@ -1,0 +1,30 @@
+name: Sandforge v9 · expanded plateaus and cliff UV
+on:
+  push:
+    branches:
+      - feat/sandforge-expanded-plateaus-cliff-uv-v9-20261121
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  plateaus:
+    name: World geometry, tanks, old saves and PBR UV projection
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - name: Build TypeScript, WebGL and generated factory GLB
+        run: npm run build
+      - name: Test all five expanded new-map highlands and no-stretch cliffs
+        run: node --test tests/sandforge-expanded-plateaus-cliff-uv-v9-20261121.test.mjs
+      - name: Regression existing mapped desert routes and historic saves
+        run: node --test tests/sandforge-four-desert-maps-20261120.test.mjs tests/sandforge-five-deserts-height-relief-v8-20261121.test.mjs
+      - name: Regression Plateau Crossroads and existing Mesa Highlands
+        run: node --test tests/sandforge-authored-plateau-crossroads-20261121.test.mjs tests/sandforge-playable-mesa-highlands-20261121.test.mjs
