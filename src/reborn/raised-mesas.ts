@@ -40,10 +40,17 @@ export function raisedMesaHeight(base:number,p:Point,mesa:RaisedMesa):number{
  // with the already-graded world ground at its bottom.
  return base+(mesa.height-base)*lift;
 }
-/** Collision strip touches the physical cliff face, not the level summit. */
-export function raisedMesaCliffBlocked(p:Point,mesa:RaisedMesa,slope:number):boolean{
+/** Physically impassable cliff band surrounding an otherwise buildable top.
+ * Never gate cliff collision on sampled per-triangle slope: that created
+ * unblocked single cells *inside* the steep rocky wall, which were cut off
+ * from the entire battlefield and failed the isolated-ground validation.
+ *
+ * The only opening is the same authored, wide downhill vehicle ramp whose
+ * physical height profile is shared with WebGL. No invisible new shortcuts.
+ */
+export function raisedMesaCliffBlocked(p:Point,mesa:RaisedMesa,_slope:number):boolean{
  const {radius}=mesaLocation(p,mesa);
  if(radius<mesa.topRadius-45||radius>mesa.footRadius+55)return false;
  if(mesaRampCoverage(p,mesa)>.72)return false;
- return slope>.23;
+ return true;
 }
