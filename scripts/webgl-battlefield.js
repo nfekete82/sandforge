@@ -574,6 +574,12 @@ export class SandforgeBattlefield {
     if(type==='building'&&model.userData.sandforgeOriginalPBR&&entry.kind==='factory'&&
        !model.getObjectByName('SF_Factory_PBR_ReferenceHangar_v3'))
      finishDesertBuildingMaterials(model,'factory');
+    // HQ and vehicle factory are now graded AFTER their final albedo layers.
+    // This keeps the authentic Meshy PBR textures while making the desert
+    // armour the same material family (tan metal, blue trim, dark shutters).
+    if(type==='building'&&entry.kind==='factory'&&
+       model.getObjectByName('SF_Factory_Meshy_ProductionRig'))
+     prepareMeshyStructure(model,'factory',entry.owner);
     if(!model.userData.sandforgeOriginalPBR){
      applyFactionAccents(entry,{kind:entry.kind,owner:entry.owner},type,
       entry.modelFootprint,entry.modelHeight);
@@ -900,7 +906,11 @@ export class SandforgeBattlefield {
      (kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root'))||
      (kind==='generator'&&model.getObjectByName('SF_EnergyCore_PBR_Housing')) )
     model.userData.sandforgeOriginalPBR=true;
-   if(kind==='factory')paintMeshyFactoryTeam(model,0);
+   if(kind==='factory'){
+    paintMeshyFactoryTeam(model,0);
+    if(model.getObjectByName('SF_Factory_Meshy_ProductionRig'))
+     prepareMeshyStructure(model,'factory',0);
+   }
    if(kind==='barracks'&&!hasMeshySkin)polishBarracksProps(model);
    if(!hasMeshySkin&&(kind==='barracks'||kind==='headquarters')){
     paintFactionRoofStripes(model,kind,0);
