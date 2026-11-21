@@ -126,7 +126,7 @@ export function coverHeadquartersAnnexCrest(model,bounds){
  model.updateWorldMatrix(true,true);
  const size=bounds.getSize(new THREE.Vector3()),min=bounds.min;
  // The original insignia is on the right utility hangar's curved side.
- const position=new THREE.Vector3(min.x+size.x*.80,
+ const position=new THREE.Vector3(min.x+size.x*.86,
   min.y+size.y*.30,min.z+size.z*.61);
  const decalSize=new THREE.Vector3(size.z*.29,size.y*.25,size.x*.33);
  const orientation=new THREE.Euler(0,Math.PI/2,0);
