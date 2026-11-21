@@ -168,7 +168,13 @@ export class SandforgeBattlefield {
  entityPosition(p){return this.pos(p.x,p.y,this.heightAt(p.x,p.y)+unitRenderAltitude(p.kind,p.flightHeight??1));}
  createFallback(kind,owner,type,gateSpan=2){
   if(type==='unit'&&kind==='drone')return createReconDrone(owner);
-  if(type==='building'&&isStrategicBuilding(kind))return createStrategicBuilding(kind,owner,gateSpan);
+  if(type==='building'&&isStrategicBuilding(kind)){
+   const strategic=createStrategicBuilding(kind,owner,gateSpan);
+   // Research lab is a procedural model and is never loaded as a GLB;
+   // give its preview and live actor the same base-composition scale.
+   if(kind==='research')strategic.scale.multiplyScalar(visualBuildingScale(kind));
+   return strategic;
+  }
   if(type==='unit'&&kind==='rocket')return createRocketInfantry(owner);
   const group=new THREE.Group(),team=FACTION_PAINT[owner],metal=new THREE.MeshStandardMaterial({color:team,metalness:.55,roughness:.53}),
    dark=new THREE.MeshStandardMaterial({color:'#444743',metalness:.45,roughness:.7});
@@ -284,9 +290,9 @@ export class SandforgeBattlefield {
    make(new THREE.BoxGeometry(w*.9,7,depth*.83),dark,0,56,0);
    make(new THREE.CylinderGeometry(6,9,45,10),dark,w*.2,80,-depth*.18);
   }
-  // Make the construction ghost and low-detail fallback match the
-  // final visual scale (factory -10%, turret -12%) without changing gameplay.
-  if(type==='building'&&['turret','factory'].includes(kind))
+  // Keep the low-detail fallback / placement ghost in the same proportions
+  // as the authored GLB, even if streaming fails mid-construction.
+  if(type==='building'&&['turret','factory','headquarters','barracks'].includes(kind))
    group.scale.setScalar(visualBuildingScale(kind));
   return group;
  }
@@ -522,11 +528,10 @@ export class SandforgeBattlefield {
     const dims=box0.getSize(new THREE.Vector3());
     const desired=type==='unit'?UNITS[entry.kind].width:BUILDINGS[entry.kind].width;
     const extent=Math.max(dims.x,dims.z);
-    // The final factory is 10% wider in its GLB. Preserve this gain after
-    // width-normalization: collision, pathing and the repair pad do not grow.
-    const finalFactoryArt=type==='building'&&entry.kind==='factory'&&
-      Boolean(model.getObjectByName('SF_Factory_PBR_roof'));
-    const artScale=finalFactoryArt?1.06:1; // Meshy factory keeps its measured original footprint
+    // A legacy 1.06 factory-only multiplier made the vehicle garage tower
+    // over barracks/research despite the common calibrated building scale.
+    // Calibrate each authored asset ONCE: construction ghost and game agree.
+    const artScale=1;
     if(extent>.0001){
      const scale=calibratedScale(entry.kind,type,dims,desired)*
        (type==='unit'?visualUnitScale(entry.kind):1)*artScale;
@@ -926,8 +931,7 @@ export class SandforgeBattlefield {
    const bounds=new THREE.Box3().setFromObject(model);
    const size=bounds.getSize(new THREE.Vector3());
    if(size.y>0&&Math.max(size.x,size.z)>0){
-    const scale=calibratedScale(kind,'building',size,spec.width)*
-     (kind==='factory'&&model.getObjectByName('SF_Factory_PBR_roof')?1.06:1);
+    const scale=calibratedScale(kind,'building',size,spec.width);
     model.scale.multiplyScalar(scale);
     model.position.set(-bounds.getCenter(new THREE.Vector3()).x*scale,
       -bounds.min.y*scale,-bounds.getCenter(new THREE.Vector3()).z*scale);
