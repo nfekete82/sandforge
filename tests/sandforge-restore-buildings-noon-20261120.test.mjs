@@ -17,15 +17,16 @@ test('playable game uses PRE-Meshy building designs from 20 Nov midday',()=>{
  assert.match(sourceFlags,/headquarters:false/);
  assert.match(sourceFlags,/barracks:false/);
 });
-test('midday factory rollup and external repair facility are preserved',()=>{
+test('midday factory rollup remains, but external repair lift is retired',()=>{
  const factory=read('scripts/generate-factory-pbr.mjs');
  const battlefield=read('scripts/webgl-battlefield.js');
  assert.match(factory,/FACTORY_WIDTH_FACTOR=1\.10/);
  assert.match(factory,/FactoryRollupDoor/);
  assert.doesNotMatch(factory,/SF_Factory_PBR_OpenBay/);
  assert.match(battlefield,/model\.getObjectByName\('FactoryRollupDoor'\)/);
- assert.match(battlefield,/kind==='factory'\?createFactoryServiceYard\(\):null/);
- assert.match(battlefield,/updateFactoryServiceYard\(entry,b,this\.game\.units,this\.game\.time\)/);
+ assert.doesNotMatch(battlefield,/createFactoryServiceYard\(/);
+ assert.doesNotMatch(battlefield,/updateFactoryServiceYard\(/);
+ assert.match(battlefield,/disposeFactoryServiceYard/);
  assert.match(battlefield,/paintFactionRoofStripes\(model,kind,0\)/);
 });
 test('original generated airfield, bastion, reactor and bunker fallback remain active',()=>{
