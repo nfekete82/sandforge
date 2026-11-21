@@ -245,7 +245,7 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
    // Sample nearby actual paid defenders at 1 Hz, never issue commands.
    metrics.bastionControlSeconds+=g.territories.filter(t=>t.owner===1).length*dt;
    if(step%20===0)for(const sector of g.territories){
-    if(sector.owner!==1||!sector.neighbors.some(id=>g.territories[id]?.owner!==1))continue;
+    if(sector.owner!==1||!sector.neighbors?.some(id=>g.territories[id]?.owner!==1))continue;
     metrics.exposedFrontierSeconds++;
     if(g.units.some(u=>u.owner===1&&u.hp>0&&!u.carrier&&
      !['engineer','medic','scout'].includes(u.kind)&&
