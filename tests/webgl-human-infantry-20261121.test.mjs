@@ -5,6 +5,10 @@ import * as THREE from 'three';
 import {HUMAN_INFANTRY_REVISION,humanizeInfantry,disposeHumanInfantry} from '../scripts/webgl-human-infantry.js';
 import {SKINNED_TROUSERS_REVISION,findTrouserRig} from '../scripts/webgl-human-skinned-trousers.js';
 import {HUMAN_STANCE_REVISION,createHumanStance,restoreHumanStance,applyHumanStance,disposeHumanStance} from '../scripts/webgl-human-stance.js';
+import {HUMAN_INFANTRY_ROLES,HUMAN_INFANTRY_ROLES_REVISION,decorateHumanInfantryRole} from '../scripts/webgl-human-infantry-roles.js';
+import {polishMedicModel} from '../scripts/webgl-medic-polish.js';
+import {equipEngineerTools} from '../scripts/webgl-engineer-tools.js';
+import {attachRocketLauncherToInfantry,disposeRocketLauncher} from '../scripts/webgl-rocket-infantry.js';
 
 function atlas(){
  const root=new THREE.Group();
@@ -103,16 +107,19 @@ test('unknown legacy assets fail open without hiding or modifying the source',()
  assert.equal(humanizeInfantry(model),false);
  assert.equal(model.children[0].visible,true);
 });
-test('WebGL production build includes the visual module and applies it only to riflemen',()=>{
+test('WebGL build and runtime apply the human base to all five infantry classes',()=>{
  const battlefield=readFileSync('scripts/webgl-battlefield.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
  assert.match(battlefield,/import \{humanizeInfantry,disposeHumanInfantry\} from '\/webgl-human-infantry\.js'/);
- assert.match(battlefield,/entry\.kind==='infantry'&&/);
+ assert.match(battlefield,/HUMAN_INFANTRY_ROLES\.includes\(entry\.kind\)/);
  assert.match(battlefield,/humanizeInfantry\(model,entry\.owner\)/);
  assert.match(battlefield,/\?soldier=legacy/);
  assert.match(build,/cpSync\('scripts\/webgl-human-infantry\.js','dist\/webgl-human-infantry\.js'\)/);
  assert.match(build,/cpSync\('scripts\/webgl-human-skinned-trousers\.js','dist\/webgl-human-skinned-trousers\.js'\)/);
- assert.match(battlefield,/if\(e\.kind==='infantry'\)disposeHumanInfantry\(e\.detail\)/);
+ assert.match(battlefield,/HUMAN_INFANTRY_ROLES\.includes\(e\.kind\)/);
+ assert.match(battlefield,/disposeHumanInfantry\(e\.detail\)/);
+ assert.match(battlefield,/decorateHumanInfantryRole\(model,entry\.kind,entry\.owner\)/);
+ assert.match(build,/cpSync\('scripts\/webgl-human-infantry-roles\.js','dist\/webgl-human-infantry-roles\.js'\)/);
 });
 test('the old mechanical arms, robot legs, ankle blocks and rigid mitts are actually hidden',()=>{
  const {root,bone}=atlas();
@@ -541,4 +548,97 @@ test('running no longer doubles the authored crouch or pushes both knees forward
  assert.ok(runKnee<idleKnee/2,'do not add a second crouch while running');
  assert.ok(runHipPitch<.012,'secondary hip swing must not create hopping');
  restoreHumanStance(pose);
+});
+
+test('Sandforge blue team gets slightly brighter arm, helmet, vest and backpack accents',()=>{
+ const blue=riggedAtlas().root,red=riggedAtlas().root;
+ assert.equal(humanizeInfantry(blue,0),true);
+ assert.equal(humanizeInfantry(red,1),true);
+ for(const name of ['SF_Human_SleeveArmband0','SF_Human_HelmetFrontPatch',
+  'SF_Human_VestTeamStripe','SF_Human_RucksackTeamTab']){
+  const b=blue.getObjectByName(name),r=red.getObjectByName(name);
+  assert.ok(b&&r,'missing color marker '+name);
+  assert.equal(b.material.color.getHex(),0x3282ad);
+  assert.equal(r.material.color.getHex(),0x97483c);
+  assert.equal(b.userData.factionAccent,true);
+ }
+ const uniform=blue.getObjectByName('SF_Human_Jacket');
+ assert.equal(uniform.material.name,'SF_Human_DesertCombatUniform');
+ assert.equal(blue.getObjectByName('SF_Human_SkinnedTrousers')?.material,uniform.material);
+});
+test('all five human roles retain the same skinned desert combat uniform and unique gear',()=>{
+ assert.deepEqual([...HUMAN_INFANTRY_ROLES],
+  ['infantry','medic','engineer','heavy','rocket']);
+ for(const kind of HUMAN_INFANTRY_ROLES){
+  const {root,rifle,socket}=riggedAtlas();
+  assert.equal(humanizeInfantry(root,0),true,kind+' should accept Atlas base rig');
+  const legs=root.getObjectByName('SF_Human_SkinnedTrousers');
+  assert.ok(legs?.isSkinnedMesh,'missing skinned human legs for '+kind);
+  assert.equal(decorateHumanInfantryRole(root,kind,0),true);
+  assert.equal(root.userData.sandforgeHumanRoleRevision,HUMAN_INFANTRY_ROLES_REVISION);
+  assert.equal(root.userData.sandforgeHumanRole,kind);
+  const stance=createHumanStance(root);
+  assert.ok(stance,'animated leg pose missing on '+kind);
+  const prior=root.children.length;
+  assert.equal(decorateHumanInfantryRole(root,kind,0),true,
+   'human role decoration must be idempotent');
+  assert.equal(root.children.length,prior);
+  assert.equal(root.getObjectByName('Atlas_Rifle'),rifle,'lost original weapon on '+kind);
+  assert.equal(rifle.parent,socket,'lost grip socket on '+kind);
+  if(kind==='medic'){
+   assert.ok(root.getObjectByName('SF_Role_MedicChestCrossVertical'));
+   assert.equal(polishMedicModel(root),true);
+   assert.ok(root.getObjectByName('SF_Medic_FieldMedicalCase'));
+   assert.equal(root.getObjectByName('SF_Human_RadioRucksack').visible,false,
+    'medic bag replaces radio pack, not overlaps it');
+   assert.ok(root.getObjectByName('SF_Medic_ArmbandL'));
+  }
+  if(kind==='engineer'){
+   assert.ok(root.getObjectByName('SF_Role_EngineerHelmetStripe'));
+   assert.ok(root.getObjectByName('SF_Role_EngineerToolCase'));
+   const tools=equipEngineerTools(root);
+   assert.ok(tools?.wrench);
+   assert.equal(tools.wrench.parent,socket);
+   assert.equal(root.getObjectByName('SF_Human_RadioRucksack').visible,true);
+  }
+  if(kind==='heavy'){
+   assert.ok(root.getObjectByName('SF_Role_HeavySoftShoulderL'));
+   assert.ok(root.getObjectByName('SF_Role_HeavyCarrierPanel-0.126'));
+   assert.ok(root.getObjectByName('SF_Role_HeavyRadioBattery'));
+  }
+  if(kind==='rocket'){
+   assert.ok(root.getObjectByName('SF_Role_RocketReservePouch'));
+   attachRocketLauncherToInfantry(root,0);
+   assert.ok(root.getObjectByName('RocketMuzzle_0'));
+   assert.equal(rifle.parent,socket);
+   disposeRocketLauncher(root);
+  }
+  assert.equal(disposeHumanStance(stance),true);
+  assert.equal(disposeHumanInfantry(root),true);
+ }
+});
+test('red specialist team uses red insignia without affecting green medic or ochre pioneer',()=>{
+ for(const role of ['medic','engineer','heavy','rocket']){
+  const root=riggedAtlas().root;
+  humanizeInfantry(root,1);decorateHumanInfantryRole(root,role,1);
+  assert.equal(root.getObjectByName('SF_Human_SleeveArmband0').material.color.getHex(),0x97483c);
+  if(role==='medic'){
+   const medical=root.getObjectByName('SF_Role_MedicChestCrossVertical');
+   assert.equal(medical.material.name,'SF_Role_MedicalGreen');
+  }else if(role==='engineer'){
+   const stripe=root.getObjectByName('SF_Role_EngineerHelmetStripe');
+   assert.equal(stripe.material.name,'SF_Role_EngineerOchre');
+  }else if(role==='heavy'){
+   assert.equal(root.getObjectByName('SF_Role_HeavyTeamFlashL').material.color.getHex(),0x97483c);
+  }else{
+   assert.equal(root.getObjectByName('SF_Role_RocketCarrierID').material.color.getHex(),0x97483c);
+  }
+  disposeHumanInfantry(root);
+ }
+});
+test('role decorator refuses incompatible assets and never alters an unhumanized GLB',()=>{
+ const root=riggedAtlas().root;
+ assert.equal(decorateHumanInfantryRole(root,'medic',0),false);
+ assert.equal(decorateHumanInfantryRole(root,'tank',0),false);
+ assert.equal(root.getObjectByName('SF_Role_MedicChestCrossVertical'),null);
 });
