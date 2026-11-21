@@ -11,8 +11,10 @@ test('two sleek rocket tubes per side, moved outside body instead of bulky boxes
  const root=entry.scoutRocketPods;
  assert.equal(root.children.length,2,'exactly one pod on each side');
  assert.equal(entry.scoutRocketMuzzles.length,2);
- assert.equal(root.children[0].position.x,-23,'port pod must remain unchanged');
- assert.equal(root.children[1].position.x,17,'starboard pod must sit closer to fuselage');
+ assert.equal(root.children[0].position.x,-17,'port launcher must match the closer opposite hardpoint');
+ assert.equal(root.children[1].position.x,17,'starboard launcher keeps its correct hardpoint');
+ assert.equal(Math.abs(root.children[0].position.x),Math.abs(root.children[1].position.x),
+  'both launcher standoffs are symmetrical in the front view');
  assert.equal(root.children[0].position.z,root.children[1].position.z,
   'both front-facing launchers share the same fore-aft mounting plane');
  assert.equal(root.children[0].position.y,root.children[1].position.y,
