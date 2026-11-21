@@ -106,7 +106,7 @@ test('vehicle factory and HQ both receive final identical Sandforge PBR-grade sh
  assert.match(gameplay,/prepareMeshyStructure\(model,'factory',entry\.owner\)/);
  assert.match(gameplay,/prepareMeshyStructure\(model,'factory',0\)/);
  assert.match(viewer,/prepareMeshyStructure\(model,kind,owner\)/);
- assert.match(style,/hq-stable-rendering-v7/);
+ assert.match(style,/hq-physical-door-crest-decal-v8/);
  assert.match(style,/sfSandPanel/);
  assert.match(style,/roughnessmap_fragment/);
  const material=new THREE.MeshStandardMaterial({
@@ -153,7 +153,10 @@ test('stable HQ textures never inject unverified badge/door GLSL',()=>{
  right.position.set(4,1,0);
  model.add(left,right);
  prepareMeshyStructure(model,'headquarters',0);
- assert.equal(meshHeadquartersDoor(model),null);
+ const door=meshHeadquartersDoor(model);
+ assert.ok(door);
+ assert.equal(door.mode,'hinged-real-entrance');
+ assert.ok(model.getObjectByName('SF_HQ_RealEntrance_AnimatedLeaves'));
  assert.equal(model.getObjectByName('SF_Meshy_HQ_OriginalDoor_Interior'),undefined);
  assert.equal(left.material.map,tex);
  assert.equal(right.material.map,tex);
@@ -190,18 +193,32 @@ test('any separately modeled HQ crest is removed without touching the real door'
  assert.equal(root.getObjectByName('HQ_Original_Double_Door'),actualDoor);
 });
 
-test('HQ never renders an orphaned dark door plane on stable shader path',()=>{
+test('HQ door hinges really open, with no freestanding garage or shader cutout',()=>{
  const root=new THREE.Group();
  const tex=new THREE.DataTexture(new Uint8Array([75,71,61,255]),1,1);
  root.add(new THREE.Mesh(new THREE.BoxGeometry(12,5,9),
   new THREE.MeshStandardMaterial({map:tex,roughness:.86,metalness:.25})));
  prepareMeshyStructure(root,'headquarters',0);
- assert.equal(meshHeadquartersDoor(root),null);
- assert.equal(root.getObjectByName('SF_Meshy_HQ_OriginalDoor_Interior'),undefined);
+ const door=meshHeadquartersDoor(root);
+ assert.ok(door);
+ assert.equal(door.mode,'hinged-real-entrance');
+ assert.equal(door.open,0);
+ assert.equal(door.left.rotation.y,0);
+ assert.equal(door.right.rotation.y,0);
+ assert.ok(root.getObjectByName('SF_HQ_RealEntrance_AnimatedLeaves'));
+ assert.ok(root.getObjectByName('SF_HQ_RealDoubleDoor_left'));
+ assert.ok(root.getObjectByName('SF_HQ_RealDoubleDoor_right'));
  assert.equal(root.getObjectByName('SF_Meshy_HQ_Shutter'),undefined);
- assert.equal(root.children.filter(x=>x.isMesh).length,1);
+ assert.equal(root.getObjectByName('SF_Meshy_HQ_OriginalDoor_Interior'),undefined);
  const mesh=root.children.find(x=>x.isMesh);
  assert.equal(mesh.material.map,tex);
+ setMeshyHeadquartersDoorOpen(door,.75);
+ assert.equal(door.open,.75);
+ assert.ok(door.left.rotation.y<-.5);
+ assert.ok(door.right.rotation.y>.5);
+ setMeshyHeadquartersDoorOpen(door,0);
+ assert.equal(door.left.rotation.y,0);
+ assert.equal(door.right.rotation.y,0);
  const shader={vertexShader:'#include <common>\\n#include <begin_vertex>',
   fragmentShader:'#include <common>\\n#include <roughnessmap_fragment>',
   uniforms:{}};
