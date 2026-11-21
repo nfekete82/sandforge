@@ -1,11 +1,12 @@
 import {campaignLayout, type MapVersion, type Point} from './config.js';
 import type {CanyonRidge} from './canyon-front.js';
 import {ridgeCenterY} from './canyon-height.js';
+import {raisedMesaHeight,type RaisedMesa} from './raised-mesas.js';
 
 /** Revision 2: roomier buildable pads around bastions / headquarters.
  * Revision 1 remains reproducible for existing saves. */
 export const BATTLEFIELD_GENERATOR = 2;
-export type BattlefieldGeneratorVersion=1|2|3|4|5|6;
+export type BattlefieldGeneratorVersion=1|2|3|4|5|6|7;
 export const TERRAIN_GRADING_V2={
  bastionFlatRadius:540,bastionShoulder:360,
  homeFlatRadius:775,homeShoulder:460,
@@ -58,7 +59,7 @@ export interface BattlefieldTerrain {
  * All expensive noise work runs once. Movement, art and combat sample these
  * same triangles, with an explicit conservative maximum walkable gradient. */
 export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:number,sites:readonly Point[],
- profile:TerrainProfile,candidate=0,basins:Point[]=[],generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR,ridges:readonly CanyonRidge[]=[]):BattlefieldTerrain{
+ profile:TerrainProfile,candidate=0,basins:Point[]=[],generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR,ridges:readonly CanyonRidge[]=[],plateaus:readonly RaisedMesa[]=[]):BattlefieldTerrain{
  const segments=TERRAIN_SEGMENTS,n=segments+1,step=size/segments,heights=new Float32Array(n*n);
  const s=streamSeed(seed,'terrain',candidate),angle=hash(s,7,s)*Math.PI*2,c=Math.cos(angle),d=Math.sin(angle);
  const homes=campaignLayout(version,seed).headquarters.map(i=>battlefieldStart(sites[i],size));
@@ -163,6 +164,18 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
    const k=j*n+i;let h=heights[k];
    if(i<segments)h=Math.min(h,heights[k+1]+edge(k,k+1));
    if(j<segments)h=Math.min(h,heights[k+n]+edge(k,k+n));
+   heights[k]=h;
+  }
+ }
+ // Version 7 adds physical walkable summits AFTER the legacy lower-only
+ // height envelope. Their sheer rock edges must not be artificially graded
+ // into round slopes; only the long carved ramps are vehicle-safe.
+ // The exact SAME final height grid drives rendering, physics and fog.
+ if(generatorVersion===7&&plateaus.length){
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+   const k=j*n+i,p={x:i*step,y:j*step};
+   let h=heights[k];
+   for(const mesa of plateaus)h=raisedMesaHeight(h,p,mesa);
    heights[k]=h;
   }
  }
