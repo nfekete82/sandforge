@@ -19,8 +19,12 @@ export const BOMBER_VISUAL_STRETCH=Object.freeze({horizontal:1.12,vertical:1.05}
 // The authored model, streaming fallback and construction ghost share this.
 // Do NOT change BUILDINGS.turret radius/width or weapon range.
 export const TURRET_VISUAL_SCALE=0.88;
+// Ten percent smaller factory: visuals and construction ghost only.
+// Collision radius, door logic, production spawn and gameplay width stay unchanged.
+export const FACTORY_VISUAL_SCALE=0.90;
 export function visualBuildingScale(kind){
- return kind==='turret'?TURRET_VISUAL_SCALE:1;
+ return kind==='turret'?TURRET_VISUAL_SCALE:
+  kind==='factory'?FACTORY_VISUAL_SCALE:1;
 }
 
 /** Wider selection footprint at tactical zoom. Render-only: never changes
