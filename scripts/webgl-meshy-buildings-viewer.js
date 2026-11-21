@@ -4,6 +4,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {meshyStructurePath,prepareMeshyStructure} from './webgl-meshy-structure.js';
 import {paintMeshyFactoryTeam} from './webgl-meshy-factory-team.js';
 import {attachMeshyHeadquartersRadarMotion,updateMeshyHeadquartersRadarMotion} from './webgl-meshy-hq-radars.js';
+import {calibrateHeadquartersCrestAtHit,readHQEmblemAnchor} from './webgl-meshy-hq-details.js';
 const body=document.getElementById('render'),status=document.getElementById('status');
 const metadata=document.getElementById('metadata');
 const choose=document.getElementById('building'),team=document.getElementById('faction');
@@ -32,6 +33,9 @@ const width={headquarters:225,factory:212,barracks:158,airfield:218,
  bunker:112,bastion:116,generator:112};
 let active=null,activeSize=new THREE.Vector3(200,95,200),loadVersion=0;
 let hqDishes=null;const animationClock=new THREE.Clock();
+const crestPick=document.getElementById('crest-pick');
+let crestMode=false;
+const crestRay=new THREE.Raycaster(),crestPointer=new THREE.Vector2();
 function location(kind,owner){
  if(kind==='factory')return '/src/assets/reborn/buildings-3d/factory-'+owner+'.glb';
  return meshyStructurePath(kind);
@@ -58,6 +62,8 @@ function info(root){
 }
 async function open(){
  const version=++loadVersion,kind=choose.value,owner=Number(team.value),url=location(kind,owner);
+ crestMode=false;crestPick.setAttribute('aria-pressed','false');
+ crestPick.hidden=kind!=='headquarters';
  status.textContent='Lade '+choose.selectedOptions[0].text+' …';
  window.__sandforgeBuildingViewerError=null;
  if(!url){
@@ -89,7 +95,8 @@ async function open(){
   const stats=info(model);
   metadata.textContent=stats.tris.toLocaleString('de-DE')+' Dreiecke · '+stats.meshes+
    ' Meshes · Albedo '+stats.maps+' / Normal '+stats.normals+' / ORM '+stats.orm;
-  status.textContent='Echtes Meshy PBR · '+(owner===0?'Blau':'Rot')+' · '+kind;
+  status.textContent='Echtes Meshy PBR · '+(owner===0?'Blau':'Rot')+' · '+kind+
+   (kind==='headquarters'&&readHQEmblemAnchor()?' · Wappen kalibriert':'');
   window.__sandforgeBuildingViewerReady={kind,owner,model,renderer,camera,stats};
  }catch(error){
   console.error('Sandforge building PBR viewer',error);
@@ -97,6 +104,35 @@ async function open(){
   status.textContent='3D-Modell konnte nicht geladen werden';
  }
 }
+// Exact-emblem pick mode is only available in the 3D inspector, never a
+// normal gameplay click. Persist the result to this origin; the RTS and
+// inspector load the same recorded local GLB-space coordinates.
+crestPick.addEventListener('click',()=>{
+ if(choose.value!=='headquarters'||!active)return;
+ crestMode=!crestMode;
+ crestPick.setAttribute('aria-pressed',String(crestMode));
+ status.textContent=crestMode?
+  'Auf die MITTE des weißen Wappens klicken · dann wird es überdeckt':
+  'Wappen-Auswahl beendet';
+});
+renderer.domElement.addEventListener('click',event=>{
+ if(!crestMode||choose.value!=='headquarters'||!active)return;
+ const rect=renderer.domElement.getBoundingClientRect();
+ crestPointer.set((event.clientX-rect.left)/rect.width*2-1,
+  -(event.clientY-rect.top)/rect.height*2+1);
+ crestRay.setFromCamera(crestPointer,camera);
+ const hits=crestRay.intersectObject(active,true).filter(hit=>
+  hit.object.isMesh&&!hit.object.userData?.sandforgeStyleDecoration);
+ if(!hits.length){status.textContent='Keine Modelloberfläche getroffen · erneut klicken';return;}
+ const result=calibrateHeadquartersCrestAtHit(active,hits[0]);
+ if(!result||result.coveredTriangles<=0){
+  status.textContent='Wappenfläche nicht gefunden · Klick etwas weiter innen versuchen';
+  return;
+ }
+ crestMode=false;crestPick.setAttribute('aria-pressed','false');
+ status.textContent='Wappen direkt am 3D-Hangar entfernt und lokal gespeichert';
+ console.info('SANDFORGE_HQ_EXACT_CREST_CALIBRATION',JSON.stringify(result.anchor));
+});
 choose.addEventListener('change',open);team.addEventListener('change',open);
 document.getElementById('reset').addEventListener('click',reset);
 addEventListener('resize',()=>{
