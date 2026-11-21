@@ -6,6 +6,7 @@ import {HUMAN_INFANTRY_REVISION,humanizeInfantry,disposeHumanInfantry} from '../
 import {SKINNED_TROUSERS_REVISION,findTrouserRig} from '../scripts/webgl-human-skinned-trousers.js';
 import {HUMAN_STANCE_REVISION,createHumanStance,restoreHumanStance,applyHumanStance,disposeHumanStance} from '../scripts/webgl-human-stance.js';
 import {HUMAN_INFANTRY_ROLES,HUMAN_INFANTRY_ROLES_REVISION,decorateHumanInfantryRole} from '../scripts/webgl-human-infantry-roles.js';
+import {HUMAN_INFANTRY_PORTRAIT_REVISION,humanInfantryPortraitPath,dressHumanInfantryPortrait} from '../scripts/webgl-portraits.js';
 import {polishMedicModel} from '../scripts/webgl-medic-polish.js';
 import {equipEngineerTools} from '../scripts/webgl-engineer-tools.js';
 import {attachRocketLauncherToInfantry,disposeRocketLauncher} from '../scripts/webgl-rocket-infantry.js';
@@ -641,4 +642,61 @@ test('role decorator refuses incompatible assets and never alters an unhumanized
  assert.equal(decorateHumanInfantryRole(root,'medic',0),false);
  assert.equal(decorateHumanInfantryRole(root,'tank',0),false);
  assert.equal(root.getObjectByName('SF_Role_MedicChestCrossVertical'),undefined);
+});
+
+test('HUD maps all five infantry roles to the EXACT in-battle animated GLB',()=>{
+ assert.equal(HUMAN_INFANTRY_PORTRAIT_REVISION,'hud-actual-human-3d-v1-20261122');
+ for(const kind of HUMAN_INFANTRY_ROLES){
+  const source=humanInfantryPortraitPath(kind);
+  assert.equal(source,
+   '/src/assets/reborn/prototype/'+(kind==='rocket'?'infantry':kind)+'-0.glb',
+   'wrong actual gameplay model for '+kind);
+ }
+ for(const kind of ['drone','tank','rover','headquarters'])assert.equal(humanInfantryPortraitPath(kind),null);
+});
+test('HUD model dressing matches game model for all five ground infantry kinds',()=>{
+ for(const kind of HUMAN_INFANTRY_ROLES){
+  const {root,rifle,socket}=riggedAtlas();
+  assert.equal(dressHumanInfantryPortrait(root,kind,0),true,kind);
+  assert.ok(root.getObjectByName('SF_Human_Face'));
+  assert.ok(root.getObjectByName('SF_Human_SkinnedTrousers')?.isSkinnedMesh);
+  assert.ok(root.getObjectByName('SF_Human_SleeveArmband0'));
+  assert.equal(root.getObjectByName('SF_Human_SleeveArmband0').material.color.getHex(),0x3282ad);
+  assert.equal(root.userData.sandforgeHumanRole,kind);
+  if(kind==='rocket'){
+   assert.ok(root.getObjectByName('RocketMuzzle_0'));
+   assert.equal(rifle.parent,socket);
+   disposeRocketLauncher(root);
+  }
+  if(kind==='medic'){
+   assert.ok(root.getObjectByName('SF_Medic_FieldMedicalCase'));
+   assert.equal(root.getObjectByName('SF_Human_RadioRucksack').visible,false);
+  }
+  if(kind==='engineer'){
+   assert.ok(root.getObjectByName('Sandforge_Engineer_Wrench').visible);
+   assert.equal(rifle.visible,false,'pioneer HUD shows wrench rather than idle pistol');
+  }
+  if(kind==='heavy')
+   assert.ok(root.getObjectByName('SF_Role_HeavyRadioBattery'));
+  disposeHumanInfantry(root);
+ }
+});
+test('HUD production tiles and selection both use same actual rendered 3D soldier images',()=>{
+ const portraits=readFileSync('scripts/webgl-portraits.js','utf8');
+ const battlefield=readFileSync('scripts/webgl-battlefield.js','utf8');
+ assert.match(portraits,/if\(HUMAN_INFANTRY_ROLES\.includes\(kind\)\)/);
+ assert.match(portraits,/renderHumanInfantryIcon\(kind,renderer\)/);
+ assert.match(portraits,/dressHumanInfantryPortrait\(model,kind,0\)/);
+ assert.match(portraits,/cloneSkeleton\(data\.scene\)/);
+ assert.match(portraits,/isolatePortraitMeshes\(model\)/);
+ assert.match(portraits,/renderModelPortrait\(model,renderer,\{width:192,height:132,infantryCard:true\}\)/);
+ assert.match(portraits,/const idle=data\.animations\?\.find/);
+ assert.match(battlefield,/unitIcon\(kind,this\.renderer\)/);
+ assert.match(battlefield,/unitIcon\(unit,this\.renderer\)/);
+ assert.match(battlefield,/hydrateUnitIcons\(/);
+});
+test('unsupported assets still retain safe HUD portrait fallback',()=>{
+ const {root}=atlas();
+ assert.equal(dressHumanInfantryPortrait(root,'tank',0),false);
+ assert.equal(dressHumanInfantryPortrait(new THREE.Group(),'medic',0),false);
 });
