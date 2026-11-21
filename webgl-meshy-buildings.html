@@ -10,6 +10,7 @@ body{margin:0;overflow:hidden;background:#22262a;color:#eee;font:14px system-ui,
 #toolbar strong{font-size:15px;margin-right:6px}
 select,button{color:#f4ead6;background:#323b41;padding:8px 11px;border:1px solid #ffffff35;border-radius:7px;font:inherit;cursor:pointer}
 button:hover{background:#424e57}#status{color:#d3c4a2}
+button#crest-pick[aria-pressed="true"]{border-color:#f1c878;background:#60492e}
 #metadata{position:fixed;bottom:15px;left:16px;background:#171b20db;padding:9px 13px;border-radius:7px;z-index:3}
 @media(max-width:700px){#toolbar{font-size:12px;gap:5px;padding:8px}}
 </style>
@@ -28,8 +29,9 @@ button:hover{background:#424e57}#status{color:#d3c4a2}
 <option value="0">Blaue Legion</option><option value="1">Rote Fraktion</option>
 </select>
 <button id="reset" type="button">Kamera zurücksetzen</button>
+<button id="crest-pick" type="button" title="Einmal auf das Wappen an der gebogenen Hangarwand klicken" aria-pressed="false" hidden>Wappen anklicken & entfernen</button>
 <a href="/" style="color:#c4d5ef">Zum Spiel</a>
 <span id="status" aria-live="polite">Lade echtes PBR-3D-Modell …</span>
 </div>
-<div id="metadata">Meshy-Modelle mit Sandforge-Industrie-Palette · Maus ziehen = drehen · Rad = zoomen</div>
+<div id="metadata">Meshy-Modelle mit Sandforge-Industrie-Palette · Maus ziehen = drehen · Rad = zoomen. Beim HQ kann die Wappenposition einmal exakt angeklickt werden.</div>
 <script type="module" src="/webgl-meshy-buildings-viewer.js"></script></body></html>
