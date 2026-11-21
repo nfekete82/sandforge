@@ -51,16 +51,17 @@ export function scoutPodCamouflageTexture(owner=0){
  return texture;
 }
 
-/** Front view: preserve the closer/right launcher position and bring its
- * mirrored counterpart IN to the same distance from the fuselage.
- * Earlier port x=-23 vs starboard x=17 left a persistent six-unit offset.
- * These are visual attachment coordinates only, not combat muzzle origins.
+/** The authored helicopter does not have a symmetric cabin silhouette.
+ * Player-confirmed front view: RIGHT rocket pod (starboard, +17) is correct.
+ * LEFT rocket pod (port) was moved too far into the cabin at x=-17.
+ * Restore ONLY port to -22; leave the other launcher, both pod muzzle
+ * pivots, and gameplay projectile trajectory untouched.
  */
 export function scoutRocketPodMount(side){
  const starboard=side===1;
  return starboard
   ?{x:17,y:18,z:-5}
-  :{x:-17,y:18,z:-5};
+  :{x:-22,y:18,z:-5};
 }
 
 /** Visual-only twin pods flush with the side of the real heli cabin.
@@ -86,8 +87,8 @@ export function attachScoutRocketPods(entry){
  for(const [index,side] of [-1,1].entries()){
   const pod=new THREE.Group();
   pod.name='Scout_RocketPod_'+index;
-  // Each pod has identical mirrored geometry. Only the starboard mount
-  // needs a small inward/forward correction to match the front silhouette.
+  // Same pod geometry, but asymmetric hardpoints match the actual
+  // cabin seen from the FRONT. Do not symmetrize these coordinates again.
   const mount=scoutRocketPodMount(side);
   pod.position.set(mount.x,mount.y,mount.z);
   pod.scale.x=side;
