@@ -83,13 +83,15 @@ test('some of the actual five landscapes are measurably larger than their prior 
  for(const map of maps){
   const old=campaign(map,8).world.generated.plateaus??[];
   const next=campaign(map,9).world.generated.plateaus??[];
+  let mapGrowth=0;
   for(const p of next){
    const previous=old.find(m=>m.siteIndex===p.siteIndex);
    const delta=p.topRadius-previous.topRadius;
    if(delta>0)enlarged++;
-   total+=delta;
+   total+=delta;mapGrowth+=delta;
   }
+  assert.ok(mapGrowth>=70,map.id+' must have a genuinely larger playable highland');
  }
- assert.ok(enlarged>=2,'at least two real buildable summit footprints must grow');
- assert.ok(total>=180,'v9 should noticeably increase, not merely rename, highlands');
+ assert.ok(enlarged>=5,'every original fixed map must increase its real buildable summit area');
+ assert.ok(total>=400,'v9 should noticeably increase, not merely rename, highlands');
 });
