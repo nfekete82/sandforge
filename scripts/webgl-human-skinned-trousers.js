@@ -10,17 +10,20 @@ import * as THREE from 'three';
  * A separate skin instance is required because each GLB has independent
  * skeleton bindings; mesh materials remain shared and no RAF work is added.
  */
-export const SKINNED_TROUSERS_REVISION='human-articulated-cargo-pants-v1-20261121';
+export const SKINNED_TROUSERS_REVISION='human-articulated-cargo-pants-v2-full-width-20261122';
 const TWO_PI=Math.PI*2;
-const radial=14,segments=26;
+const radial=16,segments=30;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
 const lerp=(a,b,t)=>a+(b-a)*t;
+// Radii in metres, not diameters: the full hip-to-boot silhouette now has
+// normal trouser width, an anatomically full knee and a shaped calf. A mild
+// taper at the boot stops "two sticks" without overlarge straight tubes.
 const profile=[
- [0.00,.136,.149],[.08,.141,.154],[.20,.133,.147],
- [.34,.121,.132],[.47,.109,.120],[.55,.116,.124],
- [.64,.119,.124],[.73,.116,.116],[.83,.105,.111],
- [.93,.094,.099],[1.00,.091,.097]
+ [0.00,.172,.179],[.09,.182,.190],[.20,.177,.185],
+ [.33,.164,.174],[.44,.154,.161],[.52,.160,.166],
+ [.60,.165,.167],[.70,.160,.162],[.79,.149,.151],
+ [.87,.139,.141],[.94,.129,.132],[1.00,.119,.121]
 ];
 function measure(ratio,axis){
  for(let i=1;i<profile.length;i++){
@@ -30,27 +33,53 @@ function measure(ratio,axis){
  }
  return profile[profile.length-1][axis];
 }
-function findRig(model){
- const bones=new Map();
- model.traverse(node=>{if(node.isBone)bones.set(node.name,node);});
- const names=['UpperLegL','LowerLegL','FootL',
-  'UpperLegR','LowerLegR','FootR'];
- const list=names.map(name=>bones.get(name));
- return list.every(Boolean)?list:null;
+// Supports the original Quaternius bones AND conventional game-export rigs.
+// Inspect actual Bone nodes only; a renamed mesh or empty group is not a rig.
+const normalize=name=>String(name).toLowerCase().replace(/[^a-z0-9]/g,'')
+ .replace(/^mixamorig/,'').replace(/^quaternius/,'');
+const boneAliases={
+ UpperLegL:['UpperLegL','LeftUpLeg','LeftUpperLeg','LeftThigh','ThighL','UpLegL'],
+ LowerLegL:['LowerLegL','LeftLeg','LeftLowerLeg','LeftCalf','CalfL','LegL'],
+ FootL:['FootL','LeftFoot','LeftAnkle','AnkleL'],
+ UpperLegR:['UpperLegR','RightUpLeg','RightUpperLeg','RightThigh','ThighR','UpLegR'],
+ LowerLegR:['LowerLegR','RightLeg','RightLowerLeg','RightCalf','CalfR','LegR'],
+ FootR:['FootR','RightFoot','RightAnkle','AnkleR']
+};
+const descendants=(parent,child)=>{let current=child?.parent;
+ while(current){if(current===parent)return true;current=current.parent;}return false;
+};
+export function findTrouserRig(model){
+ const bones=[];
+ model?.traverse(node=>{if(node.isBone)bones.push(node);});
+ const used=new Set(),selected=[];
+ for(const key of ['UpperLegL','LowerLegL','FootL',
+  'UpperLegR','LowerLegR','FootR']){
+  const aliases=boneAliases[key].map(normalize);
+  const joint=bones.find(b=>!used.has(b)&&aliases.includes(normalize(b.name)));
+  if(!joint)return null;
+  used.add(joint);selected.push(joint);
+ }
+ // Reject a false left/right match or unrelated, identically named prop bones.
+ if(!descendants(selected[0],selected[1])||
+    !descendants(selected[1],selected[2])||
+    !descendants(selected[3],selected[4])||
+    !descendants(selected[4],selected[5]))return null;
+ return selected;
 }
 function addLeg(sideIndex,hip,knee,ankle,inverse,positions,uv,weights,indices,joints){
  const start=hip.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
  const middle=knee.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
  const finish=ankle.getWorldPosition(new THREE.Vector3()).applyMatrix4(inverse);
- // Stop the cloth INSIDE the top of the boot so there is no leg/boot gap.
- finish.y+=.075;
+ // Extend *down* into the boot upper, not upwards away from it.
+ // Foot sockets are near the ankle. A +.075 Y lift left visible stick gaps.
+ finish.y+=.020;
  const upperDistance=start.distanceTo(middle);
  const lowerDistance=middle.distanceTo(finish);
  if(upperDistance<.12||lowerDistance<.12)return false;
  const kneeT=upperDistance/(upperDistance+lowerDistance);
  const total=upperDistance+lowerDistance;
  // Foot-to-hip length scales trouser girth without changing the skeleton.
- const girth=clamp(total/1.02,.88,1.12);
+ const girth=clamp(total/1.02,.98,1.19);
  const firstIndex=positions.length/3;
  for(let row=0;row<=segments;row++){
   const t=row/segments,top=t<=kneeT;
@@ -62,19 +91,22 @@ function addLeg(sideIndex,hip,knee,ankle,inverse,positions,uv,weights,indices,jo
   const xAxis=new THREE.Vector3(1,0,0).addScaledVector(tangent,-tangent.x).normalize();
   const zAxis=new THREE.Vector3().crossVectors(tangent,xAxis).normalize();
   const rX=measure(t,1)*girth,rZ=measure(t,2)*girth;
-  const upperWeight=1-smooth(kneeT-.13,kneeT+.035,t);
+  const upperWeight=1-smooth(kneeT-.145,kneeT+.065,t);
   const footWeight=smooth(.87,1.00,t)*(1-upperWeight);
   const lowerWeight=(1-upperWeight)-footWeight;
   for(let col=0;col<radial;col++){
    const a=TWO_PI*col/radial;
    // Folds are intentional *surface* deformation, not rigid armour bands.
-   const fold=1+.028*Math.sin(a*5+t*27)+.017*Math.sin(a*8-t*39);
+   const fold=1+.036*Math.sin(a*5+t*27)+.021*Math.sin(a*8-t*39);
    const creasing=1+.010*Math.sin(t*58+a*3);
    const p=center.clone().addScaledVector(xAxis,Math.cos(a)*rX*fold)
      .addScaledVector(zAxis,Math.sin(a)*rZ*creasing);
    // A small forward knee break avoids a perfectly cylindrical "stilt".
-   if(Math.abs(t-kneeT)<.08)
-    p.addScaledVector(zAxis,.012*(1-Math.abs(t-kneeT)/.08));
+   if(Math.abs(t-kneeT)<.11){
+    const kneeBlend=1-Math.abs(t-kneeT)/.11;
+    p.addScaledVector(zAxis,.018*kneeBlend);
+    p.addScaledVector(xAxis,.009*Math.cos(a)*kneeBlend);
+   }
    positions.push(p.x,p.y,p.z);
    uv.push(col/radial*1.6,t*(total/1.02)*2.8);
    const base=sideIndex*3;
@@ -95,14 +127,20 @@ function addLeg(sideIndex,hip,knee,ankle,inverse,positions,uv,weights,indices,jo
 export function installSkinnedTrousers(model,fabricMaterial){
  if(!model||!fabricMaterial||model.getObjectByName('SF_Human_SkinnedTrousers'))
   return false;
- const bones=findRig(model);
- if(!bones)return false; // legacy GLB keeps the safe rigid fallback
+ const bones=findTrouserRig(model);
+ if(!bones){
+  model.userData.sandforgeTrouserStatus='missing-compatible-leg-bones';
+  return false; // legacy GLB keeps the safe rigid fallback
+ }
  model.updateMatrixWorld(true);
  const inv=model.matrixWorld.clone().invert();
  const positions=[],uv=[],skinWeight=[],skinIndex=[],triangles=[];
  for(let side=0;side<2;side++)
   if(!addLeg(side,...bones.slice(side*3,side*3+3),inv,
-    positions,uv,skinWeight,triangles,skinIndex))return false;
+    positions,uv,skinWeight,triangles,skinIndex)){
+   model.userData.sandforgeTrouserStatus='invalid-leg-rest-pose';
+   return false;
+  }
  const geometry=new THREE.BufferGeometry();
  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
@@ -133,6 +171,7 @@ export function installSkinnedTrousers(model,fabricMaterial){
  if(mesh.boundingSphere)mesh.boundingSphere.radius*=1.50;
  // Keep owned instance resources discoverable for proper death/despawn cleanup.
  model.userData.sandforgeHumanPants=mesh;
+ model.userData.sandforgeTrouserStatus='skinned';
  return true;
 }
 export function disposeSkinnedTrousers(model){
