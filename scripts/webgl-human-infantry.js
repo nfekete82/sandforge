@@ -11,7 +11,7 @@ import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
  * per-frame updates are needed. Shared textures/geometries avoid per-unit GPU
  * resource growth.
  */
-export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v4-tactical-proportions-20261121';
+export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v5-natural-silhouette-20261121';
 
 const ellipsoid=new THREE.SphereGeometry(1,20,14);
 const rounded=new RoundedBoxGeometry(1,1,1,3,.13);
@@ -132,14 +132,14 @@ function replaceLimb(model,part,side,profile){
  // A trouser leg is wider than a forearm, but never twice its bone width.
  // Previous .71/.69 radii made both thighs look like pneumatic robot armour.
  const widths={
-  sleeve:[.65,.64],forearm:[.61,.60],thigh:[.59,.60],calf:[.57,.58]
+  sleeve:[.61,.61],forearm:[.55,.54],thigh:[.56,.57],calf:[.54,.55]
  }[profile];
  mount(joint,profile+side,garment[profile],
-  profile==='forearm'?skin:uniform,[0,0,0],
-  [size.x*widths[0],size.y*1.13,size.z*widths[1]]);
+  uniform,[0,0,0],
+  [size.x*widths[0],size.y*1.17,size.z*widths[1]]);
  if(profile==='forearm')
   mount(joint,'RolledSleeveCuff'+side,garment.sleeve,uniform,
-   [0,-size.y*.46,0],[size.x*.72,size.y*.17,size.z*.70]);
+   [0,-size.y*.44,0],[size.x*.62,size.y*.12,size.z*.60]);
  return true;
 }
 
@@ -178,14 +178,14 @@ export function humanizeInfantry(model,owner=0){
 
  // A human torso and short vest replace the square robot chest armour.
  hideChildren(chest);
- shaped(chest,'Jacket',uniform,[0,0,0],[.463,.354,.296]);
- shaped(chest,'PlateCarrier',vest,[0,.016,.146],[.407,.283,.123]);
+ oval(chest,'Jacket',uniform,[0,0,-.003],[.250,.209,.162]);
+ shaped(chest,'PlateCarrier',vest,[0,.015,.145],[.382,.266,.111]);
  for(const side of [-1,1]){
   shaped(chest,'Harness'+side,dark,[side*.168,.018,.214],[.028,.293,.031]);
  }
  for(const x of [-.135,0,.135]){
-  shaped(chest,'MagazinePouch'+x,vest,[x,-.054,.240],[.104,.109,.066]);
-  shaped(chest,'PouchFlap'+x,dark,[x,-.006,.274],[.101,.013,.010]);
+  shaped(chest,'MagazinePouch'+x,vest,[x,-.057,.232],[.090,.092,.050]);
+  shaped(chest,'PouchFlap'+x,dark,[x,-.008,.259],[.088,.012,.008]);
  }
  shaped(chest,'VestBuckle',hardware,[0,.099,.222],[.070,.025,.015]);
  // Close the armpit gap while the animated arms swing: fabric, not rigid
@@ -194,7 +194,7 @@ export function humanizeInfantry(model,owner=0){
   oval(chest,'ShoulderFabric'+side,uniform,
    [side*.224,.078,-.008],[.080,.087,.091]);
  hideChildren(abdomen);
- shaped(abdomen,'JacketWaist',uniform,[0,.035,.023],[.392,.184,.232]);
+ oval(abdomen,'JacketWaist',uniform,[0,.027,.015],[.204,.124,.133]);
  // Bridge the gap between abdominal cloth and the animated upper legs.
  // The original belt is a large metallic-looking straight-edged block.
  const hips=model.getObjectByName('Atlas_UtilityBelt');
@@ -216,7 +216,7 @@ export function humanizeInfantry(model,owner=0){
  hideChildren(pack);
  // The original box silhouette dwarfed the soldier at side-view RTS zoom.
  // A shorter, rounded field bag stays clearly below the helmet.
- shaped(pack,'RadioRucksack',uniform,[0,-.038,-.045],[.231,.255,.133]);
+ shaped(pack,'RadioRucksack',uniform,[0,-.037,-.045],[.219,.238,.123]);
  shaped(pack,'RucksackPocket',vest,[0,-.090,-.126],[.168,.098,.036]);
 
  // Replace the ENTIRE boxy exoskeleton. Each garment section is mounted
@@ -240,23 +240,23 @@ export function humanizeInfantry(model,owner=0){
    const cap=knee.getObjectByName('Atlas_KneeCap');
    if(cap)cap.scale.multiplyScalar(.77); // preserve historical size contract
    hideChildren(knee); // neither the sci-fi ball joint nor ceramic hinge
-   oval(knee,'TrouserKnee'+side,uniform,[0,0,.026],[.097,.097,.096]);
-   shaped(knee,'SoftKneepad'+side,vest,[0,-.002,.108],
-    [.108,.081,.025]);
-   shaped(knee,'KneeStrap'+side,dark,[0,-.047,.101],
-    [.113,.010,.017]);
+   oval(knee,'TrouserKnee'+side,uniform,[0,0,.020],[.087,.100,.089]);
+   shaped(knee,'SoftKneepad'+side,vest,[0,-.008,.102],
+    [.091,.068,.020]);
+   shaped(knee,'KneeStrap'+side,dark,[0,-.044,.099],
+    [.096,.009,.013]);
   }
 
   const boot=model.getObjectByName('Atlas_Boot'+side);
   if(boot){
    hideChildren(boot);
    // Narrow ankle and shaped rounded toe, not huge square robot feet.
-   oval(boot,'CombatBootAnkle'+side,dark,[0,.057,-.014],
-    [.085,.112,.086]);
-   oval(boot,'CombatBootToe'+side,dark,[0,-.008,.114],
-    [.096,.052,.123]);
-   shaped(boot,'CombatBootSole'+side,dark,[0,-.056,.032],
-    [.191,.026,.303]);
+   oval(boot,'CombatBootAnkle'+side,dark,[0,.050,-.009],
+    [.079,.109,.079]);
+   oval(boot,'CombatBootToe'+side,dark,[0,-.009,.106],
+    [.085,.050,.113]);
+   shaped(boot,'CombatBootSole'+side,dark,[0,-.054,.029],
+    [.174,.024,.277]);
    for(let i=0;i<4;i++)
     shaped(boot,'BootLace'+side+i,hardware,
      [0,.074-i*.024,.073],[.058,.006,.009]);
@@ -271,16 +271,16 @@ export function humanizeInfantry(model,owner=0){
     if(node.isMesh&&/^Atlas_(KnucklePlate|GloveCuff)/.test(node.name))
      node.visible=false;
    oval(glove,'TacticalGlove'+side,dark,
-    [side==='R'?.015:-.015,.008,.023],[.053,.053,.059]);
+    [side==='R'?.015:-.015,.008,.023],[.047,.048,.053]);
   }
 
   const thigh=model.getObjectByName('Atlas_Thigh'+side);
   if(thigh){
    const sign=side==='L'?1:-1;
    shaped(thigh,'CargoPocket'+side,vest,
-    [sign*.087,-.008,.051],[.045,.088,.046]);
+    [sign*.083,-.006,.051],[.040,.073,.038]);
    shaped(thigh,'CargoPocketFlap'+side,vest,
-    [sign*.087,.038,.051],[.046,.012,.046]);
+    [sign*.083,.034,.051],[.041,.010,.040]);
   }
  }
  // Remove the remaining ceramic belt pouches without losing the functional
