@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {MESHY_STRUCTURE_ASSETS} from '../scripts/webgl-meshy-asset-flags.js';
-import {meshyStructurePath,prepareMeshyStructure}
+import {meshyStructurePath,prepareMeshyStructure,meshyLocalBounds,SANDFORGE_INDUSTRIAL_PALETTE}
  from '../scripts/webgl-meshy-structure.js';
 
 test('missing Meshy binaries never break existing Sandforge PBR buildings',()=>{
@@ -23,7 +23,10 @@ test('Meshy skins preserve the source albedo, normals and metallic roughness',()
  };
  const blue=make();
  assert.equal(prepareMeshyStructure(blue.root,'generator',0),true);
- assert.equal(blue.mesh.material,blue.material);
+ assert.notEqual(blue.mesh.material,blue.material);
+ assert.equal(blue.mesh.material.map,blue.tex);
+ assert.equal(blue.mesh.material.normalMap,blue.normal);
+ assert.equal(blue.mesh.material.metalnessMap,blue.tex);
  const red=make();
  assert.equal(prepareMeshyStructure(red.root,'generator',1),true);
  assert.notEqual(red.mesh.material,red.material);
@@ -47,4 +50,32 @@ test('existing Energiekern income, HP and prices remain untouched',()=>{
  const catalog=readFileSync('src/reborn/catalog.ts','utf8');
  assert.match(catalog,/generator:\{name:'Energiekern',cost:150,buildTime:9,hp:500/);
  assert.match(catalog,/width:112,income:10/);
+});
+
+test('measured local infantry exits stay just outside the physical GLB at any scale',()=>{
+ const building=new THREE.Group(),wall=new THREE.Mesh(new THREE.BoxGeometry(2,1,4),
+  new THREE.MeshStandardMaterial({map:new THREE.DataTexture(new Uint8Array([120,100,80,255]),1,1)}));
+ building.add(wall);
+ building.position.set(80,12,-24);
+ building.scale.setScalar(110);
+ const b=meshyLocalBounds(building),size=b.getSize(new THREE.Vector3());
+ assert.ok(Math.abs(size.x-2)<.0001);
+ assert.ok(Math.abs(size.z-4)<.0001);
+ prepareMeshyStructure(building,'headquarters',0);
+ const start=building.getObjectByName('SF_Meshy_InfantryRolloutStart');
+ const exit=building.getObjectByName('SF_Meshy_InfantryRolloutExit');
+ assert.ok(start&&exit);
+ assert.ok(start.position.z>b.max.z);
+ assert.ok(exit.position.z>start.position.z);
+ const repeat=prepareMeshyStructure(building,'headquarters',0);
+ assert.equal(repeat,true);
+ assert.equal(building.children.filter(n=>n.name==='SF_Meshy_InfantryRolloutStart').length,1);
+});
+test('single industrial palette and exact reference photo for modern command HQ',()=>{
+ assert.equal(SANDFORGE_INDUSTRIAL_PALETTE.blue,'#1b508d');
+ const workflow=readFileSync('.github/workflows/meshy-structures-import-20261121.yml','utf8');
+ assert.match(workflow,/01a1fd66-536b-71d0-9d5a-74afd948e7f9/);
+ const build=readFileSync('scripts/build.mjs','utf8');
+ assert.match(build,/installedMeshy/);
+ assert.match(build,/meshy-structures/);
 });
