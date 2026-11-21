@@ -99,7 +99,7 @@ function garmentGeometry(profile){
  }
  for(let j=0;j<rings-1;j++)for(let i=0;i<radial;i++){
   const a=j*radial+i,b=j*radial+(i+1)%radial,c=(j+1)*radial+i,d=(j+1)*radial+(i+1)%radial;
-  indices.push(a,b,c,b,d,c);
+  indices.push(a,c,b,b,c,d);
  }
  const g=new THREE.BufferGeometry();
  g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
