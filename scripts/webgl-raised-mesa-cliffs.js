@@ -10,10 +10,15 @@ const mesaRadiusFactor=(theta,m)=>{
 };
 const mesaRampCoverage=(p,m)=>{
  const dx=p.x-m.center.x,dy=p.y-m.center.y;
- const along=dx*m.direction.x+dy*m.direction.y;
- const lateral=Math.abs(dx*m.direction.y-dy*m.direction.x);
- if(along<m.topRadius-80||along>m.rampEnd+80)return 0;
- return 1-smooth((lateral-m.rampWidth*.56)/(m.rampWidth*.36));
+ let coverage=0;
+ for(const d of m.ramps?.length?m.ramps:[m.direction]){
+  const along=dx*d.x+dy*d.y;
+  const lateral=Math.abs(dx*d.y-dy*d.x);
+  if(along<m.topRadius-80||along>m.rampEnd+80)continue;
+  coverage=Math.max(coverage,1-smooth(
+   (lateral-m.rampWidth*.56)/(m.rampWidth*.36)));
+ }
+ return coverage;
 };
 
 /**
