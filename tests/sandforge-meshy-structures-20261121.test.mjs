@@ -34,7 +34,7 @@ test('Meshy skins preserve the source albedo, normals and metallic roughness',()
  assert.equal(red.mesh.material.normalMap,red.normal);
  assert.equal(red.mesh.material.metalnessMap,red.tex);
  assert.equal(red.mesh.material.roughnessMap,red.tex);
- const shader={fragmentShader:'#include <map_fragment>',vertexShader:'',uniforms:{}};
+ const shader={fragmentShader:'#include <map_fragment>\n#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',vertexShader:'',uniforms:{}};
  red.mesh.material.onBeforeCompile(shader);
  assert.match(shader.fragmentShader,/sfTeamRed/);
  assert.equal(red.root.userData.sandforgeMeshyStructure,'generator');
@@ -78,4 +78,37 @@ test('single industrial palette and exact reference photo for modern command HQ'
  const build=readFileSync('scripts/build.mjs','utf8');
  assert.match(build,/installedMeshy/);
  assert.match(build,/meshy-structures/);
+});
+
+test('HQ has NO side camo tent; other camo yards keep their own decor',()=>{
+ const source=readFileSync('scripts/webgl-building-yard.js','utf8');
+ assert.match(source,/CAMO_NET_BUILDING_KINDS=Object\.freeze\(\['barracks','research'\]\)/);
+ assert.doesNotMatch(source,/CAMO_NET_BUILDING_KINDS=Object\.freeze\(\['headquarters'/);
+});
+test('vehicle factory and HQ both receive final identical Sandforge PBR-grade shader',()=>{
+ const gameplay=readFileSync('scripts/webgl-battlefield.js','utf8');
+ const style=readFileSync('scripts/webgl-meshy-structure.js','utf8');
+ const viewer=readFileSync('scripts/webgl-meshy-buildings-viewer.js','utf8');
+ assert.match(gameplay,/prepareMeshyStructure\(model,'factory',entry\.owner\)/);
+ assert.match(gameplay,/prepareMeshyStructure\(model,'factory',0\)/);
+ assert.match(viewer,/prepareMeshyStructure\(model,kind,owner\)/);
+ assert.match(style,/matched-hq-factory-albedo/);
+ assert.match(style,/sfSandPanel/);
+ assert.match(style,/roughnessmap_fragment/);
+ const material=new THREE.MeshStandardMaterial({
+  map:new THREE.DataTexture(new Uint8Array([170,145,95,255]),1,1),
+  roughness:.86,metalness:.22
+ });
+ for(const kind of ['headquarters','factory']){
+  const model=new THREE.Group();
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(2,1,2),material);
+  model.add(mesh);
+  prepareMeshyStructure(model,kind,0);
+  const shader={fragmentShader:'#include <map_fragment>\\n#include <color_fragment>\\n#include <roughnessmap_fragment>\\n#include <emissivemap_fragment>',
+   vertexShader:'',uniforms:{}};
+  mesh.material.onBeforeCompile(shader);
+  assert.match(shader.fragmentShader,/sfSandPanel/);
+  assert.match(shader.fragmentShader,/sfPanelTone/);
+  assert.equal(mesh.material.map,material.map);
+ }
 });
