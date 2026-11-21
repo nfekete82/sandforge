@@ -5,12 +5,13 @@ import {streamSeed,TERRAIN_GRADING_V3} from './battlefield-terrain.js';
 /** Seeded road topology and physical mountain passes for generator v3.
  * Roads are visual guides on the *real* navigation surface; ridge gaps are
  * openings in World.blocked, not an independent or decorative collision map. */
-export type LandscapeKind='open-basin'|'broken-escarpment'|'diagonal-ridge'|'serpentine-canyon';
+export type LandscapeKind='open-basin'|'broken-escarpment'|'diagonal-ridge'|'serpentine-canyon'|'plateau-crossroads';
 export const LANDSCAPE_LABELS:Record<LandscapeKind,string>={
  'open-basin':'Weites Dünenmeer',
  'broken-escarpment':'Felsdurchbruch',
  'diagonal-ridge':'Diagonalkamm',
- 'serpentine-canyon':'Schlangenpass'
+ 'serpentine-canyon':'Schlangenpass',
+ 'plateau-crossroads':'Plateau-Kreuzung'
 };
 export interface LandscapeNetwork {
   ridges:CanyonRidge[];
@@ -41,6 +42,7 @@ function distance(a:Point,b:Point):number{return Math.hypot(a.x-b.x,a.y-b.y);}
 export function generateLandscapeNetwork(seed:number,size:number,sites:readonly Point[],
   columns:number,rows:number,candidate=0,homes:readonly Point[]=[],version=3):LandscapeNetwork{
   // Generator 3 is frozen for existing saves and benchmark seeds.
+  if(version===6)return authoredPlateauNetwork(seed,size,sites,columns,rows,candidate,homes);
   if(version>=4)return variedLandscape(seed,size,sites,columns,rows,candidate,homes);
   const r=random(streamSeed(seed,'landscape-network',candidate));
   const seamRow=Math.max(1,Math.floor(rows/2));
@@ -179,4 +181,86 @@ function variedLandscape(seed:number,size:number,sites:readonly Point[],
  }
  return {kind,ridges,roads:roads.filter(road=>
   distance(road[0],road[road.length-1])>100)};
+}
+
+
+/**
+ * Version 6 is deliberately a NEW fixed-map ruleset. The older procedural
+ * layouts (v1–v5) remain unchanged for their saved campaigns.
+ *
+ * Three staggered high sandstone plateaus divide the desert into tactical
+ * corridors like a classic handcrafted RTS map. The spines, choke-point
+ * openings and visual roads are all derived from one deterministic plan.
+ * Mountain collision and line of sight still come from World.blocked.
+ */
+function authoredPlateauNetwork(seed:number,size:number,sites:readonly Point[],
+ columns:number,rows:number,candidate:number,homes:readonly Point[]):LandscapeNetwork{
+ const randomizer=random(streamSeed(seed,'authored-plateau-v6',candidate));
+ const protectedZones=[
+  ...sites.map(point=>({point,radius:TERRAIN_GRADING_V3.bastionFlatRadius+140})),
+  ...homes.map(point=>({point,radius:TERRAIN_GRADING_V3.homeFlatRadius+150}))
+ ];
+ const designs=[
+  {x0:.055,x1:.545,y:.255,curve:.019,width:202,height:143,passes:[.265]},
+  {x0:.18,x1:.855,y:.502,curve:-.023,width:224,height:160,passes:[.445,.685]},
+  {x0:.445,x1:.945,y:.747,curve:.021,width:196,height:150,passes:[.705]}
+ ];
+ const ridges:CanyonRidge[]=designs.map((d,index)=>{
+  const phase=.62+index*1.69;
+  const spine=Array.from({length:41},(_,i)=>{
+   const t=i/40,x=size*(d.x0+(d.x1-d.x0)*t);
+   const z=size*(d.y+Math.sin(t*Math.PI*2+phase)*d.curve+
+    Math.sin(t*Math.PI*5.4+phase*.7)*.005);
+   return {x,y:z};
+  });
+  const ramps=d.passes.map(frac=>({
+   x:size*frac,width:Math.min(560,Math.max(390,size/columns*.26))
+  }));
+  return {spine,width:d.width,height:d.height,ramps,clearings:protectedZones};
+ });
+ const roads:Point[][]=[];
+ // Link every Bastion to neighboring territories. Where the link meets a
+ // plateau, guide it through a real pass with broad vehicle approaches.
+ for(let i=0;i<sites.length;i++)for(const neighbor of [
+  i%columns<columns-1?i+1:-1,
+  i+columns<sites.length?i+columns:-1
+ ]){
+  if(neighbor<0)continue;
+  const a=sites[i],b=sites[neighbor];
+  const midpointX=(a.x+b.x)*.5;
+  const crossed=ridges.flatMap((ridge,index)=>{
+   const left=ridge.spine[0].x,right=ridge.spine.at(-1)!.x;
+   const minX=Math.min(a.x,b.x),maxX=Math.max(a.x,b.x);
+   if(midpointX<left-160||midpointX>right+160||
+     maxX<left-160||minX>right+160)return [];
+   const da=a.y-ridgeHeightAt(ridge,a.x),db=b.y-ridgeHeightAt(ridge,b.x);
+   if(da*db>=0)return [];
+   const gap=ridge.ramps.reduce((best,pass)=>
+     Math.abs(pass.x-midpointX)<Math.abs(best.x-midpointX)?pass:best,ridge.ramps[0]);
+   const y=ridgeHeightAt(ridge,gap.x);
+   return [{ridge,index,x:gap.x,y,fromNorth:da<0,
+    t:Math.abs((y-a.y)/(b.y-a.y||1))}];
+  }).sort((p,q)=>p.t-q.t);
+  if(crossed.length){
+   const road:Point[]=[a];
+   for(const crossing of crossed){
+    const side=crossing.fromNorth?-1:1;
+    const shoulder=crossing.ridge.width*1.35+235;
+    road.push({x:crossing.x,y:crossing.y+side*shoulder},
+     {x:crossing.x,y:crossing.y},
+     {x:crossing.x,y:crossing.y-side*shoulder});
+   }
+   roads.push([...road,b]);
+  }else{
+   const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;
+   const sway=(randomizer()-.5)*Math.min(195,len*.14);
+   const via=(t:number,k:number):Point=>({
+    x:a.x+dx*t-dy/len*sway*k,
+    y:a.y+dy*t+dx/len*sway*k
+   });
+   roads.push([a,via(.3,.85),via(.68,1),b]);
+  }
+ }
+ return {kind:'plateau-crossroads',ridges,
+  roads:roads.filter(route=>distance(route[0],route.at(-1)!)>100)};
 }
