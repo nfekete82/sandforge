@@ -284,10 +284,9 @@ export class SandforgeBattlefield {
    make(new THREE.BoxGeometry(w*.9,7,depth*.83),dark,0,56,0);
    make(new THREE.CylinderGeometry(6,9,45,10),dark,w*.2,80,-depth*.18);
   }
-  // Keep the low-detail turret (including the translucent placement ghost)
-  // the same size as the normalized authored 3D turret. This changes only
-  // the mesh group; BUILDINGS.turret and collision/attack ranges are untouched.
-  if(type==='building'&&kind==='turret')
+  // Make the construction ghost and low-detail fallback match the
+  // final visual scale (factory -10%, turret -12%) without changing gameplay.
+  if(type==='building'&&['turret','factory'].includes(kind))
    group.scale.setScalar(visualBuildingScale(kind));
   return group;
  }
