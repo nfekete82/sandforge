@@ -1,31 +1,23 @@
-name: Sandforge Meshy unified buildings production QA
+name: Sandforge – restore PBR building visuals from 20 November noon
 on:
   push:
     branches:
       - feat/sandforge-meshy-structures-barracks-airfield-bastion-bunker-20261121
     paths:
-      - scripts/webgl-meshy-structure.js
-      - scripts/webgl-meshy-hq-details.js
-      - scripts/webgl-meshy-hq-radars.js
-      - scripts/webgl-battlefield.js
-      - scripts/webgl-production-gates.js
-      - scripts/webgl-airfield-pbr.js
-      - scripts/webgl-fortified-bunker.js
-      - scripts/webgl-meshy-buildings-viewer.js
-      - webgl-meshy-buildings.html
       - scripts/build.mjs
-      - tests/sandforge-meshy-structures-20261121.test.mjs
-      - tests/sandforge-meshy-hq-details-20261121.test.mjs
-      - tests/sandforge-meshy-hq-radars-20261121.test.mjs
-      - tests/browser/webgl-meshy-unified-buildings-20261121.spec.mjs
+      - scripts/webgl-battlefield.js
+      - scripts/generate-factory-pbr.mjs
+      - scripts/webgl-building-yard.js
+      - scripts/webgl-production-gates.js
+      - tests/sandforge-restore-buildings-noon-20261120.test.mjs
       - .github/workflows/sandforge-meshy-unified-qa-20261121.yml
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  build-and-tests:
+  authentic-original-building-art:
     runs-on: ubuntu-latest
-    timeout-minutes: 28
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,78 +25,36 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Syntax and TypeScript
+      - name: Validate unchanged game logic, legacy graphics and build syntax
         run: |
           npm run typecheck
-          for f in scripts/webgl-meshy-structure.js scripts/webgl-meshy-hq-details.js scripts/webgl-meshy-hq-radars.js scripts/webgl-battlefield.js scripts/webgl-airfield-pbr.js scripts/webgl-production-gates.js scripts/webgl-fortified-bunker.js scripts/webgl-meshy-buildings-viewer.js; do node --check "$f"; done
-      - name: Six source GLBs have real geometry and embedded PBR materials
+          node --check scripts/build.mjs
+          node --check scripts/webgl-battlefield.js
+          node --check scripts/webgl-building-yard.js
+          node --check scripts/generate-factory-pbr.mjs
+      - name: Rebuild the pre-Meshy buildings and the current game
+        run: npm run build
+      - name: Verify 20 November midday building-art preset
+        run: node --test tests/sandforge-restore-buildings-noon-20261120.test.mjs
+      - name: Verify real rolled-door GLB and disabled Meshy skins
         run: |
           node --input-type=module <<'NODE'
           import {readFileSync} from 'node:fs';
-          for(const kind of ['barracks','headquarters','airfield','bastion','bunker','generator']){
-            const p='src/assets/reborn/buildings-3d/meshy-structures/'+kind+'.glb';
-            const b=readFileSync(p);
-            if(b.toString('ascii',0,4)!=='glTF'||b.readUInt32LE(8)!==b.length)
-              throw Error('Invalid Meshy binary '+p);
-            const n=b.readUInt32LE(12),doc=JSON.parse(b.toString('utf8',20,20+n));
-            const tris=doc.meshes?.flatMap(m=>m.primitives||[])
-              .reduce((sum,p)=>sum+(doc.accessors[p.indices]?.count||
-                doc.accessors[p.attributes?.POSITION]?.count||0)/3,0);
-            if(!tris||tris<300||!doc.materials?.length||!doc.textures?.length)
-              throw Error('Meshy '+kind+' missing actual textured 3D geometry');
-            console.log(kind,b.length+' bytes',Math.round(tris)+' triangles');
-          }
-          NODE
-      - name: Production build and module graph
-        run: npm run build
-      - name: Native simulation and new unified-style tests
-        run: |
-          node --test tests/sandforge-meshy-structures-20261121.test.mjs
-          node --test tests/sandforge-meshy-hq-details-20261121.test.mjs
-          node --test tests/sandforge-meshy-hq-radars-20261121.test.mjs
-          node --test tests/sandforge-meshy-live-factory-20261121.test.mjs
-      - name: Confirm six live GLBs and 3D style gallery shipped in dist
-        run: |
-          node --input-type=module <<'NODE'
-          import {existsSync,readFileSync} from 'node:fs';
-          for(const kind of ['barracks','headquarters','airfield','bastion','bunker','generator'])
-            if(!existsSync('dist/src/assets/reborn/buildings-3d/meshy-structures/'+kind+'.glb'))
-              throw Error('Missing shipped '+kind+' GLB');
-          for(const f of ['dist/webgl-meshy-buildings.html','dist/webgl-meshy-buildings-viewer.js',
-            'dist/webgl-meshy-structure.js','dist/webgl-meshy-hq-details.js'])if(!existsSync(f))throw Error('Missing '+f);
           const flags=readFileSync('dist/webgl-meshy-asset-flags.js','utf8');
-          for(const kind of ['barracks','headquarters','airfield','bastion','bunker','generator'])
-            if(!flags.includes('"'+kind+'":true'))throw Error('Meshy not enabled: '+kind);
+          for(const name of ['barracks','airfield','bastion','bunker','headquarters','generator'])
+            if(!flags.includes('"'+name+'":false'))
+              throw Error('Non-original Meshy skin still enabled: '+name);
+          for(const owner of [0,1]){
+            const path='dist/src/assets/reborn/buildings-3d/factory-'+owner+'.glb';
+            const binary=readFileSync(path);
+            if(binary.toString('ascii',0,4)!=='glTF'||binary.readUInt32LE(8)!==binary.length)
+              throw Error('Factory GLB corrupt: '+path);
+            const length=binary.readUInt32LE(12);
+            const doc=JSON.parse(binary.toString('utf8',20,20+length));
+            if(!doc.nodes?.some(node=>node.name==='FactoryRollupDoor'))
+              throw Error('Original factory shutter missing: '+path);
+            if(doc.nodes?.some(node=>node.name==='SF_Factory_Meshy_ProductionRig'))
+              throw Error('Late Meshy factory reappeared: '+path);
+          }
+          console.log('Seven categories of original building graphics selected.');
           NODE
-  chromium-style-screenshots:
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - run: npm ci --no-audit --no-fund
-      - run: npm ci --prefix tests/browser --no-audit --no-fund
-      - run: cd tests/browser && npx playwright install --with-deps chromium
-      - run: npm run build
-      - name: Actual GPU-style PBR model screenshots for 7 buildings
-        env:
-          SANDFORGE_BROWSER_CHANNEL: chromium
-          LIBGL_ALWAYS_SOFTWARE: '1'
-        run: |
-          cd tests/browser
-          npx playwright test webgl-meshy-unified-buildings-20261121.spec.mjs --config=playwright.config.mjs
-      - name: Publish screenshots and browser errors
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sandforge-seven-meshy-industrial-buildings-blue-red-screenshots
-          path: |
-            tests/browser/artifacts/screenshots/
-            tests/browser/artifacts/results.json
-            tests/browser/artifacts/report/
-            tests/browser/artifacts/runs/
-          retention-days: 30
-          if-no-files-found: warn
