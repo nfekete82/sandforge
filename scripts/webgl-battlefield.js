@@ -62,6 +62,7 @@ import {UPGRADES,UPGRADE_KINDS,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPT
 import {createStrategicBuilding,isStrategicBuilding,trimSiloRocketForGhost} from '/webgl-strategic-buildings.js';
 import {createRocketInfantry,attachRocketLauncherToInfantry,disposeRocketLauncher} from '/webgl-rocket-infantry.js';
 import {humanizeInfantry,disposeHumanInfantry} from '/webgl-human-infantry.js';
+import {createHumanStance,disposeHumanStance} from '/webgl-human-stance.js';
 import {paintFactionRoofStripes,disposeFactionRoofStripes} from '/webgl-building-roof-stripes.js';
 import {FACTION_PAINT,FACTION_BLUE,FACTION_RED} from '/sandforge-faction-palette.js';
 import {paintFactionEntranceBanners,disposeFactionEntranceBanners} from '/webgl-entrance-banners.js';
@@ -528,8 +529,10 @@ export class SandforgeBattlefield {
      attachRocketLauncherToInfantry(model,entry.owner);
     // Visual-only, rig-safe infantry redesign; ?soldier=legacy is an A/B fallback.
     if(type==='unit'&&entry.kind==='infantry'&&
-       new URLSearchParams(window.location.search).get('soldier')!=='legacy')
+       new URLSearchParams(window.location.search).get('soldier')!=='legacy'){
      humanizeInfantry(model,entry.owner);
+     entry.humanStance=createHumanStance(model);
+    }
     const box0=new THREE.Box3().setFromObject(model);
     const dims=box0.getSize(new THREE.Vector3());
     const desired=type==='unit'?UNITS[entry.kind].width:BUILDINGS[entry.kind].width;
@@ -1278,7 +1281,11 @@ export class SandforgeBattlefield {
      disposeTaggedMaterials(e.detail,'sandforgeFactionTint');
      disposeTaggedMaterials(e.detail,'sandforgeMilitaryMicroPBROwned');
      if(e.kind==='rocket')disposeRocketLauncher(e.detail);
-     if(e.kind==='infantry')disposeHumanInfantry(e.detail);
+     if(e.kind==='infantry'){
+      if(e.humanStance)disposeHumanStance(e.humanStance);
+      e.humanStance=null;
+      disposeHumanInfantry(e.detail);
+     }
     }
     if(e.kind==='scout')detachScoutRocketPods(e);
     this.scene.remove(e.node);this.units.delete(id);this.selected.delete(id);
