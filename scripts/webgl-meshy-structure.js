@@ -209,7 +209,7 @@ function removeHeadquartersAnnexStar(shader,bounds,meshToHQ,door){
   'float sfBadgeY=smoothstep(.010,.045,sfHQNormalized.y)*(1.0-smoothstep(.48,.57,sfHQNormalized.y));',
   'float sfBadgeZ=smoothstep(.24,.39,sfHQNormalized.z);',
   'float sfBadgeFacing=.78+.22*abs(sfHQMatRootNormal.z);',
-  'float sfBadgeMask=clamp(sfBadgeX*sfBadgeY*sfBadgeZ*sfBadgeFacing*3.0,0.0,1.0);'
+  'float sfBadgeMask=clamp(sfBadgeX*sfBadgeY*sfBadgeZ*sfBadgeFacing*3.0,0.0,1.0);',
   // Preserve weathering and subtle metal variation, not the high-contrast
   // atlas logo. Material normal/roughness/metallic textures remain unchanged.
   'float sfSteelWeather=.92+.05*fract(sin(dot(sfHQMatRootPos.xz,vec2(12.9898,78.233)))*43758.5453);',
