@@ -498,3 +498,20 @@ test('WebGL production runtime wires stance around mixer and packs the module',(
  assert.match(presenter,/applyHumanStance\(entry\.humanStance,/);
  assert.match(build,/cpSync\('scripts\/webgl-human-stance\.js','dist\/webgl-human-stance\.js'\)/);
 });
+
+test('natural stance supports alternate Mixamo leg names with unchanged weapon pose',()=>{
+ const {root,rifle}=riggedAtlas();
+ const rename={
+  UpperLegL:'mixamorig:LeftUpLeg',LowerLegL:'mixamorig:LeftLeg',
+  FootL:'mixamorig:LeftFoot',UpperLegR:'mixamorig:RightUpLeg',
+  LowerLegR:'mixamorig:RightLeg',FootR:'mixamorig:RightFoot'
+ };
+ root.traverse(n=>{if(n.isBone&&rename[n.name])n.name=rename[n.name];});
+ const pose=createHumanStance(root);
+ assert.ok(pose,'Mixamo bones should not disable natural stance');
+ assert.equal(applyHumanStance(pose,{dt:.08,moving:false}),true);
+ assert.ok(pose.modified);
+ assert.equal(restoreHumanStance(pose),true);
+ assert.equal(root.getObjectByName('Atlas_Rifle'),rifle);
+ assert.equal(disposeHumanStance(pose),true);
+});
