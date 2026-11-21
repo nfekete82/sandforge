@@ -39,8 +39,14 @@ export class SandforgeProductionGates {
    const meshyStart=entry.detail.getObjectByName('SF_Meshy_InfantryRolloutStart');
    const meshyExit=entry.detail.getObjectByName('SF_Meshy_InfantryRolloutExit');
    if(!meshyStart||!meshyExit)return null;
-   entry.gate={kind:entry.kind,root:entry.detail,openBay:true,meshyInfantry:true,
-    meshyStart,meshyExit,portal:null,door:null,hall:null,lamp:null,dust:null,ramp:null};
+   const hqDoor=entry.kind==='headquarters'?
+    entry.detail.getObjectByName('SF_Meshy_HQ_Shutter'):null;
+   const isHQ=entry.kind==='headquarters'&&Boolean(hqDoor);
+   entry.gate={kind:entry.kind,root:entry.detail,openBay:!isHQ,
+    meshyInfantry:true,meshyHQShutter:isHQ,
+    meshyStart,meshyExit,portal:null,door:hqDoor,hall:null,lamp:null,dust:null,ramp:null,
+    doorClosedY:hqDoor?.position.y??0,doorScaleY:hqDoor?.scale.y??1,
+    doorLiftHeight:hqDoor?.userData?.doorHeight??0};
    return entry.gate;
   }
   if(entry.kind==='barracks'){
@@ -127,6 +133,11 @@ export class SandforgeProductionGates {
  reset(entry){
   const gate=entry?.gate;if(!gate)return;
   if(gate.openBay)return; // Nothing on the open factory to close.
+  if(gate.meshyHQShutter){
+   gate.door.position.y=gate.doorClosedY;
+   gate.door.scale.y=gate.doorScaleY;
+   return;
+  }
   if(gate.meshyShutter){
    gate.door.position.y=gate.doorClosedY;
    gate.door.scale.y=gate.doorScaleY;
@@ -265,6 +276,11 @@ export class SandforgeProductionGates {
    if(gate.kind==='barracks'&&!gate.openBay){
     updateBarracksPortalPlanes(gate.portal);
     setBarracksDoorOpen(gate.portal,pose.open);
+   }else if(gate.kind==='headquarters'&&gate.meshyHQShutter){
+    // Engineer departs via the LEFT gate, which lifts vertically above
+    // the opening. Never animate the decorative right-side hangar.
+    gate.door.position.y=gate.doorClosedY+gate.doorLiftHeight*.94*pose.open;
+    gate.door.scale.y=gate.doorScaleY*(1-.94*pose.open);
    }else if(gate.kind==='headquarters'&&!gate.openBay)setHeadquartersDoorOpen(gate.portal,pose.open);
    else if(gate.meshyShutter){
     // Collapse the real shutter into a narrow stripe under its lintel;
@@ -318,12 +334,13 @@ export class SandforgeProductionGates {
    const pbrBarracks=gate.kind==='barracks'&&gate.portal?.pbrDoor===true;
    const outside=gate.meshyShutter?
     gate.rolloutExit.getWorldPosition(new THREE.Vector3()):
+    gate.meshyInfantry?gate.meshyExit.getWorldPosition(new THREE.Vector3()):
     gate.openBay?new THREE.Vector3(.18,.16,3.45):
     headquarters?new THREE.Vector3(0,.14,6.35):infantry?
     (pbrBarracks?new THREE.Vector3(0,.55,5.20):new THREE.Vector3(-.18,0,2.10)):
     new THREE.Vector3(.18,0,2.9);
    const root=gate.root;
-   if(!gate.meshyShutter)root.localToWorld(outside);
+   if(!gate.meshyShutter&&!gate.meshyInfantry)root.localToWorld(outside);
    // Stable AUTHORITATIVE release point. Reading actor.node.position here
    // used our *previous animated frame* as the next target and produced the
    // observed jerking/fast-then-slow feedback loop.
