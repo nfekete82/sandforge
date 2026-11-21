@@ -85,6 +85,7 @@ cpSync('scripts/webgl-fortified-bunker.js','dist/webgl-fortified-bunker.js');
 cpSync('scripts/webgl-faction-flags.js','dist/webgl-faction-flags.js');
 cpSync('scripts/webgl-military-micro-pbr.js','dist/webgl-military-micro-pbr.js');
 cpSync('scripts/webgl-rocket-infantry.js','dist/webgl-rocket-infantry.js');
+cpSync('scripts/webgl-human-infantry.js','dist/webgl-human-infantry.js');
 cpSync('scripts/webgl-engineer-tools.js','dist/webgl-engineer-tools.js');
 cpSync('scripts/webgl-medic-polish.js','dist/webgl-medic-polish.js');
 cpSync('scripts/webgl-strategic-effects.js','dist/webgl-strategic-effects.js');
