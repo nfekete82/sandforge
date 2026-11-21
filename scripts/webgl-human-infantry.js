@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
+import {installSkinnedTrousers,disposeSkinnedTrousers} from './webgl-human-skinned-trousers.js';
 
 /**
  * Render-only upgrade of the existing animated Atlas infantry GLB.
@@ -11,7 +12,7 @@ import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
  * per-frame updates are needed. Shared textures/geometries avoid per-unit GPU
  * resource growth.
  */
-export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v6-proportioned-stature-20261121';
+export const HUMAN_INFANTRY_REVISION='sandforge-human-rifleman-v7-skinned-pants-20261121';
 
 const ellipsoid=new THREE.SphereGeometry(1,20,14);
 const rounded=new RoundedBoxGeometry(1,1,1,3,.13);
@@ -286,6 +287,18 @@ export function humanizeInfantry(model,owner=0){
  // Remove the remaining ceramic belt pouches without losing the functional
  // strap and buckle. All rifle and IK wrist anchors remain untouched.
  hideNamed(model,/^Atlas_(AmmoPouch|PouchLid|PouchFastener)$/);
+ // One continuous two-leg skin now replaces the four hard-surface tubes.
+ // AnimationMixer continues driving the SAME original knee/hip/ankle bones.
+ // No additional animation pass or gameplay change is required.
+ if(installSkinnedTrousers(model,uniform)){
+  for(const side of ['L','R']){
+   for(const part of ['thigh','calf','TrouserKnee']){
+    const rigid=model.getObjectByName('SF_Human_'+part+side);
+    if(rigid)rigid.visible=false;
+   }
+  }
+  model.userData.sandforgeHumanSkinnedLegs=true;
+ }
  // Make the entire articulated human slightly taller without moving any
  // bones relative to the two-hand rifle: the old torso/legs read as a squat
  // toy at normal RTS zoom. Apply to this model clone once before battlefield
@@ -295,4 +308,8 @@ export function humanizeInfantry(model,owner=0){
  // Do not rebind or touch Atlas_WeaponSocket / Atlas_Rifle / Atlas_MuzzleBore.
  model.userData={...model.userData,sandforgeHumanInfantryRevision:HUMAN_INFANTRY_REVISION};
  return true;
+}
+/** Dispose only actor-owned skin/mesh resources; never shared GLB geometry. */
+export function disposeHumanInfantry(model){
+ return disposeSkinnedTrousers(model);
 }
