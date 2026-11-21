@@ -36,12 +36,16 @@ function addInfantryExitMarkers(model,bounds){
  const size=bounds.getSize(new THREE.Vector3());
  const center=bounds.getCenter(new THREE.Vector3());
  const y=bounds.min.y+size.y*.075,front=bounds.max.z;
+ // The image-authored command HQ has its personnel gate on the LEFT of the
+ // main building, not at the centre of its star-marked right-hand annex.
+ const doorX=model.userData.sandforgeMeshyStructure==='headquarters'?
+  bounds.min.x+size.x*.33:center.x;
  for(const [name,z] of [
   ['SF_Meshy_InfantryRolloutStart',front+size.z*.05],
   ['SF_Meshy_InfantryRolloutExit',front+size.z*.30]
  ]){
   const anchor=new THREE.Group();anchor.name=name;
-  anchor.position.set(center.x,y,z);
+  anchor.position.set(doorX,y,z);
   anchor.userData={visualOnly:true,nonBlocking:true,sandforgeExitMarker:true};
   model.add(anchor);
  }
@@ -52,6 +56,74 @@ function addInfantryExitMarkers(model,bounds){
  * UVs, normal maps, roughness, metalness and geometry are untouched.
  * Each instance owns its Material clone (no cross-faction cache mutation).
  */
+/** A real animated roll-up gate over the LEFT entrance of the Meshy HQ.
+ * Geometry is local to the GLB, so Sandforge can scale and rotate the whole
+ * building without breaking the engineer's exact world-space exit points. */
+function addHeadquartersEngineerShutter(model,bounds){
+ if(model.getObjectByName('SF_Meshy_HQ_Shutter'))return;
+ const size=bounds.getSize(new THREE.Vector3()),front=bounds.max.z;
+ const centerX=bounds.min.x+size.x*.33;
+ const doorW=size.x*.155,doorH=size.y*.255;
+ const baseline=bounds.min.y+size.y*.035;
+ const depth=Math.max(size.z*.014,.002);
+ const root=new THREE.Group();
+ root.name='SF_Meshy_HQ_EngineerPortal';
+ root.position.set(centerX,baseline,front+depth*.6);
+ root.userData={visualOnly:true,nonPlayable:true,sandforgeStyleDecoration:true};
+ const steel=new THREE.MeshStandardMaterial({
+  color:'#333d3c',metalness:.54,roughness:.71,side:THREE.DoubleSide
+ });
+ const inset=new THREE.MeshStandardMaterial({
+  color:'#131d1c',metalness:.33,roughness:.91
+ });
+ const trim=new THREE.MeshStandardMaterial({
+  color:'#21558b',metalness:.49,roughness:.67
+ });
+ const recess=new THREE.Mesh(new THREE.BoxGeometry(doorW*1.02,doorH*1.04,depth),inset);
+ recess.name='SF_Meshy_HQ_DarkDoorRecess';
+ recess.position.set(0,doorH*.52,-depth*.6);
+ recess.userData.sandforgeStyleDecoration=true;recess.raycast=()=>{};
+ root.add(recess);
+ const shutter=new THREE.Group();shutter.name='SF_Meshy_HQ_Shutter';
+ shutter.position.set(0,doorH*.50,depth*.4);
+ shutter.userData={sandforgeStyleDecoration:true,visualOnly:true};
+ const main=new THREE.Mesh(new THREE.BoxGeometry(doorW,doorH,depth*.72),steel);
+ main.position.y=0;main.castShadow=false;main.raycast=()=>{};
+ main.userData.sandforgeStyleDecoration=true;shutter.add(main);
+ for(let i=0;i<8;i++){
+  const ridge=new THREE.Mesh(new THREE.BoxGeometry(doorW*.985,doorH*.016,depth*.34),steel);
+  ridge.position.set(0,-doorH*.44+doorH*i/7,depth*.56);
+  ridge.raycast=()=>{};ridge.userData.sandforgeStyleDecoration=true;
+  shutter.add(ridge);
+ }
+ const ribbon=new THREE.Mesh(new THREE.BoxGeometry(doorW*1.12,doorH*.045,depth),trim);
+ ribbon.position.set(0,doorH*.54,depth*.5);
+ ribbon.name='SF_Meshy_HQ_BlueDoorLintel';
+ ribbon.raycast=()=>{};ribbon.userData.sandforgeStyleDecoration=true;
+ root.add(ribbon);root.add(shutter);model.add(root);
+ shutter.userData.doorHeight=doorH;
+}
+/** Original photographed HQ carried a painted WHITE star on the right annex.
+ * Its Meshy atlas is shared across body and canopy; remove only white
+ * near the right hand annex using UV-preserving PBR shader filtering. */
+function removeHeadquartersAnnexStar(shader,bounds){
+ const bb=bounds.getSize(new THREE.Vector3()),min=bounds.min;
+ const f=n=>Number(n).toFixed(6);
+ const hdr='varying vec3 sfHQLocalVertex;';
+ shader.vertexShader=shader.vertexShader.replace('#include <common>',
+  '#include <common>\n'+hdr);
+ shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',
+  '#include <begin_vertex>\nsfHQLocalVertex=position;');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <common>',
+  '#include <common>\n'+hdr);
+ return [
+  '// The white star emblem is no longer part of Sandforge HQ identity.',
+  'float sfRightAnnex=smoothstep('+f(min.x+bb.x*.54)+','+f(min.x+bb.x*.68)+',sfHQLocalVertex.x);',
+  'float sfHQOnFacade=1.0-smoothstep('+f(min.y+bb.y*.74)+','+f(min.y+bb.y*.90)+',sfHQLocalVertex.y);',
+  'float sfWhiteLogo=smoothstep(.67,.84,sfLum)*(1.0-smoothstep(.04,.12,sfMax-sfMin));',
+  'diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.235,.252,.249),sfRightAnnex*sfHQOnFacade*sfWhiteLogo*.98);'
+ ];
+}
 export function prepareMeshyStructure(model,kind,owner=0){
  if(!model)return false;
  if(model.userData.sandforgeMeshyStyleRevision===MESHY_STRUCTURE_REVISION&&
@@ -63,6 +135,8 @@ export function prepareMeshyStructure(model,kind,owner=0){
  const originalBounds=meshyLocalBounds(model);
  if(['barracks','headquarters'].includes(kind)&&!originalBounds.isEmpty())
   addInfantryExitMarkers(model,originalBounds);
+ if(kind==='headquarters'&&!originalBounds.isEmpty())
+  addHeadquartersEngineerShutter(model,originalBounds);
  const recolored=new Map(),meshes=[];
  model.traverse(node=>{
   if(!node.isMesh||node.userData?.sandforgeStyleDecoration)return;
@@ -104,6 +178,7 @@ export function prepareMeshyStructure(model,kind,owner=0){
        'diffuseColor.rgb+=vec3(.018,.017,.014)*sfSandPanel;',
      'diffuseColor.rgb=clamp(diffuseColor.rgb,vec3(0.0),vec3(1.0));'
     ];
+    if(kind==='headquarters')industrial.push(...removeHeadquartersAnnexStar(shader,originalBounds));
     if(owner===1)industrial.push(
      'float sfBlue=clamp((diffuseColor.b-max(diffuseColor.r,diffuseColor.g))*5.2,0.0,1.0);',
      'vec3 sfTeamRed=vec3(max(.20,diffuseColor.b*1.45),diffuseColor.b*.11,diffuseColor.b*.08);',
