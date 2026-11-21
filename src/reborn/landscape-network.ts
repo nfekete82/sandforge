@@ -331,7 +331,10 @@ function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[]
  const siteIds=kind==='open-basin'
   ?[1,columns*(rows-1)+(columns-2)]
   :kind==='plateau-crossroads'
-   ?[columns+1,(rows-2)*columns+(columns-2)]
+   // Three stacked east/west ridge systems already own the central routes.
+   // Build raised terraces in side sectors, with horizontal access ramps.
+   // A vertical 1.7k ramp would cross the actual ridge 2 truck pass.
+   ?[columns,columns*(rows-2)+(columns-1)]
    :kind==='broken-escarpment'
     ?[1,columns*(rows-1)+(columns-2)]
     :[1,columns*(rows-1)+(columns-2),columns-2];
@@ -353,7 +356,11 @@ function expandedClassicHighlands(seed:number,size:number,sites:readonly Point[]
   let dy=row<(rows-1)/2?-1:1;
   if(rows===2)dy=row===0?1:-1;
   let direction:Point={x:0,y:dy};
-  if(center.y+dy*rampEnd<220||center.y+dy*rampEnd>size-220)
+  if(kind==='plateau-crossroads'){
+   // Real hill approaches follow the horizontal shelf BETWEEN canyon
+   // ridges instead of bulldozing a ramp through another ridge's real pass.
+   direction={x:siteIndex%columns<columns/2?1:-1,y:0};
+  }else if(center.y+dy*rampEnd<220||center.y+dy*rampEnd>size-220)
    direction={x:0,y:-dy};
   const mesa:RaisedMesa={
    siteIndex,center:{...center},topRadius:radius,footRadius,
