@@ -65,8 +65,17 @@ test('measured local infantry exits stay just outside the physical GLB at any sc
  const start=building.getObjectByName('SF_Meshy_InfantryRolloutStart');
  const exit=building.getObjectByName('SF_Meshy_InfantryRolloutExit');
  assert.ok(start&&exit);
- assert.ok(start.position.z>b.max.z);
+ // Headquarters engineer starts INSIDE the actual front double doors,
+ // then crosses the threshold to the outdoor rally exit; no fake gate.
+ assert.ok(start.position.z<b.max.z);
+ assert.ok(exit.position.z>b.max.z);
  assert.ok(exit.position.z>start.position.z);
+ assert.equal(start.position.x,exit.position.x);
+ assert.ok(start.position.x>b.min.x+b.getSize(new THREE.Vector3()).x*.5);
+ assert.equal(start.userData.realHeadquartersDoor,true);
+ assert.equal(exit.userData.realHeadquartersDoor,true);
+ assert.equal(building.getObjectByName('SF_Meshy_HQ_Shutter'),undefined);
+ assert.equal(building.getObjectByName('SF_Meshy_HQ_EngineerPortal'),undefined);
  const repeat=prepareMeshyStructure(building,'headquarters',0);
  assert.equal(repeat,true);
  assert.equal(building.children.filter(n=>n.name==='SF_Meshy_InfantryRolloutStart').length,1);
@@ -111,4 +120,19 @@ test('vehicle factory and HQ both receive final identical Sandforge PBR-grade sh
   assert.match(shader.fragmentShader,/sfPanelTone/);
   assert.equal(mesh.material.map,material.map);
  }
+});
+
+test('existing Meshy headquarters door produces infantry without new fake garage',()=>{
+ const producer=readFileSync('scripts/webgl-production-gates.js','utf8');
+ const structure=readFileSync('scripts/webgl-meshy-structure.js','utf8');
+ assert.doesNotMatch(structure,/addHeadquartersEngineerShutter/);
+ assert.doesNotMatch(structure,/new THREE\.BoxGeometry\(doorW/);
+ assert.doesNotMatch(producer,/meshyHQShutter|SF_Meshy_HQ_Shutter/);
+ assert.match(producer,/openBay:true,[\s\S]{0,100}meshyInfantry:true,meshyStart,meshyExit/);
+ assert.match(producer,/gate\.meshyInfantry\?gate\.meshyExit\.getWorldPosition/);
+ assert.match(producer,/if\(!gate\.meshyShutter&&!gate\.meshyInfantry\)root\.localToWorld\(outside\)/);
+ assert.match(structure,/MESHY_HQ_ENGINEER_DOOR/);
+ // No changes to real factory roll-up shutter or barracks authored doors.
+ assert.match(producer,/meshyShutter:true/);
+ assert.match(producer,/prepareBarracksPortal/);
 });
