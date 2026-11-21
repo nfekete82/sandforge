@@ -7,8 +7,8 @@ import {
  bakeDesertGroundMasks,createDesertGroundMaskTexture
 } from '../scripts/webgl-desert-ground-blending.js';
 
-test('all four authentic desert maps have separate genuine texture palettes',()=>{
- assert.equal(Object.keys(DESERT_GROUND_PROFILES).length,4);
+test('four original desert surfaces plus the authored plateau use genuine texture blends',()=>{
+ assert.equal(Object.keys(DESERT_GROUND_PROFILES).length,5);
  const surfaces=new Set();
  for(const [id,p] of Object.entries(DESERT_GROUND_PROFILES)){
   assert.equal(p.layers.length,3,id);
@@ -18,7 +18,7 @@ test('all four authentic desert maps have separate genuine texture palettes',()=
   assert.ok(p.tiles.every(v=>v>=250&&v<=700));
   surfaces.add(p.base+'|'+p.layers.join(','));
  }
- assert.equal(surfaces.size,4);
+ assert.equal(surfaces.size,5);
  assert.match(DESERT_GROUND_BLEND_REVISION,/ground-blending/);
  assert.equal(bakeDesertGroundMasks('snow',{seed:32}),null);
 });
