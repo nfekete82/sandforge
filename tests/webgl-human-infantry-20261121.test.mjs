@@ -132,11 +132,17 @@ test('the old mechanical arms, robot legs, ankle blocks and rigid mitts are actu
   assert.ok(root.getObjectByName('SF_Human_CargoPocket'+side));
  }
  const sleeve=root.getObjectByName('SF_Human_sleeveL');
- const testPoint=new THREE.Vector3(0,.07,.10);
+ // The garment geometry is defined in local unit-radius coordinates,
+ // then scaled to ~0.1 m by the visual rig. Sampling at z=.10 after
+ // that scale would test a point only ~1 cm from the rotating bone axis.
+ // Sample the actual outer sleeve circumference (z=1) instead.
+ const testPoint=new THREE.Vector3(0,0,1);
  root.updateMatrixWorld(true);
  const before=sleeve.localToWorld(testPoint.clone());
  bone.rotation.y=.73;
  root.updateMatrixWorld(true);
  const after=sleeve.localToWorld(testPoint.clone());
- assert.ok(before.distanceTo(after)>.02,'new cloth must move with animated bone');
+ const moved=before.distanceTo(after);
+ assert.ok(moved>.05,
+  'new cloth must follow its animated bone (world displacement '+moved.toFixed(5)+' m)');
 });
