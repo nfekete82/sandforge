@@ -14,12 +14,16 @@ const PI=Math.PI,TAU=2*PI;
 export const FACTORY_WIDTH_FACTOR=1.10;
 export const FACTORY_GATE_OPEN_HEIGHT=1.70;
 export const FACTORY_ROOF_VENT_GAP=Object.freeze([-1.35,-.18]);
+export const FACTORY_SAWTOOTH_ROOF_REVISION='factory-three-bay-sawtooth-pbr-20261121';
+export const FACTORY_SAWTOOTH_BAYS=3;
 const colors={
  camo:[198,177,137],sand:[211,193,157],sand_light:[224,204,170],
  khaki:[148,144,113],olive:[92,107,82],roof:[90,95,77],
  concrete:[132,130,111],stone:[177,165,138],
  steel:[91,98,91],steel_dark:[45,51,50],steel_light:[142,146,128],
  door:[73,81,76],vent:[41,49,48],glass:[42,60,62],
+ roof_metal:[61,67,64],roof_trim:[147,140,120],
+ roof_glass:[190,153,103],
  warning:[201,161,89],team:factionRgb8(0),white:[226,216,184]
 };
 const add=(a,b)=>a.map((x,i)=>x+b[i]);
@@ -36,6 +40,72 @@ function box(mat,at,size,rotation=0,rotor=false){
  const g=material(mat,rotor),[sx,sy,sz]=size.map(x=>x/2),co=Math.cos(rotation),si=Math.sin(rotation);
  const p=[[-sx,-sy,-sz],[sx,-sy,-sz],[sx,sy,-sz],[-sx,sy,-sz],[-sx,-sy,sz],[sx,-sy,sz],[sx,sy,sz],[-sx,sy,sz]].map(([x,y,z])=>[(at[0]+x*co+z*si)*FACTORY_WIDTH_FACTOR,at[1]+y,at[2]+z*co-x*si]);
  for(const [a,b,c,d] of [[0,3,2,1],[4,5,6,7],[0,4,7,3],[1,2,6,5],[3,7,6,2],[0,1,5,4]])quad(g,p[a],p[b],p[c],p[d]);
+}
+// Model-space sloping panels: real mesh triangles, not horizontal shader decals.
+function roofQuad(mat,a,b,c,d){
+ const g=material(mat);
+ const scaled=p=>[p[0]*FACTORY_WIDTH_FACTOR,p[1],p[2]];
+ quad(g,scaled(a),scaled(b),scaled(c),scaled(d));
+}
+function roofHeight(x,left,span){
+ return 2.64+(x-left)/span*.61;
+}
+function buildSawtoothRoof(){
+ // Three sawtooth bays run from the rear towards the real front garage.
+ // At each crest a vertical clerestory window meets the following lower
+ // roof panel. Roof surfaces have physical sloped triangles and PBR UVs.
+ const left=-2.36,right=2.36,bay=(right-left)/FACTORY_SAWTOOTH_BAYS;
+ const back=-2.23,front=2.23,low=2.64,high=3.25;
+ for(let i=0;i<FACTORY_SAWTOOTH_BAYS;i++){
+  const x0=left+i*bay,x1=x0+bay;
+  roofQuad('roof_metal',[x0,low,back],[x0,low,front],
+   [x1,high,front],[x1,high,back]);
+  // Built-up, framed glazed vertical face under each high edge.
+  // Real sloping roof remains opaque; panes are an actual second material.
+  for(let j=0;j<6;j++){
+   const z0=back+.22+j*(front-back-.44)/6;
+   const z1=back+.22+(j+1)*(front-back-.44)/6;
+   roofQuad('roof_glass',[x1-.035,low+.12,z0+.027],
+    [x1-.035,high-.10,z0+.027],
+    [x1-.035,high-.10,z1-.027],
+    [x1-.035,low+.12,z1-.027]);
+  }
+  // Continuous structural crest and glazing mullions; not floating planes.
+  box('roof_trim',[x1,high+.035,0],[.13,.09,4.54]);
+  box('steel_dark',[x1,low+.10,0],[.08,.10,4.48]);
+  for(let j=0;j<=6;j++){
+   const z=back+.22+j*(front-back-.44)/6;
+   box('steel_dark',[x1-.025,(low+high)/2,z],[.07,high-low-.10,.035]);
+  }
+  // Standing seams on the dark roof. Modest geometry + baked normal
+  // texture makes the roof readable without dense mesh tessellation.
+  for(let j=1;j<=4;j++){
+   const x=x0+bay*j/5,y=roofHeight(x,x0,bay)+.019;
+   box('roof_trim',[x,y,0],[.032,.035,4.44]);
+  }
+  // Faction marking follows the actual incline, one identical bar per bay.
+  const xA=x0+bay*.28,xB=x0+bay*.39;
+  const yA=roofHeight(xA,x0,bay)+.016,yB=roofHeight(xB,x0,bay)+.016;
+  roofQuad('team',[xA,yA,-1.43],[xA,yA,1.39],
+   [xB,yB,1.39],[xB,yB,-1.43]);
+  // Rectangular genuine metal HVAC/louvre box on the rear roof,
+  // above the slope and clear of the front production exit.
+  const vx=x0+bay*.52,vy=roofHeight(vx,x0,bay);
+  box('roof_trim',[vx,vy+.17,-1.52],[.48,.24,.43]);
+  box('vent',[vx,vy+.31,-1.52],[.40,.06,.36]);
+  for(let k=0;k<4;k++){
+   box('steel_dark',[vx-.17+k*.11,vy+.353,-1.52],[.037,.015,.30]);
+  }
+  // End caps close every triangular face; no open or z-fighting shell.
+  for(const z of [back,front]){
+   roofQuad('roof_trim',[x0,low,z],[x1,low,z],
+    [x1,high,z],[x0,low+.015,z]);
+  }
+ }
+ // The stack occupies the rear, away from all 3 glazing rows.
+ box('steel_dark',[1.97,3.64,-1.92],[.26,.78,.26]);
+ box('roof_trim',[1.97,4.06,-1.92],[.38,.10,.38]);
+ box('vent',[1.97,4.12,-1.92],[.25,.035,.25]);
 }
 function frustum(mat,y0,y1,r0,r1,sides=12,angle=PI/8){
  const g=material(mat);for(let i=0;i<sides;i++){let a=i*TAU/sides+angle,b=(i+1)*TAU/sides+angle;
