@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import {MESHY_STRUCTURE_ASSETS} from './webgl-meshy-asset-flags.js';
+const hqDoorStates=new WeakMap();
 
 // Vehicle factory is the visual reference for every Sandforge structure:
 // original PBR albedo/normal/ORM, dusty khaki armour, dark steel, restrained
 // blue/red enamel. Do not flatten a Meshy texture atlas into plain-color boxes.
-export const MESHY_STRUCTURE_REVISION='sandforge-meshy-matched-hq-factory-albedo-v4-no-emblem-20261121';
+export const MESHY_STRUCTURE_REVISION='sandforge-hq-original-double-door-animated-and-badge-neutral-v5';
 export const SANDFORGE_INDUSTRIAL_PALETTE=Object.freeze({
  sand:'#c3ae8a',armour:'#a08d6d',steel:'#444a45',concrete:'#aaa08b',
  blue:'#1b508d',red:'#a7332e'
@@ -86,6 +87,7 @@ function addInfantryExitMarkers(model,bounds){
  const exitZ=headquarters?
   doorwayZ+size.z*MESHY_HQ_ENGINEER_DOOR.outsideOffsetFraction:
   doorwayZ+size.z*.30;
+ if(headquarters)model.userData.sandforgeRealHQDoorway={x:doorX,z:doorwayZ};
  for(const [name,z] of [
   ['SF_Meshy_InfantryRolloutStart',startZ],
   ['SF_Meshy_InfantryRolloutExit',exitZ]
@@ -103,6 +105,60 @@ function addInfantryExitMarkers(model,bounds){
  * UVs, normal maps, roughness, metalness and geometry are untouched.
  * Each instance owns its Material clone (no cross-faction cache mutation).
  */
+/** The original Meshy atlas contains both REAL patterned door leaves and
+ * the surrounding wall in the same mesh. Do not create a detached shutter.
+ * Open that precise door region in the fragment shader, from the centre to
+ * the hinges, preserving its original weathered door texture while closed.
+ * A very thin dark inset sits BEHIND the original doorway, not in front. */
+function prepareEmbeddedHeadquartersDoor(model,bounds){
+ const existing=hqDoorStates.get(model);
+ if(existing)return existing;
+ const surveyed=model.userData.sandforgeRealHQDoorway;
+ if(!surveyed||bounds.isEmpty())return null;
+ const dim=bounds.getSize(new THREE.Vector3());
+ const bottom=bounds.min.y+dim.y*.027;
+ const height=dim.y*.235;
+ const halfWidth=dim.x*.073;
+ const depth=Math.max(dim.z*.008,.0005);
+ const inset=new THREE.Mesh(
+  new THREE.PlaneGeometry(halfWidth*1.94,height*.96),
+  new THREE.MeshStandardMaterial({
+   color:'#11191a',roughness:.96,metalness:.15,
+   side:THREE.DoubleSide,depthWrite:true
+  })
+ );
+ inset.name='SF_Meshy_HQ_OriginalDoor_Interior';
+ inset.position.set(surveyed.x,bottom+height*.52,surveyed.z-depth);
+ inset.userData={sandforgeStyleDecoration:true,visualOnly:true,
+  nonBlocking:true,realMeshyDoorInset:true};
+ inset.castShadow=false;inset.receiveShadow=false;inset.raycast=()=>{};
+ model.add(inset);
+ const door={
+  kind:'headquarters',mode:'original-meshy-double-door',
+  open:0,uniforms:[],inset,centerX:surveyed.x,z:surveyed.z,
+  bottom,height,halfWidth,depth
+ };
+ hqDoorStates.set(model,door);
+ return door;
+}
+export function meshHeadquartersDoor(model){
+ return model?hqDoorStates.get(model)??null:null;
+}
+export function setMeshyHeadquartersDoorOpen(door,amount){
+ if(!door)return;
+ door.open=Math.max(0,Math.min(1,Number(amount)||0));
+ for(const uniform of door.uniforms)uniform.value=door.open;
+}
+export function disposeMeshyHeadquartersDoor(model){
+ const door=meshHeadquartersDoor(model);
+ if(!door)return;
+ setMeshyHeadquartersDoorOpen(door,0);
+ door.inset.removeFromParent();
+ door.inset.geometry?.dispose();
+ door.inset.material?.dispose();
+ door.uniforms.length=0;
+ hqDoorStates.delete(model);
+}
 /** Original photographed HQ carried a painted WHITE star on the right annex.
  * Its Meshy atlas is shared across body and canopy; remove only white
  * near the right hand annex using UV-preserving PBR shader filtering. */
@@ -125,10 +181,13 @@ export function removeHeadquartersEmblemMeshes(model){
  * mesh-to-HQ transform BEFORE comparing it to the common building bounds.
  * The old filter compared local vertex positions with whole-HQ bounds,
  * so it simply missed most of the photographed emblem. */
-function removeHeadquartersAnnexStar(shader,bounds,meshToHQ){
+function removeHeadquartersAnnexStar(shader,bounds,meshToHQ,door){
  const dim=bounds.getSize(new THREE.Vector3()),min=bounds.min;
  const f=n=>Number(n).toFixed(6);
  const decl='varying vec3 sfHQRootPos; varying vec3 sfHQRootNormal;';
+ const doorUniform={value:door?.open??0};
+ shader.uniforms.sfHQDoorOpen=doorUniform;
+ if(door)door.uniforms.push(doorUniform);
  const marker='#include <common>';
  shader.uniforms.sfHQMeshToRoot={value:meshToHQ.clone()};
  shader.vertexShader=shader.vertexShader.replace(marker,marker+'\n'+
@@ -137,23 +196,37 @@ function removeHeadquartersAnnexStar(shader,bounds,meshToHQ){
   '#include <begin_vertex>\n'+
   'sfHQRootPos=(sfHQMeshToRoot*vec4(position,1.0)).xyz;\n'+
   'sfHQRootNormal=normalize(mat3(sfHQMeshToRoot)*normal);');
- shader.fragmentShader=shader.fragmentShader.replace(marker,marker+'\n'+decl);
+ shader.fragmentShader=shader.fragmentShader.replace(marker,marker+'\n'+decl+'\nuniform float sfHQDoorOpen;');
  return [
   '// Paint out the complete right-hangar emblem: shield AND star.',
   'vec3 sfHQNormalized=(sfHQRootPos-vec3('+[min.x,min.y,min.z].map(f).join(',')+'))',
   ' / vec3('+[dim.x,dim.y,dim.z].map(v=>f(Math.max(.0001,v))).join(',')+');',
   // The annex is on the +X right and faces front +Z. Smooth borders blend
   // the replacement into the existing dirty gunmetal, not a flat badge.
-  'float sfBadgeX=smoothstep(.57,.66,sfHQNormalized.x)*(1.0-smoothstep(.91,.995,sfHQNormalized.x));',
-  'float sfBadgeY=smoothstep(.13,.24,sfHQNormalized.y)*(1.0-smoothstep(.70,.80,sfHQNormalized.y));',
-  'float sfBadgeZ=smoothstep(.46,.61,sfHQNormalized.z);',
-  'float sfBadgeFacing=smoothstep(.08,.50,abs(sfHQRootNormal.z));',
+  'float sfBadgeX=smoothstep(.54,.61,sfHQNormalized.x)*(1.0-smoothstep(.96,.995,sfHQNormalized.x));',
+  // The GLB bounds include the TALL left radar tower, so the right hangar
+  // emblem sits low in the total height; the former .13-.80 band missed it.
+  'float sfBadgeY=smoothstep(.010,.045,sfHQNormalized.y)*(1.0-smoothstep(.48,.57,sfHQNormalized.y));',
+  'float sfBadgeZ=smoothstep(.24,.39,sfHQNormalized.z);',
+  'float sfBadgeFacing=.78+.22*abs(sfHQRootNormal.z);',
   'float sfBadgeMask=sfBadgeX*sfBadgeY*sfBadgeZ*sfBadgeFacing;',
   // Preserve weathering and subtle metal variation, not the high-contrast
   // atlas logo. Material normal/roughness/metallic textures remain unchanged.
-  'float sfSteelWeather=.94+.09*clamp(sfLum,0.0,1.0);',
+  'float sfSteelWeather=.92+.05*fract(sin(dot(sfHQRootPos.xz,vec2(12.9898,78.233)))*43758.5453);',
   'vec3 sfUnmarkedMetal=vec3(.175,.189,.183)*sfSteelWeather;',
-  'diffuseColor.rgb=mix(diffuseColor.rgb,sfUnmarkedMetal,sfBadgeMask*.985);'
+  'diffuseColor.rgb=mix(diffuseColor.rgb,sfUnmarkedMetal,sfBadgeMask);',
+  // Cut only the real double door's front-facing triangles. While closed
+  // the ORIGINAL atlas is visible. Opening slides the two visible leaves
+  // outward from their centre; the dark interior is already inset behind it.
+  'float sfDoorX=abs(sfHQRootPos.x-'+f(door?.centerX??0)+');',
+  'float sfDoorY=sfHQRootPos.y-'+f(door?.bottom??0)+';',
+  'float sfDoorZ=abs(sfHQRootPos.z-'+f(door?.z??0)+');',
+  'float sfDoorAllowed=step(sfDoorX,'+f(door?.halfWidth??0)+')',
+  ' *step(0.0,sfDoorY)*step(sfDoorY,'+f(door?.height??0)+')',
+  ' *step(sfDoorZ,'+f(Math.max(door?.depth??0,.0001)*5)+')',
+  ' *step(.20,abs(sfHQRootNormal.z));',
+  'if(sfHQDoorOpen>.001 && sfDoorAllowed>.5 &&',
+  'sfDoorX<'+f(door?.halfWidth??0)+'*sfHQDoorOpen*.99)discard;'
  ];
 }
 export function prepareMeshyStructure(model,kind,owner=0){
@@ -168,6 +241,8 @@ export function prepareMeshyStructure(model,kind,owner=0){
  const originalBounds=meshyLocalBounds(model);
  if(['barracks','headquarters'].includes(kind)&&!originalBounds.isEmpty())
   addInfantryExitMarkers(model,originalBounds);
+ if(kind==='headquarters'&&!originalBounds.isEmpty())
+  prepareEmbeddedHeadquartersDoor(model,originalBounds);
  const recolored=new Map(),meshes=[];
  model.updateWorldMatrix(true,true);
  const modelInverse=model.matrixWorld.clone().invert();
@@ -215,7 +290,7 @@ export function prepareMeshyStructure(model,kind,owner=0){
        'diffuseColor.rgb+=vec3(.018,.017,.014)*sfSandPanel;',
      'diffuseColor.rgb=clamp(diffuseColor.rgb,vec3(0.0),vec3(1.0));'
     ];
-    if(kind==='headquarters')industrial.push(...removeHeadquartersAnnexStar(shader,originalBounds,meshToHQ));
+    if(kind==='headquarters')industrial.push(...removeHeadquartersAnnexStar(shader,originalBounds,meshToHQ,meshHeadquartersDoor(model)));
     if(owner===1)industrial.push(
      'float sfBlue=clamp((diffuseColor.b-max(diffuseColor.r,diffuseColor.g))*5.2,0.0,1.0);',
      'vec3 sfTeamRed=vec3(max(.20,diffuseColor.b*1.45),diffuseColor.b*.11,diffuseColor.b*.08);',
