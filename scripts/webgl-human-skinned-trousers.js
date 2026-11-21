@@ -121,11 +121,16 @@ export function installSkinnedTrousers(model,fabricMaterial){
  mesh.name='SF_Human_SkinnedTrousers';
  mesh.userData={visualOnly:true,nonPlayable:true,factionAccent:true,
   sandforgeHumanInfantry:true,sandforgeHumanSkinnedTrousers:true};
- mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;
+ // Cull actors normally: forcing every trouser into every camera frame
+ // would regress late-game infantry performance. Expand only the animated
+ // local bound so normal knee movement cannot cause leg pop-in.
+ mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=true;
  mesh.raycast=()=>{};
  model.add(mesh);
  model.updateMatrixWorld(true);
  mesh.bind(skeleton);
+ mesh.computeBoundingSphere();
+ if(mesh.boundingSphere)mesh.boundingSphere.radius*=1.50;
  // Keep owned instance resources discoverable for proper death/despawn cleanup.
  model.userData.sandforgeHumanPants=mesh;
  return true;
