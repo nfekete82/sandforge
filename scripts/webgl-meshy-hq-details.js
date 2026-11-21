@@ -18,7 +18,7 @@ function makeDoorPaint(){
  const ctx=canvas.getContext('2d',{willReadFrequently:false});
  if(!ctx)return mat;
  // Industrial mesh/grille pattern, like the already textured original doors.
- ctx.fillStyle='#252a29';ctx.fillRect(0,0,128,256);
+ ctx.fillStyle='#323935';ctx.fillRect(0,0,128,256);
  let seed=2031;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
  for(let i=0;i<1400;i++){
   const g=Math.floor(22+random()*40);
@@ -96,16 +96,16 @@ export function createHeadquartersHingedDoor(model,bounds){
 }
 function makeUnmarkedMetal(){
  const mat=new THREE.MeshStandardMaterial({
-  color:'#6f6d61',metalness:.38,roughness:.84,side:THREE.DoubleSide,
+  color:'#414741',metalness:.38,roughness:.84,side:THREE.DoubleSide,
   polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-2
  });
  if(typeof document==='undefined')return mat;
  const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;
  const ctx=canvas.getContext('2d');if(!ctx)return mat;
- ctx.fillStyle='#65685f';ctx.fillRect(0,0,128,128);
+ ctx.fillStyle='#3f4540';ctx.fillRect(0,0,128,128);
  let seed=2511;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
  for(let i=0;i<5000;i++){
-  const g=Math.floor(70+random()*40);
+  const g=Math.floor(43+random()*36);
   ctx.fillStyle='rgba('+g+','+(g+2)+','+Math.floor(g*.89)+','+(.06+random()*.11)+')';
   ctx.fillRect(random()*128,random()*128,random()*4+.5,random()*3+.5);
  }
