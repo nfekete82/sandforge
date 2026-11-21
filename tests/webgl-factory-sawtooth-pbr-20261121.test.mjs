@@ -55,10 +55,34 @@ test('both team factories have REAL 3-bay sawtooth geometry plus proper embedded
   const roof=points(file,'SF_Factory_PBR_roof_metal');
   assert.equal(roof.length,FACTORY_SAWTOOTH_BAYS*6,
    'three physical sloping roof quads, not flat visual stickers');
+  // An actual continuous 3-bay sawtooth shares X-boundaries between
+  // adjacent sections: N panels have exactly N+1 unique X edges.
   const xs=new Set(roof.map(p=>p[0].toFixed(2)));
-  assert.ok(xs.size>=6,'three separate sawtooth roof bays');
-  assert.ok(Math.max(...roof.map(p=>p[1]))-
-    Math.min(...roof.map(p=>p[1]))>.55,'roof panels must be sloped');
+  assert.equal(xs.size,FACTORY_SAWTOOTH_BAYS+1,
+   'neighboring sawtooth bays share their four physical edge coordinates');
+  const bays=Array.from({length:FACTORY_SAWTOOTH_BAYS},(_,i)=>
+   roof.slice(i*6,(i+1)*6));
+  for(const [i,vertices] of bays.entries()){
+   const left=Math.min(...vertices.map(p=>p[0]));
+   const right=Math.max(...vertices.map(p=>p[0]));
+   const low=Math.min(...vertices.map(p=>p[1]));
+   const high=Math.max(...vertices.map(p=>p[1]));
+   assert.ok(right-left>.9,'bay '+i+' must have real roof surface width');
+   assert.ok(high-low>.55,'bay '+i+' must incline to a raised ridge');
+   const leftY=vertices.filter(p=>Math.abs(p[0]-left)<.001).map(p=>p[1]);
+   const rightY=vertices.filter(p=>Math.abs(p[0]-right)<.001).map(p=>p[1]);
+   assert.ok(Math.max(...leftY)<Math.min(...rightY)-.55,
+    'bay '+i+' must rise from its lower edge to its crest');
+   if(i>0){
+    const preceding=bays[i-1];
+    const oldRight=Math.max(...preceding.map(p=>p[0]));
+    assert.ok(Math.abs(oldRight-left)<.001,
+     'consecutive bays must touch without a gap');
+    const oldHigh=Math.max(...preceding.map(p=>p[1]));
+    assert.ok(oldHigh-low>.55,
+     'each new bay must reset downward to produce the sawtooth profile');
+   }
+  }
   const windows=points(file,'SF_Factory_PBR_roof_glass');
   assert.equal(windows.length,FACTORY_SAWTOOTH_BAYS*6*6,
    'every bay has six real upper-light windows');
