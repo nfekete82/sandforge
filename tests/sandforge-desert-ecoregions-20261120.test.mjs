@@ -13,14 +13,14 @@ const distSegment=(p,a,b)=>{
   t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/len));
  return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy);
 };
-test('exactly four distinct natural deserts; cacti only in native Sonoran, Joshua only in Mojave',()=>{
- assert.equal(catalog.length,4);
- assert.equal(Object.keys(DESERT_ECOREGIONS).length,4);
+test('four original deserts and fifth authored plateau use native PBR vegetation',()=>{
+ assert.equal(catalog.length,5);
+ assert.equal(Object.keys(DESERT_ECOREGIONS).length,5);
  const e=catalog.map(m=>desertEcoregion(m.id));
  assert.ok(e.every(Boolean));
  assert.equal(new Set(e.map(x=>x.key)).size,4);
- assert.equal(new Set(e.map(x=>x.terrainSource)).size,4);
- assert.equal(new Set(e.map(x=>x.palette.sand)).size,4);
+ assert.equal(new Set(e.map(x=>x.terrainSource)).size,4,'plateau reuses Badlands physical source');
+ assert.equal(new Set(e.map(x=>x.palette.sand)).size,5);
  assert.equal(e[0].saguaro,0,'Sahara cannot grow North American Saguaro');
  assert.equal(e[0].joshua,0,'open Sandforge dune battlefield stays clean');
  assert.ok(e[1].saguaro>=18&&e[1].joshua===0);
