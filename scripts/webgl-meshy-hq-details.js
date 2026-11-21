@@ -83,7 +83,8 @@ export function createHeadquartersHingedDoor(model,bounds){
   rig,backing,left:panels[0],right:panels[1],width:doorWidth,height:doorHeight,
   setOpen(amount){
    this.open=Math.max(0,Math.min(1,Number(amount)||0));
-   this.left.rotation.y=-1.12*this.open;
+   // A closed left hinge must be +0, not IEEE-754 -0 (strict state checks).
+   this.left.rotation.y=this.open===0?0:-1.12*this.open;
    this.right.rotation.y=1.12*this.open;
   },
   dispose(){
