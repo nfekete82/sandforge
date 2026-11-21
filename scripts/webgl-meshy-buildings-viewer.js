@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {meshyStructurePath,prepareMeshyStructure} from './webgl-meshy-structure.js';
+import {meshyStructurePath,prepareMeshyStructure,meshHeadquartersDoor,setMeshyHeadquartersDoorOpen} from './webgl-meshy-structure.js';
 import {paintMeshyFactoryTeam} from './webgl-meshy-factory-team.js';
 import {attachMeshyHeadquartersRadarMotion,updateMeshyHeadquartersRadarMotion} from './webgl-meshy-hq-radars.js';
 import {calibrateHeadquartersCrestAtHit,readHQEmblemAnchor} from './webgl-meshy-hq-details.js';
@@ -34,7 +34,8 @@ const width={headquarters:225,factory:212,barracks:158,airfield:218,
 let active=null,activeSize=new THREE.Vector3(200,95,200),loadVersion=0;
 let hqDishes=null;const animationClock=new THREE.Clock();
 const crestPick=document.getElementById('crest-pick');
-let crestMode=false;
+const doorPreview=document.getElementById('door-preview');
+let crestMode=false,doorPreviewOpen=false;
 const crestRay=new THREE.Raycaster(),crestPointer=new THREE.Vector2();
 function location(kind,owner){
  if(kind==='factory')return '/src/assets/reborn/buildings-3d/factory-'+owner+'.glb';
@@ -64,6 +65,9 @@ async function open(){
  const version=++loadVersion,kind=choose.value,owner=Number(team.value),url=location(kind,owner);
  crestMode=false;crestPick.setAttribute('aria-pressed','false');
  crestPick.hidden=kind!=='headquarters';
+ doorPreview.hidden=kind!=='headquarters';
+ doorPreviewOpen=false;doorPreview.setAttribute('aria-pressed','false');
+ doorPreview.textContent='HQ-Tür öffnen';
  status.textContent='Lade '+choose.selectedOptions[0].text+' …';
  window.__sandforgeBuildingViewerError=null;
  if(!url){
@@ -107,6 +111,15 @@ async function open(){
 // Exact-emblem pick mode is only available in the 3D inspector, never a
 // normal gameplay click. Persist the result to this origin; the RTS and
 // inspector load the same recorded local GLB-space coordinates.
+doorPreview.addEventListener('click',()=>{
+ if(choose.value!=='headquarters'||!active)return;
+ const door=meshHeadquartersDoor(active);
+ if(!door)return;
+ doorPreviewOpen=!doorPreviewOpen;
+ setMeshyHeadquartersDoorOpen(door,doorPreviewOpen?1:0);
+ doorPreview.setAttribute('aria-pressed',String(doorPreviewOpen));
+ doorPreview.textContent=doorPreviewOpen?'HQ-Tür schließen':'HQ-Tür öffnen';
+});
 crestPick.addEventListener('click',()=>{
  if(choose.value!=='headquarters'||!active)return;
  crestMode=!crestMode;
