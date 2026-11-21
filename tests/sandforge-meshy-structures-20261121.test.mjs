@@ -248,3 +248,15 @@ test('radar remains independent of HQ shader fallback',()=>{
  assert.match(radar,/vec3 sfHQRootPos=/);
  assert.match(radar,/MESHY_HQ_RADAR_SPEEDS/);
 });
+
+test('HQ decal addon is included in the browser build instead of 404 on WebGL startup',()=>{
+ const source=readFileSync('scripts/webgl-meshy-hq-details.js','utf8');
+ const build=readFileSync('scripts/build.mjs','utf8');
+ const graph=readFileSync('scripts/check-webgl-module-graph.mjs','utf8');
+ const html=readFileSync('webgl-preview.html','utf8');
+ assert.match(source,/from 'three\/addons\/geometries\/DecalGeometry\.js'/);
+ assert.match(build,/examples\/jsm\/geometries\/DecalGeometry\.js/);
+ assert.match(build,/scripts\/webgl-meshy-hq-details\.js/);
+ assert.match(graph,/spec\.startsWith\('three\/addons\/'\)/);
+ assert.match(html,/"three\/addons\/":"\/vendor\/three\/addons\/"/);
+});
