@@ -305,6 +305,12 @@ export function humanizeInfantry(model,owner=0){
    }
   }
   model.userData.sandforgeHumanSkinnedLegs=true;
+  if(params.get('soldierDebug')==='1'&&!humanInfantryWarnings.has('skinned')){
+   const pants=model.getObjectByName('SF_Human_SkinnedTrousers');
+   console.info('[Sandforge infantry] anatomical skinned trousers active:',
+    pants?.geometry?.attributes?.position?.count,'vertices');
+   humanInfantryWarnings.add('skinned');
+  }
  }else{
   model.userData.sandforgeHumanSkinnedLegs=false;
   if(forceRigid)model.userData.sandforgeTrouserStatus='forced-rigid';
