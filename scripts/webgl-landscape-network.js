@@ -173,7 +173,7 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
  // Generals-style escarpment: broad, nearly level upper plateaus and
  // asymmetric, stratified near-vertical cliff faces, never a round dune.
  // The underlying blocked canyon ridge and its real passes remain authoritative.
- const rockPositions=[],rockRgb=[],rockUv=[];
+ const rockPositions=[],rockRgb=[],rockUv=[],rockFade=[];
  // Reuse the exact fractured rock geometry used by the existing loose stones.
  const outcropMatrices=[[],[],[]];
  const rockPalette=rockColors.map(c=>new THREE.Color(c));
@@ -257,7 +257,13 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
       .lerp(rockPalette[1],clamp01(.20+wall*.55+shelfBand*.20+grains*.25))
       .lerp(rockPalette[2],clamp01(.12+(1-wall)*.38))
       .lerp(rockPalette[3],clamp01(.025+Math.max(0,grains)*.20));
-    return {position,color,rise:Math.max(0,height),
+    // The old opaque ridge ran to full color at its near-zero-height foot.
+    // This made a long orange cutout over otherwise continuous wind-sand.
+    // Fade 3D sandstone into the SAME underlying ground as its rocky apron
+    // narrows; all heights and gameplay collision remain as before.
+    const rise=Math.max(0,height);
+    const edgeFade=smooth((rise/ridge.height-.018)/.30);
+    return {position,color,rise,fade:edgeFade,
      uv:[center.along/150,faceArc/150]};
    });
   });
@@ -305,6 +311,7 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
     for(const vertex of [a,b,c,b,d,c]){
      rockPositions.push(...vertex.position);
      rockRgb.push(vertex.color.r,vertex.color.g,vertex.color.b);
+     rockFade.push(vertex.fade);
      // Same world-scale mineral atlas mapping as physical-battlefield-rocks.
      rockUv.push(...vertex.uv);
     }
@@ -315,6 +322,7 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
   const geometry=new THREE.BufferGeometry();
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(rockPositions,3));
   geometry.setAttribute('color',new THREE.Float32BufferAttribute(rockRgb,3));
+  geometry.setAttribute('ridgeFade',new THREE.Float32BufferAttribute(rockFade,1));
   geometry.setAttribute('uv',new THREE.Float32BufferAttribute(rockUv,2));
   geometry.computeVertexNormals();
   const rockMaps=sharedStoneMaps(lowQuality);
@@ -324,13 +332,30 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
    map:biome==='desert'?rockMaps.map:null,normalMap:rockMaps.normalMap,
    roughnessMap:rockMaps.roughnessMap,
    normalScale:new THREE.Vector2(geology?.veins??.48,geology?.veins??.48),
-   roughness:.98,metalness:0
+   roughness:.98,metalness:0,transparent:true,depthWrite:false,
+   forceSinglePass:true
   });
+  // A single precomputed vertex alpha channel: real sculpted upper ridge
+  // stays intact while its thin skirt naturally dissolves into the desert.
+  material.onBeforeCompile=shader=>{
+   const nl=String.fromCharCode(10);
+   shader.vertexShader=shader.vertexShader.replace('#include <common>',
+     '#include <common>'+nl+'attribute float ridgeFade; varying float vSfRidgeFade;');
+   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',
+     '#include <begin_vertex>'+nl+'vSfRidgeFade=ridgeFade;');
+   shader.fragmentShader=shader.fragmentShader.replace('#include <common>',
+     '#include <common>'+nl+'varying float vSfRidgeFade;');
+   shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',
+     '#include <color_fragment>'+nl+'diffuseColor.a *= clamp(vSfRidgeFade,0.0,1.0);');
+  };
+  material.customProgramCacheKey=()=> 'sandforge-eroded-ridge-soft-sandstone-to-sand-v1';
   const mesh=new THREE.Mesh(geometry,material);
   mesh.name='procedural-v3-eroded-sandstone';
-  mesh.castShadow=true;mesh.receiveShadow=true;mesh.raycast=()=>{};
+  mesh.renderOrder=1;
+  mesh.castShadow=false;mesh.receiveShadow=true;mesh.raycast=()=>{};
   mesh.userData={visualOnly:true,physicalCliffPresentation:true,erodedRidge:true,
-   cliffUvMapping:'shared-sandstone-arc-length-v10'};
+   cliffUvMapping:'shared-sandstone-arc-length-v10',
+   cliffFootBlend:'rise-normalized-vertex-alpha-v1'};
   scene.add(mesh);meshes.push(mesh);
  }
  // 1–3 instanced PBR groups for the entire map; no per-rock draw calls.
