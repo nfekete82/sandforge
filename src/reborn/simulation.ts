@@ -1348,12 +1348,12 @@ export class Simulation {
    * The same radius, defender contest and enemy-HQ rules govern ownership. */
   captureReadiness(t:Territory,owner:Faction=0):CaptureReadiness {
     if(t.owner===owner)return 'owned';
-    const friendly=this.units.filter(u=>u.owner===owner&&u.hp>0&&!u.carrier&&u.kind!=='drone');
+    const friendly=this.units.filter(u=>u.owner===owner&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&u.kind!=='harvester');
     if(!friendly.length)return 'no-unit';
     const radius=capturePresenceRadius(this.world.mapVersion);
     const inside=friendly.some(u=>distance(u,t.point)<=radius);
     if(!inside)return friendly.some(u=>distance(u,t.point)<=radius+120)?'out-of-range':'no-unit';
-    if(this.units.some(u=>u.owner!==owner&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&distance(u,t.point)<=radius))return 'contested';
+    if(this.units.some(u=>u.owner!==owner&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&u.kind!=='harvester'&&distance(u,t.point)<=radius))return 'contested';
     if(this.bases.some(b=>b.kind==='headquarters'&&b.territory===t.id&&b.owner!==owner&&b.hp>0))return 'enemy-hq';
     return 'capturing';
   }
@@ -2930,7 +2930,7 @@ export class Simulation {
     const captureRadius=capturePresenceRadius(this.world.mapVersion);
     for(const t of this.territories){
       // Use the same modern 3D Bastion ring as captureReadiness and RMB.
-      const nearby=this.spatial.query(t.point,captureRadius).filter(u=>u.hp>0&&!u.carrier&&u.kind!=='drone');
+      const nearby=this.spatial.query(t.point,captureRadius).filter(u=>u.hp>0&&!u.carrier&&u.kind!=='drone'&&u.kind!=='harvester');
       const blue=nearby.some(u=>u.owner===0),red=nearby.some(u=>u.owner===1);
       if(blue&&red)continue;
       const owner:Owner=blue?0:red?1:-1;
@@ -2958,7 +2958,7 @@ export class Simulation {
     if(this.centralBastionId!==null){
       const middle=this.territories[this.centralBastionId];
       const contested=middle.capturing>=0||this.spatial.query(middle.point,RULES.captureRadius)
-        .some(u=>u.hp>0&&!u.carrier&&u.kind!=='drone'&&middle.owner>=0&&u.owner!==middle.owner);
+        .some(u=>u.hp>0&&!u.carrier&&u.kind!=='drone'&&u.kind!=='harvester'&&middle.owner>=0&&u.owner!==middle.owner);
       const previous=this.centralHold.owner;
       this.centralHold=advanceCentralHold(this.centralHold,middle.owner,contested,dt);
       if(previous!==this.centralHold.owner){
