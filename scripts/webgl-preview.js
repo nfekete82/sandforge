@@ -240,6 +240,32 @@ function setSimulationSpeed(value){
  return simulationSpeed;
 }
 if(speedControl)speedControl.addEventListener('change',()=>setSimulationSpeed(speedControl.value));
+// Action-only tactical scan targets the current camera focus. Paid, finite
+// fog visibility. No mouse selection interception or developer map reveal.
+const actionScanButton=$('action-scan');
+if(actionScanButton){
+ actionScanButton.hidden=game.balancePreset!=='action';
+ actionScanButton.onclick=()=>{
+  if(!running)return;
+  const focus={x:Math.max(1,Math.min(size-1,controls.target.x+half)),
+   y:Math.max(1,Math.min(size-1,controls.target.z+half))};
+  if(game.useActionReconScan(focus)){
+   battlefield.updateFog();
+   battlefield.message('SCAN AKTIV · Kameramitte · 9 s · 180 Credits');
+  }else battlefield.message('SCAN NICHT BEREIT · Hauptquartier, Credits oder Cooldown prüfen.');
+  refreshActionScanButton();
+ };
+}
+function refreshActionScanButton(){
+ if(!actionScanButton||game.balancePreset!=='action')return;
+ const seconds=Math.max(0,Math.ceil(game.actionScanReadyAt-game.time));
+ const ready=running&&game.status==='playing'&&game.hasHeadquarters(0)&&
+  game.credits[0]>=180&&!seconds;
+ actionScanButton.disabled=!ready;
+ actionScanButton.textContent=seconds?'SCAN · '+seconds+' s':'SCAN · 180 C';
+ actionScanButton.title='Aufklärung über Kameramitte · 630 M Radius, 9 s Dauer · 180 Credits · 90 s Cooldown';
+}
+refreshActionScanButton();
 let pauseSource=query.get('pause')==='1'?'URL-Parameter pause=1':'';
 // Distinguish a deliberate pause or an ended battle from an animation stall.
 // Previously all three looked identical: stationary soldiers on screen.
@@ -1509,6 +1535,7 @@ function animate(now){
   updateSimulationBanner();
   $('fps').textContent=String(Math.round(frames/elapsed));frames=0;elapsed=0;
   $('clock').textContent=Math.floor(game.time)+' s';
+  refreshActionScanButton();
  }
 }
 renderer.setAnimationLoop(animate);
