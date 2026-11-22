@@ -196,8 +196,16 @@ cpSync('src/assets', 'dist/src/assets', {recursive:true});
 try{
  execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs',shippedBuildingDir],{stdio:'inherit'});
 }catch(error){
- if(process.env.SANDFORGE_REQUIRE_FINAL_PBR==='1')throw error;
- console.warn('Final HQ/Barracks PBR source not mounted. Using tracked pre-Meshy GLBs instead.');
+ // CI has no access to local authored PBR worktrees. It may exercise
+ // mechanics using the tracked placeholder geometry, but a local playable
+ // build must never silently downgrade its visible HQ and barracks.
+ const allowFallback=process.env.SANDFORGE_ALLOW_PLACEHOLDER_BUILDINGS==='1'||
+   process.env.CI==='true'&&process.env.SANDFORGE_REQUIRE_FINAL_PBR!=='1';
+ if(!allowFallback)throw new Error(
+  'Final PBR HQ/Barracks models are unavailable. '+
+  'Mount ~/Projects/sandforge-style-test or set SANDFORGE_COMBINED_PBR_SOURCE. '+
+  'Use SANDFORGE_ALLOW_PLACEHOLDER_BUILDINGS=1 only for an explicit test build.',{cause:error});
+ console.warn('TEST-ONLY: Final PBR sources unavailable; retaining old placeholder models.');
 }
 console.log('Sandforge buildings restored to:',BUILDING_ART_REFERENCE);
 // The Bastion, unlike the authored large HQ/barracks binaries, is fully
