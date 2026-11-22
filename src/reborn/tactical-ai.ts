@@ -1777,7 +1777,8 @@ export class TacticalAI {
       let pathChecks=0;
       const targetApproach=(p:Point):boolean=>{
        const radius=Math.max(600,Math.min(840,UNITS.artillery.range*.80));
-       const lineBlockers=obstacles.filter(b=>b.id!==intel.id);
+       // Navigation colliders have geometry, not IDs; omit only the observed target's own footprint.
+       const lineBlockers=obstacles.filter(b=>distance(b,intel)>1);
        for(let step=0;step<8;step++){
         const angle=step*Math.PI/4;
         const wanted={
