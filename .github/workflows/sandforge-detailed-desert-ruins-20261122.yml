@@ -7,6 +7,7 @@ on:
       - scripts/webgl-desert-village.js
       - scripts/webgl-preview.js
       - scripts/webgl-raised-mesa-cliffs.js
+      - scripts/webgl-landscape-network.js
       - scripts/build.mjs
       - tests/sandforge-detailed-desert-ruins-20261122.test.mjs
       - tests/sandforge-modern-desert-village-models-20261122.test.mjs
