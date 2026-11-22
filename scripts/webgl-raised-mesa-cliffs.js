@@ -161,10 +161,10 @@ function createNaturalDesertStrikeCliffs({
  const radial=[-.13,-.075,-.025,.025,.075,.13,.19,.26,.34,.43,
   .52,.61,.70,.78,.85,.91,.97,1.04,1.12,1.19];
  const pi=Math.PI,stone=[
-  new THREE.Color('#d7b482'), // pale dusty, upper rim
-  new THREE.Color('#b88d60'), // ochre fractured rock
-  new THREE.Color('#a5784e'), // shadowed recesses
-  new THREE.Color('#d2aa77')  // sandy foot
+  new THREE.Color('#c6a476'), // warm rim, subtly darker
+  new THREE.Color('#a87b52'), // original fractured sandstone, ~10% deeper
+  new THREE.Color('#775537'), // deeper shaded crevices, not painted stripes
+  new THREE.Color('#ba9166')  // natural sandy foot blend
  ];
  const lerp=(a,b,t)=>a+(b-a)*t;
  const makeIntersection=(a,b)=>{
@@ -310,7 +310,7 @@ function createNaturalDesertStrikeCliffs({
    '#include <color_fragment>',
    '#include <color_fragment>\ndiffuseColor.a *= clamp(vSfCliffBlend,0.0,1.0);');
  };
- material.customProgramCacheKey=()=> 'sandforge-desert-strike-physical-cliff-softblend-v2';
+ material.customProgramCacheKey=()=> 'sandforge-desert-strike-natural-shadowed-cliff-v3';
  const mesh=new THREE.Mesh(geometry,material);
  mesh.name='Sandforge-Desert-Strike-Natural-Stratified-Cliffs';
  mesh.userData={
