@@ -8,6 +8,7 @@ import {generateRollingHills,standsOnHill,HIGH_GROUND_SIGHT_MULTIPLIER,type Roll
 import { profiler } from './performance.js';
 import { RULES, WEATHER_RULES, clamp, distance, type Faction, type Owner, type Point, type MapVersion, mapLayout, campaignLayout, mapWorldSize } from './config.js';
 import { World, inside, type Territory } from './world.js';
+import {designateCentralBastion,advanceCentralHold,CENTRAL_HOLD_SECONDS,type CentralHold} from './central-bastion.js';
 import {visibleBasePropColliders} from './vehicle-decor-collision.js';
 import {vehicleStructureCollider,vehicleStructureColliders} from './vehicle-structure-collision.js';
 import {infantryStructureCollider,infantryStructureColliders} from './infantry-structure-collision.js';
@@ -128,6 +129,7 @@ export interface Save {
   strategicMissiles?:StrategicMissile[];
   /** Ever established a living structure (even if later destroyed). */
   hadBuildings?:[boolean,boolean];
+  centralHold?:CentralHold;
   /** Finite neutral supply stocks; missing in old saves -> new seeded sites. */
   supplyCaches?:SupplyCache[];
 }
@@ -462,6 +464,8 @@ export class Simulation {
   hadBuildings:[boolean,boolean]=[false,false];
   supplyCaches:SupplyCache[]=[];
   units:Unit[]=[]; bases:Base[]=[]; territories:Territory[];
+  centralBastionId:number|null=null;
+  centralHold:CentralHold={owner:-1,seconds:0};
   visible=[new Uint8Array(RULES.grid**2),new Uint8Array(RULES.grid**2)];
   explored=[new Uint8Array(RULES.grid**2),new Uint8Array(RULES.grid**2)];
   memories:Memory[][]=[[],[]]; shots:Shot[]=[]; notices:string[]=[];
@@ -706,6 +710,7 @@ export class Simulation {
   /** The original constructor remains a deterministic legacy fixture/save reader. */
   constructor(seed=2026,mapVersion:MapVersion=0,weatherEnabled=false,bootstrap=false,profile?:TerrainProfile,generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR) {
     this.bootstrapVersion=bootstrap?1:undefined;this.seed=seed;this.weather=new Weather(seed,weatherEnabled);this.world=new World(seed,mapVersion,profile,0,generatorVersion);this.territories=this.world.territories(seed);
+    this.centralBastionId=designateCentralBastion(this.world,this.territories);
     if(mapVersion>=3)this.credits=[950,950];
     this.hills=mapVersion>=23?[]:generateRollingHills(seed,mapVersion,this.world.size,
       this.world.generated?.sites??[],this.world.generated?.ruins??[]);
@@ -2942,6 +2947,18 @@ export class Simulation {
         this.revision++;
       }
     }
+    if(this.centralBastionId!==null){
+      const middle=this.territories[this.centralBastionId];
+      const contested=middle.capturing>=0||this.spatial.query(middle.point,RULES.captureRadius)
+        .some(u=>u.hp>0&&!u.carrier&&u.kind!=='drone'&&middle.owner>=0&&u.owner!==middle.owner);
+      const previous=this.centralHold.owner;
+      this.centralHold=advanceCentralHold(this.centralHold,middle.owner,contested,dt);
+      if(previous!==this.centralHold.owner){
+        this.notices.push(middle.owner===0?'ZENTRALBASTION EROBERT – 15:00 halten!':
+          middle.owner===1?'ZENTRALBASTION VERLOREN – Gegner startet 15:00 Countdown!':
+          'ZENTRALBASTION NEUTRAL – Countdown zurückgesetzt.');
+      }
+    }
     this.aiClock+=dt;
     const fullPlan=this.time>=RULES.aiOpeningDelay||this.needsHeadquarters(1);
     // Start genuinely paid modern economy as soon as its HQ is operational,
@@ -2961,6 +2978,8 @@ export class Simulation {
     // a faction constructs ANY building, its starting HQ-less army is safe.
     // Destroyed HQ capture stubs (HP=0) never block the result.
     this.status=eliminationOutcome(this.units,this.bases,this.hadBuildings);
+    if(this.centralHold.owner!==-1&&this.centralHold.seconds>=CENTRAL_HOLD_SECONDS)
+      this.status=this.centralHold.owner===0?'victory':'defeat';
     if(this.testMode)this.credits[0]=Simulation.TEST_CREDITS;
   }
   // The tactical director runs every three simulated seconds and can be the
@@ -3001,7 +3020,7 @@ export class Simulation {
     return structuredClone({version:2,...(this.world.generated?.battlefield?{terrainProfile:this.world.generated.battlefield.profile,generatorVersion:this.world.generated.battlefield.generatorVersion}:{}),...(this.bootstrapVersion?{bootstrapVersion:this.bootstrapVersion}:{}),weatherVersion:1,productionVersion:1,supportVersion:1,rosterVersion:2,missiles:this.missiles,seed:this.seed,mapVersion:this.world.mapVersion,time:this.time,nextId:this.nextId,credits:this.credits,incomeClock:this.incomeClock,
       units:this.units,bases:this.bases,territories:this.territories,explored:this.explored.map(a=>Array.from(a)),memories:this.memories,aiClock:this.aiClock,ai:this.tactical.state,status:this.status,stats:this.stats,
       research:this.research,strategicMissiles:this.strategicMissiles,
-      hadBuildings:this.hadBuildings});
+      hadBuildings:this.hadBuildings,centralHold:this.centralHold});
   }
   static load(raw:unknown,weatherEnabled=false):Simulation {
     const s=migrateTransportRoster(raw) as Save;
@@ -3024,7 +3043,10 @@ export class Simulation {
           c.lastPickupAt<0||c.lastPickupAt>s.time+.001))||
          (c.restockClock!==undefined&&(!finite(c.restockClock)||
           c.restockClock<0||c.restockClock>SUPPLY_RESTOCK_INTERVAL+.001)))))||
-      (s.hadBuildings!==undefined&&(!Array.isArray(s.hadBuildings)||
+      (s.centralHold!==undefined&&(!s.centralHold||![-1,0,1].includes(s.centralHold.owner)||
+         !finite(s.centralHold.seconds)||s.centralHold.seconds<0||s.centralHold.seconds>CENTRAL_HOLD_SECONDS||
+         (s.centralHold.owner===-1&&s.centralHold.seconds!==0)))||
+       (s.hadBuildings!==undefined&&(!Array.isArray(s.hadBuildings)||
         s.hadBuildings.length!==2||s.hadBuildings.some(value=>typeof value!=='boolean')))||
       (s.strategicMissiles!==undefined&&(!Array.isArray(s.strategicMissiles)||
         s.strategicMissiles.length>12||
@@ -3068,6 +3090,11 @@ export class Simulation {
         !validBastionUpgradeState(t)||!finite(t.progress)||t.progress<0||t.progress>8))throw new Error('Dieser Spielstand ist beschädigt oder gehört zu einer anderen Version.');
     const game=new Simulation(s.seed,s.mapVersion??0,weatherEnabled,s.bootstrapVersion===1,s.terrainProfile,s.generatorVersion??1);
     game.time=s.time;
+     if(game.centralBastionId!==null){
+       const centralOwner=s.territories?.[game.centralBastionId]?.owner;
+       game.centralHold=s.centralHold&&s.centralHold.owner===centralOwner?
+         {...s.centralHold}:{owner:centralOwner??-1,seconds:0};
+     }
     game.research=structuredClone(research) as [ResearchState,ResearchState];
     game.stats=s.stats?structuredClone(s.stats):newMatchStatistics();
     // v1 match statistics predate the rocket specialist. Supply its zero count
@@ -3143,6 +3170,8 @@ export class Simulation {
     // This also finishes a save taken immediately after the final enemy
     // structure was destroyed but before the next fixed simulation tick.
     game.status=eliminationOutcome(game.units,game.bases,game.hadBuildings);
+     if(game.centralHold.owner!==-1&&game.centralHold.seconds>=CENTRAL_HOLD_SECONDS)
+       game.status=game.centralHold.owner===0?'victory':'defeat';
     game.spatial.rebuild(game.units);game.updateVision();return game;
   }
 }
