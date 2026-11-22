@@ -1,0 +1,61 @@
+name: Sandforge main · independent release healthcheck 2026-11-22
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-main-healthcheck-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  main-smoke:
+    name: Main build, 3D game, six deserts, assets and save compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - name: Production TypeScript and WebGL compilation
+        run: npm run build
+      - name: Infantry and actual HUD portrait integration
+        run: node --test tests/webgl-human-infantry-20261121.test.mjs
+      - name: Bastion upgrade, modern map navigation and sparse desert tracks
+        run: |
+          node --test \
+            tests/sandforge-bastion-direct-click-upgrade-hud-20261122.test.mjs \
+            tests/sandforge-discontinuous-desert-tracks-20261122.test.mjs \
+            tests/sandforge-desert-strike-natural-cliffs-20261122.test.mjs \
+            tests/sandforge-central-four-ramp-mesas-v10-20261121.test.mjs
+      - name: All fixed desert maps and historical saves
+        run: |
+          node --test \
+            tests/sandforge-four-desert-maps-20261120.test.mjs \
+            tests/sandforge-five-deserts-height-relief-v8-20261121.test.mjs \
+            tests/sandforge-playable-mesa-highlands-20261121.test.mjs
+      - name: Baseline campaign and simulation
+        run: node --test tests/reborn.test.mjs tests/reborn-campaign.test.mjs
+      - name: Legacy AI regression diagnosis, do not hide failures
+        id: legacy-ai
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p reports
+          set -o pipefail
+          node --test tests/reborn-combat-missions.test.mjs tests/reborn-commander.test.mjs | tee reports/main-legacy-ai-tests.tap
+      - name: Upload legacy AI failures as raw evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-legacy-ai-regressions-20261122
+          path: reports/main-legacy-ai-tests.tap
+          if-no-files-found: warn
+          retention-days: 14
