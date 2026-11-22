@@ -117,7 +117,7 @@ export function chooseEndgameVisionPost(x:{
 export function attemptEndgameStandoff(confirmedCleanup:boolean,observedObjective:boolean,directLineClear:boolean):boolean{
  return confirmedCleanup&&observedObjective&&!directLineClear;
 }
-const combat=(u:Unit)=>u.hp>0&&!u.carrier&&!['medic','engineer','scout','supply','drone'].includes(u.kind);
+const combat=(u:Unit)=>u.hp>0&&!u.carrier&&!['medic','engineer','scout','supply','drone','harvester'].includes(u.kind);
 const frontRole=(u:Unit)=>combat(u)&&u.kind!=='artillery'&&!unitSpec(u).flying;
 export const combatStrength=(u:Unit)=>u.kind==='drone'?0:u.hp/100*Math.pow((unitSpec(u).damage/unitSpec(u).cooldown)/(17/.85),.35);
 /** Earlier retreats require a real living medic and confirmed enemy HQ loss. */
