@@ -37,7 +37,7 @@ import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
-import {actionBastionProbePolicy,ACTION_BALANCE} from './action-balance.js';
+import {actionBastionProbePolicy,actionBastionGoalScore,ACTION_BALANCE} from './action-balance.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -2301,7 +2301,11 @@ export class TacticalAI {
    :null;
   const action=actionOpening?actionBastionProbePolicy({
    preset:g.balancePreset,mapVersion:g.world.mapVersion,time:g.time,
-   available:ready.length,blue,red,observedHomeThreat:seen.some(u=>
+   available:ready.length,blue,red,
+   // Bastion ownership and neighbor graph are public; no hidden HQ discovery.
+   frontierEnemy:g.territories.filter(t=>t.owner===0&&
+     t.neighbors.some(id=>g.territories[id]?.owner===1)).length,
+   observedHomeThreat:seen.some(u=>
     g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<550))
   }):null;
   const counter=action?.counter??large?.counter??(blue>=3&&red<=1&&g.time>=30&&ready.length>=5);
@@ -2345,9 +2349,16 @@ export class TacticalAI {
      (counter||!s.openingContests!.some(e=>e.sectorId===t.id)))
     .map(t=>({t,p:approach(squad[0],t)})).filter(x=>x.p)
     .sort((a,b)=>{
-     const merit=(v:typeof a)=>
-      distance(squad[0],v.p!)-v.t.income*8-
-      (adaptiveLarge&&counter&&v.t.owner===0?700:0);
+     const merit=(v:typeof a)=>actionOpening
+      ?actionBastionGoalScore({
+        pathDistance:distance(squad[0],v.p!),income:v.t.income,
+        owner:v.t.owner,
+        frontierRed:v.t.neighbors.some(id=>g.territories[id]?.owner===1),
+        frontierBlue:v.t.neighbors.some(id=>g.territories[id]?.owner===0),
+        counter
+       })
+      :distance(squad[0],v.p!)-v.t.income*8-
+       (adaptiveLarge&&counter&&v.t.owner===0?700:0);
      return merit(a)-merit(b)||a.t.id-b.t.id;
     });
    const best=goals.find(x=>squad.every(u=>approach(u,x.t)));
