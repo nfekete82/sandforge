@@ -138,7 +138,7 @@ test('elevated sandstone ridge foot has a true alpha fade into sand, not an opaq
  cliff.material.onBeforeCompile(shader);
  assert.match(shader.fragmentShader,/diffuseColor.a \*= clamp\(vSfRidgeFade/);
  assert.match(shader.fragmentShader,/sfRib=pow/,'narrow downhill fissure pigment should compile');
- assert.match(shader.fragmentShader,/sfBeds=1\.0-smoothstep/,'irregular strata should compile');
+ assert.match(shader.fragmentShader,/sfBeds=\(1\.0-smoothstep/,'irregular sparse strata should compile');
  assert.match(shader.vertexShader,/vSfRidgeErosionUV=uv/);
  for(const m of meshes){m.removeFromParent();m.geometry.dispose();m.material.dispose();}
 });
