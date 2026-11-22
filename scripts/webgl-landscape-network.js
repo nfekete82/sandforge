@@ -245,7 +245,11 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
    return offsets.map((offset,j)=>{
     const jitter=1+.082*Math.sin(phase*1.38+offset*5.7)+
       .057*Math.cos(phase*2.17-offset*8);
-    const relief=sandstoneRidgeFaceRelief(center.along,offset,seed);
+    // Preserve other biome cliff silhouettes; fractured sandstone is
+    // specifically for authored desert scenery.
+    const relief=biome==='desert'
+      ?sandstoneRidgeFaceRelief(center.along,offset,seed)
+      :{fissure:0,horizontal:0,heightFactor:1};
     const side= ridge.width*offset*jitter+
       Math.sign(offset)*relief.horizontal;
     const x=center.x+nx*side,z=center.z+nz*side;
@@ -381,8 +385,10 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
      'float sfBeds=1.0-smoothstep(.035,.19,'+
      'abs(sin(vSfRidgeErosionUV.y*6.3+'+
      '.31*sin(vSfRidgeErosionUV.x*1.3))));'+nl+
-     'diffuseColor.rgb*=1.0-clamp(vSfRidgeFade,0.0,1.0)*'+
-     '(.25*sfRib+.12*sfBeds);'+nl+
+     (biome==='desert'
+      ?'diffuseColor.rgb*=1.0-clamp(vSfRidgeFade,0.0,1.0)*'+
+       '(.25*sfRib+.12*sfBeds);'+nl
+      :'')+
      'diffuseColor.a *= clamp(vSfRidgeFade,0.0,1.0);');
   };
   material.customProgramCacheKey=()=> 'sandforge-eroded-ridge-relief-and-sand-transition-v2';
@@ -393,7 +399,7 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
   mesh.userData={visualOnly:true,physicalCliffPresentation:true,erodedRidge:true,
    cliffUvMapping:'shared-sandstone-arc-length-v10',
    cliffFootBlend:'rise-normalized-vertex-alpha-v1',
-   cliffErosion:'physical-ribs-fissures-and-sediment-beds-v2'};
+   cliffErosion:biome==='desert'?'physical-ribs-fissures-and-sediment-beds-v2':'disabled'};
   scene.add(mesh);meshes.push(mesh);
  }
  // 1–3 instanced PBR groups for the entire map; no per-rock draw calls.
