@@ -4,8 +4,8 @@ import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {UNITS} from '../dist/src/reborn/catalog.js';
 
-function cornerScenario(kind='tank'){
- const g=new Simulation(20261122,24,false,false,undefined,10);
+function cornerScenario(kind='tank',generatorVersion=10){
+ const g=new Simulation(20261122,24,false,false,undefined,generatorVersion);
  g.units=[];g.bases=[];g.territories=[];g.hadBuildings=[false,false];
  g.aiClock=1e8;g.tactical.plan=()=>{};
  g.world.blocked.fill(0);g.world.opaque.fill(0);g.world.components.fill(0);
@@ -62,7 +62,7 @@ test('corner recovery respects combat, hold, cargo and stopped formations',()=>{
 test('no recovery waypoint may cross an unbroken physical cliff',()=>{
  const {g,tank,goal}=cornerScenario();
  // Surround the vehicle with steep slopes rather than only one side.
- g.world.terrainSlope=(x,y)=>Math.hypot(x-tank.x,y-tank.y)>24?.38:.04;
+ g.world.terrainSlope=(x,y)=>Math.hypot(x-tank.x,y-tank.y)>17?.38:.04;
  blockedContact(g,tank,goal);
  blockedContact(g,tank,goal);
  assert.equal(tank.path.length,0,'zero physically legal escape points => no ghost movement');
@@ -97,8 +97,7 @@ test('collision recovery is guarded and does not change old-map navigation',()=>
  assert.match(src,/this\.world\.line\(u,q,collisionObstacles,clearance,slopeLimit\)/);
  assert.match(src,/u\.orders\[0\]/);
  assert.match(src,/u\.path=\[detour\]/);
- const {g,tank,goal}=cornerScenario();
- Object.defineProperty(g.world,'generatorVersion',{value:6});
+ const {g,tank,goal}=cornerScenario('tank',6);
  blockedContact(g,tank,goal);
  blockedContact(g,tank,goal);
  assert.equal(tank.path.length,0,'legacy maps retain original handling');
