@@ -41,11 +41,19 @@ export function wallDragSegments(start,end,mapSize,{axis=null,limit=WALL_CHAIN_M
  const cross=clamp(crossStart,WALL_EDGE_SHORT,mapSize-WALL_EDGE_SHORT);
  const sign=endPos<startPos?-1:1;
  const span=Math.abs(endPos-startPos);
- const count=Math.min(Math.max(1,Math.floor(limit)),Math.floor(span/WALL_CHAIN_PITCH)+1);
+ const maxCount=Math.max(1,Math.floor(limit));
+ const target=sign>0?mapSize-WALL_EDGE_LONG:WALL_EDGE_LONG;
+ const nearEdge=Math.abs(endPos-target)<=WALL_EDGE_LONG;
+ const count=nearEdge?
+  Math.min(maxCount,Math.max(1,Math.round(span/WALL_CHAIN_PITCH)+1)):
+  Math.min(maxCount,Math.floor(span/WALL_CHAIN_PITCH)+1);
+ // Keep true 109-unit spacing and align the final wall against the edge.
+ const alignedStart=nearEdge&&count<maxCount?
+  clamp(target-sign*(count-1)*WALL_CHAIN_PITCH,WALL_EDGE_LONG,mapSize-WALL_EDGE_LONG):startPos;
  const facing=dominant==='x'?0:2;
  return Array.from({length:count},(_,i)=>({
   point:dominant==='x'?
-   {x:startPos+sign*i*WALL_CHAIN_PITCH,y:cross}:
+   {x:alignedStart+sign*i*WALL_CHAIN_PITCH,y:cross}:
    {x:cross,y:startPos+sign*i*WALL_CHAIN_PITCH},
   facing
  }));
@@ -70,4 +78,20 @@ export function validatedWallDrag(game,start,end,owner=0,{axis=null,limit=WALL_C
   return {point,facing,valid:!reason,reason};
  });
  return {segments,buildable,stopReason};
+}
+
+/** Non-mutating lookup of two adjoining completed walls for gate retrofit. */
+export function gateRetrofitAt(game,point,owner=0){
+ if(!point)return null;
+ let best=null;
+ for(const wall of game.bases??[]){
+  if(wall.owner!==owner||wall.kind!=='wall'||wall.hp<=0||wall.buildRemaining>0)continue;
+  const partner=game.findWallGatePartner(owner,wall.id);
+  if(!partner)continue;
+  const center={x:(wall.x+partner.x)*.5,y:(wall.y+partner.y)*.5};
+  const distance=Math.hypot(center.x-point.x,center.y-point.y);
+  if(distance>80||(best&&distance>=best.distance))continue;
+  best={wall,partner,center,distance,facing:wall.facing??0};
+ }
+ return best;
 }
