@@ -239,7 +239,7 @@ export class TacticalAI {
   this.sectorPreference={sectorId,until:this.g.time+35};return true;
  }
  restore(state:TacticalState|undefined):void{
-  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.ai45SiegeRallyRetryAt=-1e6;this.ai45RecoveredMissionSince=-1;this.ai45RallyRescues=0;this.ai46CaptureApproach=null;this.ai45DecisionTrace=[];this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
+  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.ai45SiegeRallyRetryAt=-1e6;this.ai45RecoveredMissionSince=-1;this.ai45RallyRescues=0;this.ai46VanguardOrders=0;this.ai46CaptureApproach=null;this.ai45DecisionTrace=[];this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
   if(!state)for(const m of this.g.memories[1])if(m.owner===0&&
     (m.kind==='turret'||m.kind==='bunker')&&m.hp>0)
