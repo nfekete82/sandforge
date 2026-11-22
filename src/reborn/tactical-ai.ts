@@ -1487,7 +1487,8 @@ export class TacticalAI {
    .sort((a,v)=>(a.kind==='rover'?0:1)-(v.kind==='rover'?0:1)||a.id-v.id).slice(0,2);
   if(party.length!==2)return new Set();
   const anchor={x:(party[0].x+party[1].x)/2,y:(party[0].y+party[1].y)/2};
-  const frontier=g.territories.filter(t=>t.owner!==1&&t.id!==main.sector
+  const frontier=g.territories.filter(t=>t.owner!==1&&t.id!==main.sector&&
+    canCaptureSector(g.territories,t,1,g.world.mapVersion)
     &&(t.neighbors.some(id=>g.territories[id].owner===1)
       ||comeback&&canCaptureSector(g.territories,t,1,g.world.mapVersion)));
   const fronts:RaidFront[]=[];
@@ -2221,7 +2222,8 @@ export class TacticalAI {
    ?mapBastionContestOpening(g.world.mapVersion,g.time,blue,red,ready.length)
    :null;
   const counter=large?.counter??(blue>=3&&red<=1&&g.time>=30&&ready.length>=5);
-  const targets=g.territories.filter(t=>t.owner===-1||counter&&t.owner===0);
+  const targets=g.territories.filter(t=>(t.owner===-1||counter&&t.owner===0)&&
+    canCaptureSector(g.territories,t,1,g.world.mapVersion));
   const maxAssigned=large?.slots??(counter?2:ready.length>=3?2:ready.length?1:0);
   if(!targets.length||!maxAssigned){s.openingContests=[];return new Set();}
   const blockers=[...this.obstacles(),...g.bastionColliders()];
