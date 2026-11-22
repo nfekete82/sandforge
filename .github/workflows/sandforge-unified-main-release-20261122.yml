@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - integration/sandforge-unified-infantry-cliffs-hud-20261122
+      - main
   pull_request:
     branches:
       - main
