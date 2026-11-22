@@ -716,8 +716,8 @@ export class Simulation {
   constructor(seed=2026,mapVersion:MapVersion=0,weatherEnabled=false,bootstrap=false,profile?:TerrainProfile,generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR) {
     this.bootstrapVersion=bootstrap?1:undefined;this.seed=seed;this.weather=new Weather(seed,weatherEnabled);this.world=new World(seed,mapVersion,profile,0,generatorVersion);this.territories=this.world.territories(seed);
     this.centralBastionId=designateCentralBastion(this.world,this.territories);
-    this.veyritFields=createVeyritFields(this.world,this.territories,seed);
-    if(mapVersion>=3)this.credits=[950,950];
+    if(mapVersion>=23)this.credits=[1450,1450];
+    else if(mapVersion>=3)this.credits=[950,950];
     this.hills=mapVersion>=23?[]:generateRollingHills(seed,mapVersion,this.world.size,
       this.world.generated?.sites??[],this.world.generated?.ruins??[]);
     const layout=campaignLayout(mapVersion,seed);
@@ -737,7 +737,9 @@ export class Simulation {
       this.spawn(owner,p,'engineer');
     }
     for(const b of this.bases)if(b.hp>0)this.hadBuildings[b.owner]=true;
-    // Bastions replace finite neutral stockpiles as the income objectives.
+    this.veyritFields=createVeyritFields(this.world,this.territories,seed,
+      this.bases.filter(b=>b.kind==='headquarters'&&b.hp>0));
+    // Veyrit fields replace secondary Bastion income on modern maps.
     // All modern maps now earn credits through bastions, not neutral depots.
 
     // Select a tested public-map doctrine only on an EXACT fixed-map
@@ -881,7 +883,8 @@ export class Simulation {
   private bastionNavigationCache?:{x:number;y:number;radius:number}[];
   bastionColliders():{x:number;y:number;radius:number}[]{
     return this.bastionNavigationCache??=
-      bastionStructureColliders(this.territories,this.world.mapVersion);
+      bastionStructureColliders(this.centralBastionId===null?this.territories:
+        this.territories.filter(t=>t.id===this.centralBastionId),this.world.mapVersion);
   }
   spawn(owner:Faction,p:Point,kind:UnitKind='infantry'):Unit {
     while(this.bases.some(b=>b.id===this.nextId))this.nextId++;
@@ -895,14 +898,18 @@ export class Simulation {
   income(owner:Faction):number {
     return this.bases.filter(b=>b.owner===owner&&b.hp>0&&b.buildRemaining<=0).reduce((n,b)=>
       n+buildingSpec(b).income,0)+
-      this.territories.filter(t=>t.owner===owner).reduce((n,t)=>n+bastionEffectiveIncome(t),0);
+      this.territories.filter(t=>t.owner===owner&&
+        (this.centralBastionId===null||t.id===this.centralBastionId))
+         .reduce((n,t)=>n+bastionEffectiveIncome(t),0);
   }
   /** Spend real credits for exactly one extra Bastion income tier.
    * No home-sector rush: paid upgrades apply only to captured forward sites.
    */
   upgradeBastion(owner:Faction,id:number):boolean{
     const t=this.territories.find(t=>t.id===id);
-    if(this.status!=='playing'||!t||this.credits[owner]<BASTION_UPGRADE_COST||
+    if(this.status!=='playing'||!t||
+      (this.centralBastionId!==null&&id!==this.centralBastionId)||
+      this.credits[owner]<BASTION_UPGRADE_COST||
       !bastionUpgradable(t,owner,this.bases,
         campaignLayout(this.world.mapVersion,this.seed).headquarters))return false;
     this.credits[owner]-=BASTION_UPGRADE_COST;t.upgradeLevel=2;
@@ -953,7 +960,7 @@ export class Simulation {
     if(this.obstacles().some(b=>sitesVisuallyOverlap(
         kind,p,facing,b.kind,b,b.facing??0)))
       return 'Ein Gebäude oder eine vorhandene Mauer blockiert die Strecke.';
-    if(this.territories.some(t=>siteNearBastion(kind,p,facing,t.point)))
+    if(this.territories.some(t=>(this.centralBastionId===null||t.id===this.centralBastionId)&&siteNearBastion(kind,p,facing,t.point)))
       return 'Bastion oder Kontrollpunkt blockiert die Strecke.';
     const segments=wallColliderSamples({...p,kind,gateSpan:span},facing,24);
     if(this.units.some(u=>u.hp>0&&!u.carrier&&!unitSpec(u).flying&&
@@ -1027,9 +1034,8 @@ export class Simulation {
       ?sitesVisuallyOverlap(kind,p,facing,b.kind,b,b.facing??0)
       :distance(b,p)<constructionVisualClearance(kind,b.kind)))
       return 'Zu nah an einem anderen Gebäude.';
-    if(this.territories.some(t=>expandedSites
-      ?siteNearBastion(kind,p,facing,t.point)
-      :distance(t.point,p)<spec.radius+45))
+    if(this.territories.some(t=>(this.centralBastionId===null||t.id===this.centralBastionId)&&
+      (expandedSites?siteNearBastion(kind,p,facing,t.point):distance(t.point,p)<spec.radius+45)))
       return 'Bastion und Kontrollpunkt brauchen mehr Abstand.';
     // Placement and actual navigation must agree: the visible facade is wider
     // and offset north of Base.radius. A worker can otherwise be inside the
@@ -1325,7 +1331,7 @@ export class Simulation {
       }
       // Bastion right-clicks are capture orders: even a 48-unit formation must
       // stop INSIDE the capture circle, not in decorative slots beyond it.
-      const captureSite=this.territories.some(t=>distance(t.point,order)<1);
+      const captureSite=this.territories.some(t=>(this.centralBastionId===null||t.id===this.centralBastionId)&&distance(t.point,order)<1);
       if(captureSite){const length=Math.hypot(offset.x,offset.y),limit=RULES.captureRadius-30;
         if(length>limit){offset={x:offset.x*limit/length,y:offset.y*limit/length};}}
       const spec=unitSpec(u),p={x:order.x+offset.x,y:order.y+offset.y};
@@ -1347,6 +1353,7 @@ export class Simulation {
   /** Explain physical capture gating without altering the fixed-tick capture rules.
    * The same radius, defender contest and enemy-HQ rules govern ownership. */
   captureReadiness(t:Territory,owner:Faction=0):CaptureReadiness {
+    if(this.centralBastionId!==null&&t.id!==this.centralBastionId)return 'no-unit';
     if(t.owner===owner)return 'owned';
     const friendly=this.units.filter(u=>u.owner===owner&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&u.kind!=='harvester');
     if(!friendly.length)return 'no-unit';
@@ -1849,7 +1856,9 @@ export class Simulation {
       const visible=this.visible[owner];visible.fill(0);
       const sources=[...this.units.filter(u=>u.owner===owner&&u.hp>0&&!u.carrier).map(u=>({key:`u${u.id}`,x:u.x,y:u.y,sight:this.sight(u)*this.visionScale,close:unitSpec(u).radius+this.world.cell*2,air:unitSpec(u).flying})),
         ...this.bases.filter(b=>b.owner===owner&&b.hp>0).map(b=>({key:`b${b.id}`,x:b.x,y:b.y,sight:(b.buildRemaining>0?110:buildingSpec(b).sight)*this.visionScale,close:b.radius+this.world.cell*2,air:false})),
-        ...this.territories.filter(t=>t.owner===owner).map(t=>({key:`t${t.id}`,...t.point,sight:RULES.bastion.sight*this.visionScale,close:RULES.bastion.radius+this.world.cell*2,air:false}))];
+        ...this.territories.filter(t=>t.owner===owner&&
+          (this.centralBastionId===null||t.id===this.centralBastionId))
+          .map(t=>({key:`t${t.id}`,...t.point,sight:RULES.bastion.sight*this.visionScale,close:RULES.bastion.radius+this.world.cell*2,air:false}))];
       this.visionCache.update(this.world,owner,sources,visible);
       const discovered=new Set<number>();
       for(let i=0;i<visible.length;i++)if(visible[i]){this.explored[owner][i]=1;const cliff=this.world.cliffIds[i];if(cliff>=0)discovered.add(cliff);}
@@ -2681,7 +2690,8 @@ export class Simulation {
         // centered radius, not an accidental 8–20-unit tangent holding loop.
         // Keep the complete aircraft INSIDE the original 95-unit game
         // capture range, so the real ongoing capture is never interrupted.
-        const capturing=this.territories.filter(t=>t.owner!==u.owner&&
+        const capturing=this.territories.filter(t=>
+          (this.centralBastionId===null||t.id===this.centralBastionId)&&t.owner!==u.owner&&
           distance(u,t.point)<RULES.captureRadius-3)
           .sort((a,b)=>distance(u,a.point)-distance(u,b.point))[0];
         const sectorOrbit=capturing?bastionCaptureOrbit(u,capturing.point,
@@ -2929,6 +2939,7 @@ export class Simulation {
     let ownershipChanged=false;
     const captureRadius=capturePresenceRadius(this.world.mapVersion);
     for(const t of this.territories){
+      if(this.centralBastionId!==null&&t.id!==this.centralBastionId){t.capturing=-1;t.progress=0;continue;}
       // Use the same modern 3D Bastion ring as captureReadiness and RMB.
       const nearby=this.spatial.query(t.point,captureRadius).filter(u=>u.hp>0&&!u.carrier&&u.kind!=='drone'&&u.kind!=='harvester');
       const blue=nearby.some(u=>u.owner===0),red=nearby.some(u=>u.owner===1);
@@ -3018,7 +3029,7 @@ export class Simulation {
          if(refinery?.buildRemaining===0&&factory&&this.credits[1]>=UNITS.harvester.cost+200){
            const total=this.units.filter(u=>u.owner===1&&u.kind==='harvester'&&u.hp>0).length+
              this.bases.filter(b=>b.owner===1).reduce((sum,b)=>sum+b.queueTypes.filter(k=>k==='harvester').length,0);
-           if(total<2)this.recruit(factory.id,'harvester');
+           if(total<2)this.recruit(refinery.id,'harvester');
          }
          // Assign only otherwise idle combat units; tactical commitments stay intact.
          const central=this.centralBastionId===null?null:this.territories[this.centralBastionId];
@@ -3088,9 +3099,11 @@ export class Simulation {
           c.lastPickupAt<0||c.lastPickupAt>s.time+.001))||
          (c.restockClock!==undefined&&(!finite(c.restockClock)||
           c.restockClock<0||c.restockClock>SUPPLY_RESTOCK_INTERVAL+.001)))))||
-      (s.veyritFields!==undefined&&(!Array.isArray(s.veyritFields)||s.veyritFields.length>8||
-         s.veyritFields.some(f=>!f||!Number.isInteger(f.id)||f.id<0||f.id>5||
-           !finite(f.amount)||!finite(f.capacity)||f.capacity!==4200||f.amount<0||f.amount>f.capacity||!point(f))))||
+      (s.veyritFields!==undefined&&(!Array.isArray(s.veyritFields)||s.veyritFields.length>16||
+         s.veyritFields.some(f=>!f||!Number.isInteger(f.id)||f.id<0||f.id>=16||
+           !finite(f.amount)||!finite(f.capacity)||f.capacity<=0||f.capacity>8000||
+           f.amount<0||f.amount>f.capacity||!point(f)||
+           (f.radius!==undefined&&(!finite(f.radius)||f.radius<100||f.radius>300)))))||
        (s.centralHold!==undefined&&(!s.centralHold||![-1,0,1].includes(s.centralHold.owner)||
          !finite(s.centralHold.seconds)||s.centralHold.seconds<0||s.centralHold.seconds>CENTRAL_HOLD_SECONDS||
          (s.centralHold.owner===-1&&s.centralHold.seconds!==0)))||
