@@ -49,6 +49,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ai45-${{ matrix.map }}-matches
-          path: reports/${{ matrix.map }}-ai45.json
+          path: |
+            reports/${{ matrix.map }}-ai45.json
+            reports/${{ matrix.map }}-ai45-summary.json
           if-no-files-found: warn
           retention-days: 30
