@@ -90,11 +90,16 @@ test('integrated PBR remains opaque and shares exactly the existing ground draw 
  handle.dispose();mat.dispose();
 });
 
-test('actual Desert Strike browser entrypoint uses one rock/sand surface without the transparent cliff overlay',()=>{
+test('Desert Strike restores previous physical cliff as default; rejected integrated painting stays opt-in',()=>{
  const preview=readFileSync('scripts/webgl-preview.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
  assert.match(preview,/installMesaCliffGroundPBR\(material,/);
- assert.match(preview,/terrain\.battlefield\?\.generatorVersion>=7&&\s*desertRegion\?\.id!=='desert-strike'/);
+ assert.match(preview,/terrain\\.battlefield\\?\\.generatorVersion>=7&&query\\.get\\('cliffpaint'\\)==='1'/,
+  'painted cliff must require explicit A/B query to activate');
+ assert.match(preview,/!\\(desertRegion\\?\\.id==='desert-strike'&&query\\.get\\('cliffpaint'\\)==='1'\\)/,
+  'actual 3D PBR facade is default on Desert Strike');
+ assert.match(preview,/createPlayableMesaCliffs\\(\\{scene,size,heightAt/,
+  'restore original 3D cliff treatment from before the integrated paint');
  assert.match(preview,/cliffGroundBlend\?\.dispose\(\)/);
  assert.match(build,/webgl-desert-cliff-ground-pbr\.js/);
  assert.doesNotMatch(preview,/renderHeightAt:desertRegion\?\.id==='desert-strike'/);
