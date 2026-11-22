@@ -9,6 +9,7 @@ import { profiler } from './performance.js';
 import { RULES, WEATHER_RULES, clamp, distance, type Faction, type Owner, type Point, type MapVersion, mapLayout, campaignLayout, mapWorldSize } from './config.js';
 import { World, inside, type Territory } from './world.js';
 import {designateCentralBastion,advanceCentralHold,CENTRAL_HOLD_SECONDS,type CentralHold} from './central-bastion.js';
+import {createVeyritFields,advanceVeyrit,VEYRIT_CARGO_CAPACITY,type VeyritField} from './veyrit.js';
 import {visibleBasePropColliders} from './vehicle-decor-collision.js';
 import {vehicleStructureCollider,vehicleStructureColliders} from './vehicle-structure-collision.js';
 import {infantryStructureCollider,infantryStructureColliders} from './infantry-structure-collision.js';
@@ -93,6 +94,8 @@ export interface Unit extends Point {
   burst?:Burst;
   /** Optional logistics state: no inventory or virtual income for combat units. */
   supply?:SupplyJob;
+  harvestCargo?:number;harvestField?:number;
+  harvestMode?:'mine'|'return'|'manual';harvestProgress?:number;
   carrier?:number;flightHeight?:number;transport?:TransportState;
 }
 export interface Base extends Point {
@@ -130,6 +133,7 @@ export interface Save {
   /** Ever established a living structure (even if later destroyed). */
   hadBuildings?:[boolean,boolean];
   centralHold?:CentralHold;
+  veyritFields?:VeyritField[];
   /** Finite neutral supply stocks; missing in old saves -> new seeded sites. */
   supplyCaches?:SupplyCache[];
 }
@@ -466,6 +470,7 @@ export class Simulation {
   units:Unit[]=[]; bases:Base[]=[]; territories:Territory[];
   centralBastionId:number|null=null;
   centralHold:CentralHold={owner:-1,seconds:0};
+  veyritFields:VeyritField[]=[];
   visible=[new Uint8Array(RULES.grid**2),new Uint8Array(RULES.grid**2)];
   explored=[new Uint8Array(RULES.grid**2),new Uint8Array(RULES.grid**2)];
   memories:Memory[][]=[[],[]]; shots:Shot[]=[]; notices:string[]=[];
@@ -711,6 +716,7 @@ export class Simulation {
   constructor(seed=2026,mapVersion:MapVersion=0,weatherEnabled=false,bootstrap=false,profile?:TerrainProfile,generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR) {
     this.bootstrapVersion=bootstrap?1:undefined;this.seed=seed;this.weather=new Weather(seed,weatherEnabled);this.world=new World(seed,mapVersion,profile,0,generatorVersion);this.territories=this.world.territories(seed);
     this.centralBastionId=designateCentralBastion(this.world,this.territories);
+    this.veyritFields=createVeyritFields(this.world,this.territories,seed);
     if(mapVersion>=3)this.credits=[950,950];
     this.hills=mapVersion>=23?[]:generateRollingHills(seed,mapVersion,this.world.size,
       this.world.generated?.sites??[],this.world.generated?.ruins??[]);
@@ -1221,6 +1227,7 @@ export class Simulation {
     // The return-base toolbar sets the flag only AFTER this move is issued.
     for(const u of candidates){
       u.returnToHangar=false;
+       if(u.kind==='harvester'&&!append)u.harvestMode='manual';
       // No automatic supply routes can override an explicit command.
     }
     // A manual reposition always wins over workshop autopilot. Ground vehicles
@@ -2917,6 +2924,7 @@ export class Simulation {
       }
     }
     this.spatial.rebuild(this.units);
+    advanceVeyrit(this,dt);
     this.bases=this.bases.filter(b=>b.hp>0||b.kind==='headquarters');
     let ownershipChanged=false;
     const captureRadius=capturePresenceRadius(this.world.mapVersion);
@@ -3020,7 +3028,7 @@ export class Simulation {
     return structuredClone({version:2,...(this.world.generated?.battlefield?{terrainProfile:this.world.generated.battlefield.profile,generatorVersion:this.world.generated.battlefield.generatorVersion}:{}),...(this.bootstrapVersion?{bootstrapVersion:this.bootstrapVersion}:{}),weatherVersion:1,productionVersion:1,supportVersion:1,rosterVersion:2,missiles:this.missiles,seed:this.seed,mapVersion:this.world.mapVersion,time:this.time,nextId:this.nextId,credits:this.credits,incomeClock:this.incomeClock,
       units:this.units,bases:this.bases,territories:this.territories,explored:this.explored.map(a=>Array.from(a)),memories:this.memories,aiClock:this.aiClock,ai:this.tactical.state,status:this.status,stats:this.stats,
       research:this.research,strategicMissiles:this.strategicMissiles,
-      hadBuildings:this.hadBuildings,centralHold:this.centralHold});
+      hadBuildings:this.hadBuildings,centralHold:this.centralHold,veyritFields:this.veyritFields});
   }
   static load(raw:unknown,weatherEnabled=false):Simulation {
     const s=migrateTransportRoster(raw) as Save;
@@ -3043,7 +3051,10 @@ export class Simulation {
           c.lastPickupAt<0||c.lastPickupAt>s.time+.001))||
          (c.restockClock!==undefined&&(!finite(c.restockClock)||
           c.restockClock<0||c.restockClock>SUPPLY_RESTOCK_INTERVAL+.001)))))||
-      (s.centralHold!==undefined&&(!s.centralHold||![-1,0,1].includes(s.centralHold.owner)||
+      (s.veyritFields!==undefined&&(!Array.isArray(s.veyritFields)||s.veyritFields.length>8||
+         s.veyritFields.some(f=>!f||!Number.isInteger(f.id)||f.id<0||f.id>5||
+           !finite(f.amount)||!finite(f.capacity)||f.capacity!==4200||f.amount<0||f.amount>f.capacity||!point(f))))||
+       (s.centralHold!==undefined&&(!s.centralHold||![-1,0,1].includes(s.centralHold.owner)||
          !finite(s.centralHold.seconds)||s.centralHold.seconds<0||s.centralHold.seconds>CENTRAL_HOLD_SECONDS||
          (s.centralHold.owner===-1&&s.centralHold.seconds!==0)))||
        (s.hadBuildings!==undefined&&(!Array.isArray(s.hadBuildings)||
@@ -3053,6 +3064,11 @@ export class Simulation {
         s.strategicMissiles.some(m=>!validStrategicMissile(m,mapWorldSize(s.mapVersion??0),s.time))))||
        !validMatchStatisticsOrLegacy(s.stats)||!Array.isArray(s.units)||s.units.length>96||!Array.isArray(s.bases)||s.bases.length<(s.bootstrapVersion===1?0:2)||s.bases.length>260||
       s.units.some(u=>!validSupplyJob(u.supply,u.kind??'infantry',mapWorldSize(s.mapVersion??0)))||
+       s.units.some(u=>u.harvestCargo!==undefined&&
+         (u.kind!=='harvester'||!finite(u.harvestCargo)||u.harvestCargo<0||u.harvestCargo>VEYRIT_CARGO_CAPACITY+0.001))||
+       s.units.some(u=>u.harvestField!==undefined&&(u.kind!=='harvester'||!Number.isInteger(u.harvestField)||u.harvestField<0||u.harvestField>5))||
+       s.units.some(u=>u.harvestMode!==undefined&&(u.kind!=='harvester'||!['mine','return','manual'].includes(u.harvestMode)))||
+       s.units.some(u=>u.harvestProgress!==undefined&&(u.kind!=='harvester'||!finite(u.harvestProgress)||u.harvestProgress<0||u.harvestProgress>100000))||
       s.units.some(u=>u.exactPath!==undefined&&typeof u.exactPath!=='boolean')||
       s.units.some(u=>u.guardArea!==undefined&&typeof u.guardArea!=='boolean')||
       s.units.some(u=>u.rocketAmmo!==undefined&&
@@ -3090,6 +3106,7 @@ export class Simulation {
         !validBastionUpgradeState(t)||!finite(t.progress)||t.progress<0||t.progress>8))throw new Error('Dieser Spielstand ist beschädigt oder gehört zu einer anderen Version.');
     const game=new Simulation(s.seed,s.mapVersion??0,weatherEnabled,s.bootstrapVersion===1,s.terrainProfile,s.generatorVersion??1);
     game.time=s.time;
+     if(s.veyritFields)for(const f of game.veyritFields){const previous=s.veyritFields.find(v=>v.id===f.id);if(previous)f.amount=previous.amount;}
      if(game.centralBastionId!==null){
        const centralOwner=s.territories?.[game.centralBastionId]?.owner;
        game.centralHold=s.centralHold&&s.centralHold.owner===centralOwner?
@@ -3101,7 +3118,7 @@ export class Simulation {
     // once when loading a legitimate old save, or subsequent production would
     // increment undefined and corrupt the score counter.
     for(const faction of game.stats.factions){
-      faction.deployedUnits.rocket??=0;faction.deployedUnits.supply??=0;
+      faction.deployedUnits.rocket??=0;faction.deployedUnits.supply??=0;faction.deployedUnits.harvester??=0;
     }
     if(!s.stats){game.stats.partial=true;for(const u of s.units){if(u.hp>0){const f=game.stats.factions[u.owner];f.deployedUnits[u.kind??'infantry']++;f.peakArmy+=0;}}for(const owner of [0,1] as const)game.stats.factions[owner].peakArmy=s.units.filter(u=>u.owner===owner&&u.hp>0).length;}
     game.nextId=Math.max(1,Number.isSafeInteger(s.nextId)?s.nextId:1,...s.units.map(u=>u.id+1),...(s.ai?.losses??[]).map(l=>l.id+1));game.credits=[...s.credits];game.incomeClock=s.incomeClock;
