@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import {readFileSync} from 'node:fs';
 import {createLandscapeMeshes} from '../scripts/webgl-landscape-network.js';
 import {bakeMesaCliffGroundMask,cliffRampCoverage,
- installMesaCliffGroundPBR,DESERT_CLIFF_GROUND_REVISION}
+ installMesaCliffGroundPBR,DESERT_CLIFF_GROUND_REVISION,
+ DESERT_STRIKE_SANDSTONE_GRADE}
  from '../scripts/webgl-desert-cliff-ground-pbr.js';
 const size=1200;
 const mesa={center:{x:600,y:600},topRadius:190,footRadius:370,
@@ -73,6 +74,11 @@ test('integrated PBR remains opaque and shares exactly the existing ground draw 
  assert.match(shader.vertexShader,/vSfMesaWorld=position/);
  assert.match(shader.fragmentShader,/sfMesaStone=smoothstep/);
  assert.match(shader.fragmentShader,/diffuseColor.rgb=mix\(diffuseColor.rgb,sfMesaAlbedo/);
+ assert.match(shader.fragmentShader,/sfMesaAlbedo\*=vec3\(0\.74,0\.61,0\.48\)/);
+ assert.match(shader.fragmentShader,/sfMesaStoneUV\*2\.17/);
+ assert.match(shader.fragmentShader,/1\.0-0\.46\*sfMesaMask\.g/);
+ assert.match(shader.fragmentShader,/smoothstep\(0\.16,0\.84,sfMesaMask\.r\)/);
+ assert.match(shader.fragmentShader,/sfMesaStone\*0\.94/);
  assert.match(shader.fragmentShader,/normal=normalize\(normal\+sfMesaViewN/);
  assert.match(shader.fragmentShader,/prior ground layers/);
  assert.match(mat.customProgramCacheKey(),/integrated-cliff-pbr/);
@@ -126,4 +132,20 @@ test('elevated sandstone ridge foot has a true alpha fade into sand, not an opaq
  cliff.material.onBeforeCompile(shader);
  assert.match(shader.fragmentShader,/diffuseColor.a \*= clamp\(vSfRidgeFade/);
  for(const m of meshes){m.removeFromParent();m.geometry.dispose();m.material.dispose();}
+});
+
+test('warm sandstone grade is measurably darker than the chalky v1 tint',()=>{
+ const g=DESERT_STRIKE_SANDSTONE_GRADE;
+ assert.equal(DESERT_CLIFF_GROUND_REVISION,'desert-strike-integrated-cliff-pbr-v2');
+ const v1=[.82,.78,.70].map(n=>n*(.70+1.07)/2);
+ const v2=g.tint.map(n=>n*(g.lightFloor+g.lightFloor+g.lightRange)/2);
+ const luminance=c=>c[0]*.2126+c[1]*.7152+c[2]*.0722;
+ assert.ok(luminance(v2)<luminance(v1)*.87,
+  'rock should not be a bright grey chalk wash at nominal daylight');
+ assert.ok(v2[0]>v2[1]&&v2[1]>v2[2],
+  'sun-warmed sandstones should remain ochre rather than neutral grey');
+ assert.ok(g.veinDarken>.40,'weathered fissures should remain visible');
+ assert.ok(g.blendStart>=.12&&g.blendEnd<=.86,
+  'the physical sand-to-rock blend should not create a giant milky halo');
+ assert.ok(g.rockStrength>.9,'visible cliffs should have a clear material identity');
 });
