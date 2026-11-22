@@ -85,7 +85,7 @@ export class SandforgeConstructionPresentation{
      mesh.userData.sandforgeConstructionHeight=THREE.MathUtils.clamp(
       baseCenter.y/Math.max(1,state.height),0,1);
     }
-    const stagger=(mode==='yard'||mode==='service'?.12:.20)*
+    const stagger=((mode==='yard'||mode==='service') ? .12 : .20)*
      mesh.userData.sandforgeConstructionHeight;
     stageMesh(mesh,Math.min(.98,threshold+stagger));
    });
