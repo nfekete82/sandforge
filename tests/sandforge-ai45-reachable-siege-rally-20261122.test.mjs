@@ -61,6 +61,9 @@ test('candidate controller uses observed memory, complete real A-star paths and 
  assert.match(src,/mission\.kind==='structure'/);
  assert.match(src,/this\.ai45SiegeRallyRetryAt=g\.time\+45/);
  assert.match(src,/g\.world\.line\(aim,intel,lineBlockers,10\)/);
+ assert.match(src,/const completeRallyRoute=\(from:Point,to:Point\):boolean=>/);
+ assert.match(src,/distance\(path\[path\.length-1\],to\)<=g\.world\.cell\*2/);
+ assert.match(src,/reachable:completeRallyRoute/);
  assert.match(src,/const path=this\.route\(p,aim\)/);
  assert.match(src,/distance\(path\[path\.length-1\],aim\)>g\.world\.cell\*2/);
  assert.match(src,/this\.sampleRoute\(path,p\)\.risk>=20/);
