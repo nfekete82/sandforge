@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {tankCannonMuzzleWorld} from '/webgl-tank-muzzle-origin.js';
 import {UNITS} from '/src/reborn/catalog.js';
 import {hitResponseFor,impactHeight,damagedVehicleIntensity} from '/webgl-hit-response.js';
 import {addWreckRecord,advanceWreckRecords,wreckSink,WRECK_CAP,
@@ -415,11 +416,14 @@ export class SandforgeCombatEffects {
   const p=shot.groundFrom??shot.from;
   if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y)||
    !this.game.canSee(0,p))return;
-  // No cartoon gunfire: MG/rifles emit a small wisp, cannon a short
-  // dusty pressure pulse. Authoritative flashes remain on the GLB muzzle.
+  // The cannon blast originates at the REAL rotated barrel lip.
+  const cannon=shot.kind==='tank'&&shot.weapon==='cannon'
+   ?tankCannonMuzzleWorld(this.battlefield?.units?.get(shot.source),shot.angle??0):null;
+  const ox=cannon?cannon.x+this.world.size*.5:p.x;
+  const oz=cannon?cannon.z+this.world.size*.5:p.y;
   const heavy=shot.weapon==='cannon'||shot.weapon==='turret';
-  const originY=this.heightAt(p.x,p.y)+(heavy?34:24);
-  this.particle(this.smoke,p.x,p.y,originY,
+  const originY=cannon?.y??this.heightAt(p.x,p.y)+(heavy?34:24);
+  this.particle(this.smoke,ox,oz,originY,
    heavy?11:5.6,heavy?.35:.18,
    (this.rand()-.5)*7,(this.rand()-.5)*7,heavy?9:4);
   if(heavy)this.particle(this.dust,p.x,p.y,this.heightAt(p.x,p.y)+5,
@@ -734,6 +738,12 @@ export class SandforgeCombatEffects {
  // This renderer interpolates their 3D trajectory without altering damage.
  rocketLaunchWorld(missile){
   const entry=this.battlefield?.units?.get(missile.source);
+  // A tank anti-armor rocket is fired down its main cannon, not the roof
+  // MG, Atlas infantry rifle or the center of the vehicle model.
+  if(missile.type==='antiArmor'&&entry?.kind==='tank'){
+   const muzzle=tankCannonMuzzleWorld(entry,missile.angle??0);
+   if(muzzle)return muzzle;
+  }
   const barrel=missile.id%6;
   // The procedural camouflaged shoulder launcher has its own real muzzle
   // node. Never fall back to the tank's offset for a human-sized rocket.
