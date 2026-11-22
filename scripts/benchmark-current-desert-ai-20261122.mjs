@@ -80,6 +80,8 @@ export function rollup(details){
   meanAircraftProduced:Number(mean('aircraftProduced').toFixed(2)),
   meanVehicleDeaths:Number(mean('vehicleDeaths').toFixed(2)),
   meanRapidOrderChanges:Number(mean('rapidUnitOrderChanges').toFixed(2)),
+  meanVehicleStallSeconds:Number(mean('vehicleStallSeconds').toFixed(1)),
+  matchesWithBlockedVehicles:details.filter(x=>x.vehicleStallSeconds>0).length,
   meanUnexplainedIdle:Number((details.reduce((n,r)=>n+
    (Number(r.productionIdleReasons?.['unexplained-idle'])||0),0)/Math.max(details.length,1)).toFixed(1)),
   totalBattleRetreats:details.reduce((n,r)=>n+r.battleRetreats,0)
@@ -109,11 +111,44 @@ export async function runCurrentDesertBenchmark(map,seconds,output){
  save();
  for(const scenario of SCENARIOS){
   const seed=map.seed;
+  const stalls=new Map();
+  let lastSampledSecond=-1,vehicleStallSeconds=0;
+  // Passive observer only. Never changes unit orders, route requests,
+  // targeting or resources. Counts 10s+ immobility during a genuine
+  // long-distance MOVE mission, not a tank standing and firing.
+  const observe=g=>{
+   const second=Math.floor(g.time+1e-8);
+   if(second===lastSampledSecond)return;
+   lastSampledSecond=second;
+   const alive=new Set();
+   for(const unit of g.units){
+    if(unit.owner!==1||unit.hp<=0||unit.carrier||
+       !['tank','artillery','rover'].includes(unit.kind))continue;
+    alive.add(unit.id);
+    const order=unit.orders?.[0];
+    if(!order||!['move','attackMove'].includes(order.kind)||
+       Math.hypot(unit.x-order.x,unit.y-order.y)<220){
+      stalls.delete(unit.id);continue;
+    }
+    const previous=stalls.get(unit.id);
+    if(!previous){
+     stalls.set(unit.id,{x:unit.x,y:unit.y,stopped:0});
+     continue;
+    }
+    const advance=Math.hypot(previous.x-unit.x,previous.y-unit.y);
+    if(advance<7)previous.stopped++;
+    else previous.stopped=0;
+    if(previous.stopped>=10)vehicleStallSeconds++;
+    previous.x=unit.x;previous.y=unit.y;
+   }
+   for(const id of stalls.keys())if(!alive.has(id))stalls.delete(id);
+  };
   const opts={
    opponent:scenario.opponent,seconds,ai33:'adaptive',
    ai35:'control',ai36:'coordinated',
    label:'main-live-terrain-'+map.id,
    simulationFactory:()=>currentWorld(map,seed),
+   observe,
    ...(scenario.opponent==='fortified'?{
     defender:g=>blueDefense(g,{holdHome:true,infantryLimit:8,heavyLimit:2})
    }:scenario.opponent==='mobile-defense'?{
@@ -123,6 +158,7 @@ export async function runCurrentDesertBenchmark(map,seconds,output){
   const metrics=runMatch({Simulation,UNITS},opts,seed,'director',map.mapVersion);
   metrics.mapId=map.id;metrics.generatorVersion=map.generatorVersion;
   metrics.terrainProfile=map.terrain;
+  metrics.vehicleStallSeconds=vehicleStallSeconds;
   report.details.push(metrics);save();
   console.log('RESULT '+JSON.stringify({
    map:map.id,seed,opponent:scenario.opponent,
