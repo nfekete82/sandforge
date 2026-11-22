@@ -61,7 +61,7 @@ export function productionIdleReason(g,b,UNITS){
 
 /** Kept separate from CLI so observer accounting can be checked without running/building matches. */
 export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,version){
- const g=new Simulation(seed,version);g.tactical.mode=mode;
+ const g=options.simulationFactory?options.simulationFactory(seed,version):new Simulation(seed,version);g.tactical.mode=mode;
  // Controlled ablation within ONE compiled game: 'off' is exact AI 3.2
  // tactical policy, 'adaptive' enables KI 3.3. No saved game or cost changes.
  if('ai33Mode' in g.tactical)g.tactical.ai33Mode=options.ai33??'adaptive';
