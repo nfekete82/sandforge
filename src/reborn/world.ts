@@ -434,7 +434,7 @@ export class World {
     // Validate only the selected route with exact grid traversal. An invalid
     // coarse candidate returns [] so the caller retries with exact A*.
     // Keep legacy maps and the existing A* expansion budget unchanged.
-    const strictHighlandRoute=this.mapVersion>=23&&this.generatorVersion>=7&&!air&&!precise;
+    const strictHighlandRoute=allowPartial&&this.mapVersion>=23&&this.generatorVersion>=7&&!air&&!precise;
     const safeLine=(a:Point,b:Point)=>line(a,b)&&(!strictHighlandRoute||
       navigationLine(a,b,this.cell,RULES.grid,this.blocked,obstacles,
         RULES.infantry.radius,clearance));
