@@ -11,6 +11,8 @@ import {runMatch} from './benchmark-reborn-ai.mjs';
 import {blueDefense} from './benchmark-ai-opponent.mjs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {UNITS} from '../dist/src/reborn/catalog.js';
+import {createAI45WaveEvidence,observeAI45WaveEvidence,snapshotAI45WaveEvidence,ai45ObjectiveProgress}
+ from './ai45-actual-wave-evidence-20261122.mjs';
 
 export const AI45_MAPS=Object.freeze(['burning-horizon','plateau-crossroads','mesa-highlands']);
 export const AI45_VARIANTS=Object.freeze(['off','on']);
@@ -26,10 +28,10 @@ export function pairSummary(details){
    initialStateHash:control.initialStateHash,
    control:{outcome:control.outcome,hqDamage:control.enemyHQDamage,
     stalled:control.stalledMissions,aborted:control.abortedMissions,
-    rallyRescues:control.ai45SiegeRallyRescues,wave:control.ai45WaveEvidence},
+    rallyRescues:control.ai45SiegeRallyRescues,wave:control.ai45WaveEvidence,progress:ai45ObjectiveProgress(control)},
    treatment:{outcome:treatment.outcome,hqDamage:treatment.enemyHQDamage,
     stalled:treatment.stalledMissions,aborted:treatment.abortedMissions,
-    rallyRescues:treatment.ai45SiegeRallyRescues,wave:treatment.ai45WaveEvidence}});
+    rallyRescues:treatment.ai45SiegeRallyRescues,wave:treatment.ai45WaveEvidence,progress:ai45ObjectiveProgress(treatment)}});
  }
  return {completePairs:pairs.length,controlWins:pairs.filter(p=>p.control.outcome==='win').length,
   treatmentWins:pairs.filter(p=>p.treatment.outcome==='win').length,
@@ -60,31 +62,15 @@ export function runPairedAI45(map,seconds,output){
  };
  save();
  for(const scenario of SCENARIOS)for(const ai45 of AI45_VARIANTS){
-  let rescueCount=0,lastSample=-1;
-  const phases={gather:0,attack:0,regroup:0,defend:0};
-  let maxAtRally=0,firstAttackAt=null,firstRescueAt=null;
-  let maxWaveLaunches=0,maxWaveWaits=0;
+  let rescueCount=0;
+  const waveEvidence=createAI45WaveEvidence();
   const opts={opponent:scenario.opponent,seconds,ai33:'adaptive',
    ai35:'control',ai36:'coordinated',ai45,
    label:'ai45-paired-'+map.id,
    simulationFactory:()=>currentWorld(map,map.seed),
    observe:g=>{
     rescueCount=g.tactical.ai45RallyRescues??0;
-    const tick=Math.floor(g.time+1e-8);
-    if(tick===lastSample)return;
-    lastSample=tick;
-    const phase=g.tactical.state.phase;
-    if(Object.hasOwn(phases,phase))phases[phase]++;
-    if(phase==='attack'&&firstAttackAt===null)firstAttackAt=tick;
-    if(rescueCount>0&&firstRescueAt===null)firstRescueAt=tick;
-    const rally=g.tactical.state.rally;
-    if(rally){
-     const count=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier&&
-      Math.hypot(u.x-rally.x,u.y-rally.y)<330).length;
-     maxAtRally=Math.max(maxAtRally,count);
-    }
-    maxWaveLaunches=Math.max(maxWaveLaunches,g.tactical.diagnostics.waveLaunches);
-    maxWaveWaits=Math.max(maxWaveWaits,g.tactical.diagnostics.waveWaits);
+    observeAI45WaveEvidence(waveEvidence,g,rescueCount);
    },
    ...(scenario.opponent==='fortified'?{
      defender:g=>blueDefense(g,{holdHome:true,infantryLimit:8,heavyLimit:2})
@@ -94,8 +80,7 @@ export function runPairedAI45(map,seconds,output){
   };
   const metrics=runMatch({Simulation,UNITS},opts,map.seed,'director',map.mapVersion);
   metrics.mapId=map.id;metrics.ai45=ai45;metrics.ai45SiegeRallyRescues=rescueCount;
-  metrics.ai45WaveEvidence={phaseSeconds:phases,maxAtRally,firstAttackAt,
-   firstRescueAt,waveLaunches:maxWaveLaunches,waveWaits:maxWaveWaits};
+  metrics.ai45WaveEvidence=snapshotAI45WaveEvidence(waveEvidence);
   report.details.push(metrics);save();
   console.log('RESULT '+JSON.stringify({map:map.id,policy:scenario.opponent,
    ai45,outcome:metrics.outcome,hqDamage:metrics.enemyHQDamage,
