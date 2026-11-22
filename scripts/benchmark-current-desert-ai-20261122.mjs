@@ -1,7 +1,7 @@
 /**
  * 30 headless, paid-unit matches on the current MAIN code and current actual
  * desert terrain generator, not the archived AI3.2-3.6 tournament branches.
- * 6 selected desert map archetypes x 5 reproducible conditions each.
+ * 6 exact fixed desert maps x 5 reproducible BLUE policies each.
  *
  * Run (after npm run build):
  * node scripts/benchmark-current-desert-ai-20261122.mjs --map desert-strike --seconds 480 --output /tmp/desert-strike.json
@@ -9,8 +9,8 @@
  * Prebuilt HQs on BOTH sides, for apples-to-apples RTS midgame AI evaluation.
  * This is a benchmark configuration; the actual user campaign begins without
  * built HQs. No cheating, extra credits, free units or hidden enemy intel.
- * Three cases use the exact authored seed, two use one procedural variant
- * with the same current terrain profile and generator version.
+ * ALL five opponents use the exact authored seed and 3D terrain on each map.
+ * Terrain and starting armies are identical for the five strategies.
  */
 import {createHash} from 'node:crypto';
 import {readFileSync,mkdirSync,writeFileSync,renameSync} from 'node:fs';
@@ -20,16 +20,17 @@ import './webgl-desert-maps.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {UNITS} from '../dist/src/reborn/catalog.js';
 import {runMatch} from './benchmark-reborn-ai.mjs';
+import {blueDefense} from './benchmark-ai-opponent.mjs';
 
 export const CURRENT_DESERT_MAPS=Object.freeze(
  globalThis.SandforgeDesertMaps.maps.map(x=>Object.freeze({...x}))
 );
 export const SCENARIOS=Object.freeze([
- Object.freeze({offset:0,opponent:'guarded'}),
- Object.freeze({offset:0,opponent:'contesting'}),
- Object.freeze({offset:0,opponent:'bastion-rush'}),
- Object.freeze({offset:117,opponent:'contesting'}),
- Object.freeze({offset:117,opponent:'bastion-rush'})
+ Object.freeze({opponent:'guarded'}),
+ Object.freeze({opponent:'contesting'}),
+ Object.freeze({opponent:'bastion-rush'}),
+ Object.freeze({opponent:'fortified'}),
+ Object.freeze({opponent:'mobile-defense'})
 ]);
 const hash=x=>createHash('sha256').update(x).digest('hex');
 export function optionsFrom(argv){
@@ -92,7 +93,7 @@ export async function runCurrentDesertBenchmark(map,seconds,output){
   simulationSourceHash:hash(readFileSync(new URL('../dist/src/reborn/simulation.js',import.meta.url))),
   mode:'director',
   setup:'Prebuilt HQs on both sides (not campaign bootstrap); no free resources; no fog-of-war exemption',
-  notes:'Seed offset 0 is exact fixed map. Offset 117 generates an alternative battlefield with same biome/map size and terrain algorithm. No timeouts counted as wins.',
+  notes:'All five policies use EXACT fixed-map seed/terrain. No run changes opponent resources or fog rules; only paid BLUE strategy. No timeouts counted as wins.',
   map:map.id,mapVersion:map.mapVersion,terrain:map.terrain,generatorVersion:map.generatorVersion,
   requestedSeconds:seconds,expectedRuns:SCENARIOS.length,complete:false,
   completedRuns:0,details:[],summary:null
@@ -107,16 +108,21 @@ export async function runCurrentDesertBenchmark(map,seconds,output){
  };
  save();
  for(const scenario of SCENARIOS){
-  const seed=map.seed+scenario.offset;
+  const seed=map.seed;
   const opts={
    opponent:scenario.opponent,seconds,ai33:'adaptive',
    ai35:'control',ai36:'coordinated',
    label:'main-live-terrain-'+map.id,
-   simulationFactory:()=>currentWorld(map,seed)
+   simulationFactory:()=>currentWorld(map,seed),
+   ...(scenario.opponent==='fortified'?{
+    defender:g=>blueDefense(g,{holdHome:true,infantryLimit:8,heavyLimit:2})
+   }:scenario.opponent==='mobile-defense'?{
+    defender:g=>blueDefense(g,{holdHome:false,infantryLimit:8,heavyLimit:2})
+   }:{})
   };
   const metrics=runMatch({Simulation,UNITS},opts,seed,'director',map.mapVersion);
   metrics.mapId=map.id;metrics.generatorVersion=map.generatorVersion;
-  metrics.terrainProfile=map.terrain;metrics.seedOffset=scenario.offset;
+  metrics.terrainProfile=map.terrain;
   report.details.push(metrics);save();
   console.log('RESULT '+JSON.stringify({
    map:map.id,seed,opponent:scenario.opponent,
