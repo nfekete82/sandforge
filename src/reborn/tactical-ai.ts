@@ -37,7 +37,7 @@ import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
-import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
+import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue,ai44RallyRepairEnabled} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
 export interface KnownTurret extends Point {id:number;hp:number;seenAt:number;range:number}
 export interface Loss extends Point {id:number;at:number;strength:number}
@@ -1737,6 +1737,12 @@ export class TacticalAI {
    .slice(0,reserve).map(u=>u.id));
   if(policy&&s.phase!=='attack')s.group=s.group.filter(id=>!guards.has(id));
   if(policy)this.stationHomeGuards(mainFighters.filter(u=>guards.has(u.id)),home);
+  const ai44CanRepairRally=ai44RallyRepairEnabled({
+   seed:g.seed,mapVersion:g.world.mapVersion,
+   generatorVersion:g.world.generatorVersion,
+   landscapeKind:g.world.generated?.landscapeKind,
+   fortificationMode:this.ai37Mode
+  });
   // Read-only, benchmark-opt-in gate trace of REAL planner inputs.
   // No changes to AI orders, campaign state, fog, credits or saves.
   if(this.rallyGateTraceEnabled&&g.time>=180&&g.time-this.lastRallyGateTraceAt>=12){
@@ -1764,7 +1770,7 @@ export class TacticalAI {
       observedHomePressure?'home-defense-pressure':'before-defense-window']:[]),
     ...(g.world.mapVersion<25?['old-map']:[]),
     ...(g.world.generatorVersion<3?['old-generator']:[]),
-    ...(this.ai37Mode!=='coordinated'?['ai37-off']:[]),
+    ...(!ai44CanRepairRally?['rally-repair-doctrine-off']:[]),
     ...(s.phase!=='gather'?['not-gather']:[]),
     ...(g.time<190?['too-early']:[]),
     ...(g.time<this.ai40RallyRetryAt?['retry-cooldown']:[]),
@@ -1802,7 +1808,7 @@ export class TacticalAI {
        kind:mission.kind,homePressure:observedHomePressure,
        time:g.time,notBefore:policy?.notBefore??0
      })&&
-     this.ai37Mode==='coordinated'&&s.phase==='gather'&&
+     ai44CanRepairRally&&s.phase==='gather'&&
      g.time>=190&&g.time>=this.ai40RallyRetryAt&&s.rally&&
      this.ai40RecoveredMissionSince!==mission.since){
     const pool=mainFighters.filter(u=>!guards.has(u.id));
