@@ -186,11 +186,15 @@ if(process.env.SANDFORGE_MODULE_AUDIT==='1'){
  console.log('WebGL module audit: browser JS and Three vendor modules packaged.');
  process.exit(0);
 }
+// The tracked source assets are immutable inputs. Stage their full tree in dist
+// before any optional PBR restoration or procedural building generation.
+const shippedBuildingDir='dist/src/assets/reborn/buildings-3d';
+cpSync('src/assets', 'dist/src/assets', {recursive:true});
 // Prefer original fully authored, animated HQ/Barracks PBR worktrees from
 // 20 Nov midday. Their private source GLBs are not necessarily on GitHub;
 // preserve the tracked pre-Meshy fallbacks if no local PBR source is mounted.
 try{
- execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs'],{stdio:'inherit'});
+ execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs',shippedBuildingDir],{stdio:'inherit'});
 }catch(error){
  if(process.env.SANDFORGE_REQUIRE_FINAL_PBR==='1')throw error;
  console.warn('Final HQ/Barracks PBR source not mounted. Using tracked pre-Meshy GLBs instead.');
@@ -198,16 +202,15 @@ try{
 console.log('Sandforge buildings restored to:',BUILDING_ART_REFERENCE);
 // The Bastion, unlike the authored large HQ/barracks binaries, is fully
 // generated from its committed procedural mesh source on every build.
-execFileSync(process.execPath,['scripts/generate-bastion-radar.mjs'],{stdio:'inherit'});
+execFileSync(process.execPath,['scripts/generate-bastion-radar.mjs',shippedBuildingDir],{stdio:'inherit'});
 // The midday 20 Nov authentic procedural PBR factory is the production
 // asset again. Never overwrite its GLB with Meshy after generating it.
-execFileSync(process.execPath,['scripts/generate-factory-pbr.mjs'],{stdio:'inherit'});
+execFileSync(process.execPath,['scripts/generate-factory-pbr.mjs',shippedBuildingDir],{stdio:'inherit'});
 // The Energy Core is generated for BOTH factions from one compact PBR source.
-execFileSync(process.execPath,['scripts/generate-energy-core-pbr.mjs'],{stdio:'inherit'});
+execFileSync(process.execPath,['scripts/generate-energy-core-pbr.mjs',shippedBuildingDir],{stdio:'inherit'});
 // Both airfield factions are deterministic low-poly PBR assets in Git source.
 // Real flightline service still animates doors and controls aircraft docking.
-execFileSync(process.execPath,['scripts/generate-airfield-pbr.mjs'],{stdio:'inherit'});
-cpSync('src/assets', 'dist/src/assets', {recursive:true});
+execFileSync(process.execPath,['scripts/generate-airfield-pbr.mjs',shippedBuildingDir],{stdio:'inherit'});
 // The 69 MB original Meshy sculpt is an editable source, NOT a game asset.
 // Never serve it to the browser; only the optimized and validated candidate.
 rmSync('dist/src/assets/reborn/buildings-3d/factory-meshy-source.glb',{force:true});
