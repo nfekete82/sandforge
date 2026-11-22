@@ -203,6 +203,8 @@ export class TacticalAI {
  private ai45SiegeRallyRetryAt=-1e6;
  private ai45RecoveredMissionSince=-1;
  ai45RallyRescues=0;
+ /** Passive AI45-only gate decisions, recorded only when benchmark tracing is enabled. */
+ ai45DecisionTrace:Array<{at:number;reason:string;fighters:number;readyAtRally:number;canReachRally:number;needed:number;gatherSeconds:number}>=[];
  /** Only one verified recovery per actual military objective. */
  private ai40RecoveredMissionSince=-1;
  /** Explicitly opt-in ONLY for headless benchmark observation. No saves. */
@@ -232,7 +234,7 @@ export class TacticalAI {
   this.sectorPreference={sectorId,until:this.g.time+35};return true;
  }
  restore(state:TacticalState|undefined):void{
-  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.ai45SiegeRallyRetryAt=-1e6;this.ai45RecoveredMissionSince=-1;this.ai45RallyRescues=0;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
+  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.ai45SiegeRallyRetryAt=-1e6;this.ai45RecoveredMissionSince=-1;this.ai45RallyRescues=0;this.ai45DecisionTrace=[];this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
   if(!state)for(const m of this.g.memories[1])if(m.owner===0&&
     (m.kind==='turret'||m.kind==='bunker')&&m.hp>0)
@@ -1768,7 +1770,7 @@ export class TacticalAI {
     const canReachRally=readyAtRally>=4?readyAtRally:
      sample.filter(u=>distance(u,s.rally!)<140||
       completeRallyRoute(u,s.rally!)).length;
-    if(ai45CanRelocateStuckSiege({
+    const shouldRelocate=ai45CanRelocateStuckSiege({
       mapVersion:g.world.mapVersion,
       generatorVersion:g.world.generatorVersion,seed:g.seed,
       missionKind:mission.kind,objectiveObserved:true,
@@ -1776,7 +1778,20 @@ export class TacticalAI {
       phase:s.phase,gatherSeconds:g.time-s.phaseAt,
       lastAttemptAgo:g.time-this.ai45SiegeRallyRetryAt+45,
       readyAtRally,canReachRally
-    })){
+    });
+    if(this.rallyGateTraceEnabled){
+      const needed=Math.min(4,Math.max(3,Math.ceil(sample.length*.30)));
+      const reason=observedHomePressure?'home-pressure':
+       sample.length<8?'insufficient-ground-fighters':
+       readyAtRally>=needed?'already-assembled':
+       canReachRally>=needed&&g.time-s.phaseAt<145?'rally-already-reachable':
+       !shouldRelocate?'other-eligibility-gate':'searching-validated-route';
+      this.ai45DecisionTrace.push({at:Math.round(g.time),reason,
+       fighters:sample.length,readyAtRally,canReachRally,needed,
+       gatherSeconds:Math.round(g.time-s.phaseAt)});
+      if(this.ai45DecisionTrace.length>100)this.ai45DecisionTrace.shift();
+    }
+    if(shouldRelocate){
       this.ai45SiegeRallyRetryAt=g.time+45;
       const obstacles=this.obstacles();
       const valid=(p:Point)=>g.world.walkable(p,obstacles,12)&&
@@ -1818,6 +1833,11 @@ export class TacticalAI {
         return targetApproach(p);
        }
       });
+      if(this.rallyGateTraceEnabled){
+       const last=this.ai45DecisionTrace.at(-1);
+       if(last)last.reason=!next?'no-reachable-artillery-approach':
+        distance(next,s.rally)>260?'recovered':'candidate-too-near-old-rally';
+      }
       if(next&&distance(next,s.rally)>260){
        s.rally=next;
        this.ai45RecoveredMissionSince=mission.since;

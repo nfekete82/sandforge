@@ -1,0 +1,40 @@
+name: Sandforge AI45 · why siege rally never activates
+on:
+  pull_request:
+    branches:
+      - feat/sandforge-ai45-reachable-siege-rally-20261122
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ai45-gate-diagnostics-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Check observable gate classification
+        run: node --test tests/sandforge-ai45-gate-diagnostics-20261122.test.mjs
+      - name: Diagnose one unchanged 480s Burning Horizon match
+        run: |
+          node scripts/diagnose-ai45-gates-20261122.mjs \
+            --map burning-horizon --seconds 480 \
+            --output reports/ai45-burning-horizon-gates.json
+      - name: Preserve report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai45-burning-horizon-observable-gates
+          path: reports/ai45-burning-horizon-gates.json
+          if-no-files-found: warn
+          retention-days: 30
