@@ -186,6 +186,6 @@ test('Desert Strike PBR cliff fades into the exact rendered sand surface, not hi
  assert.deepEqual([...world.blocked],before,'never touch navigation');
  assert.deepEqual([...world.generated.battlefield.heights],heights,'never touch terrain');
  assert.match(readFileSync('scripts/webgl-preview.js','utf8'),
-  /renderGroundHeightSampler\(heightAt,size\)/,'WebGL entrypoint must use GPU surface');
+  /installMesaCliffGroundPBR\(material,/,'live Desert Strike must paint the existing terrain instead of overlaying it');
  cliff.removeFromParent();cliff.geometry.dispose();cliff.material.dispose();
 });
