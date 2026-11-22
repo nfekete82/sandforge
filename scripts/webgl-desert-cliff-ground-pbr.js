@@ -8,12 +8,12 @@ import {desertStrikeNaturalCliffMaps} from './webgl-rock-materials.js';
  * The existing real terrain (height, pathing, ramps, collision and saves)
  * remains completely untouched.
  */
-export const DESERT_CLIFF_GROUND_REVISION='desert-strike-integrated-cliff-pbr-v3';
+export const DESERT_CLIFF_GROUND_REVISION='desert-strike-integrated-cliff-pbr-v4';
 /** Warm, compact sandstone instead of the earlier pale chalk/gray wash.
  * All values are render-only, never consulted by World or pathfinding.
  */
 export const DESERT_STRIKE_SANDSTONE_GRADE=Object.freeze({
- tint:Object.freeze([.74,.61,.48]),
+ tint:Object.freeze([.65,.54,.42]),
  lightFloor:.85,lightRange:.15,veinDarken:.46,
  fineFloor:.85,fineRange:.19,
  blendStart:.16,blendEnd:.84,rockStrength:.94
@@ -157,7 +157,16 @@ export function installMesaCliffGroundPBR(material,{
    'float sfMesaRifts=pow(max(0.0,cos(vSfMesaWorld.x*.102+'+
        'vSfMesaWorld.z*.077+.42*sin(vSfMesaWorld.y*.031+'+
        'vSfMesaWorld.x*.014))),18.0);',
-   'sfMesaAlbedo*=1.0-.19*sfMesaBedding-.23*sfMesaRifts;',
+   // Less artificial contour-striping. Discontinuous vertical fractures,
+   // much darker crevices and a restrained bright exposed-rock highlight.
+   'float sfMesaBrokenBeds=sfMesaBedding*'+
+    '(0.28+0.72*smoothstep(.40,.75,'+
+     'sin(vSfMesaWorld.x*.023+vSfMesaWorld.z*.017)*.5+.5));',
+   'float sfMesaExposed=pow(smoothstep(.61,.96,sfMesaMask.b),2.0)*'+
+     '(1.0-sfMesaMask.g)*'+
+     'smoothstep(.29,.78,sfMesaDetail);',
+   'sfMesaAlbedo*=1.0-.045*sfMesaBrokenBeds-.31*sfMesaRifts;',
+   'sfMesaAlbedo*=mix(.96,1.24,sfMesaExposed);',
    'sfMesaAlbedo*=1.0-'+grade.veinDarken.toFixed(2)+'*sfMesaMask.g;',
    'diffuseColor.rgb=mix(diffuseColor.rgb,sfMesaAlbedo,sfMesaStone*'+
      grade.rockStrength.toFixed(2)+');'
