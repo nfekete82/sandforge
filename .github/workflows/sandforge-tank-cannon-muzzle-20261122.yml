@@ -1,0 +1,29 @@
+name: Sandforge · Tank cannon muzzle VFX
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/webgl-tank-muzzle-origin.js
+      - scripts/webgl-battlefield.js
+      - scripts/webgl-combat-vfx.js
+      - scripts/build.mjs
+      - tests/sandforge-tank-cannon-muzzle-origin-20261122.test.mjs
+      - .github/workflows/sandforge-tank-cannon-muzzle-20261122.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  barrel-origin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: node --test tests/sandforge-tank-cannon-muzzle-origin-20261122.test.mjs tests/reborn-tank-dual-weapon.test.mjs
