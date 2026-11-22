@@ -1323,7 +1323,14 @@ export class Simulation {
          ?[...buildings,...infantryStructureColliders(buildings),...gatePosts,...towers]
          :[...buildings,...vehicleStructureColliders(buildings),...gatePosts,
            ...this.vehicleDecorObstacles(),...towers];
-       const target=spec.flying?{x:clamp(p.x,8,this.world.size-8),y:clamp(p.y,8,this.world.size-8)}:this.world.nearest(p,obstacles,[],u,Math.max(0,spec.radius-10));if(!target)return;
+       // A click onto the steep rock lip must resolve to a destination that
+       // the unit's entire footprint can actually occupy. Otherwise path()
+       // finds nearby safe ground but the order never reaches its <18 goal.
+       const grade=spec.group==='Fahrzeuge'&&!spec.flying&&this.world.mapVersion>=23
+         ?u.kind==='tank'?.215:u.kind==='artillery'?.185:.195:Infinity;
+       const target=spec.flying?{x:clamp(p.x,8,this.world.size-8),y:clamp(p.y,8,this.world.size-8)}
+         :this.world.nearest(p,obstacles,[],u,Math.max(0,spec.radius-10),grade);
+       if(!target)return;
       const next:Order={...order,...target,...(playerMarch&&u.owner===0&&!spec.flying?{march:playerMarch}:mixed&&front.includes(u)?{march:(armoredFront.length?members.filter(v=>!unitSpec(v).flying):front).map(v=>v.id)}:{}),...(formation?{formation,...(support.includes(u)?{kind:order.kind==='attack'?'attackMove':order.kind,target:undefined}:{})}:{})};u.hold=false;u.guardArea=false;u.supportPaused=false;u.workingTarget=null;
       if(append){if(u.orders.length<32)u.orders.push(next);else return;}
       else {this.transports.cancel(u);delete u.burst;u.orders=formation&&u.orders[0]?.kind==='heal'?[u.orders[0],next]:[next];u.path=[];u.repath=0;u.combatTarget=null;u.pursuitOrigin=null;
@@ -2230,7 +2237,12 @@ export class Simulation {
               Math.hypot(old.lastX-u.x,old.lastY-u.y)<200
               ?old.attempts+1:1;
             const side=ai38CanRecoverVehicle({
-              ai:u.owner===1&&this.tactical.ai37Mode==='coordinated',
+              // Manual movement needs the same real, collision-checked
+              // recovery as AI when a cliff corner pins a vehicle. Do not
+              // override hold, combat, a stopped formation or old saves.
+              ai:u.owner===1&&this.tactical.ai37Mode==='coordinated'||
+                u.owner===0&&this.world.generatorVersion>=7&&
+                  speedLimit>1&&!u.hold,
               modernMap:this.world.mapVersion>=23,
               orderKind:u.orders[0]?.kind??'',
               turning,hasCargo:(u.transport?.cargo.length??0)>0,
