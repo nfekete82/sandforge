@@ -60,7 +60,8 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  // A known turret or living HQ blocking a Bastion's capture circle is
  // eligible to be attacked during phase one, never as an unrelated raid.
  // Public sector ownership is fair knowledge; unseen enemy structures aren't.
- const unheld=g.territories.filter(t=>t.owner!==1);
+ const unheld=g.territories.filter(t=>t.owner!==1&&
+   (g.centralBastionId===null||t.id===g.centralBastionId));
  const securingBastions=unheld.length>0;
  // Public 3:1 sector ownership means a severe economic deficit.
  const blueOwned=g.territories.filter(t=>t.owner===0).length,
@@ -77,7 +78,8 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  if(old){
   const remembered=old.objective===null?undefined:buildings.find(b=>b.id===old.objective);
   const enemy=old.kind==='hunt'?g.units.find(u=>u.id===old.objective&&u.owner===0&&u.hp>0&&!u.carrier&&g.canSee(1,u)):undefined;
-  const valid=old.kind==='capture'?g.territories[old.sector]?.owner!==1:
+  const valid=old.kind==='capture'?g.territories[old.sector]?.owner!==1&&
+    (g.centralBastionId===null||old.sector===g.centralBastionId):
    old.kind==='structure'?!!remembered&&(
     !securingBastions||canKeepBlockingObjective(old,remembered)||
     ai43KeepKnownHqMission({
