@@ -14,7 +14,11 @@ import './webgl-desert-maps.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {blueBastionRush} from './benchmark-ai-opponent.mjs';
 
-const MAP_IDS=['desert-strike','broken-empire','burning-horizon','last-stronghold'];
+const ALL_MAP_IDS=['desert-strike','broken-empire','burning-horizon','last-stronghold'];
+const MAP_IDS=(process.env.ACTION_BENCHMARK_MAPS||ALL_MAP_IDS.join(','))
+ .split(',').map(s=>s.trim()).filter(Boolean);
+if(!MAP_IDS.length||MAP_IDS.some(id=>!ALL_MAP_IDS.includes(id))||
+ new Set(MAP_IDS).size!==MAP_IDS.length)throw Error('Invalid Action benchmark map selection');
 const SECONDS=Math.min(1200,Math.max(60,Number(process.env.ACTION_BENCHMARK_SECONDS)||360));
 const OUTPUT=resolve(process.argv[2]??'reports/sandforge-action-pacing-20261122.json');
 const maps=MAP_IDS.map(id=>{
