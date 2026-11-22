@@ -22,7 +22,7 @@ export function directorArmyTarget(income:number):number {
  return Math.min(42,Math.max(24,Math.floor(Math.max(0,income)/2.5)+13));
 }
 
-const fighter=(u:Unit)=>!u.carrier&&!['medic','engineer','scout','supply','drone'].includes(u.kind);
+const fighter=(u:Unit)=>!u.carrier&&!['medic','engineer','scout','supply','drone','harvester'].includes(u.kind);
 /** Only already observed enemy infrastructure, an operational factory and a
  * missing paid siege weapon may defer optional airfield construction. */
 export function deferOptionalAirfieldForSiege(goal:BuildingKind|null,observedSiege:boolean,
