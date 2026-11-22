@@ -72,6 +72,8 @@ export function installClassicHud(){
    <button data-action="select-all" title="Alle sichtbaren eigenen Einheiten auf diesem Bildschirm auswählen (H)">ALLE</button>
    <button data-action="rally" id="sf-rally" title="Sammelpunkt für neue Einheiten setzen" hidden>SAMMELPUNKT</button>
    <button data-action="demolish" title="Eigenes Gebäude abreißen (nicht rückgängig)" hidden>ABREISSEN</button>
+   <button type="button" data-action="bastion-upgrade" id="sf-bastion-upgrade"
+    title="Bastion auswählen, um die Aufwertung zu prüfen" hidden>BASTION VERBESSERN · 750</button>
    <button data-action="missile-target" id="sf-strategic-fire" title="Langstreckenrakete: Ziel auf der Karte markieren" hidden>RAKETE STARTEN</button>
    <button data-action="interceptor-rearm" id="sf-interceptor-rearm" title="Drei Abwehrraketen für 650 Credits nachladen" hidden>ABWEHR LADEN</button>
   </div>
