@@ -29,6 +29,22 @@ test('only current physical plateau maps permit this safe siege rally recovery',
  }),false,'not every legacy generator v7 world may change');
 });
 
+test('reachable but empty rally after 95s permits only a validated candidate search',()=>{
+ const x={mapVersion:26,generatorVersion:10,seed:1907,
+  missionKind:'structure',objectiveObserved:true,homePressure:false,
+  fighters:12,phase:'gather',gatherSeconds:98,lastAttemptAgo:98,
+  readyAtRally:0,canReachRally:12};
+ assert.equal(ai45CanRelocateStuckSiege(x),true,
+  'real 480s diagnostic: all 12 routes exist but nobody assembled at 98s');
+ for(const bad of [
+  {gatherSeconds:94},{readyAtRally:1},{phase:'attack'},
+  {homePressure:true},{objectiveObserved:false},{lastAttemptAgo:44}
+ ])assert.equal(ai45CanRelocateStuckSiege({...x,...bad}),false,
+  'never change progressing or unsafe assault: '+JSON.stringify(bad));
+ assert.equal(ai45CanRelocateStuckSiege({...x,readyAtRally:1,gatherSeconds:145}),true,
+  'existing 145s timeout still handles partial but incomplete assembly');
+});
+
 test('choose a real 4-fighter cluster with validated approach, not an isolated Bastion',()=>{
  const fighters=Array.from({length:10},(_,i)=>({
   id:i,x:1000+(i%5)*16,y:1200+Math.floor(i/5)*16
