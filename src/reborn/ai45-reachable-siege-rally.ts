@@ -42,5 +42,5 @@ export function ai45CanRelocateStuckSiege(x:{
  return liveTerrain&&x.missionKind==='structure'&&x.objectiveObserved&&
   !x.homePressure&&x.fighters>=8&&x.phase==='gather'&&
   x.gatherSeconds>=95&&x.lastAttemptAgo>=45&&
-  x.readyAtRally<needed&&x.canReachRally<needed;
+  x.readyAtRally<needed&&(x.canReachRally<needed||x.gatherSeconds>=145);
 }
