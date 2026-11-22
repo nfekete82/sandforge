@@ -165,3 +165,21 @@ test('Action AI selects reachable, publicly contested frontiers before distant n
  assert.match(tactical,/g\.world\.path\(u,p,blockers,5\)/,
   'an A* validated approach is required before prioritizing a site');
 });
+
+test('Broken Empire plateau HQ builders work from the true collision-safe edge in both presets',()=>{
+ for(const preset of ['classic','action']){
+  const g=Simulation.campaign(2026,25,'rocky',10);
+  g.configureBalancePreset(preset);
+  const worker=g.units.find(u=>u.owner===0&&u.kind==='engineer'&&u.hp>0);
+  assert.ok(worker,'paid engineer must exist');
+  const site=g.headquartersCandidates(0).find(p=>!g.buildError(0,'headquarters',p));
+  assert.ok(site,'physical plateau must have legal HQ foundation');
+  const hq=g.build(0,'headquarters',site,[worker.id]);
+  assert.ok(hq,'HQ build must spend ordinary credits and use a paid worker');
+  for(let i=0;i<1000&&hq.buildRemaining>0;i++)g.step(.05);
+  assert.equal(hq.buildRemaining,0,
+   preset+' builder should finish HQ from the collision-safe approach by 50s');
+  assert.equal(g.hasHeadquarters(0),true,'no free instant HQ or bypassed build rules');
+  assert.equal(g.credits[0]>=0,true);
+ }
+});
