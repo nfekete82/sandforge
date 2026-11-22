@@ -1431,10 +1431,17 @@ export class Simulation {
    * after another structure or unit moves into the way. Try a DIFFERENT,
    * reachable side before asking the director to reassign the idle pioneer.
    * Real enemy fire still takes precedence; no construction speed bonus. */
+  /** Modern 3D building facades stop infantry a few units before the old
+   * radius+55 threshold. Let an actual line-of-sight worker finish from
+   * the physically reachable edge; do not teleport, ignore obstacles,
+   * expand repairs or change any legacy-map construction distances. */
+  private constructionWorkRange(site:Base):number {
+    return site.radius+(this.world.mapVersion>=23?65:55);
+  }
   private recoverStalledAiBuilder(u:Unit,site:Base,order:Order):boolean {
     if(u.owner!==1||u.kind!=='engineer'||u.hold||
        u.defendUntil>this.time)return false;
-    if(distance(u,site)<=site.radius+55&&this.world.line(u,site)){
+    if(distance(u,site)<=this.constructionWorkRange(site)&&this.world.line(u,site)){
       this.aiBuilderProgress.delete(u);return false;
     }
     let s=this.aiBuilderProgress.get(u);
@@ -1570,7 +1577,7 @@ export class Simulation {
        this.recoverStalledAiBuilder(u,target,order))return true;
     // A recently attacked worker pauses construction/repair to defend itself.
     if(u.kind==='engineer'&&u.defendUntil>this.time)return false;
-    const range='queue' in target?target.radius+55:u.kind==='engineer'?REPAIR_RADIUS:this.healRadius(u);
+    const range='queue' in target?(order?.kind==='build'?this.constructionWorkRange(target):target.radius+55):u.kind==='engineer'?REPAIR_RADIUS:this.healRadius(u);
     if(distance(u,target)>range||!this.world.line(u,target)){
       if(explicit&&!u.hold){if(u.repath<=0)u.path=[];const buildings=this.obstacles();const p=order?.approach&&this.world.walkable(order.approach,[...buildings,...infantryStructureColliders(buildings),...this.bastionColliders()])&&this.world.line(order.approach,target)?order.approach:this.supportApproach(u,target,true);if(p)this.move(u,p,dt);}
       return true;
@@ -2878,7 +2885,7 @@ export class Simulation {
     for(const b of this.bases){
       if(b.hp<=0)continue;
       if(b.buildRemaining>0){
-        const workers=this.units.filter(u=>u.hp>0&&u.owner===b.owner&&u.kind==='engineer'&&u.workingTarget===b.id&&u.orders[0]?.kind==='build'&&u.defendUntil<=this.time&&distance(u,b)<=b.radius+55);
+        const workers=this.units.filter(u=>u.hp>0&&u.owner===b.owner&&u.kind==='engineer'&&u.workingTarget===b.id&&u.orders[0]?.kind==='build'&&u.defendUntil<=this.time&&distance(u,b)<=this.constructionWorkRange(b)&&this.world.line(u,b));
         b.constructionActive=workers.length>0;
         const rates=workers.map(u=>getVeterancyModifiers(u).buildRate),total=rates.reduce((n,v)=>n+v,0);
         const work=Math.min(b.buildRemaining,dt*Math.min(1.5,total)*constructionRate(this.balancePreset));
