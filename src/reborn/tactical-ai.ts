@@ -2275,7 +2275,11 @@ export class TacticalAI {
    ?mapBastionContestOpening(g.world.mapVersion,g.time,blue,red,ready.length)
    :null;
   const counter=large?.counter??(blue>=3&&red<=1&&g.time>=30&&ready.length>=5);
-  const targets=g.territories.filter(t=>t.owner===-1||counter&&t.owner===0);
+  // Neutral Bastions can be rushed using their public coordinates.
+  // An enemy-controlled Bastion needs at least one real earlier sensor
+  // visit before a two-soldier "safe counter" is assigned.
+  const targets=g.territories.filter(t=>t.owner===-1||
+   counter&&t.owner===0&&g.hasExplored(1,t.point));
   const maxAssigned=large?.slots??(counter?2:ready.length>=3?2:ready.length?1:0);
   if(!targets.length||!maxAssigned){s.openingContests=[];return new Set();}
   const blockers=[...this.obstacles(),...g.bastionColliders()];
