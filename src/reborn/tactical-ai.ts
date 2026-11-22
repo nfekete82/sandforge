@@ -1784,7 +1784,7 @@ export class TacticalAI {
       const reason=observedHomePressure?'home-pressure':
        sample.length<8?'insufficient-ground-fighters':
        readyAtRally>=needed?'already-assembled':
-       canReachRally>=needed&&g.time-s.phaseAt<145?'rally-already-reachable':
+       canReachRally>=needed&&g.time-s.phaseAt<145&&readyAtRally>0?'rally-already-reachable':
        !shouldRelocate?'other-eligibility-gate':'searching-validated-route';
       this.ai45DecisionTrace.push({at:Math.round(g.time),reason,
        fighters:sample.length,readyAtRally,canReachRally,needed,
