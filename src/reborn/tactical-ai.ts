@@ -18,6 +18,7 @@ import {chooseTacticalManeuver,flankCandidate,type TacticalChoice} from './tacti
 import {assignScreen,assignFlank,flankRouteScore,isContinuingFlank} from './battle-squads.js';
 import {assaultWaveDecision,reinforcementStagingPoint} from './assault-wave.js';
 import {homeDefensePlan} from './home-defense-doctrine.js';
+import {hqLastStandDecision} from './ai-hq-last-stand.js';
 import {chooseSiegeShot,chooseRaidFront,allowSecondaryPressure,type SiegeShot,type RaidFront} from './ai25-doctrine.js';
 import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefenseMultiplier} from './ai32-doctrine.js';
 import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,type AI33Mode} from './ai33-map-doctrine.js';
@@ -168,6 +169,10 @@ export class TacticalAI {
  private recaptureRetryAt=0;
  private roverAirEscapeRetryAt=new Map<number,number>();
  private battleDirective:BattleDirectorOrder|undefined;
+ // Transient real-combat HQ damage history. Never serialized or able to
+ // reveal enemy units through fog; losing HQ health is own information.
+ private lastSeenHqHp:{id:number;hp:number}|null=null;
+ private hqLastStandUntil=0;
  private get ai36Enabled():boolean{
   return this.mode==='director'&&this.ai36Mode==='coordinated'&&
    this.ai35Enabled;
@@ -226,7 +231,7 @@ export class TacticalAI {
   this.sectorPreference={sectorId,until:this.g.time+35};return true;
  }
  restore(state:TacticalState|undefined):void{
-  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
+  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.lastSeenHqHp=null;this.hqLastStandUntil=0;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
   if(!state)for(const m of this.g.memories[1])if(m.owner===0&&
     (m.kind==='turret'||m.kind==='bunker')&&m.hp>0)
@@ -465,6 +470,76 @@ export class TacticalAI {
    if(distance(u,w)>60)this.issue([u],w,'safe',undefined,false,false);else if(u.orders.length)g.stop([u.id]);
   }
   return new Set(b.withdrawals.map(w=>w.unit));
+ }
+ /** A visible armored rush or actual loss of owned HQ health immediately
+  * interrupts distant conquests. Every PAID available combat unit is recalled
+  * (including tanks, artillery, rocket troops and offensive aircraft).
+  * Hidden units are never chosen as attack targets. No teleport/spawn.
+  */
+ private defendHeadquartersWithAll(army:Unit[],home:Point):boolean{
+  const g=this.g,s=this.state;
+  if(g.world.mapVersion<23||this.mode!=='director')return false;
+  const hq=g.bases.find(b=>b.owner===1&&b.kind==='headquarters'&&b.hp>0);
+  if(!hq){this.lastSeenHqHp=null;this.hqLastStandUntil=0;return false;}
+  const tookDamage=this.lastSeenHqHp?.id===hq.id&&hq.hp<this.lastSeenHqHp.hp-.01;
+  this.lastSeenHqHp={id:hq.id,hp:hq.hp};
+  const threats=g.units.filter(u=>u.owner===0&&u.hp>0&&
+   !u.carrier&&u.kind!=='drone'&&g.canSee(1,u)&&distance(u,hq)<=920);
+  const decision=hqLastStandDecision({
+   mapVersion:g.world.mapVersion,hqDamaged:tookDamage,
+   observed:threats.map(u=>({id:u.id,kind:u.kind,distance:distance(u,hq)}))
+  });
+  if(decision.emergency)this.hqLastStandUntil=g.time+17;
+  if(g.time>=this.hqLastStandUntil){
+   // End the emergency cleanly: don't strand the army in a stale
+   // defensive phase after the HQ has been secured.
+   if(this.hqLastStandUntil>0){
+    this.hqLastStandUntil=0;
+    if(s.phase==='defend'){
+     this.setPhase('regroup');s.group=[];s.objective=null;s.rally=null;
+    }
+   }
+   return false;
+  }
+  const defenders=army.filter(u=>(combat(u)||u.kind==='scout')&&
+   !u.factoryService&&!u.airfieldService&&!u.returnToHangar);
+  const target=threats.find(u=>u.id===decision.focus);
+  const entering=s.phase!=='defend'||s.objective!==(target?.id??null);
+  if(entering)s.groupId++;
+  this.setPhase('defend');
+  s.group=defenders.map(u=>u.id);
+  s.objective=target?.id??null;
+  // Keep training paid defenders/replacements while other offensive plans
+  // are paused. Engineers still use existing real construction orders.
+  developArmy(g,s,army,p=>this.danger(p));
+  if(target){
+   // Discard any old distant attack orders on actual paid fighters.
+   this.issue(defenders,target,'defend',target.id,false,false);
+   for(const rocket of defenders.filter(u=>u.kind==='rocket')){
+    const counter=selectObservedCounterTarget('rocket',rocket,threats,800,target);
+    if(counter&&rocket.orders[0]?.target!==counter.id)
+     this.issue([rocket],counter,'defend',counter.id,false,false);
+   }
+  }else{
+   // If the HQ took damage but no attacker is currently visible, rally
+   // defensively instead of magically targeting hidden blue armor.
+   const post=g.world.nearest({
+    x:clamp(hq.x+180,40,g.world.size-40),
+    y:clamp(hq.y+140,40,g.world.size-40)
+   },this.obstacles(),[],undefined,8);
+   if(post)this.issue(defenders,post,'safe',undefined,false,false);
+  }
+  const medics=army.filter(u=>u.kind==='medic'&&u.hp>0&&!u.carrier);
+  if(medics.length){
+   const angle=target?Math.atan2(hq.y-target.y,hq.x-target.x):Math.PI;
+   const cover=g.world.nearest({
+    x:clamp(hq.x+Math.cos(angle)*220,40,g.world.size-40),
+    y:clamp(hq.y+Math.sin(angle)*220,40,g.world.size-40)
+   },this.obstacles(),[],undefined,8);
+   if(cover)this.issue(medics,cover,'safe',undefined,false,false);
+  }
+  campaignPhase(s.commander??=newCampaign(),'emergencyDefense',g.time);
+  return true;
  }
  private localDefense(fighters:Unit[],medics:Unit[],intruders:Unit[],home:Point):Set<number>{
   const g=this.g,s=this.state,b=s.battle??=newBattle(),old=b.squads.find(q=>q.role==='defense');
@@ -2432,6 +2507,10 @@ export class TacticalAI {
   if(signature!==this.routeSignature||this.routeCache.size>128){this.routeCache.clear();this.routeSignature=signature;}this.field();
   const army=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier),home=g.bases.filter(b=>b.owner===1&&b.hp>0).sort((a,b)=>(a.kind==='headquarters'?0:1)-(b.kind==='headquarters'?0:1)||a.id-b.id)[0]??g.territories.find(t=>t.owner===1)?.point??army[0];
   if(!home)return;
+  // This must precede recovery, scouting, secondary raids, Bastion openings
+  // and the ordinary local-defender quota. Otherwise those controllers can
+  // reissue distant conquest orders on the very units defending our HQ.
+  if(this.defendHeadquartersWithAll(army,home))return;
   if(g.world.mapVersion>=3&&this.mode==='director')observeOwnedLosses(s.experience??=newExperience(),g.territories.filter(t=>t.owner===1).map(t=>t.id),army.filter(combat).length);
   if(g.world.mapVersion>=3&&this.mode==='director')updateAdaptive(g,s.adaptive??=newAdaptive(),home,s.losses,s.battle);
   // Battle Director reads only PUBLIC Bastion ownership and enemies in
