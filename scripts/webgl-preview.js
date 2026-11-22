@@ -37,6 +37,7 @@ import {installDesertSandPBR,SANDFORGE_SAND_PBR} from '/webgl-sand-pbr.js';
 import {desertEcoregion} from '/webgl-desert-ecoregions.js';
 import {installDesertRegionalPBR,DESERT_REGIONAL_PBR_REVISION} from '/webgl-desert-ground-pbr.js';
 import {installAuthenticDesertGroundBlending} from '/webgl-desert-ground-blending.js';
+import {installMesaCliffGroundPBR} from '/webgl-desert-cliff-ground-pbr.js';
 import {loadAuthenticDesertScenery} from '/webgl-desert-ecoregion-3d.js';
 import {createDesertVillages} from '/webgl-desert-village.js';
 import {installMatchResultOverlay} from '/webgl-match-result.js';
@@ -223,7 +224,7 @@ const models=new Map(),ruinMeshes=[];
 // A player campaign starts LIVE, as in the original Canvas RTS. Orders must
 // never appear accepted while an unannounced preview-level pause blocks ticks.
 game.paused=false;
-let groundMeshes=[],groundBlending=null,groundBlendReady=false,
+let groundMeshes=[],groundBlending=null,cliffGroundBlend=null,groundBlendReady=false,
  running=query.get('pause')!=='1',accumulator=0,elapsed=0;
 let simulationSpeed=1;
 const speedControl=$('simulation-speed');
@@ -353,7 +354,16 @@ function buildTerrain(){
     lowQuality:query.get('lite')==='1'});
    if(groundBlending)console.info('Sandforge: four authentic desert ground layers',desertRegion.id);
   }).catch(error=>console.warn('Ground blending fallback retained:',error))
-    .finally(()=>{groundBlendReady=true;});
+    .finally(()=>{
+     // Desert Strike cliff treatment lives on the *same* 16 ground meshes,
+     // after all existing PBR material layers. Avoid transparency overlays,
+     // crossing triangles and bright angular fragments on sloping dunes.
+     if(desertRegion?.id==='desert-strike'&&terrain.battlefield?.generatorVersion>=7)
+      cliffGroundBlend=installMesaCliffGroundPBR(material,{
+       size,plateaus:terrain.plateaus??[],
+       lowQuality:query.get('lite')==='1'});
+     groundBlendReady=true;
+    });
  }
  // The old 2K sand-ripples-v2 artwork contains broad PAINTED bright patches.
  // Putting those over an independently lit 3D heightfield produces the
@@ -1102,12 +1112,9 @@ const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
   showOutcrops:biome!=='desert'}):[];
 // Thin PBR cliff facing follows the physical heightfield, with the real
 // sloping entrances left clear. Summit and ramp remain ordinary ground.
-const raisedMesaMeshes=terrain.battlefield?.generatorVersion>=7
+const raisedMesaMeshes=terrain.battlefield?.generatorVersion>=7&&
+ desertRegion?.id!=='desert-strike'
  ?createPlayableMesaCliffs({scene,size,heightAt,plateaus:terrain.plateaus??[],
-    // The painted cliff must follow the triangulated GPU terrain, not the
-    // smoother physics height field: otherwise the overlay cuts through sand.
-    renderHeightAt:desertRegion?.id==='desert-strike'
-     ?renderGroundHeightSampler(heightAt,size):null,
     lowQuality:query.get('lite')==='1',mapId:desertRegion?.id??null}):[];
 // Only new WebGL render dressing: small PBR talus at cliff feet and
 // sparse dry branch clusters. This never enters collision, FoW or saves.
@@ -1296,7 +1303,7 @@ if(oasisFocus){
 window.addEventListener('pagehide',event=>{if(!event.persisted){
  lakeVegetation?.dispose();burnedSedans?.dispose();mesaDressing?.dispose();
  canyonOutcrops?.dispose();authenticDesertArt?.dispose();
- groundBlending?.dispose();desertWater?.dispose();oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
+ groundBlending?.dispose();cliffGroundBlend?.dispose();desertWater?.dispose();oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
 }});
 let desertArtReady=false;
 const effects=new SandforgeCombatEffects({scene,camera,game,world,heightAt,pos,battlefield,biome,lowQuality:query.get('lite')==='1',vehicleDust:query.get('dust')!=='off'});
