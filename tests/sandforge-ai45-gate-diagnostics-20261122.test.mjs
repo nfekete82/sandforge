@@ -30,3 +30,14 @@ test('diagnostics do not access hidden live enemy bases or units',()=>{
  assert.equal(parseOptions(['--map','burning-horizon','--seconds','480','--output','/tmp/gates.json']).seconds,480);
  assert.throws(()=>parseOptions(['--map','missing','--output','/tmp/gates.json']));
 });
+
+test('AI45-specific runtime decisions are recorded independently of AI40',()=>{
+ const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ const report=readFileSync('scripts/diagnose-ai45-gates-20261122.mjs','utf8');
+ assert.match(ai,/ai45DecisionTrace:Array</);
+ assert.match(ai,/const shouldRelocate=ai45CanRelocateStuckSiege/);
+ assert.match(ai,/if\(this\.rallyGateTraceEnabled\)\{/);
+ assert.match(ai,/no-reachable-artillery-approach/);
+ assert.match(report,/latestAI45Decisions=g\.tactical\.ai45DecisionTrace/);
+ assert.match(report,/ai45DecisionTrace:\{samples:latestAI45Decisions\.length/);
+});
