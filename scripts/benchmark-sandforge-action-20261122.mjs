@@ -54,7 +54,8 @@ function run(map,preset){
   blueCombat:g.units.filter(u=>u.owner===0&&u.kind==='infantry').length,
   redCombat:g.units.filter(u=>u.owner===1&&u.kind==='infantry').length};
  const metrics={map:map.id,preset,initial,seconds:0,status:'playing',
-  firstBlueHQOrder:null,firstRedHQFinished:null,firstRedAttackPhase:null,
+  firstBlueHQOrder:null,firstBlueHQFinished:null,firstBlueBarracksFinished:null,
+  firstRedHQFinished:null,firstRedAttackPhase:null,
   firstExchange:null,firstFireByFaction:[null,null],
   shotsByFaction:[0,0],redShots:0,engagementSeconds:0,
   redCaptureEvents:0,blueCaptureEvents:0,redCaptureSeconds:0,
@@ -75,6 +76,10 @@ function run(map,preset){
   g.step(dt);
   metrics.seconds=Number(g.time.toFixed(2));
   if(g.tactical.state.phase==='attack')metrics.firstRedAttackPhase??=metrics.seconds;
+  if(g.bases.some(b=>b.owner===0&&b.kind==='headquarters'&&b.hp>0&&b.buildRemaining<=0))
+   metrics.firstBlueHQFinished??=metrics.seconds;
+  if(g.bases.some(b=>b.owner===0&&b.kind==='barracks'&&b.hp>0&&b.buildRemaining<=0))
+   metrics.firstBlueBarracksFinished??=metrics.seconds;
   if(g.bases.some(b=>b.owner===1&&b.kind==='headquarters'&&b.hp>0&&b.buildRemaining<=0))
    metrics.firstRedHQFinished??=metrics.seconds;
   const red=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&u.kind!=='engineer'&&u.kind!=='medic'),
@@ -111,6 +116,18 @@ function run(map,preset){
   }
  }
  metrics.status=g.status;
+ const blueHQ=g.bases.find(b=>b.owner===0&&b.kind==='headquarters'&&b.hp>0);
+ const blueBarracks=g.bases.find(b=>b.owner===0&&b.kind==='barracks'&&b.hp>0);
+ const blueEngineer=g.units.find(u=>u.owner===0&&u.kind==='engineer'&&u.hp>0);
+ metrics.blueConstruction={
+  hqRemaining:blueHQ?.buildRemaining??null,
+  barracksRemaining:blueBarracks?.buildRemaining??null,
+  builderPosition:blueEngineer?{x:Number(blueEngineer.x.toFixed(1)),y:Number(blueEngineer.y.toFixed(1))}:null,
+  builderOrder:blueEngineer?.orders?.[0]?.kind??null,
+  builderTarget:blueEngineer?.orders?.[0]?.target??null,
+  builderToHQDistance:blueEngineer&&blueHQ?Number(length(blueEngineer,blueHQ).toFixed(1)):null,
+  credits:g.credits[0]
+ };
  metrics.redOwnedBastions=g.territories.filter(t=>t.owner===1).length;
  metrics.blueOwnedBastions=g.territories.filter(t=>t.owner===0).length;
  metrics.redProduced=g.stats.factions[1].producedUnits;
