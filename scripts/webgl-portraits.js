@@ -18,6 +18,9 @@ import {hasFinalBarracksPBR,prepareFinalBarracksPortrait} from './webgl-pbr-barr
 import {polishBarracksProps} from './webgl-barracks-props.js';
 import {paintFactionRoofStripes} from './webgl-building-roof-stripes.js';
 import {paintFactionEntranceBanners} from './webgl-entrance-banners.js';
+import {removeBastionFrontShield} from './webgl-bastion-visual.js';
+import {meshyStructurePath,prepareMeshyStructure} from './webgl-meshy-structure.js';
+import {unifyModelFactionFlags} from './webgl-faction-flags.js';
 
 /** Sprite-sheet portrait extraction shared by the WebGL HUD.
  * The classic game crops one idle frame rather than scaling down the entire
@@ -484,6 +487,45 @@ export function unitIcon(kind,renderer){
 // Transparent padding in original building PNGs makes their thumbnails
 // look tiny. Trim alpha bounds at low resolution and draw the whole building
 // into a consistent wide tile without clipping its silhouette.
+/** The clicked Bastion must show the SAME current model as the battlefield.
+ * The old bastion-grounded-v2.png was a retired tower design.
+ * Load the corresponding faction GLB and trim the same old front shield.
+ * These are isolated clones; portrait readback may dispose them safely.
+ */
+const bastionPortraitCache=new Map();
+export const bastionIconUrl=owner=>
+ '/src/assets/reborn/buildings-3d/bastion-'+(owner===0?0:owner===1?1:-1)+'.png';
+export function bastionIcon(owner,renderer){
+ const faction=owner===0?0:owner===1?1:-1;
+ const modelPath=meshyStructurePath('bastion')??
+  '/src/assets/reborn/buildings-3d/bastion-'+faction+'.glb';
+ if(!renderer)return Promise.resolve(bastionIconUrl(faction));
+ const key=modelPath+'#'+faction;
+ if(!bastionPortraitCache.has(key)){
+  const job=(async()=>{
+   const data=await new GLTFLoader().loadAsync(modelPath);
+   const model=cloneSkeleton(data.scene);
+   // Clone all destructible buffers BEFORE front-shield trimming/material
+   // grading. The live battlefield and other faction instances own theirs.
+   model.traverse(node=>{
+    if(!node.isMesh)return;
+    node.geometry=node.geometry.clone();
+    node.material=Array.isArray(node.material)?
+     node.material.map(m=>m.clone()):node.material.clone();
+   });
+   if(modelPath.includes('/meshy-structures/'))
+    prepareMeshyStructure(model,'bastion',faction);
+   else removeBastionFrontShield(model);
+   unifyModelFactionFlags(model,faction);
+   model.name='Sandforge_Bastion_HUD_'+faction;
+   return renderModelPortrait(model,renderer,
+    {width:256,height:256,buildingCard:true});
+  })().catch(error=>{bastionPortraitCache.delete(key);throw error;});
+  bastionPortraitCache.set(key,job);
+ }
+ return bastionPortraitCache.get(key);
+}
+
 const buildingIconCache=new Map();
 async function rasterizeBuildingIcon(kind,renderer){
  if(isStrategicBuilding(kind)){
