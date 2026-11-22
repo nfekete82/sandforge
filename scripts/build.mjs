@@ -74,6 +74,7 @@ cpSync('scripts/webgl-desert-maps.js','dist/webgl-desert-maps.js');
 for(const module of ['webgl-desert-ecoregions','webgl-desert-ecoregion-plan','webgl-desert-ecoregion-3d','webgl-desert-ground-pbr','webgl-desert-ground-blending','webgl-authentic-canyon-geology','webgl-canyon-pbr-outcrops'])cpSync(`scripts/${module}.js`,`dist/${module}.js`);
 cpSync('scripts/webgl-title-menu.js','dist/webgl-title-menu.js');
 cpSync('scripts/webgl-battlefield.js','dist/webgl-battlefield.js');
+cpSync('scripts/webgl-veyrit.js','dist/webgl-veyrit.js');
 // Required by webgl-battlefield.js; without this the entire 3D entry graph fails.
 cpSync('scripts/webgl-shadow-budget.js','dist/webgl-shadow-budget.js');
 cpSync('scripts/webgl-scout-rocket-pods.js','dist/webgl-scout-rocket-pods.js');
