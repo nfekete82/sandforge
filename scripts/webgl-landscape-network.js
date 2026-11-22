@@ -28,7 +28,7 @@ export function sandstoneRidgeFaceRelief(along,offset,seed=0){
  return {
   wall,
   fissure:wall*fissure,
-  horizontal:wall*((rib-.5)*6.8-fissure*5.4),
+  horizontal:Math.max(-6.5,Math.min(6.5,wall*((rib-.5)*6.8-fissure*5.4))),
   heightFactor:1-wall*(.16*fissure+.065*(fractureLine-.5))
  };
 }
