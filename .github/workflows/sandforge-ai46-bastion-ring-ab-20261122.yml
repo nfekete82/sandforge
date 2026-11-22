@@ -1,0 +1,35 @@
+name: Sandforge KI 4.6 - reachable Bastion perimeter A/B
+on:
+  pull_request:
+    branches:
+      - feat/ai45-real-assault-metrics-20261122
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bastion-assault:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - name: Build current AI and exact desert maps
+        run: npm run build
+      - name: Capture-ring navigation safety and controller source contracts
+        run: node --test tests/sandforge-ai46-bastion-approach-20261122.test.mjs
+      - name: Same-binary AI46 OFF/ON physical invasion comparison
+        run: node scripts/benchmark-ai46-perimeter-20261122.mjs reports/ai46-bastion-ring-ab.json
+      - name: Archive full metrics even if unsuccessful
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai46-bastion-ring-ab
+          path: reports/ai46-bastion-ring-ab.json
+          if-no-files-found: warn
+          retention-days: 30
