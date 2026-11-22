@@ -54,7 +54,7 @@ export function wallDragSegments(start,end,mapSize,{axis=null,limit=WALL_CHAIN_M
  return Array.from({length:count},(_,i)=>({
   point:dominant==='x'?
    {x:alignedStart+sign*i*WALL_CHAIN_PITCH,y:cross}:
-   {x:cross,y:startPos+sign*i*WALL_CHAIN_PITCH},
+   {x:cross,y:alignedStart+sign*i*WALL_CHAIN_PITCH},
   facing
  }));
 }
