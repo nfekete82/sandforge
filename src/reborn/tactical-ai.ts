@@ -170,6 +170,7 @@ export class TacticalAI {
  ai45Mode:'off'|'on'='on';
  /** Same-binary A/B: guarded, physically reachable scout for open Bastion objectives. */
  ai46Mode:'off'|'on'='on';
+ ai46VanguardOrders=0;
  private ai46CaptureApproach:{sector:number;unitId:number;at:number;point:Point}|null=null;
  private recaptureMission:{sector:number;ids:number[];since:number;securedAt:number|null}|null=null;
  private recaptureRetryAt=0;
