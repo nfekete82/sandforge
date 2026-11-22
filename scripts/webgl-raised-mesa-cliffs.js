@@ -227,10 +227,19 @@ function createNaturalDesertStrikeCliffs({scene,size,heightAt,plateaus,lowQualit
     const fault=Math.sin(angle*13+t*14+mesa.seed*.0008)*
        Math.sin(angle*29-t*11);
     const largePatch=.5+.5*Math.sin(angle*7+Math.sin(t*8)*1.3);
+    // Deep, discontinuous vertical erosion fractures and narrow sandstone
+    // ribs. Only PBR vertex pigment changes, never terrain or walkable cells.
+    // All angular frequencies close at 2π: no seam across the mesa ring.
+    const verticalCut=Math.pow(Math.max(0,Math.cos(
+      angle*31+.29*Math.sin(t*9+angle*5)+mesa.seed*.0021)),18)*
+      smooth(clamp((t-.06)/.22))*(1-smooth(clamp((t-.86)/.23)));
+    const rib=(.5+.5*Math.sin(angle*57+t*6+mesa.seed*.001))*
+      Math.sin(pi*clamp(t))**2;
     const c0=stone[1].clone().lerp(stone[2],
-      clamp(.11+.13*largePatch+.12*Math.max(0,fault)));
+      clamp(.11+.13*largePatch+.12*Math.max(0,fault)+.11*verticalCut));
     c0.lerp(stone[0],top*.52).lerp(stone[3],toe*.65);
-    c0.multiplyScalar(.93+.10*Math.sin(angle*5+t*12)+.07*largePatch);
+    c0.multiplyScalar(clamp(.93+.10*Math.sin(angle*5+t*12)+
+      .07*largePatch-.19*verticalCut-.04*rib,.61,1.10));
     row.push({
      x,z,keep,p:[x-half,y,z-half],
      color:[c0.r,c0.g,c0.b],
