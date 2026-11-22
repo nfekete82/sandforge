@@ -28,14 +28,14 @@ const mesaRampCoverage=(p,m)=>{
  * All positions are sampled from the SAME ground heightAt (no flying slabs).
  */
 export function createPlayableMesaCliffs({
- scene,size,heightAt,plateaus=[],lowQuality=false,mapId=null
+ scene,size,heightAt,renderHeightAt=null,plateaus=[],lowQuality=false,mapId=null
 }={}){
  const meshes=[];
  if(!scene||!heightAt||!plateaus?.length)return meshes;
  // New visual treatment only for the currently selected Desert Strike map.
  // Old saves and every other biome still get their historical geometry.
  if(mapId==='desert-strike')return createNaturalDesertStrikeCliffs({
-  scene,size,heightAt,plateaus,lowQuality
+  scene,size,heightAt,renderHeightAt,plateaus,lowQuality
  });
  const half=size*.5,positions=[],colors=[],uv=[];
  // More resolution is spent on the visible rock face, not the flat
@@ -146,8 +146,17 @@ export function createPlayableMesaCliffs({
  * All newly cut edge vertices re-sample the authoritative terrain height.
  * No polygon can float above the sand and no physics/AI data is modified.
  */
-function createNaturalDesertStrikeCliffs({scene,size,heightAt,plateaus,lowQuality}){
- const half=size*.5,xyz=[],uv=[],colors=[];
+function createNaturalDesertStrikeCliffs({
+ scene,size,heightAt,renderHeightAt=null,plateaus,lowQuality
+}){
+ // The actual 4x4x56 WebGL ground has a triangularly interpolated surface.
+ // heightAt is the authoritative physics field; renderHeightAt (when supplied)
+ // reproduces that exact GPU mesh. Artwork must follow the *visible* sand,
+ // otherwise parts of the cliff intersect the terrain and produce bright
+ // triangles / z-fighting. Historical tests/callers retain the old fallback.
+ const visualHeightAt=renderHeightAt??heightAt;
+ const facadeLift=renderHeightAt?.42:.29;
+ const half=size*.5,xyz=[],uv=[],colors=[],blend=[];
  const sampleCount=lowQuality?160:280;
  const radial=[-.13,-.075,-.025,.025,.075,.13,.19,.26,.34,.43,
   .52,.61,.70,.78,.85,.91,.97,1.04,1.12,1.19];
@@ -162,7 +171,8 @@ function createNaturalDesertStrikeCliffs({scene,size,heightAt,plateaus,lowQualit
   const t=Math.max(0,Math.min(1,a.keep/(a.keep-b.keep)));
   const x=lerp(a.x,b.x,t),z=lerp(a.z,b.z,t);
   return {
-   x,z,keep:0,p:[x-half,heightAt(x,z)+.29,z-half],
+   x,z,keep:0,blend:0,
+   p:[x-half,visualHeightAt(x,z)+facadeLift,z-half],
    uv:[lerp(a.uv[0],b.uv[0],t),lerp(a.uv[1],b.uv[1],t)],
    color:a.color.map((n,i)=>lerp(n,b.color[i],t))
   };
@@ -184,6 +194,7 @@ function createNaturalDesertStrikeCliffs({scene,size,heightAt,plateaus,lowQualit
    if(area<.0001)continue;
    for(const v of face){
     xyz.push(...v.p);uv.push(...v.uv);colors.push(...v.color);
+    blend.push(v.blend);
    }
   }
  };
@@ -209,7 +220,7 @@ function createNaturalDesertStrikeCliffs({scene,size,heightAt,plateaus,lowQualit
     const radius=r+fracture;
     const x=mesa.center.x+c*radius*factor;
     const z=mesa.center.y+sn*radius*factor;
-    const height=heightAt(x,z),y=height+.29;
+    const height=heightAt(x,z),y=visualHeightAt(x,z)+facadeLift;
     if(last)faceLength+=Math.hypot(x-last[0],y-last[1],z-last[2]);
     last=[x,y,z];
     const cover=mesaRampCoverage({x,y:z},mesa);
@@ -240,8 +251,15 @@ function createNaturalDesertStrikeCliffs({scene,size,heightAt,plateaus,lowQualit
     c0.lerp(stone[0],top*.52).lerp(stone[3],toe*.65);
     c0.multiplyScalar(clamp(.93+.10*Math.sin(angle*5+t*12)+
       .07*largePatch-.19*verticalCut-.04*rib,.61,1.10));
+    // The cliff is only a rendered mineral coating of the same ground.
+    // Without opacity falloff its clipped slope creates a hard orange decal
+    // border across ordinary sand. Fade the upper rim, eroded toe and the
+    // physical slope/ramp cut without moving or modifying the real terrain.
+    const upperBlend=smooth((t+.09)/.24);
+    const lowerBlend=1-smooth((t-.76)/.42);
+    const cliffBlend=upperBlend*lowerBlend*smooth(clamp(keep/.20));
     row.push({
-     x,z,keep,p:[x-half,y,z-half],
+     x,z,keep,blend:cliffBlend,p:[x-half,y,z-half],
      color:[c0.r,c0.g,c0.b],
      // Project by actual circumference and down-slope travel distance.
      // Slightly warped UVs break up repeating aligned texture bricks.
@@ -262,6 +280,7 @@ function createNaturalDesertStrikeCliffs({scene,size,heightAt,plateaus,lowQualit
  geometry.setAttribute('position',new THREE.Float32BufferAttribute(xyz,3));
  geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+ geometry.setAttribute('cliffBlend',new THREE.Float32BufferAttribute(blend,1));
  geometry.computeVertexNormals();
  geometry.computeBoundingSphere();
  const maps=desertStrikeNaturalCliffMaps(lowQuality);
@@ -271,8 +290,27 @@ function createNaturalDesertStrikeCliffs({scene,size,heightAt,plateaus,lowQualit
   roughnessMap:maps.roughnessMap,
   normalScale:new THREE.Vector2(.72,.72),
   roughness:.98,metalness:0,side:THREE.DoubleSide,
+  transparent:true,depthWrite:false,forceSinglePass:true,
   polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1
  });
+ // Attribute-driven alpha blends textured stone into the existing sand
+ // rather than introducing a second terrain mesh or shader texture lookup.
+ // Keep normal/roughness/albedo PBR and the actual clipped cliff geometry.
+ material.onBeforeCompile=shader=>{
+  const vertex='attribute float cliffBlend; varying float vSfCliffBlend;';
+  shader.vertexShader=shader.vertexShader.replace(
+   '#include <common>','#include <common>\n'+vertex);
+  shader.vertexShader=shader.vertexShader.replace(
+   '#include <begin_vertex>',
+   '#include <begin_vertex>\nvSfCliffBlend=cliffBlend;');
+  shader.fragmentShader=shader.fragmentShader.replace(
+   '#include <common>',
+   '#include <common>\nvarying float vSfCliffBlend;');
+  shader.fragmentShader=shader.fragmentShader.replace(
+   '#include <color_fragment>',
+   '#include <color_fragment>\ndiffuseColor.a *= clamp(vSfCliffBlend,0.0,1.0);');
+ };
+ material.customProgramCacheKey=()=> 'sandforge-desert-strike-physical-cliff-softblend-v2';
  const mesh=new THREE.Mesh(geometry,material);
  mesh.name='Sandforge-Desert-Strike-Natural-Stratified-Cliffs';
  mesh.userData={
@@ -281,7 +319,10 @@ function createNaturalDesertStrikeCliffs({scene,size,heightAt,plateaus,lowQualit
   cliffUvMapping:'desert-strike-sandstone-arc-and-slope-v1',
   cliffTextureWorldTile:150,
   rampCutMethod:'triangle-clipped-physical-slope',
-  cliffAtlas:maps.variant
+  cliffAtlas:maps.variant,
+  cliffOpacityTransition:'slope-rim-toe-vertex-alpha-v2',
+  renderGroundConforming:Boolean(renderHeightAt),
+  renderGroundOffset:facadeLift
  };
  mesh.raycast=()=>{};mesh.castShadow=false;mesh.receiveShadow=true;
  scene.add(mesh);
