@@ -3018,7 +3018,7 @@ export class Simulation {
              u.hp>0&&!u.carrier&&!u.hold&&u.orders.length===0);
            if(worker){
              const home=this.bases.find(b=>b.owner===1&&b.kind==='headquarters'&&b.hp>0);
-             const anchor=home??factory;
+             const anchor=home??this.bases.find(b=>b.owner===1&&b.hp>0)!;
              outer:for(const radius of [225,290,365])for(let i=0;i<16;i++){
                const a=(i+((this.seed>>>2)%16))*Math.PI/8;
                const p={x:anchor.x+Math.cos(a)*radius,y:anchor.y+Math.sin(a)*radius};
