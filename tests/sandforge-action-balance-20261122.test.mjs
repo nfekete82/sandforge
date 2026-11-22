@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -142,4 +142,26 @@ test('scan target is the camera focus and action-only cooldown is visible on HUD
  assert.match(preview,/controls\.target\.x\+half/);
  assert.match(preview,/actionScanButton\.hidden=game\.balancePreset!=='action'/);
  assert.match(preview,/actionScanButton\.disabled=!ready/);
+});
+
+test('Action AI selects reachable, publicly contested frontiers before distant neutral sectors',()=>{
+ const base={preset:'action',mapVersion:25,time:85,available:5,
+  blue:3,red:2,frontierEnemy:1,observedHomeThreat:false};
+ assert.deepEqual(actionBastionProbePolicy(base),{slots:2,counter:true});
+ assert.equal(actionBastionProbePolicy({...base,frontierEnemy:0}).counter,false);
+ assert.equal(actionBastionProbePolicy({...base,observedHomeThreat:true}).slots,0);
+ assert.equal(actionBastionProbePolicy({...base,available:2}).counter,false);
+ const closerNeutral={pathDistance:500,income:14,owner:-1,
+  frontierRed:false,frontierBlue:false,counter:true};
+ const exposedEnemy={...closerNeutral,pathDistance:700,owner:0,frontierRed:true};
+ assert.ok(actionBastionGoalScore(exposedEnemy)<actionBastionGoalScore(closerNeutral),
+  'send paid recapture soldiers to the public contact line, not far income');
+ assert.ok(actionBastionGoalScore({...closerNeutral,frontierRed:true})<
+  actionBastionGoalScore(closerNeutral),'near allied frontline should matter');
+ assert.equal(actionBastionGoalScore({...closerNeutral,pathDistance:Infinity}),Infinity);
+ const tactical=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(tactical,/actionBastionGoalScore\(\{/);
+ assert.match(tactical,/frontierEnemy:g\.territories\.filter/);
+ assert.match(tactical,/g\.world\.path\(u,p,blockers,5\)/,
+  'an A* validated approach is required before prioritizing a site');
 });
