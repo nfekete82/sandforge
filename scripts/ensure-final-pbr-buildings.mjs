@@ -20,7 +20,9 @@ import {join,resolve} from 'node:path';
 import {execFileSync} from 'node:child_process';
 
 const root=process.cwd(),rel='src/assets/reborn/buildings-3d';
-const destination=join(root,rel);
+// Build passes dist/... as an explicit destination; the stand-alone asset
+// repair command retains the historical default for authoring workflows.
+const destination=resolve(process.argv[2]||join(root,rel));
 const home=homedir();
 const source=(env,defaultName)=>resolve(process.env[env]||join(home,'Projects',defaultName));
 const combined=source('SANDFORGE_COMBINED_PBR_SOURCE','sandforge-pbr-gesamt-test');
