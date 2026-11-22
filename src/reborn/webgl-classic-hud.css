@@ -3109,3 +3109,22 @@
  background:#353a35;color:#b0ab9e;border-color:#696b58;
  opacity:.82;cursor:not-allowed;
 }
+
+/* Veyrit economy / king-of-the-hill objective, integrated in the existing HUD. */
+.sf-rts .sf-veyrit-resource,.sf-rts .sf-central-objective{
+ display:flex;align-items:center;gap:8px;min-width:0;padding:5px 10px;
+ border:1px solid rgba(94,174,169,.38);border-radius:5px;
+ background:rgba(11,39,42,.65);color:#8ef5e0;
+ font:700 11px/1.25 ui-monospace,SFMono-Regular,monospace;
+}
+.sf-rts .sf-veyrit-resource strong{white-space:nowrap;font:700 10px/1.25 ui-monospace,monospace}
+.sf-rts .sf-central-objective small{display:block;color:#bccfc7;font:600 10px/1.2 system-ui;white-space:nowrap}
+.sf-rts .sf-central-objective strong{display:block;font:800 19px/1.1 ui-monospace,monospace;letter-spacing:.035em}
+.sf-rts .sf-central-objective[data-owner="red"]{color:#ff8a75;border-color:rgba(255,120,98,.5)}
+.sf-rts .sf-central-objective[data-owner="blue"]{color:#79cfff;border-color:rgba(110,205,255,.52)}
+.sf-rts .sf-central-objective[hidden]{display:none!important}
+@media(max-width:1000px){
+ .sf-rts .sf-veyrit-resource{display:none}
+ .sf-rts .sf-central-objective{padding:4px 6px}
+ .sf-rts .sf-central-objective strong{font-size:15px}
+}
