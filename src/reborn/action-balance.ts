@@ -30,11 +30,29 @@ export const groundSpeedRate=(preset:BalancePreset,flying:boolean):number=>
  preset==='action'&&!flying?ACTION_BALANCE.groundSpeed:1;
 export const actionBastionProbePolicy=(x:{
  preset:BalancePreset;mapVersion:number;time:number;available:number;
- blue:number;red:number;observedHomeThreat:boolean;
+ blue:number;red:number;frontierEnemy?:number;observedHomeThreat:boolean;
 }):{slots:number;counter:boolean}=>{
  if(x.preset!=='action'||x.mapVersion<23||
   x.time<18||x.time>ACTION_BALANCE.openingContestSeconds||
   x.available<ACTION_BALANCE.earlyProbeMinimumFighters||x.observedHomeThreat)return {slots:0,counter:false};
- const counter=x.blue-x.red>=2&&x.blue>=3&&x.time>=50&&x.available>=4;
+ // Frontier ownership is public map information; no unseen enemy units,
+ // structures, cached omniscient destinations or free troops are consulted.
+ const threatenedFrontier=(x.frontierEnemy??0)>0;
+ const counter=x.time>=50&&x.available>=4&&(
+   x.blue-x.red>=2&&x.blue>=3||
+   threatenedFrontier&&x.blue>x.red);
  return {slots:x.available>=4?2:1,counter};
 };
+/** Lower wins. Frontline bias keeps early forces fighting for a shared
+ * reachable objective rather than wandering towards far-away neutral income.
+ * Only known Bastion ownership and physical A* distance are inputs. */
+export function actionBastionGoalScore(x:{
+ pathDistance:number;income:number;owner:-1|0|1;
+ frontierRed:boolean;frontierBlue:boolean;counter:boolean;
+}):number {
+ if(!Number.isFinite(x.pathDistance)||x.pathDistance<0)return Infinity;
+ return x.pathDistance-Math.min(30,Math.max(0,x.income))*8
+  -(x.counter&&x.owner===0?480:0)
+  -(x.frontierRed?250:0)
+  +(x.frontierBlue&&!x.frontierRed?75:0);
+}
