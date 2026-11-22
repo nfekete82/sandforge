@@ -185,7 +185,12 @@ test('Desert Strike PBR cliff fades into the exact rendered sand surface, not hi
  assert.match(shader.fragmentShader,/diffuseColor\.a \*= clamp\(vSfCliffBlend/);
  assert.deepEqual([...world.blocked],before,'never touch navigation');
  assert.deepEqual([...world.generated.battlefield.heights],heights,'never touch terrain');
- assert.match(readFileSync('scripts/webgl-preview.js','utf8'),
-  /installMesaCliffGroundPBR\(material,/,'live Desert Strike must paint the existing terrain instead of overlaying it');
+ const live=readFileSync('scripts/webgl-preview.js','utf8');
+ assert.match(live,/renderGroundHeightSampler\(heightAt,size\)/,
+  'restored physical sandstone must conform to rendered terrain triangles');
+ assert.match(live,/createPlayableMesaCliffs\(\{scene,size,heightAt/,
+  'live Desert Strike should render the natural physical rock again');
+ assert.match(live,/query\.get\('cliffpaint'\)==='1'/,
+  'rejected painted stripes are available only for explicit A/B');
  cliff.removeFromParent();cliff.geometry.dispose();cliff.material.dispose();
 });
