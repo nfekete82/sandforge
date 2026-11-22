@@ -21,7 +21,20 @@ export function evaluateAI45Report(report){
   hqDamageDelta:(p.treatment.hqDamage??0)-(p.control.hqDamage??0),
   stalledDelta:(p.treatment.stalled??0)-(p.control.stalled??0),
   abortedDelta:(p.treatment.aborted??0)-(p.control.aborted??0),
-  rescueCount:p.treatment.rallyRescues??0
+  rescueCount:p.treatment.rallyRescues??0,
+  actualWaveLaunchesControl:p.control.wave?.actualWaveLaunches??null,
+  actualWaveLaunchesTreatment:p.treatment.wave?.actualWaveLaunches??null,
+  actualWaveLaunchesDelta:p.control.wave?.actualWaveLaunches==null||
+   p.treatment.wave?.actualWaveLaunches==null?null:
+   p.treatment.wave.actualWaveLaunches-p.control.wave.actualWaveLaunches,
+  netCaptureDelta:(p.treatment.progress?.netCaptures??0)-(p.control.progress?.netCaptures??0),
+  controlBastionSeconds:p.control.progress?.bastionControlSeconds??null,
+  treatmentBastionSeconds:p.treatment.progress?.bastionControlSeconds??null,
+  bastionSecondsDelta:p.control.progress?.bastionControlSeconds==null||
+   p.treatment.progress?.bastionControlSeconds==null?null:
+   p.treatment.progress.bastionControlSeconds-p.control.progress.bastionControlSeconds,
+  enemyBuildingDamageDelta:(p.treatment.progress?.enemyBuildingDamage??0)-
+   (p.control.progress?.enemyBuildingDamage??0)
  }));
  const totals={
   ...summary,
@@ -31,13 +44,23 @@ export function evaluateAI45Report(report){
   totalScoreDelta:differences.reduce((n,p)=>n+p.scoreDelta,0),
   totalHQDamageDelta:differences.reduce((n,p)=>n+p.hqDamageDelta,0),
   totalStalledDelta:differences.reduce((n,p)=>n+p.stalledDelta,0),
-  totalAbortedDelta:differences.reduce((n,p)=>n+p.abortedDelta,0)
+  totalAbortedDelta:differences.reduce((n,p)=>n+p.abortedDelta,0),
+  totalActualWaveLaunchDelta:differences.some(p=>p.actualWaveLaunchesDelta===null)?null:
+   differences.reduce((n,p)=>n+p.actualWaveLaunchesDelta,0),
+  totalNetCaptureDelta:differences.reduce((n,p)=>n+p.netCaptureDelta,0),
+  totalBastionSecondsDelta:differences.some(p=>p.bastionSecondsDelta===null)?null:
+   differences.reduce((n,p)=>n+p.bastionSecondsDelta,0),
+  totalEnemyBuildingDamageDelta:differences.reduce((n,p)=>n+p.enemyBuildingDamageDelta,0)
  };
  const verdict=totals.affectedPairs===0?'NO_ACTIVATIONS':
   totals.worsenedPairs>0||totals.totalScoreDelta<0?'REGRESSION_REVIEW':
   totals.improvedPairs>0?'PROMISING_NOT_PROVEN':'INCONCLUSIVE';
  return {verdict,map:report.map,totals,differences,
-  note:'A/B on a single map is not proof of higher overall win rate; inspect all three maps and full CI before merging.'};
+  // Tactical progress is useful evidence but cannot be counted as a victory.
+  measuredTacticalProgress:totals.totalBastionSecondsDelta===null?'unavailable':
+   totals.totalBastionSecondsDelta>0?'more-territory-held':
+   totals.totalBastionSecondsDelta<0?'less-territory-held':'unchanged',
+  note:'Wave counts and Bastion-seconds are observations, not wins. Compare all three maps, defensive losses and full CI before merging.'};
 }
 if(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url){
  if(!process.argv[2])throw Error('Usage: node scripts/evaluate-ai45-paired-20261122.mjs report.json [summary.json]');
