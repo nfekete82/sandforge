@@ -1,4 +1,4 @@
-name: Sandforge AI45 · validated siege rally A/B 15 matches
+name: Sandforge AI45 · validated siege rally paired A/B 30 matches
 on:
   push:
     branches:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   siege:
-    name: ${{ matrix.map }} · five identical BLUE policies
+    name: ${{ matrix.map }} · five paired BLUE policies
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -32,9 +32,9 @@ jobs:
           node --test tests/sandforge-ai45-reachable-siege-rally-20261122.test.mjs \
             tests/sandforge-ai40-rally-recovery-20261120.test.mjs \
             tests/sandforge-ai40-canyon-mission-20261120.test.mjs
-      - name: Compare five real opponent policies to original current main
+      - name: Compare paired AI45 OFF and ON against five identical BLUE policies
         run: |
-          node scripts/benchmark-current-desert-ai-20261122.mjs \
+          node scripts/benchmark-ai45-paired-20261122.mjs \
             --map "${{ matrix.map }}" --seconds 480 \
             --output "reports/${{ matrix.map }}-ai45.json"
       - name: Preserve data even on an unsuccessful run
