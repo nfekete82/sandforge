@@ -21,7 +21,7 @@ export class BuildingPresentation {
   const [body,activity,beacon,sweep,turret,constructionImage]=await Promise.all([image(data.body.image),image(data.activity?.image??null),image(data.beacon?.image??null),image(data.sweep?.image??null),image(data.turret?.image??null),image(construction?.image??null)]),b=data.body;
   this.assets.set(kind+team,{data,body:body!,activity,beacon,sweep,turret,construction,constructionImage,sprite:{image:body!,x:0,y:0,w:b.width,h:b.height,center:b.pivot[0],foot:b.pivot[1],bodyWidth:b.solidBounds.w,bodyHeight:b.pivot[1]-b.top}});
  })));}
- asset(kind:StructureKind,owner:Owner):Loaded{return this.assets.get(kind+(kind==='bastion'?owner:owner===0?0:1))!;}
+ asset(kind:StructureKind,owner:Owner):Loaded{const artKind=kind==='refinery'?'factory':kind;return this.assets.get(artKind+(artKind==='bastion'?owner:owner===0?0:1))!;}
  sprite(kind:StructureKind,owner:Owner):BuildingSprite{return this.asset(kind,owner).sprite;}
  /** Each construction frame is baked from the real textured 3D building parts. */
  drawConstruction(c:CanvasRenderingContext2D,kind:BuildingKind,owner:Owner,p:Point,width:number,progress:number,alpha=1):boolean{
