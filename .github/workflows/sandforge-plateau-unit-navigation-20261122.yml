@@ -10,6 +10,7 @@ on:
       - src/reborn/world.ts
       - src/reborn/simulation.ts
       - tests/sandforge-plateau-unit-navigation-20261122.test.mjs
+      - tests/sandforge-player-cliff-recovery-20261122.test.mjs
       - .github/workflows/sandforge-plateau-unit-navigation-20261122.yml
   workflow_dispatch:
 permissions:
@@ -29,7 +30,10 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run build
       - name: Plateau corner, steep tank goal and player stall recovery
-        run: node --test tests/sandforge-plateau-unit-navigation-20261122.test.mjs
+        run: |
+          node --test \
+            tests/sandforge-plateau-unit-navigation-20261122.test.mjs \
+            tests/sandforge-player-cliff-recovery-20261122.test.mjs
       - name: Existing exact-cell cliff and clearance regression checks
         # The historical artillery save/load deepEqual test fails on main
         # (run 45028858813) due optional undefined factoryService fields.
