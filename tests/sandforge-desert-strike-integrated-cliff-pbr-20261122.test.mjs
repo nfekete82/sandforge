@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {readFileSync} from 'node:fs';
-import {createLandscapeMeshes} from '../scripts/webgl-landscape-network.js';
+import {createLandscapeMeshes,sandstoneRidgeFaceRelief} from '../scripts/webgl-landscape-network.js';
 import {bakeMesaCliffGroundMask,cliffRampCoverage,
  installMesaCliffGroundPBR,DESERT_CLIFF_GROUND_REVISION,
  DESERT_STRIKE_SANDSTONE_GRADE}
@@ -113,6 +113,7 @@ test('elevated sandstone ridge foot has a true alpha fade into sand, not an opaq
  assert.equal(cliff.material.depthWrite,false);
  assert.equal(cliff.material.forceSinglePass,true);
  assert.equal(cliff.userData.cliffFootBlend,'rise-normalized-vertex-alpha-v1');
+ assert.equal(cliff.userData.cliffErosion,'physical-ribs-fissures-and-sediment-beds-v2');
  const fade=cliff.geometry.getAttribute('ridgeFade');
  const p=cliff.geometry.getAttribute('position');
  assert.ok(fade&&fade.count===p.count);
@@ -131,6 +132,9 @@ test('elevated sandstone ridge foot has a true alpha fade into sand, not an opaq
   fragmentShader:'#include <common>\n#include <color_fragment>'};
  cliff.material.onBeforeCompile(shader);
  assert.match(shader.fragmentShader,/diffuseColor.a \*= clamp\(vSfRidgeFade/);
+ assert.match(shader.fragmentShader,/sfRib=pow/,'narrow downhill fissure pigment should compile');
+ assert.match(shader.fragmentShader,/sfBeds=1\.0-smoothstep/,'irregular strata should compile');
+ assert.match(shader.vertexShader,/vSfRidgeErosionUV=uv/);
  for(const m of meshes){m.removeFromParent();m.geometry.dispose();m.material.dispose();}
 });
 
@@ -148,4 +152,42 @@ test('warm sandstone grade is measurably darker than the chalky v1 tint',()=>{
  assert.ok(g.blendStart>=.12&&g.blendEnd<=.86,
   'the physical sand-to-rock blend should not create a giant milky halo');
  assert.ok(g.rockStrength>.9,'visible cliffs should have a clear material identity');
+});
+
+test('authored sandstone ridge uses true fracture ribs in geometry, no map or movement changes',()=>{
+ const plain=sandstoneRidgeFaceRelief(250,.24,9999);
+ const toe=sandstoneRidgeFaceRelief(250,1.50,9999);
+ assert.equal(plain.wall,0,'flat summit must not receive crag geometry');
+ assert.equal(toe.wall,0,'outlying sand must remain untouched');
+ assert.equal(plain.horizontal,0);
+ assert.equal(toe.heightFactor,1);
+ let varyingHeights=0,strongFissures=0;
+ const reliefs=[];
+ for(let x=0;x<500;x+=7){
+  const p=sandstoneRidgeFaceRelief(x,.91,9999);
+  assert.ok(p.heightFactor>.80&&p.heightFactor<1.04);
+  assert.ok(Math.abs(p.horizontal)<7);
+  if(Math.abs(p.heightFactor-1)>.025)varyingHeights++;
+  if(p.fissure>.20)strongFissures++;
+  reliefs.push(p.heightFactor);
+ }
+ assert.ok(varyingHeights>20,'cliff needs physically noticeable fractured shoulders');
+ assert.ok(strongFissures>=2,'cliff ribs should not be plain diffuse shading');
+ assert.ok(Math.max(...reliefs)-Math.min(...reliefs)>.06,
+  'face fractures need several real height variations');
+ const scene=new THREE.Scene();
+ const meshes=createLandscapeMeshes({
+  scene,size:3200,heightAt:()=>0,
+  roads:[],ridges:[{spine:[{x:220,y:1600},{x:2700,y:1600}],
+   width:145,height:95,ramps:[],clearings:[]}],
+  plateaus:[],biome:'desert',mapId:'desert-strike',seed:9999,
+  lowQuality:false,showOutcrops:false
+ });
+ const cliff=meshes.find(m=>m.userData?.erodedRidge);
+ assert.ok(cliff);
+ const uv=cliff.geometry.getAttribute('uv');
+ assert.ok(uv.count>8000,'increased standard-detail sampling is required');
+ assert.ok(cliff.material.customProgramCacheKey().includes('ridge-relief-and-sand-transition-v2'));
+ assert.equal(meshes.some(m=>m.userData?.changesNavigation),false);
+ for(const m of meshes){m.removeFromParent();m.geometry.dispose();m.material.dispose();}
 });
