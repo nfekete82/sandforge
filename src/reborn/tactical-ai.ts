@@ -165,6 +165,8 @@ export class TacticalAI {
  /** Experimental same-binary A/B switch. The player receives calibrated
   * behavior only for exact, known, fixed desert maps. Never serialized. */
  hqBreakthroughMode:'baseline'|'calibrated'='calibrated';
+ /** Benchmark-only control switch; OFF retains the existing rally controller. */
+ ai45Mode:'off'|'on'='on';
  private recaptureMission:{sector:number;ids:number[];since:number;securedAt:number|null}|null=null;
  private recaptureRetryAt=0;
  private roverAirEscapeRetryAt=new Map<number,number>();
@@ -1746,7 +1748,7 @@ export class TacticalAI {
   // no formed wave do we try a NEW point. It must be reachable by PAID
   // fighters and have a COMPLETE vehicle path to a safe artillery approach.
   // No new units, hidden targets, teleporting or bypassing cliffs.
-  if(this.ai36Enabled&&s.rally&&intel&&intel.hp>0&&
+  if(this.ai45Mode==='on'&&this.ai36Enabled&&s.rally&&intel&&intel.hp>0&&
      (g.world.generatorVersion===10||
        (g.world.generatorVersion===7&&g.seed===271121))&&
      mission.kind==='structure'&&s.phase==='gather'&&
