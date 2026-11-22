@@ -738,7 +738,8 @@ export class Simulation {
     }
     for(const b of this.bases)if(b.hp>0)this.hadBuildings[b.owner]=true;
     this.veyritFields=createVeyritFields(this.world,this.territories,seed,
-      this.bases.filter(b=>b.kind==='headquarters'&&b.hp>0));
+      [...this.startRegions.map(r=>r.center),
+       ...this.bases.filter(b=>b.kind==='headquarters'&&b.hp>0)]);
     // Veyrit fields replace secondary Bastion income on modern maps.
     // All modern maps now earn credits through bastions, not neutral depots.
 
@@ -3102,7 +3103,7 @@ export class Simulation {
          s.veyritFields.some(f=>!f||!Number.isInteger(f.id)||f.id<0||f.id>=16||
            !finite(f.amount)||!finite(f.capacity)||f.capacity<=0||f.capacity>8000||
            f.amount<0||f.amount>f.capacity||!point(f)||
-           (f.radius!==undefined&&(!finite(f.radius)||f.radius<100||f.radius>300)))))||
+           (f.radius!==undefined&&(!finite(f.radius)||f.radius<100||f.radius>360)))))||
        (s.centralHold!==undefined&&(!s.centralHold||![-1,0,1].includes(s.centralHold.owner)||
          !finite(s.centralHold.seconds)||s.centralHold.seconds<0||s.centralHold.seconds>CENTRAL_HOLD_SECONDS||
          (s.centralHold.owner===-1&&s.centralHold.seconds!==0)))||
