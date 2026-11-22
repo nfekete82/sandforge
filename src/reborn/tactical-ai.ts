@@ -2290,17 +2290,25 @@ export class TacticalAI {
     const leader=eligible[0];
     if(leader){
       const old=this.ai46CaptureApproach;
+      const clearance=Math.max(5,unitSpec(leader).radius-10);
+      const blockers=[...this.obstacles(),...g.bastionColliders()];
+      const slopeLimit=unitSpec(leader).group==='Fahrzeuge'
+        ?leader.kind==='tank'?.215:leader.kind==='artillery'?.185:.195:Infinity;
+      const passable=(p:Point)=>g.world.walkable(p,blockers,clearance)&&
+        g.world.groundVehicleSlopeSafe(p,slopeLimit,clearance+10);
       if(old&&old.sector===mission.sector&&old.unitId===leader.id&&
-         g.time-old.at<42&&distance(old.point,mission)<radius-8){
+         g.time-old.at<42&&distance(old.point,mission)<radius-8&&
+         passable(old.point)){
         captureApproach=old.point;
       }else{
-        const clearance=Math.max(5,unitSpec(leader).radius-10);
-        const blockers=[...this.obstacles(),...g.bastionColliders()];
         captureApproach=ai46ReachableBastionApproach({
           center:mission,from:leader,worldSize:g.world.size,captureRadius:radius,
-          walkable:p=>g.world.walkable(p,blockers,clearance),
+          walkable:passable,
           completeRoute:p=>{
-            const path=g.world.path(leader,p,blockers,clearance);
+            // Match the movement engine's real tank/rover/artillery incline
+            // restrictions. A center-only A* proof is NOT a drivable pass.
+            const path=g.world.path(leader,p,blockers,clearance,undefined,
+              false,false,false,slopeLimit);
             return path.length>0&&distance(path[path.length-1],p)<=g.world.cell*1.5;
           }
         });
