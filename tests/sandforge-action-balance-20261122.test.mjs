@@ -92,3 +92,15 @@ test('WebGL new-game menu enables Action without altering Classic deep links or 
  assert.match(preview,/!session&&query\.get\('balance'\)==='action'/);
  assert.doesNotMatch(preview,/simulationSpeed\s*=\s*1\.20/);
 });
+
+test('Action hit feedback reuses bounded instancing and respects audio mixing',()=>{
+ const vfx=readFileSync('scripts/webgl-combat-vfx.js','utf8');
+ const audio=readFileSync('src/reborn/audio.ts','utf8');
+ assert.match(vfx,/this\.game\.balancePreset==='action'/);
+ assert.match(vfx,/Math\.min\(16,Math\.ceil\(response\.sparkCount\*1\.2\)\)/);
+ assert.match(vfx,/Math\.min\(24,Math\.ceil\(n\*1\.17\)\)/);
+ assert.match(vfx,/pool\.particles\.length>=pool\.max/,'Action VFX must retain instance caps');
+ assert.match(audio,/g\.balancePreset==='action'/);
+ assert.match(audio,/this\.lastExplosionAt/,'audio must retain spatial voice gate');
+ assert.match(audio,/this\.effectsVolume/,'user volume controls still apply');
+});
