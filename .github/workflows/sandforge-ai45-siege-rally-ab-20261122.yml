@@ -3,6 +3,7 @@ on:
   pull_request:
     branches:
       - main
+      - feat/sandforge-ai45-gate-diagnostics-20261122
   workflow_dispatch:
 concurrency:
   group: ai45-paired-${{ github.event.pull_request.number || github.ref }}
