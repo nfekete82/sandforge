@@ -1,9 +1,12 @@
 name: Sandforge AI45 · validated siege rally paired A/B 30 matches
 on:
-  push:
+  pull_request:
     branches:
-      - feat/sandforge-ai45-reachable-siege-rally-20261122
+      - main
   workflow_dispatch:
+concurrency:
+  group: ai45-paired-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
