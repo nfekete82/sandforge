@@ -14,6 +14,8 @@ export interface Territory {
   owner: Owner; capturing: Owner; progress: number; income: number; value: number;
   /** Optional paid tier 2; missing/1 means normal income (legacy saves). */
   upgradeLevel?:1|2;
+  /** Modern crystal economy: only the middle sector hosts an actual Bastion. */
+  isBastion?:boolean;
 }
 // Hand-traced against the supplied landscape, in original image pixels.
 const ROCKS = [
