@@ -44,6 +44,7 @@ import {installBattleDebrief} from '/webgl-battle-debrief.js';
 import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry,applyRockMineralVeins} from '/webgl-rock-materials.js';
 import {CANYON_GEOLOGY,buildGeologicalMesaSurface} from '/webgl-authentic-canyon-geology.js';
 import {createPlayableMesaCliffs} from '/webgl-raised-mesa-cliffs.js';
+import {createMesaCliffDressing} from '/webgl-mesa-cliff-dressing.js';
 import {makeSmallRuinFragments,isSmallRuin} from '/webgl-ruin-fragments.js';
 import {chooseRareScenicHouseIndex,createScenicDesertHouse} from '/webgl-scenic-desert-houses.js';
 import {createBurnedSedanWrecks} from '/webgl-burned-sedan-3d.js';
@@ -1104,6 +1105,11 @@ const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
 const raisedMesaMeshes=terrain.battlefield?.generatorVersion>=7
  ?createPlayableMesaCliffs({scene,size,heightAt,plateaus:terrain.plateaus??[],
     lowQuality:query.get('lite')==='1',mapId:desertRegion?.id??null}):[];
+// Only new WebGL render dressing: small PBR talus at cliff feet and
+// sparse dry branch clusters. This never enters collision, FoW or saves.
+const mesaDressing=biome==='desert'&&terrain.battlefield?.generatorVersion>=7
+ ?createMesaCliffDressing({scene,world,terrain,seed,heightAt,
+   lowQuality:query.get('lite')==='1'}):null;
 const cliffMeshes=landscapeMeshes.filter(mesh=>mesh.userData?.erodedRidge);
 console.info('Sandforge terrain cliffs:',{
  map:desertRegion?.id??'procedural',kind:terrain.landscapeKind??'legacy',
@@ -1284,7 +1290,7 @@ if(oasisFocus){
  camera.zoom=1.55;camera.updateProjectionMatrix();controls.update();
 }
 window.addEventListener('pagehide',event=>{if(!event.persisted){
- lakeVegetation?.dispose();burnedSedans?.dispose();
+ lakeVegetation?.dispose();burnedSedans?.dispose();mesaDressing?.dispose();
  canyonOutcrops?.dispose();authenticDesertArt?.dispose();
  groundBlending?.dispose();desertWater?.dispose();oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
 }});
