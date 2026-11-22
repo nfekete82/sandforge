@@ -16,6 +16,7 @@ import {createSandforgeResearchDeck} from '/webgl-research-deck.js';
 import {createSandforgeConfirmDialog} from '/webgl-confirm-dialog.js';
 import {SandforgeActorPresentation} from '/webgl-actor-presentation.js';
 import {calibratedScale,visualUnitScale,visualBuildingScale,unitVisualYaw,unitRenderAltitude,buildingFacingAngle,nextBuildingFacing,buildingFacingDegrees,turretAimLocalYaw,selectionRingRadius,BOMBER_VISUAL_STRETCH} from '/webgl-scale.js';
+import {tankCannonMuzzleWorld} from '/webgl-tank-muzzle-origin.js';
 import {SandforgeGroundingPass} from '/webgl-grounding.js';
 import {createBuildingYard,disposeBuildingYard} from '/webgl-building-yard.js';
 import {createBuildingFoundation,disposeBuildingFoundation} from '/webgl-foundation-slabs.js';
@@ -1626,7 +1627,11 @@ export class SandforgeBattlefield {
     const sprite=this.bases.get(shot.source)?.presentation?.turretFlashes?.[barrel];
     if(sprite)this.turretTracerOrigins.set(shot,sprite.position.clone());
    }
-   const a=this.turretTracerOrigins.get(shot)??
+   // Cannon tracers start at the real, rotated muzzle lip (never in the
+   // center of the tank hull). The separate roof MG keeps its own origin.
+   const tankOrigin=shot.weapon==='cannon'&&shot.kind==='tank'&&shot.source!=null
+    ?tankCannonMuzzleWorld(this.units.get(shot.source),shot.angle??0):null;
+   const a=tankOrigin??this.turretTracerOrigins.get(shot)??
     this.pos(shot.from.x,shot.from.y,this.heightAt(shot.from.x,shot.from.y)+27);
    const b=this.pos(shot.to.x,shot.to.y,
     this.heightAt(shot.to.x,shot.to.y)+(shot.miss?2:27));
