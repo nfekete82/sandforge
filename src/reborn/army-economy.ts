@@ -259,6 +259,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   medic:(wounded>=2?30:Math.max(0,fighters.length-2)*4)-count('medic')*20,
   engineer:count('engineer')===0?(!complete('barracks')?80:fighters.length>=2?38:0):own.length>=4&&count('engineer')<2?15:0,
   supply:0, // Retired compatibility kind; never recruit.
+   harvester:0, // Civilian economy handled by crystal logistics, not combat composition.
   drone:0, // Player reconnaissance option, never part of the AI combat army.
   rover:complete('factory')?35+(g.explored[1].reduce((n,v)=>n+v,0)/g.explored[1].length<.4?6:0)-count('rover')*17:0,
   tank:complete('factory')?44+known*4+armor*6
