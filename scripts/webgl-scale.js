@@ -81,13 +81,15 @@ export function visualUnitScale(kind){
  // The final PBR barracks' double door is shorter than the former Atlas
  // doorway. With .56/.58 scaling, soldiers are taller than its opening and
  // appear to bump their heads during the production exit.
- // Target ~26 visual world units for every foot soldier at normal RTS zoom.
+ // Target ~23 visual world units for ground infantry beside an authored tank.
  // Render-only: collision, navigation, weapon range and save data stay intact.
- if(['infantry','medic','engineer','rocket'].includes(kind))return .42;
- if(kind==='heavy')return .40;
- // Humvee needs a substantial visual presence beside full-scale buildings.
- // Only the rendered mesh changes; navigation/collision/save width stays 76.
- if(kind==='rover'||kind==='supply')return 1.34;
+ if(['infantry','medic','engineer','rocket'].includes(kind))return .38;
+ if(kind==='heavy')return .37;
+ // The Humvee was scaled to nearly the same length as the tank (1.34),
+ // making its authored off-road body look larger than the heavy armour.
+ // Keep trucks, helicopters and the factory opening independent.
+ if(kind==='rover')return 1.04;
+ if(kind==='supply')return 1.34;
  if(kind==='artillery')return 1.42; // +7.6% for the 6x6 rocket launcher, render-only
  if(kind==='tank')return 1.16; // matches the 8% tighter factory door without touching tank collision
  if(kind==='scout')return 1.34;
