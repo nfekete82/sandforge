@@ -595,7 +595,10 @@ function instancedStone(){
   }
  }
  // Never allocate a zero-vertex rock mesh when modern maps have no mesas.
- if(terrain.battlefield&&terrain.mesas.length)addBattlefieldRocks(materials[0]);
+ // No stacked geological skin on Desert Strike: shade the actual ground.
+ if(terrain.battlefield&&terrain.mesas.length&&
+    !(biome==='desert'&&desertRegion?.id==='desert-strike'))
+  addBattlefieldRocks(materials[0]);
  for(const mesa of terrain.battlefield?[]:terrain.mesas)for(const col of mesa.columns){
   const x=col.base.reduce((n,p)=>n+p.x,0)/col.base.length;
   const z=col.base.reduce((n,p)=>n+p.y,0)/col.base.length;
