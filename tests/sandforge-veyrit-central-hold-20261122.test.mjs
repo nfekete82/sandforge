@@ -17,7 +17,9 @@ test('central objective: middle neutral Bastion is real, unique and never the HQ
  assert.equal(t.owner,-1);
  assert.ok(!campaignLayout(a.world.mapVersion,a.seed).headquarters.includes(t.id));
  assert.deepEqual(a.territories.map(t=>t.point),b.territories.map(t=>t.point));
- assert.ok(distance(t.point,{x:a.world.size/2,y:a.world.size/2})<a.world.size*.37);
+ assert.deepEqual(t.point,{x:a.world.size/2,y:a.world.size/2},'single Bastion exactly in the map center');
+ assert.equal(a.territories.filter(t=>t.isBastion).length,1);
+ assert.equal(a.territories.filter(t=>t.isBastion===false).length,a.territories.length-1);
  assert.equal(new Simulation().centralBastionId,null,'classic maps unchanged');
 });
 
@@ -50,10 +52,12 @@ test('central objective: seconds do not advance when enemy contests and restart 
  assert.equal(Simulation.load(g.save()).centralHold.seconds,0);
 });
 
-test('Veyrit: six symmetric intended deposits and state survive save/load',()=>{
+test('Veyrit: former Bastion locations become large seeded turquoise mineral fields and survive saves',()=>{
  const g=create(20261122);
- assert.ok(g.veyritFields.length>=4,'most/all deposits must be reachable');
- assert.ok(g.veyritFields.length<=6);
+ assert.ok(g.veyritFields.length>=8,'broad deposits replace most former Bastions');
+ assert.ok(g.veyritFields.length<=g.territories.length-1);
+ assert.ok(g.veyritFields.every(f=>f.radius>=180&&f.radius<240));
+ assert.ok(g.veyritFields.every(f=>f.id!==g.centralBastionId));
  assert.ok(g.veyritFields.every(f=>g.world.walkable(f)&&f.amount===f.capacity));
  assert.deepEqual(g.veyritFields,create(20261122).veyritFields);
  g.veyritFields[0].amount=1333.5;
@@ -92,6 +96,31 @@ test('Veyrit: fields regenerate, minable stock and vehicle costs remain real',()
  const original=f.amount;advanceVeyrit(g,1);
  assert.ok(f.amount>original);
  assert.equal(u.harvestCargo??0,0);
+});
+
+test('Refinery exclusively builds harvesters; factory keeps military vehicles',()=>{
+ assert.deepEqual(UNITS.harvester.producers,['refinery']);
+ assert.equal(UNITS.tank.producers.includes('factory'),true);
+ const g=create(8071),factory=g.bases.find(b=>b.owner===0&&b.kind==='headquarters');
+ const refinery={...factory,id:4422,kind:'refinery',hp:BUILDINGS.refinery.hp,
+  radius:BUILDINGS.refinery.radius,buildRemaining:0,queue:[],queueTypes:[],rally:null};
+ const vehicleFactory={...factory,id:4423,kind:'factory',hp:BUILDINGS.factory.hp,
+  radius:BUILDINGS.factory.radius,buildRemaining:0,queue:[],queueTypes:[],rally:null};
+ g.bases.push(refinery,vehicleFactory);
+ assert.equal(g.recruit(vehicleFactory.id,'harvester'),false);
+ assert.equal(g.recruit(refinery.id,'harvester'),true);
+ assert.deepEqual(refinery.queueTypes,['harvester']);
+ assert.equal(g.recruit(refinery.id,'tank'),false);
+});
+
+test('Modern economy: only central Bastion pays passive Bastion income',()=>{
+ const g=create(2123),t=g.territories[g.centralBastionId];
+ assert.equal(g.territories.filter(x=>x.isBastion).length,1);
+ const before=g.income(0),other=g.territories.find(x=>x.id!==t.id&&x.owner!==0);
+ other.owner=0;
+ assert.equal(g.income(0),before,'old Bastion sector ownership cannot create credits');
+ const prev=g.income(0);t.owner=0;
+ assert.ok(g.income(0)>prev,'actual central objective retains income');
 });
 
 test('WebGL assets, HUD and build graph keep 3D Veyrit and central timer connected',()=>{
