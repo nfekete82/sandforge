@@ -74,10 +74,13 @@ test('integrated PBR remains opaque and shares exactly the existing ground draw 
  assert.match(shader.vertexShader,/vSfMesaWorld=position/);
  assert.match(shader.fragmentShader,/sfMesaStone=smoothstep/);
  assert.match(shader.fragmentShader,/diffuseColor.rgb=mix\(diffuseColor.rgb,sfMesaAlbedo/);
- assert.match(shader.fragmentShader,/sfMesaAlbedo\*=vec3\(0\.74,0\.61,0\.48\)/);
+ assert.match(shader.fragmentShader,/sfMesaAlbedo\*=vec3\(0\.65,0\.54,0\.42\)/);
  assert.match(shader.fragmentShader,/sfMesaStoneUV\*2\.17/);
  assert.match(shader.fragmentShader,/sfMesaBedding/,'plateau rock needs broken sediment layers');
  assert.match(shader.fragmentShader,/sfMesaRifts/,'plateau rock needs thin 3D vertical fissures');
+ assert.match(shader.fragmentShader,/sfMesaBrokenBeds/,'horizontal bands must be discontinuous');
+ assert.match(shader.fragmentShader,/sfMesaExposed/,'sparse exposed faces should reflect lighter rock');
+ assert.match(shader.fragmentShader,/\.31\*sfMesaRifts/,'prioritize dark vertical cracks');
  assert.match(shader.fragmentShader,/1\.0-0\.46\*sfMesaMask\.g/);
  assert.match(shader.fragmentShader,/smoothstep\(0\.16,0\.84,sfMesaMask\.r\)/);
  assert.match(shader.fragmentShader,/sfMesaStone\*0\.94/);
@@ -115,7 +118,7 @@ test('elevated sandstone ridge foot has a true alpha fade into sand, not an opaq
  assert.equal(cliff.material.depthWrite,false);
  assert.equal(cliff.material.forceSinglePass,true);
  assert.equal(cliff.userData.cliffFootBlend,'rise-normalized-vertex-alpha-v1');
- assert.equal(cliff.userData.cliffErosion,'physical-ribs-fissures-and-sediment-beds-v2');
+ assert.equal(cliff.userData.cliffErosion,'physical-ribs-fissures-and-sparse-beds-v3');
  const fade=cliff.geometry.getAttribute('ridgeFade');
  const p=cliff.geometry.getAttribute('position');
  assert.ok(fade&&fade.count===p.count);
@@ -142,7 +145,7 @@ test('elevated sandstone ridge foot has a true alpha fade into sand, not an opaq
 
 test('warm sandstone grade is measurably darker than the chalky v1 tint',()=>{
  const g=DESERT_STRIKE_SANDSTONE_GRADE;
- assert.equal(DESERT_CLIFF_GROUND_REVISION,'desert-strike-integrated-cliff-pbr-v3');
+ assert.equal(DESERT_CLIFF_GROUND_REVISION,'desert-strike-integrated-cliff-pbr-v4');
  const v1=[.82,.78,.70].map(n=>n*(.70+1.07)/2);
  const v2=g.tint.map(n=>n*(g.lightFloor+g.lightFloor+g.lightRange)/2);
  const luminance=c=>c[0]*.2126+c[1]*.7152+c[2]*.0722;
@@ -151,6 +154,7 @@ test('warm sandstone grade is measurably darker than the chalky v1 tint',()=>{
  assert.ok(v2[0]>v2[1]&&v2[1]>v2[2],
   'sun-warmed sandstones should remain ochre rather than neutral grey');
  assert.ok(g.veinDarken>.40,'weathered fissures should remain visible');
+ assert.ok(v2[0]<.66,'basaltic shadowed sandstone should be darker than prior orange chalk');
  assert.ok(g.blendStart>=.12&&g.blendEnd<=.86,
   'the physical sand-to-rock blend should not create a giant milky halo');
  assert.ok(g.rockStrength>.9,'visible cliffs should have a clear material identity');
@@ -189,7 +193,7 @@ test('authored sandstone ridge uses true fracture ribs in geometry, no map or mo
  assert.ok(cliff);
  const uv=cliff.geometry.getAttribute('uv');
  assert.ok(uv.count>8000,'increased standard-detail sampling is required');
- assert.ok(cliff.material.customProgramCacheKey().includes('ridge-relief-and-sand-transition-v2'));
+ assert.ok(cliff.material.customProgramCacheKey().includes('ridge-relief-and-sand-transition-v3'));
  assert.equal(meshes.some(m=>m.userData?.changesNavigation),false);
  for(const m of meshes){m.removeFromParent();m.geometry.dispose();m.material.dispose();}
 });
