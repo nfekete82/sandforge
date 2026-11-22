@@ -2138,13 +2138,16 @@ export class Simulation {
       // KI 3.9: a valid assault order is not a driving path. Long canyon
       // routes can exhaust bounded A* before discovering a pass, leaving
       // vehicles completely idle while infantry continues attacking.
-      // For AI vehicles ONLY, probe a short, genuinely traversable sideways
-      // corridor after both coarse and exact A* failed. The original order
-      // is retained, the temporary waypoint is physically driven, and the
-      // next route query again targets the real order.
-      if(vehicle&&!u.path.length&&u.owner===1&&
-         this.tactical.ai37Mode==='coordinated'&&
-         this.world.mapVersion>=23&&this.world.generatorVersion>=3&&
+      // For AI vehicles and explicit player moves on highland maps, probe
+      // a short, genuinely traversable sideways corridor when BOTH bounded
+      // A* attempts return no path. A valid local detour is physically driven;
+      // the original order remains, and the next route query retries its goal.
+      // Never auto-move stopped formations, cargo or combat-bound vehicles.
+      const noPathDetourAllowed=u.owner===1
+        ?this.tactical.ai37Mode==='coordinated'&&this.world.generatorVersion>=3
+        :u.owner===0&&this.world.generatorVersion>=7&&speedLimit>1;
+      if(vehicle&&!u.path.length&&noPathDetourAllowed&&
+         this.world.mapVersion>=23&&
          (u.orders[0]?.kind==='move'||u.orders[0]?.kind==='attackMove')&&
          u.combatTarget==null&&!u.hold&&!u.factoryService&&
          (u.transport?.cargo.length??0)===0&&distance(u,target)>170){
