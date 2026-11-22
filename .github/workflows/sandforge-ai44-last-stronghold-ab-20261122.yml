@@ -1,0 +1,41 @@
+name: AI44 blocked canyon rally · same-seed A/B candidate
+on:
+  push:
+    branches:
+      - feat/sandforge-ai44-canyon-rally-recovery-20261122
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - name: Build current full AI and 3D terrain
+        run: npm run build
+      - name: Check canyon-only safe rally policy and legacy behavior
+        run: |
+          node --test tests/sandforge-ai44-canyon-rally-repair-20261122.test.mjs \
+            tests/sandforge-ai40-rally-recovery-20261120.test.mjs \
+            tests/sandforge-ai40-canyon-mission-20261120.test.mjs
+      - name: Test five Last Stronghold opponents at identical baseline settings
+        run: |
+          node scripts/benchmark-current-desert-ai-20261122.mjs \
+            --map last-stronghold --seconds 480 \
+            --output reports/last-stronghold-ai44.json
+      - name: Save exact candidate data, including incomplete reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai44-canyon-five-matches
+          path: reports/last-stronghold-ai44.json
+          if-no-files-found: warn
+          retention-days: 30
