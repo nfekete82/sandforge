@@ -112,6 +112,7 @@ cpSync('scripts/webgl-barracks-shell.js','dist/webgl-barracks-shell.js');
 cpSync('scripts/webgl-environment.js','dist/webgl-environment.js');
 cpSync('scripts/webgl-landscape-network.js','dist/webgl-landscape-network.js');
 cpSync('scripts/webgl-raised-mesa-cliffs.js','dist/webgl-raised-mesa-cliffs.js');
+cpSync('scripts/webgl-mesa-cliff-dressing.js','dist/webgl-mesa-cliff-dressing.js');
 cpSync('scripts/webgl-atmosphere-3d.js','dist/webgl-atmosphere-3d.js');
 cpSync('scripts/webgl-combat-vfx.js','dist/webgl-combat-vfx.js');
 cpSync('scripts/webgl-tank-muzzle-origin.js','dist/webgl-tank-muzzle-origin.js');
