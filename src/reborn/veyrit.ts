@@ -23,14 +23,14 @@ export function createVeyritFields(
   if(world.mapVersion<23)return [];
   const central=territories.find(t=>t.isBastion===true);
   const restricted=[
-    ...(central?[{...central.point,radius:260}]:[]),
-    ...headquarters.map(p=>({...p,radius:345}))
+    ...(central?[{...central.point,radius:550}]:[]),
+    ...headquarters.map(p=>({...p,radius:455}))
   ];
   const fields:VeyritField[]=[];
   for(const t of territories){
     if(t.isBastion)continue;
     const salt=Math.imul((seed^Math.imul(t.id+19,0x9e3779b1))>>>0,1664525)>>>0;
-    const radius=180+(salt%59);
+    const radius=255+(salt%71);
     const nearest=world.nearest(t.point,[
       ...restricted,...fields.map(f=>({x:f.x,y:f.y,radius:(f.radius??200)*1.4}))
     ],[],undefined,18,.24);
