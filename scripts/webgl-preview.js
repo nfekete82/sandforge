@@ -88,6 +88,9 @@ const selectedGenerator=requestedMap&&requestedMap.seed===seed&&
 const generatorVersion=procedural?(selectedGenerator??(query.get('landscape')==='classic'?2:
  query.get('landscape')==='network-v3'?3:4)):2;
 const game=session??Simulation.campaign(seed,sizes[bastions],profile,generatorVersion);
+// Resume uses the saved authoritative preset, never an untrusted URL toggle.
+// New direct links without ?balance=action stay Classic for compatibility.
+if(!session&&query.get('balance')==='action')game.configureBalancePreset('action');
 // Local AI laboratory: compare the same game and seed with 3.2 or 3.3 tactics.
 // Not serialized, never affects the live Uberspace release.
 if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
@@ -940,6 +943,7 @@ $('load').onclick=()=>{
  const text=$('seed').value.trim();
  const q=new URLSearchParams({bastions:$('bastions').value,seed:String(text===''?randomMapSeed():Number(text)>>>0),terrain:terrain.battlefield?.profile??'random',biome,
   landscape:world.generatorVersion===2?'classic':world.generatorVersion===3?'network-v3':'network'});
+ if(game.balancePreset==='action')q.set('balance','action');
  if(desertMap&&Number(q.get('seed'))===desertMap.seed&&
    Number(q.get('bastions'))===desertMap.bastions)q.set('map',desertMap.id);
  location.href=(window.Sandforge3DMenu?.gameRoute?.()??'/webgl-preview.html')+'?'+q;
