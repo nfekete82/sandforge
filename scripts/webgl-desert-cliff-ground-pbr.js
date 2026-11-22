@@ -8,7 +8,7 @@ import {desertStrikeNaturalCliffMaps} from './webgl-rock-materials.js';
  * The existing real terrain (height, pathing, ramps, collision and saves)
  * remains completely untouched.
  */
-export const DESERT_CLIFF_GROUND_REVISION='desert-strike-integrated-cliff-pbr-v2';
+export const DESERT_CLIFF_GROUND_REVISION='desert-strike-integrated-cliff-pbr-v3';
 /** Warm, compact sandstone instead of the earlier pale chalk/gray wash.
  * All values are render-only, never consulted by World or pathfinding.
  */
@@ -146,6 +146,18 @@ export function installMesaCliffGroundPBR(material,{
    'sfMesaAlbedo*=mix('+grade.fineFloor.toFixed(2)+','+
      (grade.fineFloor+grade.fineRange).toFixed(2)+
      ',smoothstep(.33,.75,sfMesaDetail));',
+   // The physical plateau face had a soft cloud-like texture. Introduce
+   // discontinuous, world-aligned stone bedding and thin vertical erosion
+   // cuts. These affect only the cliff mask; never terrain or pathfinding.
+   'float sfMesaBeds=abs(sin(vSfMesaWorld.y*.195+'+
+       '.58*sin(vSfMesaWorld.x*.029+vSfMesaWorld.z*.041)+'+
+       '.24*sin(vSfMesaWorld.x*.071-vSfMesaWorld.z*.023)));',
+   'float sfMesaBedding=(1.0-smoothstep(.055,.24,sfMesaBeds))*'+
+       '(.45+.55*smoothstep(.20,.83,sfMesaMask.b));',
+   'float sfMesaRifts=pow(max(0.0,cos(vSfMesaWorld.x*.102+'+
+       'vSfMesaWorld.z*.077+.42*sin(vSfMesaWorld.y*.031+'+
+       'vSfMesaWorld.x*.014))),18.0);',
+   'sfMesaAlbedo*=1.0-.19*sfMesaBedding-.23*sfMesaRifts;',
    'sfMesaAlbedo*=1.0-'+grade.veinDarken.toFixed(2)+'*sfMesaMask.g;',
    'diffuseColor.rgb=mix(diffuseColor.rgb,sfMesaAlbedo,sfMesaStone*'+
      grade.rockStrength.toFixed(2)+');'
