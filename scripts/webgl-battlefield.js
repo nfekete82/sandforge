@@ -3146,6 +3146,58 @@ export class SandforgeBattlefield {
   if(event.button===2&&this.buildKind){
    this.clearPlacement();this.message('Bauplatzwahl abgebrochen');this.drawInterface();return;
   }
+  // A selected pioneer repairs ANY damaged owned structure by right-click:
+  // HQ, barracks, factory, airfield, bunker, towers, research, silo,
+  // generator, walls and gates. Handle this before bunker boarding and
+  // ordinary ground moves; the simulation remains the repair authority.
+  if(event.button===2&&!this.attackMode&&!this.rallyMode&&
+     !this.strategicTargetMode&&!this.buildKind&&this.selectedBase===null){
+   const engineers=this.game.units.filter(u=>this.selected.has(u.id)&&
+    u.owner===0&&u.kind==='engineer'&&u.hp>0&&!u.carrier);
+   if(engineers.length){
+    let building=this.friendlyAtPointer(event);
+    let site=building?.type==='base'?building.entity:null;
+    // Some authored PBR structures intentionally have non-pickable meshes.
+    // Match a visible bounding-box hit (not the ground behind the building).
+    if(!site){
+     const rect=this.renderer.domElement.getBoundingClientRect();
+     if(rect.width>0&&rect.height>0&&event.clientX>=rect.left&&
+       event.clientX<=rect.right&&event.clientY>=rect.top&&event.clientY<=rect.bottom){
+      this.camera.updateMatrixWorld(true);
+      const ray=new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(
+       (event.clientX-rect.left)/rect.width*2-1,
+       1-(event.clientY-rect.top)/rect.height*2),this.camera);
+      const hits=[];
+      for(const base of this.game.bases){
+       if(base.owner!==0||base.hp<=0||base.buildRemaining>0)continue;
+       const node=this.bases.get(base.id)?.node;
+       if(!node?.visible)continue;
+       const bounds=new THREE.Box3().setFromObject(node);
+       if(bounds.isEmpty())continue;
+       const hit=ray.ray.intersectBox(bounds,new THREE.Vector3());
+       if(hit)hits.push({base,d:hit.distanceTo(ray.ray.origin)});
+      }
+      hits.sort((a,b)=>a.d-b.d);
+      site=hits[0]?.base??null;
+     }
+    }
+    if(site&&site.owner===0&&site.hp>0&&site.buildRemaining<=0&&
+       site.hp<BUILDINGS[site.kind].hp){
+     const accepted=this.game.command(engineers.map(u=>u.id),{
+      kind:'repair',target:site.id,x:site.x,y:site.y
+     },event.shiftKey);
+     this.message(accepted?
+      accepted+' Pionier(e): '+BUILDINGS[site.kind].name+' reparieren':
+      'Kein Pionier erreicht das beschädigte Gebäude');
+     if(accepted){
+      this.sound?.command?.();
+      this.showCommandPulse({x:site.x,y:site.y});
+     }
+     this.drawInterface();return;
+    }
+   }
+  }
   // Simulation supports four Humvee seats and ten helicopter seats.
   // An RMB hit on either owned carrier boards selected infantry before terrain movement.
   // Board BEFORE the terrain ray and other click commands.
