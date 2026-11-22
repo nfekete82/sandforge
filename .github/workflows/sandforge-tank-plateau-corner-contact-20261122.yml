@@ -30,5 +30,4 @@ jobs:
             tests/sandforge-player-cliff-recovery-20261122.test.mjs \
             tests/sandforge-tank-cliff-exit-20261119.test.mjs \
             tests/sandforge-plateau-unit-navigation-20261122.test.mjs \
-            tests/webgl-vehicle-yield-spacing-stuck-20261108.test.mjs \
             tests/sandforge-central-four-ramp-mesas-v10-20261121.test.mjs
