@@ -56,6 +56,7 @@ import {finishBarracksSides,finishBarracksDesertPalette,disposeBarracksSides} fr
 import {SandforgeConstructionPresentation} from '/webgl-construction.js';
 import {createBastionCaptureBar,updateBastionCaptureBar} from '/webgl-bastion-capture.js';
 import {capturePresenceRadius} from '/src/reborn/territory-warfare.js';
+import {bastionUpgradeStatus} from '/webgl-bastion-upgrade-ui.js';
 import {snapToPlayableEdge,worldToMinimap,minimapPointerToWorld} from '/webgl-map-edges.js';
 import {attackBlinkAlpha} from '/src/reborn/attack-alerts.js';
 import {UPGRADES,UPGRADE_KINDS,INTERCEPTOR_ENABLED,SILO_CHARGE_SECONDS,INTERCEPTOR_MAX_AMMO,INTERCEPTOR_REARM_COST} from '/src/reborn/strategic-tech.js';
@@ -95,7 +96,7 @@ export class SandforgeBattlefield {
   this.siteDecorEnabled=new URLSearchParams(location.search).get('siteDecor')!=='0';
   this.announcedBuildings=new Set(game.bases.filter(b=>b.buildRemaining<=0).map(b=>b.id));
   this.models=new Map();this.pending=new Set();this.selected=new Set();
-  this.selectedBase=null;this.buildKind=null;this.attackMode=false;
+  this.selectedBase=null;this.selectedBastion=null;this.buildKind=null;this.attackMode=false;
   this.strategicTargetMode=false;
   this.rallyMode=false;
   this.rallyMarker=new THREE.Mesh(
@@ -1669,7 +1670,7 @@ export class SandforgeBattlefield {
    y:this.controls.target.z+this.world.size*.5};
   const worker=nearestEngineer(this.game.units,cameraCenter);
   if(!worker){this.message('Kein Pionier verfügbar · im Kommandozentrale ausbilden');return null;}
-  this.selected=new Set([worker.id]);this.selectedBase=null;
+  this.selected=new Set([worker.id]);this.selectedBase=null;this.selectedBastion=null;
   this.rallyMode=false;this.attackMode=false;
   this.drawInterface();
   this.message('Pionier ausgewählt · Gebäude wählen, Bauplatz anklicken · P: Pionier wählen');
@@ -1909,8 +1910,10 @@ export class SandforgeBattlefield {
    if(button.dataset.territory!==undefined){
     const t=this.game.territories.find(t=>t.id===Number(button.dataset.territory));
     if(t){
+     this.selected.clear();this.selectedBase=null;this.selectedBastion=t.id;
      const dest=this.pos(t.point.x,t.point.y),delta=dest.clone().sub(this.controls.target);
      this.controls.target.add(delta);this.camera.position.add(delta);this.controls.update();
+     this.drawInterface();
     }
    }
    if(action==='rally'){
@@ -1950,7 +1953,7 @@ export class SandforgeBattlefield {
      'Keine erreichbare eigene Basis oder keine Einheiten gewählt');
     this.drawInterface();
    }
-   if(action==='cancel'){this.clearPlacement();this.attackMode=false;this.strategicTargetMode=false;this.selected.clear();this.selectedBase=null;this.drawInterface();}
+   if(action==='cancel'){this.clearPlacement();this.attackMode=false;this.strategicTargetMode=false;this.selected.clear();this.selectedBase=null;this.selectedBastion=null;this.drawInterface();}
    if(action==='select-all')this.selectVisibleFriendlyOnScreen();
   });
   this.panel.addEventListener('sandforge-tabchange',event=>{
@@ -2058,7 +2061,7 @@ export class SandforgeBattlefield {
  drawInterface(){
   const g=this.game,view=this.panel,actions=view.querySelector('#sf-actions');
   const context=this.catalogContext();
-  const selectionKey=[...this.selected].sort((a,b)=>a-b).join(',')+'|'+String(this.selectedBase)+'|'+Boolean(context.producer);
+  const selectionKey=[...this.selected].sort((a,b)=>a-b).join(',')+'|'+String(this.selectedBase)+'|'+String(this.selectedBastion)+'|'+Boolean(context.producer);
   // Unlock global menu tabs when their actual production building finishes;
   // hide them again if the last relevant structure is destroyed. A barracks
   // unlocks soldiers and a headquarters unlocks pioneers; the airfield has
@@ -2327,6 +2330,15 @@ export class SandforgeBattlefield {
   const el=view.querySelector('#sf-selection');
   const chosen=g.units.filter(u=>this.selected.has(u.id)&&u.hp>0);
   const base=g.bases.find(b=>b.id===this.selectedBase&&b.hp>0);
+  const selectedBastion=chosen.length||base?null:
+   g.territories.find(t=>t.id===this.selectedBastion)??null;
+  const bastionStatus=bastionUpgradeStatus(selectedBastion,{
+   credits:g.credits[0],
+   homeIds:campaignLayout(g.world.mapVersion,g.seed).headquarters,
+   headquartersTerritories:g.bases.filter(b=>b.kind==='headquarters'&&b.hp>0)
+    .map(b=>b.territory),
+   playing:g.status==='playing'
+  });
   const rallyButton=view.querySelector('#sf-rally');
   if(rallyButton){
    rallyButton.hidden=!base||base.owner!==0||base.buildRemaining>0;
@@ -2338,13 +2350,21 @@ export class SandforgeBattlefield {
   const item=chosen.length===1?chosen[0]:base;
   const kind=item?.kind;
   const spec=item?(item.queue?BUILDINGS[kind]:UNITS[kind]):null;
-  const heading=chosen.length>1?chosen.length+' Einheiten ausgewählt':spec?.name??'Keine Auswahl';
+  const heading=chosen.length>1?chosen.length+' Einheiten ausgewählt':
+   selectedBastion?bastionStatus.label:spec?.name??'Keine Auswahl';
   const hp=item?Math.max(0,Math.ceil(item.hp)):0;
   const maxHp=item&&'orders' in item?g.maxUnitHp(item):spec?.hp??1;
-  const meta=chosen.length?'BLAUE LEGION / TRUPP':'BLAUE LEGION / STÜTZPUNKT';
-  const description=base?.rally
-   ?'Sammelpunkt aktiv · Neue Einheiten marschieren automatisch zum markierten Ziel.'
-   :spec?.description??'Wähle eine Einheit oder ein Gebäude. Rechtsklick: Marsch oder Zielbefehl.';
+  const meta=selectedBastion?
+   (selectedBastion.owner===0?'BLAUE LEGION / BASTION':
+    selectedBastion.owner===1?'ROTE LEGION / BASTION':'NEUTRALER KONTROLLPUNKT'):
+   chosen.length?'BLAUE LEGION / TRUPP':'BLAUE LEGION / STÜTZPUNKT';
+  const description=selectedBastion?
+   (bastionStatus.upgradable?
+    'Einkommen auf '+bastionStatus.nextIncome+' Credits / 10 s verdoppeln.':
+    bastionStatus.reason):
+   base?.rally
+    ?'Sammelpunkt aktiv · Neue Einheiten marschieren automatisch zum markierten Ziel.'
+    :spec?.description??'Wähle eine Einheit oder ein Gebäude. Rechtsklick: Marsch oder Zielbefehl.';
   const manifest=selectedTransportManifest(g.units,this.selected);
   const bunkerRoster=base?.kind==='bunker'?g.units.filter(u=>u.carrier===base.id&&
     u.owner===base.owner&&u.hp>0&&base.garrison?.includes(u.id)):[];
@@ -2422,7 +2442,12 @@ export class SandforgeBattlefield {
    ((item.rocketCooldown??0)>0?' · '+Math.ceil(item.rocketCooldown)+' s':'')+
    ' · Nachladen: Rechtsklick auf Flugfeld</div>':'';
   const healthPct=item?Math.max(0,Math.min(100,100*hp/Math.max(1,maxHp))):0;
-  const selectedMarkup='<small>'+meta+'</small><strong>'+plain(heading)+'</strong>'+
+  const selectedMarkup=selectedBastion?
+   '<small>'+plain(meta)+'</small><strong>'+plain(heading)+'</strong>'+
+   '<div class="sf-bastion-level">STUFE '+bastionStatus.level+
+    ' · +'+bastionStatus.currentIncome+' CREDITS / 10 s</div>'+
+   '<p>'+plain(description)+'</p>':
+   '<small>'+meta+'</small><strong>'+plain(heading)+'</strong>'+
    (item?'<div class="sf-health-row" aria-label="Lebenspunkte '+hp+' von '+maxHp+'">'+
    '<span class="sf-health-label">LP</span><div class="health-track"><i style="width:'+healthPct.toFixed(1)+'%"></i></div>'+
    '<span class="sf-health">'+hp+' / '+maxHp+'</span></div>':'')+
@@ -2455,10 +2480,14 @@ export class SandforgeBattlefield {
     }
    }
   }else{
-   const portraitKey=item?(item.queue?'building:':'unit:')+kind:'building:headquarters';
+   const portraitKey=selectedBastion?'bastion:'+selectedBastion.id:
+    item?(item.queue?'building:':'unit:')+kind:'building:headquarters';
    if(this.previousPortraitKey!==portraitKey){
     this.previousPortraitKey=portraitKey;
-    if(item&&!item.queue){
+    if(selectedBastion){
+     portrait.src='/src/assets/reborn/bastion-grounded-v2.png';
+     portrait.alt=selectedBastion.name;
+    }else if(item&&!item.queue){
      unitIcon(kind,this.renderer).then(url=>{
       if(this.previousPortraitKey===portraitKey)portrait.src=url;
      }).catch(error=>console.warn('Portrait fallback',error));
@@ -2493,7 +2522,9 @@ export class SandforgeBattlefield {
   const commands=view.querySelector('#sf-command-buttons');
   if(commands)for(const button of commands.querySelectorAll('button[data-action]')){
    const a=button.dataset.action;
-   if(buildingSelected){
+   if(selectedBastion){
+    button.hidden=a!=='bastion-upgrade';
+   }else if(buildingSelected){
     button.hidden=!ownBuilding||
      (a!=='demolish'&&!(a==='missile-target'&&base.kind==='silo')&&
       !(a==='interceptor-rearm'&&base.kind==='interceptor')&&
@@ -2507,6 +2538,18 @@ export class SandforgeBattlefield {
    button.textContent='DOPPELTOR EINBAUEN · '+WALL_GATE_UPGRADE_COST;
    button.title='Zwei fertige benachbarte Sperrmauern zu einem 218 breiten Stahltor umbauen';
    button.hidden=true;commands.append(button);
+  }
+  const bastionButton=commands?.querySelector('[data-action="bastion-upgrade"]');
+  if(bastionButton){
+   bastionButton.hidden=!selectedBastion;
+   if(selectedBastion){
+    bastionButton.dataset.upgradeBastion=String(selectedBastion.id);
+    bastionButton.disabled=!bastionStatus.upgradable;
+    bastionButton.textContent=bastionStatus.buttonLabel;
+    bastionButton.title=bastionStatus.upgradable?
+     '750 Credits investieren: '+bastionStatus.currentIncome+' → '+
+      bastionStatus.nextIncome+' Credits / 10 s':bastionStatus.reason;
+   }else delete bastionButton.dataset.upgradeBastion;
   }
   const gateButton=commands?.querySelector('[data-action="gate-upgrade"]');
   if(gateButton){
@@ -2525,7 +2568,12 @@ export class SandforgeBattlefield {
   }
   view.querySelector('[data-action="attack"]')?.setAttribute('aria-pressed',String(this.attackMode));
   view.querySelector('#sf-catalog-detail').textContent=
-   spec?.description??'Einheiten auswählen · Rechtsklick bewegen · Pionier für Gebäude erforderlich.';
+   selectedBastion?
+    (bastionStatus.upgradable?
+     'Bastion verbessern: '+bastionStatus.currentIncome+' → '+
+      bastionStatus.nextIncome+' Credits / 10 s · Kosten 750':
+     bastionStatus.reason):
+    spec?.description??'Einheiten auswählen · Rechtsklick bewegen · Pionier für Gebäude erforderlich.';
   // Opening technology research requires an explicit click on the actual
   // completed owned lab. Automatic selection never opens a modal.
   const clickedLab=base?.kind==='research'&&base.id===this.researchDeckRequestedFor;
@@ -2777,6 +2825,60 @@ export class SandforgeBattlefield {
    if(distance<=radius&&distance<bestDistance){best=candidate;bestDistance=distance;}
   }
   return best;
+ }
+ /** Left-click a real 3D Bastion just like a building, including its
+  * mast. Friendly entities still win the click (handled first). No enemy
+  * ownership information is exposed through the fog of war.
+  */
+ selectableBastionAtPointer(event){
+  const rect=this.renderer.domElement.getBoundingClientRect();
+  if(!rect.width||!rect.height)return null;
+  const targets=this.game.territories.filter(t=>
+   (t.owner===0||this.game.canSee(0,t.point))&&
+   this.bastions.get(t.id)?.node.visible).map(t=>({
+    territory:t,node:this.bastions.get(t.id).node
+   }));
+  if(!targets.length)return null;
+  const ndc=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,
+   1-(event.clientY-rect.top)/rect.height*2);
+  this.camera.updateMatrixWorld(true);
+  const ray=new THREE.Raycaster();ray.setFromCamera(ndc,this.camera);
+  const roots=new Map(targets.map(t=>[t.node,t.territory]));
+  for(const hit of ray.intersectObjects(targets.map(t=>t.node),true)){
+   let node=hit.object;
+   while(node&&!roots.has(node))node=node.parent;
+   if(node)return roots.get(node);
+  }
+  // The authored GLB can disable mesh raycasting. Intersect its world-space
+  // bounding box, not just the terrain *behind* the tall tower.
+  const hits=[];
+  for(const target of targets){
+   const bounds=new THREE.Box3().setFromObject(target.node);
+   if(bounds.isEmpty())continue;
+   const point=ray.ray.intersectBox(bounds,new THREE.Vector3());
+   if(point)hits.push({territory:target.territory,
+    distance:point.distanceTo(ray.ray.origin)});
+  }
+  if(hits.length)return hits.sort((a,b)=>a.distance-b.distance)[0].territory;
+  // Small screen-space fallback also works with temporarily unloaded GLBs.
+  const projected=new THREE.Vector3();
+  let closest=null,best=Infinity;
+  for(const target of targets){
+   projected.copy(target.node.position);projected.y+=70;
+   projected.project(this.camera);
+   if(projected.z<-1||projected.z>1)continue;
+   const x=rect.left+(projected.x+1)*rect.width*.5;
+   const y=rect.top+(1-projected.y)*rect.height*.5;
+   const d=Math.hypot(event.clientX-x,event.clientY-y);
+   const radius=Math.max(20,Math.min(54,32*this.camera.zoom));
+   if(d<radius&&d<best){best=d;closest=target.territory;}
+  }
+  if(closest)return closest;
+  // Low-angle clicks at the foot of a Bastion can miss the 3D model but
+  // still land inside its real capture base on the ground.
+  const p=this.terrainPoint(event);
+  return p?targets.filter(t=>dist(t.territory.point,p)<RULES.bastion.radius+31)
+   .sort((a,b)=>dist(a.territory.point,p)-dist(b.territory.point))[0]?.territory??null:null;
  }
  bastionAtPointer(event,groundPoint=null){
   // The Canvas RTS snaps a right-click on a capture site to the actual
@@ -3113,13 +3215,24 @@ export class SandforgeBattlefield {
      if(!event.shiftKey)this.selected.clear();
      if(event.shiftKey&&this.selected.has(hit.entity.id))this.selected.delete(hit.entity.id);
      else this.selected.add(hit.entity.id);
-     this.selectedBase=null;
+     this.selectedBase=null;this.selectedBastion=null;
     }else{
-     this.selected.clear();this.selectedBase=hit.entity.id;
+     this.selected.clear();this.selectedBase=hit.entity.id;this.selectedBastion=null;
      this.researchDeckRequestedFor=hit.entity.kind==='research'?hit.entity.id:null;
      if(this.researchDeckRequestedFor!==null)this.researchDeck?.reopen();
     }
     this.sound?.select?.();this.drawInterface();return;
+   }
+  }
+  // The actual tower selects its sector and reveals the paid income upgrade
+  // in the SAME bottom HUD as a selected building. A home Bastion explicitly
+  // explains why it cannot be improved.
+  if(event.button===0&&!this.buildKind&&!this.rallyMode&&!this.strategicTargetMode){
+   const tower=this.selectableBastionAtPointer(event);
+   if(tower){
+    this.selected.clear();this.selectedBase=null;this.selectedBastion=tower.id;
+    this.attackMode=false;this.sound?.select?.();
+    this.drawInterface();return;
    }
   }
   // Right-click an enemy to attack; right-click the 3D bastion itself
@@ -3197,11 +3310,11 @@ export class SandforgeBattlefield {
     if(this.selected.has(near.u.id)&&event.shiftKey)this.selected.delete(near.u.id);
     else this.selected.add(near.u.id);
     this.sound?.select?.();
-    this.selectedBase=null;this.rallyMode=false;this.drawInterface();return;
+    this.selectedBase=null;this.selectedBastion=null;this.rallyMode=false;this.drawInterface();return;
    }
    const base=this.game.bases.filter(b=>b.owner===0&&b.hp>0).map(b=>({b,d:dist(b,p)})).sort((a,b)=>a.d-b.d)[0];
-   if(base&&base.d<base.b.radius+55){this.selectedBase=base.b.id;this.rallyMode=false;this.selected.clear();this.drawInterface();return;}
-   if(!event.shiftKey){this.selected.clear();this.selectedBase=null;this.drawInterface();}
+   if(base&&base.d<base.b.radius+55){this.selectedBase=base.b.id;this.selectedBastion=null;this.rallyMode=false;this.selected.clear();this.drawInterface();return;}
+   if(!event.shiftKey){this.selected.clear();this.selectedBase=null;this.selectedBastion=null;this.drawInterface();}
   }else if(event.button===2){
    // Classic parity: selected production building + RMB sets rally directly.
    if(this.selectedBase!==null){
