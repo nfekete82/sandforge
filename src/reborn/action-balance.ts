@@ -30,7 +30,7 @@ export const actionBastionProbePolicy=(x:{
 }):{slots:number;counter:boolean}=>{
  if(x.preset!=='action'||x.mapVersion<23||
   x.time<18||x.time>ACTION_BALANCE.openingContestSeconds||
-  x.available<1||x.observedHomeThreat)return {slots:0,counter:false};
+  x.available<ACTION_BALANCE.earlyProbeMinimumFighters||x.observedHomeThreat)return {slots:0,counter:false};
  const counter=x.blue-x.red>=2&&x.blue>=3&&x.time>=50&&x.available>=4;
- return {slots:x.available>=3?2:1,counter};
+ return {slots:x.available>=4?2:1,counter};
 };
