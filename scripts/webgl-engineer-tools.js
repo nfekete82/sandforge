@@ -68,7 +68,7 @@ export function equipEngineerTools(model,{fallback=false}={}){
  }else{
   // Atlas_WeaponSocket is parented to the animated right-hand bone.
   wrench.position.set(-.045,.075,.025);
-  wrench.scale.setScalar(1.42);
+  wrench.scale.setScalar(1.10);
   wrench.rotation.set(.18,0,.35);
  }
  wrench.userData.restRotationZ=wrench.rotation.z;
