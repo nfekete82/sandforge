@@ -8,6 +8,7 @@ import {createPlayableMesaCliffs} from '../scripts/webgl-raised-mesa-cliffs.js';
 import {sharedStoneMaps,desertStrikeNaturalCliffMaps}
  from '../scripts/webgl-rock-materials.js';
 import {readFileSync} from 'node:fs';
+import {renderGroundHeightSampler} from '../scripts/webgl-environment.js';
 
 const preset=globalThis.SandforgeDesertMaps.byId('desert-strike');
 const game=()=>Simulation.campaign(
@@ -135,4 +136,61 @@ test('old maps and historical cliff material remain unchanged',()=>{
  assert.equal(old.userData.cliffUvMapping,'unwrapped-arc-length-geodesic-v2');
  assert.equal(old.material.map,sharedStoneMaps(true).map);
  old.removeFromParent();old.geometry.dispose();old.material.dispose();
+});
+
+test('Desert Strike PBR cliff fades into the exact rendered sand surface, not hidden physics height',()=>{
+ const world=game().world,scene=new THREE.Scene(),half=world.size*.5;
+ const heightAt=(x,z)=>world.terrainHeight(x,z);
+ const renderHeightAt=renderGroundHeightSampler(heightAt,world.size);
+ const before=[...world.blocked],heights=[...world.generated.battlefield.heights];
+ const [cliff]=createPlayableMesaCliffs({
+  scene,size:world.size,heightAt,renderHeightAt,
+  plateaus:world.generated.plateaus,lowQuality:true,mapId:'desert-strike'
+ });
+ assert.ok(cliff,'cliff fade render variant must still exist');
+ assert.equal(cliff.userData.renderGroundConforming,true);
+ assert.equal(cliff.userData.renderGroundOffset,.42);
+ assert.equal(cliff.userData.cliffOpacityTransition,'slope-rim-toe-vertex-alpha-v2');
+ assert.equal(cliff.material.transparent,true);
+ assert.equal(cliff.material.depthWrite,false);
+ assert.equal(cliff.material.forceSinglePass,true);
+ assert.ok(cliff.material.map?.isTexture&&cliff.material.normalMap?.isTexture&&
+  cliff.material.roughnessMap?.isTexture,'preserve complete PBR cliff');
+ const pos=cliff.geometry.getAttribute('position');
+ const blend=cliff.geometry.getAttribute('cliffBlend');
+ assert.ok(pos.count>3500&&blend.count===pos.count);
+ let opaque=0,partial=0,zero=0,maxHeightError=0;
+ for(let i=0;i<pos.count;i++){
+  const a=blend.getX(i);
+  assert.ok(Number.isFinite(a)&&a>=0&&a<=1,'cliff opacity bounded');
+  if(a>.85)opaque++;
+  if(a>.01&&a<.99)partial++;
+  if(a<.0001)zero++;
+  if(i%37===0){
+   const x=pos.getX(i)+half,z=pos.getZ(i)+half;
+   const delta=Math.abs(pos.getY(i)-renderHeightAt(x,z)-.42);
+   maxHeightError=Math.max(maxHeightError,delta);
+  }
+ }
+ assert.ok(opaque>250,'real cliff center must stay visible');
+ assert.ok(partial>600,'cliff edges need plenty of true soft transition vertices');
+ assert.ok(zero>100,'ramp/slope cut boundaries must vanish rather than end abruptly');
+ assert.ok(maxHeightError<.065,
+  'visual rock must agree with the exact 4x4x56 GPU sand triangle interpolation');
+ // Verify actual shader hook, not just material metadata or texture presence.
+ const shader={vertexShader:'#include <common>\n#include <begin_vertex>',
+  fragmentShader:'#include <common>\n#include <color_fragment>'};
+ cliff.material.onBeforeCompile(shader);
+ assert.match(shader.vertexShader,/attribute float cliffBlend/);
+ assert.match(shader.fragmentShader,/diffuseColor\.a \*= clamp\(vSfCliffBlend/);
+ assert.deepEqual([...world.blocked],before,'never touch navigation');
+ assert.deepEqual([...world.generated.battlefield.heights],heights,'never touch terrain');
+ const live=readFileSync('scripts/webgl-preview.js','utf8');
+ assert.match(live,/renderGroundHeightSampler\(heightAt,size\)/,
+  'restored physical sandstone must conform to rendered terrain triangles');
+ assert.match(live,/createPlayableMesaCliffs\(\{scene,size,heightAt/,
+  'live Desert Strike should render the natural physical rock again');
+ assert.match(live,/query\.get\('cliffpaint'\)==='1'/,
+  'rejected painted stripes are available only for explicit A/B');
+ cliff.removeFromParent();cliff.geometry.dispose();cliff.material.dispose();
 });

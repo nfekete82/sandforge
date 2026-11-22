@@ -1,0 +1,39 @@
+name: Sandforge visual QA - natural mesa cliff dressing
+on:
+  pull_request:
+    paths:
+      - 'scripts/webgl-mesa-cliff-dressing.js'
+      - 'scripts/webgl-desert-cliff-ground-pbr.js'
+      - 'scripts/webgl-raised-mesa-cliffs.js'
+      - 'scripts/webgl-landscape-network.js'
+      - 'scripts/webgl-preview.js'
+      - 'scripts/build.mjs'
+      - 'tests/sandforge-natural-cliff-dressing-20261122.test.mjs'
+      - 'tests/sandforge-desert-strike-integrated-cliff-pbr-20261122.test.mjs'
+      - '.github/workflows/sandforge-natural-cliff-dressing-20261122.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  natural-mesa:
+    name: PBR cliff dressing and physical plateau parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build deployable WebGL graph
+        run: npm run build
+      - name: Test new cliff visuals, old cliffs and vehicle ramps
+        run: |
+          node --test \
+            tests/sandforge-natural-cliff-dressing-20261122.test.mjs \
+            tests/sandforge-desert-strike-integrated-cliff-pbr-20261122.test.mjs \
+            tests/sandforge-desert-strike-natural-cliffs-20261122.test.mjs \
+            tests/sandforge-expanded-plateaus-cliff-uv-v9-20261121.test.mjs
