@@ -13,7 +13,11 @@ export const ACTION_BALANCE=Object.freeze({
  airProductionRate:1.0,
  groundSpeed:1.12,
  openingContestSeconds:220,
- earlyProbeMinimumFighters:2
+ earlyProbeMinimumFighters:2,
+ reconScanCredits:180,
+ reconScanCooldown:90,
+ reconScanDuration:9,
+ reconScanRadius:630
 });
 export const initialActionCredits=(credits:number):number=>
  Math.round(credits*ACTION_BALANCE.openingCredits);
