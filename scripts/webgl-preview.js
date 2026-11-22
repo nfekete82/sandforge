@@ -358,7 +358,11 @@ function buildTerrain(){
      // Desert Strike cliff treatment lives on the *same* 16 ground meshes,
      // after all existing PBR material layers. Avoid transparency overlays,
      // crossing triangles and bright angular fragments on sloping dunes.
-     if(desertRegion?.id==='desert-strike'&&terrain.battlefield?.generatorVersion>=7)
+     // The older true PBR sandstone cliff facade is the default again.
+     // Retain the rejected painted version ONLY for explicit visual A/B
+     // with ?cliffpaint=1, never for normal matches.
+     if(desertRegion?.id==='desert-strike'&&
+        terrain.battlefield?.generatorVersion>=7&&query.get('cliffpaint')==='1')
       cliffGroundBlend=installMesaCliffGroundPBR(material,{
        size,plateaus:terrain.plateaus??[],
        lowQuality:query.get('lite')==='1'});
@@ -1113,7 +1117,7 @@ const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
 // Thin PBR cliff facing follows the physical heightfield, with the real
 // sloping entrances left clear. Summit and ramp remain ordinary ground.
 const raisedMesaMeshes=terrain.battlefield?.generatorVersion>=7&&
- desertRegion?.id!=='desert-strike'
+ !(desertRegion?.id==='desert-strike'&&query.get('cliffpaint')==='1')
  ?createPlayableMesaCliffs({scene,size,heightAt,plateaus:terrain.plateaus??[],
     lowQuality:query.get('lite')==='1',mapId:desertRegion?.id??null}):[];
 // Only new WebGL render dressing: small PBR talus at cliff feet and
