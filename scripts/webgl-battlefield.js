@@ -7,6 +7,7 @@ import {createAiDebugOverlay} from '/webgl-ai-debug.js';
 import {wheelsShouldRoll} from '/webgl-wheel-motion.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
 import {UNITS,BUILDINGS,MAX_GENERATORS_PER_FACTION,unitKinds,buildingKinds,unitSpec,buildingSpec} from '/src/reborn/catalog.js';
+import {createVeyritFieldVisuals,createVeyritHarvester,createVeyritRefinery} from '/webgl-veyrit.js';
 import {TERRAIN_LABELS} from '/src/reborn/battlefield-terrain.js';
 import {RULES,campaignLayout} from '/src/reborn/config.js';
 import {installClassicHud} from '/webgl-classic-hud.js';
@@ -165,6 +166,7 @@ export class SandforgeBattlefield {
     new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.96,depthWrite:false}));
   this.tracer.frustumCulled=false;scene.add(this.tracer);
   this.buildInterface();this.addFog();this.createBastions();
+   this.veyritVisuals=createVeyritFieldVisuals(this.game.veyritFields??[],this.scene,this.pos,this.heightAt);
   // Read-only developer HUD, opt-in on staging (?aiDebug=1), always
   // accessible via F9 in the local dev preview. Never touches game state.
   this.aiDebug=createAiDebugOverlay(this.game);
@@ -172,6 +174,8 @@ export class SandforgeBattlefield {
  }
  entityPosition(p){return this.pos(p.x,p.y,this.heightAt(p.x,p.y)+unitRenderAltitude(p.kind,p.flightHeight??1));}
  createFallback(kind,owner,type,gateSpan=2){
+   if(type==='unit'&&kind==='harvester')return createVeyritHarvester(owner);
+   if(type==='building'&&kind==='refinery')return createVeyritRefinery(owner);
   if(type==='unit'&&kind==='drone')return createReconDrone(owner);
   if(type==='building'&&isStrategicBuilding(kind)){
    const strategic=createStrategicBuilding(kind,owner,gateSpan);
@@ -320,6 +324,7 @@ export class SandforgeBattlefield {
  scheduleDetail(entry,entity,type){
   // R-01 renders from deterministic local Three.js geometry, no GLB download.
   if(type==='unit'&&entity.kind==='drone')return;
+   if(entity.kind==='harvester'||entity.kind==='refinery')return;
   // Lite mode reduces terrain/actor detail, but authored PBR buildings must
   // still appear. Falling back to primitive grey cubes would make the actual
   // player's base look markedly worse than the 2D game.
@@ -1202,6 +1207,7 @@ export class SandforgeBattlefield {
   this.buildHint.style.borderColor=valid?'#9edfbe':'#ee8875';
  }
  sync(force=false,dt=0,active=true,alpha=1){
+   this.veyritVisuals?.sync(this.game.veyritFields??[]);
   const aliveUnits=new Set(),aliveBases=new Set();
   // Service slots are uncommon, so build this lookup only when needed. On
   // busy matches, avoid scanning every base for each repairing unit.
@@ -1473,7 +1479,7 @@ export class SandforgeBattlefield {
     if(entry.upgradeLevel!==territory.upgradeLevel){
      entry.upgradeLevel=territory.upgradeLevel;
      const promoted=territory.upgradeLevel===2;
-     entry.halo.scale.setScalar(promoted?1.14:1);
+     entry.halo.scale.setScalar((promoted?1.14:1)*(territory.id===this.game.centralBastionId?1.25:1));
      entry.halo.material.opacity=promoted?.96:.75;
      // Income upgrades never override ownership colour: blue / red / white.
      entry.halo.material.color.set(bastionOwnerLight(territory.owner));
@@ -1559,6 +1565,14 @@ export class SandforgeBattlefield {
    const halo=new THREE.Mesh(new THREE.TorusGeometry(49,2,6,48),new THREE.MeshBasicMaterial({color:bastionOwnerLight(t.owner),transparent:true,opacity:.75}));
    halo.rotation.x=-Math.PI/2;halo.position.y=5;node.add(halo);
    const captureBar=createBastionCaptureBar();node.add(captureBar);
+   if(t.id===this.game.centralBastionId){
+    node.name='central-hold-bastion-'+t.id;
+    const crown=new THREE.Mesh(new THREE.TorusGeometry(66,2.2,6,48),
+     new THREE.MeshBasicMaterial({color:'#70f4e4',transparent:true,opacity:.9,depthWrite:false}));
+    crown.name='Central_15_Minute_Objective_Ring';
+    crown.rotation.x=-Math.PI/2;crown.position.y=7;node.add(crown);
+    halo.scale.setScalar(1.25);
+   }
    // Midday PBR Bastion has its ORIGINAL capture halo; extra 21 Nov
    // Meshy-era metal-beacon geometry is not part of the restored building.
    const ownerBeacon=meshyStructurePath('bastion')?
@@ -2103,6 +2117,20 @@ export class SandforgeBattlefield {
   }
   view.querySelector('#sf-credits').textContent=g.testMode?'∞':format(g.credits[0]);
   view.querySelector('#sf-income').textContent='+ '+format(g.income(0))+' / 10s';
+   const central=g.centralBastionId===null?null:g.territories[g.centralBastionId];
+   const centerOwner=central?.owner===0?'BLAU':central?.owner===1?'ROT':'NEUTRAL';
+   const remaining=Math.ceil(Math.max(0,900-g.centralHold.seconds));
+   const timer=String(Math.floor(remaining/60)).padStart(2,'0')+':'+String(remaining%60).padStart(2,'0');
+   const objective=view.querySelector('#sf-central-objective');
+   if(objective){
+    objective.hidden=!central;
+    objective.dataset.owner=central?.owner===0?'blue':central?.owner===1?'red':'neutral';
+    objective.querySelector('#sf-central-owner').textContent=centerOwner;
+    objective.querySelector('#sf-central-clock').textContent=timer+(central?.capturing>=0?' · UMKÄMPFT':'');
+   }
+   const veyrit=view.querySelector('#sf-veyrit');
+   if(veyrit)veyrit.textContent='VEYRIT '+(g.veyritFields??[]).filter(f=>f.amount>1).length+
+     ' FELDER · '+g.units.filter(u=>u.owner===0&&u.kind==='harvester'&&u.hp>0).length+' SAMMLER';
   view.querySelector('#sf-capacity').innerHTML=g.count(0)+' <em>/ '+RULES.capacity+'</em>';
   view.querySelector('#sf-stats').textContent='Credits '+(g.testMode?'∞':format(g.credits[0]))+' · '+g.count(0)+'/'+RULES.capacity;
   view.querySelector('#sf-sectors').textContent=g.territories.filter(t=>t.owner===0).length+' / '+g.territories.length+' SEKTOREN';
@@ -2112,7 +2140,7 @@ export class SandforgeBattlefield {
    const spec=type==='unit'?UNITS[kind]:BUILDINGS[kind];
    const image=type==='unit'
     ?'<img data-sf-unit-icon="'+kind+'" alt="" decoding="async">'
-    :'<img data-sf-building-icon="'+kind+'" src="'+buildingIconUrl(kind==='wallGate'?'wall':kind)+'" alt="" loading="lazy" decoding="async">';
+    :'<img data-sf-building-icon="'+kind+'" src="'+buildingIconUrl(kind==='refinery'?'factory':kind==='wallGate'?'wall':kind)+'" alt="" loading="lazy" decoding="async">';
    const dataset=type==='unit'?'data-unit="'+kind+'"':'data-build="'+kind+'"';
    return '<button class="catalog-card" '+dataset+
     ' title="'+plain(spec.description)+'" aria-label="'+plain(spec.name)+' – '+spec.cost+' Credits">'+
@@ -2638,12 +2666,22 @@ export class SandforgeBattlefield {
    if(!map.generated?.battlefield&&map.blocked[iy*grid+ix])
     ctx.fillRect(ix/grid*width,iy/grid*height,3*width/grid,3*height/grid);
   }
-  // The strategic control points are drawn below fog; unexplored ownership
+  for(const field of this.game.veyritFields??[]){
+    if(field.amount<=0)continue;
+    ctx.fillStyle='#54e8d7';ctx.beginPath();
+    ctx.arc(field.x*scale,field.y*scale,Math.max(2.6,4.2*Math.sqrt(field.amount/field.capacity)),0,Math.PI*2);
+    ctx.fill();
+   }
+   // The strategic control points are drawn below fog; unexplored ownership
   // must never become visible only because the mini-map was refreshed.
   for(const t of this.game.territories){
    ctx.fillStyle=t.owner===0?colors.blue:t.owner===1?colors.red:'#eed3a0';
    ctx.beginPath();ctx.arc(t.point.x*scale,t.point.y*scale,3,0,Math.PI*2);ctx.fill();
-   if(t.progress>0&&t.capturing>=0){
+   if(t.id===this.game.centralBastionId){
+      ctx.strokeStyle='#f5f2d3';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(t.point.x*scale,t.point.y*scale,8,0,Math.PI*2);ctx.stroke();
+    }
+    if(t.progress>0&&t.capturing>=0){
     ctx.lineWidth=2;ctx.strokeStyle=t.capturing===0?'#53f4e2':'#ff7151';
     ctx.beginPath();ctx.arc(t.point.x*scale,t.point.y*scale,6,0,Math.PI*2);ctx.stroke();
    }
