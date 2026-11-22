@@ -5,6 +5,7 @@ import '../scripts/webgl-desert-maps.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {mesaRampCoverage,mesaRampDirections} from '../dist/src/reborn/raised-mesas.js';
 import {createPlayableMesaCliffs} from '../scripts/webgl-raised-mesa-cliffs.js';
+import {createLandscapeMeshes} from '../scripts/webgl-landscape-network.js';
 import {sharedStoneMaps} from '../scripts/webgl-rock-materials.js';
 import {readFileSync} from 'node:fs';
 
@@ -44,6 +45,26 @@ test('actual ground vertex shades real steep Desert Strike slopes without blendi
  assert.match(source,/vertexColor\.lerp\(new THREE\.Color\('#78604c'\),cliffFace\*\.75\)/);
  const cliffCode=readFileSync('scripts/webgl-raised-mesa-cliffs.js','utf8');
  assert.match(cliffCode,/if\(mapId==='desert-strike'\)return \[\]/);
+});
+
+test('Desert Strike landscape no longer draws overlapping canyon ridge facade',()=>{
+ const w=game().world,scene=new THREE.Scene();
+ const rocks=createLandscapeMeshes({scene,size:w.size,
+  heightAt:(x,z)=>w.terrainHeight(x,z),
+  roads:w.generated.roads??[],ridges:w.generated.ridges??[],
+  plateaus:w.generated.plateaus??[],biome:'desert',mapId:'desert-strike',
+  seed:preset.seed,lowQuality:true,showOutcrops:false});
+ assert.equal(rocks.filter(m=>m.userData?.erodedRidge).length,0,
+  'second eroded ridge skin still renders over Desert Strike terrain');
+ assert.equal(rocks.filter(m=>m.userData?.rockOutcrops).length,0);
+ const source=readFileSync('scripts/webgl-preview.js','utf8');
+ assert.match(source,/terrain\.mesas\.length&&\s*!\(biome==='desert'&&desertRegion\?\.id==='desert-strike'\)/,
+  'third geological mesa skin must stay disabled for this map');
+ for(const m of rocks){
+  m.removeFromParent();m.geometry?.dispose?.();
+  if(Array.isArray(m.material))for(const mat of m.material)mat?.dispose?.();
+  else m.material?.dispose?.();
+ }
 });
 
 test('older maps retain their previous cliff presentation',()=>{
