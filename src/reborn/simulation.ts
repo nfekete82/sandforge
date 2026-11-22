@@ -2057,6 +2057,10 @@ export class Simulation {
   // search on every catch-up tick. Back off only while the unit stays at
   // the same stuck location. Fresh commands continue to reset u.repath.
   private blockedRouteRetries=new WeakMap<Unit,{x:number;y:number;targetX:number;targetY:number;count:number}>();
+  // Repeated physical cliff contacts can reset the normal path-progress
+  // watchdog every time A* replaces a route. Keep a separate, transient
+  // cooldown to limit expensive local probes at 2x/4x game speed.
+  private readonly cornerEscapeCooldown=new WeakMap<Unit,number>();
   private move(u:Unit,target:Point,dt:number,speedLimit=Infinity,formationCatchUp=false):void {
     const spec=unitSpec(u),clearance=Math.max(0,spec.radius-10);
     const vehicle=spec.group==='Fahrzeuge'&&!spec.flying,ground=!spec.flying;
@@ -2382,6 +2386,41 @@ export class Simulation {
         // 16-35 4200-node A* calls per rendered frame at 4x speed.
         // Retry in simulated time; a new explicit order still resets path.
         u.repath=Math.min(4,0.55+count*.5)+(u.id%5)*.12;
+        // Third plateau failure mode: A* supplies a route, but the REAL
+        // wheel/track collision rejects a step at a cliff corner. Clearing
+        // u.path above repeatedly reset the 3.3s waypoint watchdog, so the
+        // tank kept selecting the same blocked corner forever. After two
+        // contacts at the SAME physical position, drive a short, provably
+        // legal escape around the face. Retain the original player/AI order.
+        // Stop/Hold, cargo, active combat and formation speed=0 must not
+        // trigger an autonomous move. Never teleport or cross a steep lip.
+        const order=u.orders[0];
+        const eligible=vehicle&&this.world.generatorVersion>=7&&
+          (u.owner===0||u.owner===1&&this.tactical.ai37Mode==='coordinated')&&
+          (order?.kind==='move'||order?.kind==='attackMove')&&
+          !u.hold&&speedLimit>1&&u.combatTarget==null&&
+          (u.transport?.cargo.length??0)===0&&
+          !u.factoryService&&!u.airfieldService;
+        if(eligible&&count>=2&&
+           this.time-(this.cornerEscapeCooldown.get(u)??-Infinity)>=2.5){
+          this.cornerEscapeCooldown.set(u,this.time);
+          const nearby=this.spatial.query(u,380).filter(v=>v!==u&&v.hp>0&&
+            !v.carrier&&!unitSpec(v).flying&&
+            unitSpec(v).group==='Fahrzeuge');
+          const detour=ai39NoPathRecoveryWaypoint({
+            from:u,goal:target,unitId:u.id,attempt:count,
+            clear:q=>this.world.walkable(q,collisionObstacles,clearance)&&
+              this.world.line(u,q,collisionObstacles,clearance,slopeLimit)&&
+              nearby.every(v=>distance(q,v)>vehicleSpacingGap(u,v).hard+12)
+          });
+          if(detour){
+            u.path=[detour];
+            u.repath=.75;
+            // After escaping the corner use exact A* to avoid the same
+            // coarse grid approximation on the following route.
+            u.exactPath=true;
+          }
+        }
       }else u.repath=0;
     }
   }
