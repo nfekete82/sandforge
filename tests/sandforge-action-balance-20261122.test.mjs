@@ -104,3 +104,42 @@ test('Action hit feedback reuses bounded instancing and respects audio mixing',(
  assert.match(audio,/this\.lastExplosionAt/,'audio must retain spatial voice gate');
  assert.match(audio,/this\.effectsVolume/,'user volume controls still apply');
 });
+
+test('paid 9s Action recon scan reveals a chosen area but never a free persistent enemy map',()=>{
+ const g=new Simulation(2999,3);
+ const enemy=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
+ assert.ok(enemy);
+ assert.equal(g.canSee(0,enemy),false);
+ assert.equal(g.useActionReconScan(enemy),false,'Classic cannot use Action scan');
+ g.configureBalancePreset('action');
+ const before=g.credits[0];
+ assert.equal(g.useActionReconScan(enemy),true,'Action with active HQ may pay for map scan');
+ assert.equal(g.credits[0],before-ACTION_BALANCE.reconScanCredits);
+ assert.equal(g.canSee(0,enemy),true,'visibility via same authoritative FOW, not cosmetic icon');
+ assert.equal(g.useActionReconScan(enemy),false,'cooldown cannot be bypassed');
+ assert.ok(g.actionScanReadyAt>=90);
+ const saved=g.save();
+ assert.equal(saved.balancePreset,'action');
+ assert.ok(saved.actionScan&&saved.actionScan.until>saved.time);
+ const load=Simulation.load(saved);
+ assert.equal(load.balancePreset,'action');
+ assert.equal(load.actionScanReadyAt,g.actionScanReadyAt);
+ assert.equal(load.canSee(0,enemy),true);
+ assert.equal(load.useActionReconScan(enemy),false,'save/reload must not reset cooldown');
+ for(let i=0;i<190;i++)load.step(.05);
+ assert.equal(load.actionScan?.until<=load.time,true);
+ assert.equal(load.canSee(0,enemy),false,
+  'after scan expires the target must be hidden again without real unit vision');
+ assert.throws(()=>Simulation.load({...saved,actionScanReadyAt:9999}),
+  /beschädigt|Version|Ungültig/,'tampered cooldown must not load');
+});
+
+test('scan target is the camera focus and action-only cooldown is visible on HUD',()=>{
+ const preview=readFileSync('scripts/webgl-preview.js','utf8');
+ const page=readFileSync('webgl-preview.html','utf8');
+ assert.match(page,/id="action-scan"/);
+ assert.match(preview,/game\.useActionReconScan\(focus\)/);
+ assert.match(preview,/controls\.target\.x\+half/);
+ assert.match(preview,/actionScanButton\.hidden=game\.balancePreset!=='action'/);
+ assert.match(preview,/actionScanButton\.disabled=!ready/);
+});
