@@ -6,8 +6,9 @@ import type {MapVersion,Point} from './config.js';
  * This affects navigation only; it never modifies the static World grid. */
 export const BASTION_NAVIGATION_RADIUS=55;
 export function bastionStructureColliders(
- territories:readonly {point:Point}[],version:MapVersion
+ territories:readonly {point:Point;isBastion?:boolean}[],version:MapVersion
 ):{x:number;y:number;radius:number}[]{
  if(version<19)return [];
- return territories.map(t=>({x:t.point.x,y:t.point.y,radius:BASTION_NAVIGATION_RADIUS}));
+ return territories.filter(t=>version<23||t.isBastion!==false)
+  .map(t=>({x:t.point.x,y:t.point.y,radius:BASTION_NAVIGATION_RADIUS}));
 }
