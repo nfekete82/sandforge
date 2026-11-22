@@ -112,11 +112,12 @@ export async function runCurrentDesertBenchmark(map,seconds,output){
  for(const scenario of SCENARIOS){
   const seed=map.seed;
   const stalls=new Map();
-  let lastSampledSecond=-1,vehicleStallSeconds=0;
+  let lastSampledSecond=-1,vehicleStallSeconds=0,siegeRallyRescues=0;
   // Passive observer only. Never changes unit orders, route requests,
   // targeting or resources. Counts 10s+ immobility during a genuine
   // long-distance MOVE mission, not a tank standing and firing.
   const observe=g=>{
+   siegeRallyRescues=g.tactical.ai45RallyRescues??0;
    const second=Math.floor(g.time+1e-8);
    if(second===lastSampledSecond)return;
    lastSampledSecond=second;
@@ -159,6 +160,7 @@ export async function runCurrentDesertBenchmark(map,seconds,output){
   metrics.mapId=map.id;metrics.generatorVersion=map.generatorVersion;
   metrics.terrainProfile=map.terrain;
   metrics.vehicleStallSeconds=vehicleStallSeconds;
+  metrics.ai45SiegeRallyRescues=siegeRallyRescues;
   report.details.push(metrics);save();
   console.log('RESULT '+JSON.stringify({
    map:map.id,seed,opponent:scenario.opponent,
@@ -169,6 +171,7 @@ export async function runCurrentDesertBenchmark(map,seconds,output){
    bomberCount:metrics.redProducedByKind.bomber??0,
    droneCount:metrics.redProducedByKind.drone??0,
    stalledOrders:metrics.rapidUnitOrderChanges,
+   siegeRallyRescues:metrics.ai45SiegeRallyRescues,
    wallMs:metrics.wallMs
   }));
  }
