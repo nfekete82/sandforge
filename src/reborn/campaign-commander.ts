@@ -160,7 +160,9 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
    g.canSee(1,u)&&distance(u,t.point)<350);
   // A public ENEMY Bastion is not proven unguarded simply because no
   // defender has ever entered RED's vision. Neutral expansion stays fast.
-  const surveyed=t.owner===-1||g.hasExplored(1,t.point);
+  // Preserve legacy map AI 3.0 benchmarks: the new sector-recon doctrine
+  // applies only to modern v23+ Bastion-control battlefields.
+  const surveyed=t.owner===-1||g.world.mapVersion<23||g.hasExplored(1,t.point);
   if(clear&&!visibleGuards&&surveyed&&
      (t.owner===-1||pressured&&t.owner===0))openBastions.add(t.id);
   // Neutral unfortified income is the fastest way to support paid armies.
