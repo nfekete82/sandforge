@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {disposeRocketLauncher} from '/webgl-rocket-infantry.js';
+import {restoreHumanStance,applyHumanStance} from '/webgl-human-stance.js';
 import {updateEngineerTools} from '/webgl-engineer-tools.js';
 import {UNITS,BUILDINGS} from '/src/reborn/catalog.js';
 import {healthFraction,healthColor,showHealthBar} from '/webgl-health.js';
@@ -375,7 +376,19 @@ export class SandforgeActorPresentation {
        // Foot units use the same walk animation cadence as normal play.
        // The former driveSpeed/80 made the first steps ~31% faster.
        ?infantry.has(entity.kind)?1:clamp((entity.driveSpeed??80)/80,.15,3):1);
+    // Reset only the prior secondary leg pose, then let the original GLB
+    // mixer author all bones (including both weapon grip hands) as usual.
+    if(entry.humanStance)
+     restoreHumanStance(entry.humanStance);
     clips.mixer.update(Math.min(.08,dt));
+    if(entry.humanStance){
+     const walking=clips.mixer.existingAction(clips.walk);
+     const phase=walking&&clips.walk.duration>0?
+      (walking.time/clips.walk.duration)%1:0;
+     applyHumanStance(entry.humanStance,{
+      moving,shooting,hurt,dt,walkPhase:phase
+     });
+    }
    }
   }
   const body=entry.detail??entry.placeholder;
