@@ -31,6 +31,7 @@ jobs:
         run: |
           node --test tests/sandforge-ai45-reachable-siege-rally-20261122.test.mjs \
             tests/sandforge-ai45-paired-benchmark-20261122.test.mjs \
+            tests/sandforge-ai45-evaluation-20261122.test.mjs \
             tests/sandforge-ai40-rally-recovery-20261120.test.mjs \
             tests/sandforge-ai40-canyon-mission-20261120.test.mjs
       - name: Compare paired AI45 OFF and ON against five identical BLUE policies
@@ -38,6 +39,11 @@ jobs:
           node scripts/benchmark-ai45-paired-20261122.mjs \
             --map "${{ matrix.map }}" --seconds 480 \
             --output "reports/${{ matrix.map }}-ai45.json"
+      - name: Evaluate whether AI45 actually triggered and improved results
+        run: |
+          node scripts/evaluate-ai45-paired-20261122.mjs \
+            "reports/${{ matrix.map }}-ai45.json" \
+            "reports/${{ matrix.map }}-ai45-summary.json"
       - name: Preserve data even on an unsuccessful run
         if: always()
         uses: actions/upload-artifact@v4
