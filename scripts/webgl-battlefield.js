@@ -1557,6 +1557,7 @@ export class SandforgeBattlefield {
   const base=new THREE.CylinderGeometry(38,40,9,12),ob=new THREE.CylinderGeometry(11,18,45,12);
   const stone=new THREE.MeshStandardMaterial({color:'#c4a77d',roughness:1});
   for(const t of this.game.territories){
+   if(this.game.centralBastionId!==null&&t.id!==this.game.centralBastionId)continue;
    const node=new THREE.Group();node.name='bastion-'+t.id;
    node.position.copy(this.pos(t.point.x,t.point.y));
    const pad=new THREE.Mesh(base,stone);pad.position.y=5;pad.receiveShadow=true;node.add(pad);
@@ -2133,7 +2134,9 @@ export class SandforgeBattlefield {
      ' FELDER · '+g.units.filter(u=>u.owner===0&&u.kind==='harvester'&&u.hp>0).length+' SAMMLER';
   view.querySelector('#sf-capacity').innerHTML=g.count(0)+' <em>/ '+RULES.capacity+'</em>';
   view.querySelector('#sf-stats').textContent='Credits '+(g.testMode?'∞':format(g.credits[0]))+' · '+g.count(0)+'/'+RULES.capacity;
-  view.querySelector('#sf-sectors').textContent=g.territories.filter(t=>t.owner===0).length+' / '+g.territories.length+' SEKTOREN';
+  view.querySelector('#sf-sectors').textContent=g.centralBastionId===null?
+   g.territories.filter(t=>t.owner===0).length+' / '+g.territories.length+' SEKTOREN':
+   (g.territories[g.centralBastionId].owner===0?'1 / 1 ZENTRALBASTION':'0 / 1 ZENTRALBASTION');
   // Rebuild only when the roster/territory markup itself changes. Credits and
   // producer availability update button states in place, preserving clicks.
   const cards=(kinds,type)=>kinds.map(kind=>{
@@ -2160,14 +2163,15 @@ export class SandforgeBattlefield {
   }).join('');
   const infantryRoster=roster([['headquarters','KOMMANDOZENTRALE · PIONIERE'],
    ['barracks','KASERNE · INFANTERIE']],'Infanterie');
-  const vehicleRoster=roster([['factory','FAHRZEUGFABRIK']],'Fahrzeuge');
+  const vehicleRoster=roster([['factory','FAHRZEUGFABRIK'],
+   ['refinery','VEYRIT-RAFFINERIE · SAMMLER']],'Fahrzeuge');
   const aircraftRoster=roster([['headquarters','KOMMANDOZENTRALE · AUFKLÄRUNG'],
    ['airfield','FLUGFELD']],'Luftunterstützung');
   // The original markup embedded a changing capture timer. Every 280 ms
   // during a late-game sector contest it changed the ENTIRE catalogue HTML,
   // destroyed all image elements and caused new 3D portrait uploads/readbacks.
   // Use static sector cards and update their <small> labels in place instead.
-  const tiles=this.game.territories.map(t=>
+  const tiles=this.game.territories.filter(t=>this.game.centralBastionId===null||t.id===this.game.centralBastionId).map(t=>
    '<div class="sf-sector-controls"><button class="territory-row" data-territory="'+t.id+
    '" aria-label="Sektor '+(t.id+1)+' zentrieren">'+
    '<i></i><strong>SEKTOR '+(t.id+1)+'</strong><small></small></button>'+
@@ -2668,13 +2672,14 @@ export class SandforgeBattlefield {
   }
   for(const field of this.game.veyritFields??[]){
     if(field.amount<=0)continue;
-    ctx.fillStyle='#54e8d7';ctx.beginPath();
-    ctx.arc(field.x*scale,field.y*scale,Math.max(2.6,4.2*Math.sqrt(field.amount/field.capacity)),0,Math.PI*2);
+    ctx.fillStyle='#35d8d2';ctx.beginPath();
+    ctx.arc(field.x*scale,field.y*scale,Math.max(3,(field.radius??180)*scale*Math.sqrt(field.amount/field.capacity)),0,Math.PI*2);
     ctx.fill();
    }
    // The strategic control points are drawn below fog; unexplored ownership
   // must never become visible only because the mini-map was refreshed.
   for(const t of this.game.territories){
+   if(this.game.centralBastionId!==null&&t.id!==this.game.centralBastionId)continue;
    ctx.fillStyle=t.owner===0?colors.blue:t.owner===1?colors.red:'#eed3a0';
    ctx.beginPath();ctx.arc(t.point.x*scale,t.point.y*scale,3,0,Math.PI*2);ctx.fill();
    if(t.id===this.game.centralBastionId){
@@ -2894,6 +2899,7 @@ export class SandforgeBattlefield {
   const rect=this.renderer.domElement.getBoundingClientRect();
   if(!rect.width||!rect.height)return null;
   const targets=this.game.territories.filter(t=>
+   (this.game.centralBastionId===null||t.id===this.game.centralBastionId)&&
    (t.owner===0||this.game.canSee(0,t.point))&&
    this.bastions.get(t.id)?.node.visible).map(t=>({
     territory:t,node:this.bastions.get(t.id).node
@@ -2945,7 +2951,8 @@ export class SandforgeBattlefield {
   // control-point center. A tilted WebGL camera instead raycasts sand
   // BEHIND the tall tower, frequently outside the 95-unit capture radius.
   // Recognize both the terrain near the site and the visible 3D model.
-  const capturable=this.game.territories.filter(t=>t.owner!==0);
+  const capturable=this.game.territories.filter(t=>t.owner!==0&&
+   (this.game.centralBastionId===null||t.id===this.game.centralBastionId));
   if(groundPoint){
    const near=capturable.filter(t=>dist(t.point,groundPoint)<=capturePresenceRadius(this.game.world.mapVersion)+34)
     .sort((a,b)=>dist(a.point,groundPoint)-dist(b.point,groundPoint))[0];
