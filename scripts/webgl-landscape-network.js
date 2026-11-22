@@ -14,7 +14,65 @@ const clamp01=v=>Math.min(1,Math.max(0,v));
 const smooth=v=>{const t=clamp01(v);return t*t*(3-2*t);};
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 
-export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],plateaus=[],biome='desert',mapId=null,lowQuality=false,showOutcrops=true}){
+/**
+ * Deterministic, independent track *remnants*. Drawing a generated road
+ * graph reveals every Bastion and all route choices before scouting. For
+ * modern desert visuals leave ONLY a few weathered traces that point nowhere:
+ * they are placed independently of that graph, well clear of all Bastions.
+ * The original roads array remains untouched for simulation and old saves.
+ */
+export function createSparseTrackFragments({
+ size,seed=0,bastions=[],heightAt=()=>0,walkable=()=>true,lowQuality=false
+}={}){
+ if(!Number.isFinite(size)||size<700)return [];
+ let state=((Number(seed)>>>0)^0x7a40ef51)>>>0;
+ const random=()=>{
+  state=(Math.imul(1664525,state)+1013904223)>>>0;
+  return state/4294967296;
+ };
+ const limit=Math.min(lowQuality?21:34,
+  Math.max(9,Math.round(size/175)));
+ const fragments=[],centers=[];
+ const margin=Math.max(110,size*.027);
+ const bastionClear=Math.max(340,size*.064);
+ for(let attempt=0;attempt<limit*40&&fragments.length<limit;attempt++){
+  const x=margin+random()*(size-2*margin);
+  const y=margin+random()*(size-2*margin);
+  const angle=random()*Math.PI*2;
+  const length=64+random()*128;
+  const bend=(random()-.5)*length*.31;
+  // Sparse parallel scuffs, not connected spokes, highways, or a grid.
+  if(centers.some(c=>Math.hypot(x-c.x,y-c.y)<length*.70+190))
+   continue;
+  const dx=Math.cos(angle),dy=Math.sin(angle);
+  const nx=-dy,ny=dx,points=[];
+  let valid=true;
+  for(let i=0;i<=6;i++){
+   const t=i/6-.5;
+   const lateral=bend*Math.sin(Math.PI*(t+.5))+
+    Math.sin(t*9+angle)*length*.025;
+   const px=x+dx*length*t+nx*lateral;
+   const py=y+dy*length*t+ny*lateral;
+   const p={x:px,y:py};
+   if(px<margin||py<margin||px>size-margin||py>size-margin||
+    bastions.some(b=>Math.hypot(px-b.x,py-b.y)<bastionClear)||
+    !walkable(p)){
+    valid=false;break;
+   }
+   const slope=Math.hypot(
+    heightAt(px+14,py)-heightAt(px-14,py),
+    heightAt(px,py+14)-heightAt(px,py-14))/28;
+   if(slope>.14){valid=false;break;}
+   points.push(p);
+  }
+  if(!valid)continue;
+  fragments.push(points);
+  centers.push({x,y});
+ }
+ return fragments;
+}
+
+export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],plateaus=[],biome='desert',mapId=null,seed=0,bastions=[],lowQuality=false,showOutcrops=true}){
  const half=size/2,meshes=[];
  const authoredPlateau=biome==='desert'&&(plateaus.some(m=>m.ramps?.length>1)||['plateau-crossroads','mesa-highlands'].includes(mapId));
  const protectedZones=ridges.flatMap(r=>r.clearings??[]);
@@ -29,13 +87,18 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
    snow:['#9ca2a0','#707b7e','#c3c6bf','#e1ddd3'],
    jungle:['#9a9871','#64694e','#afa982','#c9b78f']})[biome]??['#b99c75','#8e7153','#d2b38c','#e0c29b'];
 
- // Use a single ribbon with feathered shoulders and subtle twin wheel ruts.
- // The road may cross another road, but never doubles its own opaque geometry.
+ // The visual desert is not a road map. Keep real paths in World, but
+ // replace the all-Bastions connected graph with unrelated short remnants.
+ // Other biomes retain their established road visuals.
+ const sparseDesert=biome==='desert';
+ const visibleRoutes=sparseDesert?
+  createSparseTrackFragments({size,seed,bastions,heightAt,lowQuality}):roads;
  const roadPositions=[],roadColors=[],tireOffsets=[-1,-.83,-.56,-.25,0,.25,.56,.83,1];
- const ruts=authoredPlateau
-  ?[0,.13,.33,.52,.41,.52,.33,.13,0]:[0,.045,.17,.26,.135,.26,.17,.045,0];
+ const ruts=sparseDesert?[0,.027,.115,.20,.075,.20,.115,.027,0]:
+  authoredPlateau?[0,.13,.33,.52,.41,.52,.33,.13,0]:
+   [0,.045,.17,.26,.135,.26,.17,.045,0];
  const roadColor=new THREE.Color(roadShade);
- for(const route of roads){
+ for(const route of visibleRoutes){
   if(route.length<2)continue;
   const curve=new THREE.CatmullRomCurve3(
     route.map(p=>new THREE.Vector3(p.x,0,p.y)),false,'centripetal');
@@ -48,11 +111,13 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
    const dx=after.x-before.x,dz=after.z-before.z,len=Math.hypot(dx,dz)||1;
    const nx=-dz/len,nz=dx/len;
    // Keep road width in visual units; slight natural wear variation only.
-   const width=(authoredPlateau?98:51)*(.95+.045*Math.sin(center.x*.013+center.z*.021));
-   const padFade=authoredPlateau
+   const width=(sparseDesert?39:authoredPlateau?98:51)*
+    (.85+.12*Math.sin(center.x*.013+center.z*.021));
+   const padFade=sparseDesert?1:
+    authoredPlateau
     ?smooth((distanceFromBuildPad(center.x,center.z)+230)/180)
     :smooth((distanceFromBuildPad(center.x,center.z)-15)/118);
-   const endFade=smooth(Math.min(i,count-i)/3.5);
+   const endFade=smooth(Math.min(i,count-i)/(sparseDesert?5.0:3.5));
    return tireOffsets.map((offset,j)=>{
     const x=center.x+nx*width*.5*offset,z=center.z+nz*width*.5*offset;
     const elevation=point(x,z,.27);
@@ -62,7 +127,9 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
       Math.hypot(heightAt(x+18,z)-heightAt(x-18,z),
        heightAt(x,z+18)-heightAt(x,z-18))/36:0;
     const slopeMask=mesaSlope>.24?0:1;
-    const alpha=ruts[j]*padFade*endFade*slopeMask*
+    const dustFade=sparseDesert?
+     .62+.23*Math.sin(center.x*.031+center.z*.019):1;
+    const alpha=ruts[j]*padFade*endFade*slopeMask*dustFade*
       (.9+.08*Math.sin(i*.54+offset*3.4));
     const tint=roadColor.clone().multiplyScalar(
       1+.045*Math.sin(center.x*.021+center.z*.017+offset*5));
@@ -94,8 +161,11 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
    polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1
   });
   const mesh=new THREE.Mesh(geometry,material);
-  mesh.name='procedural-v3-soft-sand-roads';mesh.renderOrder=2;
-  mesh.userData={visualOnly:true,roadNetwork:true,featheredRoads:true};
+  mesh.name=sparseDesert?'scattered-desert-track-remnants':'procedural-v3-soft-sand-roads';
+  mesh.renderOrder=2;
+  mesh.userData={visualOnly:true,roadNetwork:!sparseDesert,
+   unconnectedTrackRemnants:sparseDesert,fragmentCount:visibleRoutes.length,
+   noBastionGuidance:sparseDesert,featheredRoads:true};
   mesh.receiveShadow=false;mesh.castShadow=false;mesh.raycast=()=>{};
   scene.add(mesh);meshes.push(mesh);
  }
