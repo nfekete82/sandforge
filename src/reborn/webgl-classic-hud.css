@@ -3088,3 +3088,24 @@
 #sf-classic-root .sf-passenger-manifest .sf-passenger-unload-all{
  cursor:pointer;
 }
+
+/* Direct 3D Bastion selection: readable income tier and a single obvious
+ * upgrade command in the regular bottom dock. No new floating overlays. */
+#sf-classic-root #sidebar > #sf-selection-panel .sf-bastion-level{
+ color:#e9d4a3;font:700 11px/1.3 var(--mono);
+ letter-spacing:.025em;padding-top:1px;
+}
+#sf-classic-root #sidebar > #sf-selection-panel
+ #sf-bastion-upgrade:not([hidden]){
+ background:#416446;color:#f9f1d4;border:1px solid #a7c188;
+ font-weight:800!important;letter-spacing:.015em;
+}
+#sf-classic-root #sidebar > #sf-selection-panel
+ #sf-bastion-upgrade:not([hidden]):hover:not(:disabled){
+ background:#58815a;border-color:#c1dc98;
+}
+#sf-classic-root #sidebar > #sf-selection-panel
+ #sf-bastion-upgrade:not([hidden]):disabled{
+ background:#353a35;color:#b0ab9e;border-color:#696b58;
+ opacity:.82;cursor:not-allowed;
+}
