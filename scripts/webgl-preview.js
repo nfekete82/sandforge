@@ -16,7 +16,7 @@ import {planDesertWaterways} from '/webgl-desert-water-plan.js';
 import {generateOases} from '/webgl-oasis-generation.js';
 import {createLandscapeMeshes} from '/webgl-landscape-network.js';
 import {normalizeSimulationSpeed,simulationFrameBudget} from '/webgl-simulation-speed.js';
-import {DesertArtPass} from '/webgl-environment.js';
+import {DesertArtPass,renderGroundHeightSampler} from '/webgl-environment.js';
 import {BIOME_STYLES,normalizeBiome,createBiomeGroundTexture,addBiomeVegetation} from '/webgl-biomes.js';
 import {SandforgeCombatEffects} from '/webgl-combat-vfx.js';
 import {SandforgeStrategicEffects} from '/webgl-strategic-effects.js';
@@ -1104,6 +1104,10 @@ const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
 // sloping entrances left clear. Summit and ramp remain ordinary ground.
 const raisedMesaMeshes=terrain.battlefield?.generatorVersion>=7
  ?createPlayableMesaCliffs({scene,size,heightAt,plateaus:terrain.plateaus??[],
+    // The painted cliff must follow the triangulated GPU terrain, not the
+    // smoother physics height field: otherwise the overlay cuts through sand.
+    renderHeightAt:desertRegion?.id==='desert-strike'
+     ?renderGroundHeightSampler(heightAt,size):null,
     lowQuality:query.get('lite')==='1',mapId:desertRegion?.id??null}):[];
 // Only new WebGL render dressing: small PBR talus at cliff feet and
 // sparse dry branch clusters. This never enters collision, FoW or saves.
