@@ -17,6 +17,8 @@ export function installClassicHud(){
   <span id="sf-stats" class="sf-assist-stats">Credits / Kapazität</span>
   <div class="credit-resource"><span class="credit-cube" aria-hidden="true">◆</span><div><strong id="sf-credits">500</strong><small><span id="sf-income">+35</span> / 10 S</small></div></div>
   <div class="capacity-resource"><span aria-hidden="true">♙</span><strong id="sf-capacity">2 <em>/ 48</em></strong></div>
+  <div class="sf-veyrit-resource" title="Aktive Kristallfelder und eigene Sammler"><span aria-hidden="true">◆</span><strong id="sf-veyrit">VEYRIT 0 FELDER</strong></div>
+  <div class="sf-central-objective" id="sf-central-objective" data-owner="neutral" title="Kontrolliere die Zentralbastion 15 Minuten ununterbrochen, um zu gewinnen."><span aria-hidden="true">◉</span><div><small>ZENTRALBASTION · <span id="sf-central-owner">NEUTRAL</span></small><strong id="sf-central-clock">15:00</strong></div></div>
  </div>
 </header>
 <nav class="tools hud frame sf-tools" id="sf-tools" aria-label="Spielmenü"></nav>
