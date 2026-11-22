@@ -2997,6 +2997,43 @@ export class Simulation {
     const start=performance.now();
     try{
       this.tactical.plan();
+       // Only real paid actions: the AI builds a refinery and orders its
+       // harvesters through the same factory and logistics APIs as the player.
+       if(this.world.mapVersion>=23&&this.time>=90){
+         const refinery=this.bases.find(b=>b.owner===1&&b.kind==='refinery'&&b.hp>0);
+         const factory=this.bases.find(b=>b.owner===1&&b.kind==='factory'&&b.hp>0&&b.buildRemaining<=0);
+         if(factory&&!refinery&&this.credits[1]>=BUILDINGS.refinery.cost+300){
+           const worker=this.units.find(u=>u.owner===1&&u.kind==='engineer'&&
+             u.hp>0&&!u.carrier&&!u.hold&&u.orders.length===0);
+           if(worker){
+             const home=this.bases.find(b=>b.owner===1&&b.kind==='headquarters'&&b.hp>0);
+             const anchor=home??factory;
+             outer:for(const radius of [225,290,365])for(let i=0;i<16;i++){
+               const a=(i+((this.seed>>>2)%16))*Math.PI/8;
+               const p={x:anchor.x+Math.cos(a)*radius,y:anchor.y+Math.sin(a)*radius};
+               if(!this.buildError(1,'refinery',p)&&this.build(1,'refinery',p,[worker.id]))break outer;
+             }
+           }
+         }
+         if(refinery?.buildRemaining===0&&factory&&this.credits[1]>=UNITS.harvester.cost+200){
+           const total=this.units.filter(u=>u.owner===1&&u.kind==='harvester'&&u.hp>0).length+
+             this.bases.filter(b=>b.owner===1).reduce((sum,b)=>sum+b.queueTypes.filter(k=>k==='harvester').length,0);
+           if(total<2)this.recruit(factory.id,'harvester');
+         }
+         // Assign only otherwise idle combat units; tactical commitments stay intact.
+         const central=this.centralBastionId===null?null:this.territories[this.centralBastionId];
+         if(central&&central.owner!==1&&this.time>=110){
+           const nearby=this.units.some(u=>u.owner===1&&u.hp>0&&!u.carrier&&
+             u.kind!=='engineer'&&u.kind!=='harvester'&&
+             distance(u,central.point)<RULES.captureRadius+80);
+           if(!nearby){
+             const idle=this.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier&&
+               !u.hold&&u.orders.length===0&&
+               ['infantry','heavy','rocket','rover','tank'].includes(u.kind)).slice(0,5);
+             if(idle.length>=3)this.command(idle.map(u=>u.id),{kind:'attackMove',...central.point});
+           }
+         }
+       }
       const investment=this.ai38Investment();
       // AI uses the SAME paid Bastion upgrade rules as the player.
       // Reserve a healthy army and budget before investing in long-term income.
