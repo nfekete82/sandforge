@@ -1,0 +1,21 @@
+name: Sandforge KI 3.6 Weekly Reporter QA
+on:
+  push:
+    branches: ['feat/sandforge-weekly-ai36-roster-20261118']
+  pull_request:
+    branches: ['main']
+permissions:
+  contents: read
+jobs:
+  reporter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify 5 AI candidate results, fair starts, correct policy IDs and wins
+        run: node --test .github/scripts/weekly-report.test.mjs
+      - name: Check JavaScript syntax
+        run: node --check .github/scripts/weekly-report.mjs
