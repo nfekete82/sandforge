@@ -2314,6 +2314,7 @@ export class TacticalAI {
   const normalIssued=this.issue(assaultMain,mission,'assault',mission.objective??undefined);
   const vanguardIssued=captureVanguard&&captureApproach
    ?this.issue([captureVanguard],captureApproach,'assault',undefined,false,false):false;
+  if(vanguardIssued)this.ai46VanguardOrders++;
   if((normalIssued||vanguardIssued)&&tacticalEnabled)
     this.diagnostics.mainOrders+=assaultMain.length+Number(!!vanguardIssued);
   // Escort medics keep the simulation's protected rear formation, rather
