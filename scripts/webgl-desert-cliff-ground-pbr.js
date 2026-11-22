@@ -8,7 +8,16 @@ import {desertStrikeNaturalCliffMaps} from './webgl-rock-materials.js';
  * The existing real terrain (height, pathing, ramps, collision and saves)
  * remains completely untouched.
  */
-export const DESERT_CLIFF_GROUND_REVISION='desert-strike-integrated-cliff-pbr-v1';
+export const DESERT_CLIFF_GROUND_REVISION='desert-strike-integrated-cliff-pbr-v2';
+/** Warm, compact sandstone instead of the earlier pale chalk/gray wash.
+ * All values are render-only, never consulted by World or pathfinding.
+ */
+export const DESERT_STRIKE_SANDSTONE_GRADE=Object.freeze({
+ tint:Object.freeze([.74,.61,.48]),
+ lightFloor:.85,lightRange:.15,veinDarken:.46,
+ fineFloor:.85,fineRange:.19,
+ blendStart:.16,blendEnd:.84,rockStrength:.94
+});
 const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
 const smooth=v=>{const t=clamp(v);return t*t*(3-2*t);};
 const radiusFactor=(a,m)=>{
@@ -96,6 +105,7 @@ export function installMesaCliffGroundPBR(material,{
  const previous=material.onBeforeCompile;
  const previousKey=material.customProgramCacheKey.bind(material);
  const shaderKey=DESERT_CLIFF_GROUND_REVISION;
+ const grade=DESERT_STRIKE_SANDSTONE_GRADE;
  material.onBeforeCompile=function(shader,renderer){
   previous.call(this,shader,renderer);
   shader.uniforms.sfCliffZone={value:mask};
@@ -119,14 +129,26 @@ export function installMesaCliffGroundPBR(material,{
    'vec2 sfMesaUV=clamp(vSfMesaWorld.xz/'+size.toFixed(1)+
      '+vec2(.5),vec2(.001),vec2(.999));',
    'vec3 sfMesaMask=texture2D(sfCliffZone,sfMesaUV).rgb;',
-   'float sfMesaStone=smoothstep(.025,.92,sfMesaMask.r);',
+   // Reduce the broad milky transition halo; keep a thin natural edge.
+   'float sfMesaStone=smoothstep('+grade.blendStart.toFixed(2)+','+
+      grade.blendEnd.toFixed(2)+',sfMesaMask.r);',
    'vec2 sfMesaStoneUV=vec2(vSfMesaWorld.x*.73+vSfMesaWorld.z*.68,',
    'vSfMesaWorld.z*.73-vSfMesaWorld.x*.68)/126.0;',
    'vec3 sfMesaAlbedo=texture2D(sfCliffStone,sfMesaStoneUV).rgb;',
-   // Pale tan rock shares the sand's warm daylight but not its bright orange.
-   'sfMesaAlbedo*=vec3(.82,.78,.70)*mix(.70,1.07,sfMesaMask.b);',
-   'sfMesaAlbedo*=1.0-.34*sfMesaMask.g;',
-   'diffuseColor.rgb=mix(diffuseColor.rgb,sfMesaAlbedo,sfMesaStone*.87);'
+   // Two stone atlas scales: fine chips and fissures break up the diffuse
+   // cloud pattern without adding geometry or large uniform stone carpets.
+   'vec3 sfMesaFine=texture2D(sfCliffStone,sfMesaStoneUV*2.17).rgb;',
+   'float sfMesaDetail=dot(sfMesaFine,vec3(.299,.587,.114));',
+   // Warm ochre sandstone, visibly darker than chalky v1.
+   'sfMesaAlbedo*=vec3('+grade.tint.map(n=>n.toFixed(2)).join(',')+
+    ')*mix('+grade.lightFloor.toFixed(2)+','+
+     (grade.lightFloor+grade.lightRange).toFixed(2)+',sfMesaMask.b);',
+   'sfMesaAlbedo*=mix('+grade.fineFloor.toFixed(2)+','+
+     (grade.fineFloor+grade.fineRange).toFixed(2)+
+     ',smoothstep(.33,.75,sfMesaDetail));',
+   'sfMesaAlbedo*=1.0-'+grade.veinDarken.toFixed(2)+'*sfMesaMask.g;',
+   'diffuseColor.rgb=mix(diffuseColor.rgb,sfMesaAlbedo,sfMesaStone*'+
+     grade.rockStrength.toFixed(2)+');'
   ].join(nl);
   shader.fragmentShader=shader.fragmentShader.replace(
    '#include <color_fragment>','#include <color_fragment>'+nl+shade);
