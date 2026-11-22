@@ -8,6 +8,7 @@ import {decorateHumanInfantryRole,HUMAN_INFANTRY_ROLES} from './webgl-human-infa
 import {polishMedicModel} from './webgl-medic-polish.js';
 import {equipEngineerTools,updateEngineerTools} from './webgl-engineer-tools.js';
 import {createReconDrone} from './webgl-recon-drone.js';
+import {createVeyritHarvester,createVeyritRefinery} from './webgl-veyrit.js';
 import {createResearchArtwork,RESEARCH_ARTWORK_KINDS} from './webgl-research-artworks.js';
 import {tintFactionMaterials} from './webgl-faction-accents.js';
 import {finishBarracksSides,finishBarracksDesertPalette} from './webgl-barracks-shell.js';
@@ -28,6 +29,20 @@ export const unitAtlasUrl=kind=>'/src/assets/reborn/'+folders(kind)+'/'+kind+'-0
 /** Local original vector icons for the new strategic facilities; existing
  * buildings retain their authored PNGs. No missing-file fetches or tracking. */
 export const strategicBuildingIcon=kind=>{
+ if(kind==='refinery'){
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 190"><rect width="192" height="190" fill="#202d2e"/>'+
+   '<path d="M16 134L67 113L176 135L123 163Z" fill="#394541"/>'+
+   '<path d="M34 77H125V144H34Z" fill="#a8a38d" stroke="#50605b" stroke-width="5"/>'+
+   '<path d="M37 76L69 60H147L122 77Z" fill="#414f4c"/>'+
+   '<rect x="33" y="128" width="99" height="10" fill="#39849b"/>'+
+   '<rect x="84" y="43" width="30" height="77" rx="7" fill="#8b978e" stroke="#414b4c" stroke-width="5"/>'+
+   '<rect x="119" y="29" width="32" height="92" rx="7" fill="#8b978e" stroke="#414b4c" stroke-width="5"/>'+
+   '<path d="M71 148L103 121L135 145L103 159Z" fill="#2ad8d3"/>'+
+   '<path d="M104 160L110 111L118 150" stroke="#86fff1" stroke-width="5"/>'+
+   '</svg>';
+  return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
+ }
+
  if(kind==='wall'){
   const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 190">'+
    '<rect width="192" height="190" rx="13" fill="#222a2a"/>'+
@@ -445,6 +460,17 @@ async function renderHumanInfantryIcon(kind,renderer){
 }
 
 export function unitIcon(kind,renderer){
+ if(kind==='harvester'){
+  if(!renderer)return Promise.resolve(unitAtlasUrl('rover')+'.png');
+  if(!iconCache.has(kind))iconCache.set(kind,new Promise((resolve,reject)=>{
+   requestAnimationFrame(()=>{
+    try{resolve(renderModelPortrait(createVeyritHarvester(0),renderer,{width:192,height:132}));}
+    catch(error){reject(error);}
+   });
+  }).catch(error=>{console.warn('Veyrit Sammler Portrait fallback:',error);iconCache.delete(kind);return rasterizeUnitIcon('rover');}));
+  return iconCache.get(kind);
+ }
+
  if(kind==='drone'){
   // Exactly the same procedural 3D R-01 mesh as the battle renderer:
   // the old four-dot SVG was a placeholder and hid the camera/body details.
@@ -486,6 +512,12 @@ export function unitIcon(kind,renderer){
 // into a consistent wide tile without clipping its silhouette.
 const buildingIconCache=new Map();
 async function rasterizeBuildingIcon(kind,renderer){
+ if(kind==='refinery'){
+  if(!renderer)return buildingIconUrl(kind);
+  try{return renderModelPortrait(createVeyritRefinery(0),renderer,{buildingCard:true});}
+  catch(error){console.warn('Veyrit refinery portrait fallback:',error);return buildingIconUrl(kind);}
+ }
+
  if(isStrategicBuilding(kind)){
   if(!renderer)return buildingIconUrl(kind);
   try{return renderStrategicPortrait(kind,renderer);}
