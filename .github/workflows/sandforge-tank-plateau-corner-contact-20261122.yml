@@ -1,0 +1,33 @@
+name: Sandforge · Tank plateau corner contact recovery
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/reborn/simulation.ts
+      - tests/sandforge-tank-plateau-corner-contact-20261122.test.mjs
+      - .github/workflows/sandforge-tank-plateau-corner-contact-20261122.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tank-corners:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Verify tank contact, ramps, movement and no-path regressions
+        run: |
+          node --test \
+            tests/sandforge-tank-plateau-corner-contact-20261122.test.mjs \
+            tests/sandforge-player-cliff-recovery-20261122.test.mjs \
+            tests/sandforge-tank-cliff-exit-20261119.test.mjs \
+            tests/sandforge-plateau-unit-navigation-20261122.test.mjs \
+            tests/sandforge-central-four-ramp-mesas-v10-20261121.test.mjs
