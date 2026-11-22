@@ -5,27 +5,38 @@ import {countIncome} from './match-statistics.js';
 
 export interface VeyritField extends Point {
   id:number; amount:number; capacity:number;
+  /** Approximate visual spread, in world units. Deposits are traversable. */
+  radius?:number;
 }
 export const VEYRIT_CARGO_CAPACITY=300;
 export const VEYRIT_MINING_PER_SECOND=16;
 export const VEYRIT_REGEN_PER_SECOND=1.8;
-export const VEYRIT_FIELD_CAPACITY=4200;
+export const VEYRIT_FIELD_CAPACITY=6800;
 
-/** Fixed, seeded and symmetrical field positions. Real World nearest() keeps
- * every deposit off cliffs, buildings, narrow ramps and Bastion footprints. */
-export function createVeyritFields(world:World,territories:Territory[],seed:number):VeyritField[]{
+/** Each former Bastion sector in modern maps becomes a broad mineral field.
+ * The old polygons survive only as invisible construction/fog/AI partitions.
+ * No crystals are placed over the actual central Bastion or starting HQs. */
+export function createVeyritFields(
+  world:World,territories:Territory[],seed:number,
+  headquarters:readonly Point[]=[]
+):VeyritField[]{
   if(world.mapVersion<23)return [];
-  const positions:[[number,number],[number,number],[number,number],[number,number],[number,number],[number,number]]=[
-    [.24,.27],[.76,.73],[.76,.27],[.24,.73],[.49,.34],[.51,.66]
+  const central=territories.find(t=>t.isBastion===true);
+  const restricted=[
+    ...(central?[{...central.point,radius:260}]:[]),
+    ...headquarters.map(p=>({...p,radius:345}))
   ];
-  const reserved=territories.map(t=>({...t.point,radius:165}));
   const fields:VeyritField[]=[];
-  for(const [id,[nx,ny]] of positions.entries()){
-    const salt=(Math.imul(seed^(id*2654435761),1664525)>>>0)/4294967296;
-    const p={x:world.size*(nx+(salt-.5)*.025),y:world.size*(ny+(salt-.5)*.025)};
-    const candidate=world.nearest(p,[...reserved,...fields.map(f=>({...f,radius:155}))],[],undefined,28,.16);
-    if(!candidate)continue;
-    fields.push({id,...candidate,amount:VEYRIT_FIELD_CAPACITY,capacity:VEYRIT_FIELD_CAPACITY});
+  for(const t of territories){
+    if(t.isBastion)continue;
+    const salt=Math.imul((seed^Math.imul(t.id+19,0x9e3779b1))>>>0,1664525)>>>0;
+    const radius=180+(salt%59);
+    const nearest=world.nearest(t.point,[
+      ...restricted,...fields.map(f=>({x:f.x,y:f.y,radius:(f.radius??200)*1.4}))
+    ],[],undefined,18,.24);
+    if(!nearest)continue; // Never create an inaccessible/mountain-embedded field.
+    fields.push({id:t.id,x:nearest.x,y:nearest.y,
+      radius,amount:VEYRIT_FIELD_CAPACITY,capacity:VEYRIT_FIELD_CAPACITY});
   }
   return fields;
 }
