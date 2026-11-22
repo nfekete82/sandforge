@@ -3010,10 +3010,9 @@ export class Simulation {
       this.tactical.plan();
        // Only real paid actions: the AI builds a refinery and orders its
        // harvesters through the same factory and logistics APIs as the player.
-       if(this.world.mapVersion>=23&&this.time>=90){
+       if(this.world.mapVersion>=23&&this.time>=20){
          const refinery=this.bases.find(b=>b.owner===1&&b.kind==='refinery'&&b.hp>0);
-         const factory=this.bases.find(b=>b.owner===1&&b.kind==='factory'&&b.hp>0&&b.buildRemaining<=0);
-         if(factory&&!refinery&&this.credits[1]>=BUILDINGS.refinery.cost+300){
+         if(!refinery&&this.credits[1]>=BUILDINGS.refinery.cost+300){
            const worker=this.units.find(u=>u.owner===1&&u.kind==='engineer'&&
              u.hp>0&&!u.carrier&&!u.hold&&u.orders.length===0);
            if(worker){
@@ -3026,7 +3025,7 @@ export class Simulation {
              }
            }
          }
-         if(refinery?.buildRemaining===0&&factory&&this.credits[1]>=UNITS.harvester.cost+200){
+         if(refinery?.buildRemaining===0&&this.credits[1]>=UNITS.harvester.cost+200){
            const total=this.units.filter(u=>u.owner===1&&u.kind==='harvester'&&u.hp>0).length+
              this.bases.filter(b=>b.owner===1).reduce((sum,b)=>sum+b.queueTypes.filter(k=>k==='harvester').length,0);
            if(total<2)this.recruit(refinery.id,'harvester');
