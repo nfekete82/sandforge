@@ -5,10 +5,12 @@ on:
     paths:
       - scripts/webgl-detailed-desert-ruins.js
       - scripts/webgl-preview.js
+      - scripts/webgl-raised-mesa-cliffs.js
       - scripts/webgl-desert-village.js
       - scripts/build.mjs
       - tests/sandforge-detailed-desert-ruins-20261122.test.mjs
-      - tests/sandforge-modern-desert-village-models-20261122.test.mjs
+      - tests/sandforge-modern-desert-village-models-20261122.test.mjs tests/sandforge-desert-strike-natural-cliffs-20261122.test.mjs
+      - tests/sandforge-desert-strike-natural-cliffs-20261122.test.mjs
       - .github/workflows/sandforge-detailed-desert-ruins-20261122.yml
   workflow_dispatch:
 permissions:
