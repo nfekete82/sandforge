@@ -76,6 +76,8 @@ test('integrated PBR remains opaque and shares exactly the existing ground draw 
  assert.match(shader.fragmentShader,/diffuseColor.rgb=mix\(diffuseColor.rgb,sfMesaAlbedo/);
  assert.match(shader.fragmentShader,/sfMesaAlbedo\*=vec3\(0\.74,0\.61,0\.48\)/);
  assert.match(shader.fragmentShader,/sfMesaStoneUV\*2\.17/);
+ assert.match(shader.fragmentShader,/sfMesaBedding/,'plateau rock needs broken sediment layers');
+ assert.match(shader.fragmentShader,/sfMesaRifts/,'plateau rock needs thin 3D vertical fissures');
  assert.match(shader.fragmentShader,/1\.0-0\.46\*sfMesaMask\.g/);
  assert.match(shader.fragmentShader,/smoothstep\(0\.16,0\.84,sfMesaMask\.r\)/);
  assert.match(shader.fragmentShader,/sfMesaStone\*0\.94/);
@@ -140,7 +142,7 @@ test('elevated sandstone ridge foot has a true alpha fade into sand, not an opaq
 
 test('warm sandstone grade is measurably darker than the chalky v1 tint',()=>{
  const g=DESERT_STRIKE_SANDSTONE_GRADE;
- assert.equal(DESERT_CLIFF_GROUND_REVISION,'desert-strike-integrated-cliff-pbr-v2');
+ assert.equal(DESERT_CLIFF_GROUND_REVISION,'desert-strike-integrated-cliff-pbr-v3');
  const v1=[.82,.78,.70].map(n=>n*(.70+1.07)/2);
  const v2=g.tint.map(n=>n*(g.lightFloor+g.lightFloor+g.lightRange)/2);
  const luminance=c=>c[0]*.2126+c[1]*.7152+c[2]*.0722;
