@@ -382,16 +382,18 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
      '#include <color_fragment>'+nl+
      'float sfRib=pow(max(0.0,cos(vSfRidgeErosionUV.x*6.52+'+
      '.43*sin(vSfRidgeErosionUV.y*2.9))),16.0);'+nl+
-     'float sfBeds=1.0-smoothstep(.035,.19,'+
+     'float sfBeds=(1.0-smoothstep(.035,.17,'+
      'abs(sin(vSfRidgeErosionUV.y*6.3+'+
-     '.31*sin(vSfRidgeErosionUV.x*1.3))));'+nl+
+     '.49*sin(vSfRidgeErosionUV.x*2.7)))))'+
+     '*smoothstep(.24,.72,cos(vSfRidgeErosionUV.x*4.7+'+
+     'vSfRidgeErosionUV.y*.81)*.5+.5);'+nl+
      (biome==='desert'
       ?'diffuseColor.rgb*=1.0-clamp(vSfRidgeFade,0.0,1.0)*'+
-       '(.25*sfRib+.12*sfBeds);'+nl
+       '(.35*sfRib+.035*sfBeds);'+nl
       :'')+
      'diffuseColor.a *= clamp(vSfRidgeFade,0.0,1.0);');
   };
-  material.customProgramCacheKey=()=> 'sandforge-eroded-ridge-relief-and-sand-transition-v2';
+  material.customProgramCacheKey=()=> 'sandforge-eroded-ridge-relief-and-sand-transition-v3';
   const mesh=new THREE.Mesh(geometry,material);
   mesh.name='procedural-v3-eroded-sandstone';
   mesh.renderOrder=1;
@@ -399,7 +401,7 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
   mesh.userData={visualOnly:true,physicalCliffPresentation:true,erodedRidge:true,
    cliffUvMapping:'shared-sandstone-arc-length-v10',
    cliffFootBlend:'rise-normalized-vertex-alpha-v1',
-   cliffErosion:biome==='desert'?'physical-ribs-fissures-and-sediment-beds-v2':'disabled'};
+   cliffErosion:biome==='desert'?'physical-ribs-fissures-and-sparse-beds-v3':'disabled'};
   scene.add(mesh);meshes.push(mesh);
  }
  // 1–3 instanced PBR groups for the entire map; no per-rock draw calls.
