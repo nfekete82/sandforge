@@ -2969,7 +2969,7 @@ export class Simulation {
     }
     if(this.centralBastionId!==null){
       const middle=this.territories[this.centralBastionId];
-      const contested=middle.capturing>=0||this.spatial.query(middle.point,RULES.captureRadius)
+      const contested=middle.capturing>=0||this.spatial.query(middle.point,capturePresenceRadius(this.world.mapVersion))
         .some(u=>u.hp>0&&!u.carrier&&u.kind!=='drone'&&u.kind!=='harvester'&&middle.owner>=0&&u.owner!==middle.owner);
       const previous=this.centralHold.owner;
       this.centralHold=advanceCentralHold(this.centralHold,middle.owner,contested,dt);
