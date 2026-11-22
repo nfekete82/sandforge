@@ -70,6 +70,31 @@ test('choose a real 4-fighter cluster with validated approach, not an isolated B
  }),undefined,'never put a rally in a cliff or known turret killzone');
 });
 
+test('physically assembled paid wave beats nearer but empty siege rally',()=>{
+ const fighters=Array.from({length:10},(_,i)=>({
+  id:i,x:1000+(i%5)*18,y:1200+Math.floor(i/5)*22
+ }));
+ const assembled={x:1030,y:1210},empty={x:2900,y:2970};
+ const goal={x:3000,y:3000};
+ const picked=ai45ChooseReachableSiegeRally({
+  candidates:[empty,assembled],fighters,objective:goal,
+  safe:()=>true,reachable:()=>true,siegeApproachReachable:()=>true
+ });
+ assert.deepEqual(picked,assembled,
+  'prefer an already assembled paid wave to a mathematically reachable empty rally');
+ const fallback=ai45ChooseReachableSiegeRally({
+  candidates:[empty,assembled],fighters,objective:goal,
+  safe:p=>p===empty,reachable:()=>true,siegeApproachReachable:()=>true
+ });
+ assert.deepEqual(fallback,empty,'never bypass the safe-candidate gate');
+ const noArtillery=ai45ChooseReachableSiegeRally({
+  candidates:[empty,assembled],fighters,objective:goal,
+  safe:()=>true,reachable:()=>true,
+  siegeApproachReachable:p=>p===empty
+ });
+ assert.deepEqual(noArtillery,empty,'artillery path safety remains mandatory');
+});
+
 test('candidate controller uses observed memory, complete real A-star paths and no spawning',()=>{
  const src=readFileSync('src/reborn/tactical-ai.ts','utf8');
  assert.match(src,/ai45CanRelocateStuckSiege/);

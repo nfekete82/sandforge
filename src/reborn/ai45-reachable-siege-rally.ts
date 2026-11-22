@@ -13,10 +13,20 @@ export function ai45ChooseReachableSiegeRally<T extends SiegeRallyUnit>(x:{
  siegeApproachReachable:(p:Point)=>boolean;
 }):Point|undefined{
  if(x.fighters.length<5)return;
- const ordered=x.candidates.slice().sort((a,b)=>
-  distance(a,x.objective)-distance(b,x.objective)||a.x-b.x||a.y-b.y);
- const unique=new Set<string>(),minimum=Math.min(4,Math.max(3,
-  Math.ceil(x.fighters.length*.30)));
+ const minimum=Math.min(4,Math.max(3,Math.ceil(x.fighters.length*.30)));
+ // Reachability alone did not help: the 30-match A/B had three rescues
+ // without a single HQ hit. Prefer a rally where a paid wave has ALREADY
+ // physically assembled. TacticalAI still checks complete physical routes,
+ // safety and the actual artillery approach before choosing it.
+ const assembled=(p:Point)=>x.fighters.filter(u=>distance(u,p)<330).length;
+ const ordered=x.candidates.slice().sort((a,b)=>{
+  const aa=assembled(a),bb=assembled(b);
+  const aReady=aa>=minimum,bReady=bb>=minimum;
+  return Number(bReady)-Number(aReady)||
+   (aReady?bb-aa:0)||
+   distance(a,x.objective)-distance(b,x.objective)||a.x-b.x||a.y-b.y;
+ });
+ const unique=new Set<string>();
  for(const p of ordered){
   const key=Math.round(p.x/45)+':'+Math.round(p.y/45);
   if(unique.has(key))continue;unique.add(key);
