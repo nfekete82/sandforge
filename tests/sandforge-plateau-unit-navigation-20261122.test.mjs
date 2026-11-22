@@ -56,7 +56,7 @@ test('a manually placed tank waypoint on a cliff face snaps onto driveable terra
 });
 
 test('manual player vehicles can take a real side detour after a sustained plateau stall',()=>{
- const g=new Simulation(20261122,24);
+ const g=new Simulation(20261122,24,false,false,undefined,10);
  g.units=[];g.bases=[];g.territories=[];g.hadBuildings=[false,false];g.aiClock=-1e9;
  flatTestTerrain(g.world);
  const u=g.spawn(0,{x:1500,y:1500},'rover');
@@ -70,14 +70,7 @@ test('manual player vehicles can take a real side detour after a sustained plate
  u.path=[goal];u.repath=1;
  g.move(u,goal,.05);
  assert.equal(u.orders[0],order,'manual move order must survive recovery');
- assert.equal(u.path.length,1,JSON.stringify({
-  unit:{id:u.id,kind:u.kind,x:u.x,y:u.y,hold:u.hold,
-   combatTarget:u.combatTarget,driveSpeed:u.driveSpeed,orders:u.orders,
-   repath:u.repath,path:u.path},
-  time:g.time,progress:g.vehicleProgress.get(u),
-  escapes:g.ai38VehicleEscapes.get(u),
-  world:{mapVersion:g.world.mapVersion,generatorVersion:g.world.generatorVersion}
- }));
+ assert.equal(u.path.length,1);
  assert.ok(Math.abs(u.path[0].y-u.y)>60,
   'stalled vehicle should pick a legal lateral lane instead of repeating the cliff impact');
  assert.ok(g.world.line(u,u.path[0],[],Math.max(0,UNITS.rover.radius-10),.195),
