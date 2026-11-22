@@ -69,14 +69,21 @@ export function planDesertVillages({world,terrain,seed=world?.seed??0,lowQuality
     fixed.some(f=>distance(f,point)<200)||
     houses.some(h=>distance(h,point)<225)||
     (world.terrainSlope?.(point.x,point.y)??0)>.19)break;
+   // Modern v10 battlefields use three different weathered adobe GLBs,
+   // including a genuinely broken house, instead of repeating a tiny
+   // two-model canyon hut. The position and collision rules stay unchanged.
+   const modernAdobe=world.generatorVersion>=10;
+   const adobeVariants=[0,2,4],adobeKinds=['main_house','courtyard_house','ruin_house'];
    houses.push({
     x:point.x,y:point.y,
     angle:angle+(random()-.5)*.48,
     width:76+random()*20,
+    depth:modernAdobe?65+random()*18:undefined,
     height:39+random()*9,
-    variant:i===2?1:0,
-    damage:random()>.42,
-    tint:Math.floor(random()*3)
+    variant:modernAdobe?adobeVariants[i]:i===2?1:0,
+    ...(modernAdobe?{kind:adobeKinds[i]}:{}),
+    damage:modernAdobe?i===2:random()>.42,
+    tint:modernAdobe?.91+random()*.10:Math.floor(random()*3)
    });
   }
   if(houses.length!==count)continue;
@@ -151,11 +158,14 @@ export async function createDesertVillages({
  if(!villages.length)return {villages:[],meshes:[],roads:null,drawCalls:0};
  if(typeof loadModel!=='function')throw Error('Desert village requires authored GLTF model loader');
  const oasisStyle=villages.some(v=>v.architecturalStyle==='oasis-adobe');
- const modelUrls=oasisStyle?OASIS_VILLAGE_MODELS:DESERT_VILLAGE_MODELS;
+ // Current v10 desert villages have their own authored PBR adobe models.
+ // Historical map versions retain their original two canyon GLTF sources.
+ const modernAdobe=world.generatorVersion>=10;
+ const modelUrls=oasisStyle||modernAdobe?OASIS_VILLAGE_MODELS:DESERT_VILLAGE_MODELS;
  const gltfs=await Promise.all(modelUrls.map(url=>loadModel(url)));
  const templates=gltfs.map((data,variant)=>{
   const source=data.scene.clone(true);
-  if(!oasisStyle)weatherModel?.(source); // Preserve GLB baked albedo/normal/roughness
+  if(!oasisStyle&&!modernAdobe)weatherModel?.(source); // Keep modern GLB baked PBR maps
   source.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(source);
   const extent=bounds.getSize(new THREE.Vector3());
@@ -184,10 +194,10 @@ export async function createDesertVillages({
    const part=template.submeshes[index];
    const material=part.material;
    const mesh=new THREE.InstancedMesh(part.geometry,material,entries.length);
-   mesh.name='visual-authored-'+(oasisStyle?'oasis-adobe-'+type:'abandoned-'+(type===0?'house':'depot'))+'-'+index;
+   mesh.name='visual-authored-'+(oasisStyle||modernAdobe?'oasis-adobe-'+type:'abandoned-'+(type===0?'house':'depot'))+'-'+index;
    mesh.userData={
     visualOnly:true,nonPlayable:true,desertVillage:true,authoredRuin:true,
-    source:modelUrls[type],revision:oasisStyle?OASIS_HAMLET_REVISION:DESERT_VILLAGE_ART_REVISION
+    source:modelUrls[type],revision:oasisStyle?OASIS_HAMLET_REVISION:modernAdobe?'modern-adobe-ruins-v2-20261122':DESERT_VILLAGE_ART_REVISION
    };
    mesh.castShadow=false;mesh.receiveShadow=true;
    mesh.raycast=()=>{};mesh.frustumCulled=false;
