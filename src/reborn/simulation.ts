@@ -7,7 +7,7 @@ import {VisionCache} from './vision-cache.js';
 import {generateRollingHills,standsOnHill,HIGH_GROUND_SIGHT_MULTIPLIER,type RollingHill} from './rolling-hills.js';
 import { profiler } from './performance.js';
 import { RULES, WEATHER_RULES, clamp, distance, type Faction, type Owner, type Point, type MapVersion, mapLayout, campaignLayout, mapWorldSize } from './config.js';
-import {balancePresetValid,initialActionCredits,constructionRate,productionRate,groundSpeedRate,type BalancePreset} from './action-balance.js';
+import {ACTION_BALANCE,balancePresetValid,initialActionCredits,constructionRate,productionRate,groundSpeedRate,type BalancePreset} from './action-balance.js';
 import { World, inside, type Territory } from './world.js';
 import {visibleBasePropColliders} from './vehicle-decor-collision.js';
 import {vehicleStructureCollider,vehicleStructureColliders} from './vehicle-structure-collision.js';
@@ -122,7 +122,9 @@ export interface Blast extends Point {at:number;id:number}
 export type CaptureReadiness='owned'|'no-unit'|'out-of-range'|'contested'|'enemy-hq'|'capturing';
 export interface Memory extends Point { id:number; owner:Faction; hp:number; territory:number; kind?:BuildingKind }
 export interface Save {
-  version:2; balancePreset?:BalancePreset; terrainProfile?:TerrainProfile; generatorVersion?:BattlefieldGeneratorVersion; bootstrapVersion?:1; weatherVersion?:1; productionVersion?:1; supportVersion?:1;rosterVersion?:2;missiles?:Missile[]; seed:number; mapVersion?:MapVersion; time:number; nextId:number; credits:number[]; incomeClock:number;
+  version:2; balancePreset?:BalancePreset;
+  actionScanReadyAt?:number;actionScan?:{point:Point;until:number};
+  terrainProfile?:TerrainProfile; generatorVersion?:BattlefieldGeneratorVersion; bootstrapVersion?:1; weatherVersion?:1; productionVersion?:1; supportVersion?:1;rosterVersion?:2;missiles?:Missile[]; seed:number; mapVersion?:MapVersion; time:number; nextId:number; credits:number[]; incomeClock:number;
   units:Unit[]; bases:Base[]; territories:Territory[]; explored:number[][];
   memories:Memory[][]; aiClock:number; ai?:TacticalState; status:'playing'|'victory'|'defeat'; stats?:MatchStatistics;
   research?:[ResearchState,ResearchState];
@@ -458,6 +460,23 @@ export class Simulation {
   private seenEnemySilos=new Set<number>();
   /** Per-campaign rules, persisted only when Action is selected. */
   balancePreset:BalancePreset='classic';
+  /** Paid player scan, Action only. Persist cooldown to prevent save-reload abuse. */
+  actionScanReadyAt=0;
+  actionScan:{point:Point;until:number}|null=null;
+  useActionReconScan(center:Point):boolean{
+    if(this.balancePreset!=='action'||this.status!=='playing'||
+      !this.hasHeadquarters(0)||this.credits[0]<ACTION_BALANCE.reconScanCredits||
+      this.time+1e-6<this.actionScanReadyAt||!center||
+      !Number.isFinite(center.x)||!Number.isFinite(center.y)||
+      this.world.index(center)<0)return false;
+    this.credits[0]-=ACTION_BALANCE.reconScanCredits;
+    this.actionScan={point:{x:center.x,y:center.y},
+      until:this.time+ACTION_BALANCE.reconScanDuration};
+    this.actionScanReadyAt=this.time+ACTION_BALANCE.reconScanCooldown;
+    this.notices.push('Aufklärungsscan aktiv · '+ACTION_BALANCE.reconScanDuration+' Sekunden.');
+    this.updateVision();
+    return true;
+  }
   /** Set before the first simulation tick. Existing saves never get credits twice. */
   configureBalancePreset(preset:BalancePreset,openingCredits=this.time===0):boolean {
     if(!balancePresetValid(preset))throw Error('Unbekannte Spielbalance.');
@@ -1858,6 +1877,14 @@ export class Simulation {
       const sources=[...this.units.filter(u=>u.owner===owner&&u.hp>0&&!u.carrier).map(u=>({key:`u${u.id}`,x:u.x,y:u.y,sight:this.sight(u)*this.visionScale,close:unitSpec(u).radius+this.world.cell*2,air:unitSpec(u).flying})),
         ...this.bases.filter(b=>b.owner===owner&&b.hp>0).map(b=>({key:`b${b.id}`,x:b.x,y:b.y,sight:(b.buildRemaining>0?110:buildingSpec(b).sight)*this.visionScale,close:b.radius+this.world.cell*2,air:false})),
         ...this.territories.filter(t=>t.owner===owner).map(t=>({key:`t${t.id}`,...t.point,sight:RULES.bastion.sight*this.visionScale,close:RULES.bastion.radius+this.world.cell*2,air:false}))];
+      // Only the player can call the paid Action scan. A radar-like airborne
+      // source is visible for exactly nine simulated seconds. It uses the
+      // same fog/intel pipeline as physical scouting, not hidden AI state.
+      if(owner===0&&this.balancePreset==='action'&&this.actionScan&&
+        this.actionScan.until>this.time) sources.push({
+          key:'action-recon-scan',...this.actionScan.point,
+          sight:ACTION_BALANCE.reconScanRadius,close:0,air:true
+        });
       this.visionCache.update(this.world,owner,sources,visible);
       const discovered=new Set<number>();
       for(let i=0;i<visible.length;i++)if(visible[i]){this.explored[owner][i]=1;const cliff=this.world.cliffIds[i];if(cliff>=0)discovered.add(cliff);}
@@ -3065,7 +3092,10 @@ export class Simulation {
     }
   }
   save():Save {
-    return structuredClone({version:2,...(this.balancePreset==='action'?{balancePreset:'action' as const}:{}),...(this.world.generated?.battlefield?{terrainProfile:this.world.generated.battlefield.profile,generatorVersion:this.world.generated.battlefield.generatorVersion}:{}),...(this.bootstrapVersion?{bootstrapVersion:this.bootstrapVersion}:{}),weatherVersion:1,productionVersion:1,supportVersion:1,rosterVersion:2,missiles:this.missiles,seed:this.seed,mapVersion:this.world.mapVersion,time:this.time,nextId:this.nextId,credits:this.credits,incomeClock:this.incomeClock,
+    return structuredClone({version:2,...(this.balancePreset==='action'?{
+      balancePreset:'action' as const,actionScanReadyAt:this.actionScanReadyAt,
+      ...(this.actionScan&&this.actionScan.until>this.time?{actionScan:this.actionScan}:{}),
+    }:{}),...(this.world.generated?.battlefield?{terrainProfile:this.world.generated.battlefield.profile,generatorVersion:this.world.generated.battlefield.generatorVersion}:{}),...(this.bootstrapVersion?{bootstrapVersion:this.bootstrapVersion}:{}),weatherVersion:1,productionVersion:1,supportVersion:1,rosterVersion:2,missiles:this.missiles,seed:this.seed,mapVersion:this.world.mapVersion,time:this.time,nextId:this.nextId,credits:this.credits,incomeClock:this.incomeClock,
       units:this.units,bases:this.bases,territories:this.territories,explored:this.explored.map(a=>Array.from(a)),memories:this.memories,aiClock:this.aiClock,ai:this.tactical.state,status:this.status,stats:this.stats,
       research:this.research,strategicMissiles:this.strategicMissiles,
       hadBuildings:this.hadBuildings});
@@ -3081,7 +3111,13 @@ export class Simulation {
     const researchFor=(u:{owner:Faction;kind?:UnitKind})=>
       researchModifiers(research[u.owner],u.kind??'infantry');
     const burst=(b:Burst|undefined,rounds:number)=>b===undefined||(b!==null&&Number.isInteger(b.target)&&Number.isInteger(b.remaining)&&b.remaining>0&&b.remaining<=rounds&&b.remaining+b.index===rounds&&Number.isInteger(b.index)&&b.index>=0&&b.index<4&&finite(b.at)&&b.at>=s.time-.11&&b.at<=s.time+.11);
-    if(!s||s.version!==2||(s.balancePreset!==undefined&&!balancePresetValid(s.balancePreset))||((s.mapVersion??0)>=23&&(!isTerrainProfile(s.terrainProfile)||![1,2,3,4,5,6,7,8,9,10].includes(s.generatorVersion as number)))||((s.mapVersion??0)<23&&(s.terrainProfile!==undefined||s.generatorVersion!==undefined))||(s.bootstrapVersion!==undefined&&s.bootstrapVersion!==1)||(s.weatherVersion!==undefined&&s.weatherVersion!==1)||(s.productionVersion!==undefined&&s.productionVersion!==1)||(s.mapVersion!==undefined&&![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26].includes(s.mapVersion))||!TacticalAI.valid(s.ai,s.time,point,mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows)||!finite(s.seed)||!finite(s.time)||s.time<0||!finite(s.incomeClock)||s.incomeClock<0||s.incomeClock>=10||
+    if(!s||s.version!==2||(s.balancePreset!==undefined&&!balancePresetValid(s.balancePreset))||
+      (s.actionScanReadyAt!==undefined&&(s.balancePreset!=='action'||
+        !finite(s.actionScanReadyAt)||s.actionScanReadyAt<0||
+        s.actionScanReadyAt>s.time+ACTION_BALANCE.reconScanCooldown+1e-6))||
+      (s.actionScan!==undefined&&(s.balancePreset!=='action'||!s.actionScan||
+        !point(s.actionScan.point)||!finite(s.actionScan.until)||
+        s.actionScan.until<s.time||s.actionScan.until>s.time+ACTION_BALANCE.reconScanDuration+1e-6))||((s.mapVersion??0)>=23&&(!isTerrainProfile(s.terrainProfile)||![1,2,3,4,5,6,7,8,9,10].includes(s.generatorVersion as number)))||((s.mapVersion??0)<23&&(s.terrainProfile!==undefined||s.generatorVersion!==undefined))||(s.bootstrapVersion!==undefined&&s.bootstrapVersion!==1)||(s.weatherVersion!==undefined&&s.weatherVersion!==1)||(s.productionVersion!==undefined&&s.productionVersion!==1)||(s.mapVersion!==undefined&&![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26].includes(s.mapVersion))||!TacticalAI.valid(s.ai,s.time,point,mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows)||!finite(s.seed)||!finite(s.time)||s.time<0||!finite(s.incomeClock)||s.incomeClock<0||s.incomeClock>=10||
       (s.supplyCaches!==undefined&&(!Array.isArray(s.supplyCaches)||
         s.supplyCaches.length>16||s.supplyCaches.some(c=>!c||
          !Number.isSafeInteger(c.id)||c.id<0||!finite(c.remaining)||
@@ -3136,6 +3172,8 @@ export class Simulation {
     const game=new Simulation(s.seed,s.mapVersion??0,weatherEnabled,s.bootstrapVersion===1,s.terrainProfile,s.generatorVersion??1);
     game.time=s.time;
     game.balancePreset=s.balancePreset??'classic';
+    game.actionScanReadyAt=s.actionScanReadyAt??0;
+    game.actionScan=s.actionScan?structuredClone(s.actionScan):null;
     game.research=structuredClone(research) as [ResearchState,ResearchState];
     game.stats=s.stats?structuredClone(s.stats):newMatchStatistics();
     // v1 match statistics predate the rocket specialist. Supply its zero count
