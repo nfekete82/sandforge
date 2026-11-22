@@ -30,6 +30,8 @@ const layouts:Record<DecoratedStructure,readonly Slot[]>={
   {kind:'fuel-barrels',x:-2.10,y:.89,layer:'front'},
   {kind:'service-terminal',x:2.10,y:-1.02,layer:'behind'},
  ],
+ refinery:[{kind:'service-lamp',x:-2.17,y:-1.05,layer:'behind'},
+  {kind:'service-terminal',x:2.12,y:-1.10,layer:'behind'}],
  airfield:[
   {kind:'service-lamp',x:-2.08,y:-1.0,layer:'behind'},
   {kind:'military-crate-stack',x:-2.05,y:.15,layer:'front'},
