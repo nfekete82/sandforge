@@ -42,5 +42,10 @@ export function ai45CanRelocateStuckSiege(x:{
  return liveTerrain&&x.missionKind==='structure'&&x.objectiveObserved&&
   !x.homePressure&&x.fighters>=8&&x.phase==='gather'&&
   x.gatherSeconds>=95&&x.lastAttemptAgo>=45&&
-  x.readyAtRally<needed&&(x.canReachRally<needed||x.gatherSeconds>=145);
+  x.readyAtRally<needed&&(x.canReachRally<needed||x.gatherSeconds>=145||
+   // A mathematically reachable rally can still fail to assemble any unit.
+   // Only after 95s of actual gather, with ZERO fighters physically present,
+   // permit a candidate search. The replacement still needs full validated
+   // routes and safe artillery approach; this never teleports a unit.
+   x.readyAtRally===0);
 }
