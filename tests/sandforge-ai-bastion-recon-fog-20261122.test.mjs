@@ -73,5 +73,5 @@ test('actual mainline AI checks exploration and keeps neutral rush ungated',()=>
  assert.match(tactical,/g\.world\.path\(scout!,p,blockers,5\)/);
  assert.match(tactical,/stageForSiege\(post\?scout\?\.id:undefined\)/);
  assert.match(tactical,/t\.owner===-1\|\|\s*counter&&t\.owner===0&&g\.hasExplored\(1,t\.point\)/);
- assert.match(commander,/const surveyed=t\.owner===-1\|\|g\.hasExplored\(1,t\.point\)/);
+ assert.match(commander,/const surveyed=t\.owner===-1\|\|g\.world\.mapVersion<23\|\|g\.hasExplored\(1,t\.point\)/);
 });
