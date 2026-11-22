@@ -90,10 +90,13 @@ export function parseOptions(args){
 export function diagnose({map,seconds,output}){
  const samples=[];
  let lastSecond=-1;
+ let latestGateTrace=[];
  const opts={opponent:'guarded',seconds,ai33:'adaptive',ai35:'control',
   ai36:'coordinated',ai45:'on',label:'ai45-gate-diagnostic-'+map.id,
   simulationFactory:()=>currentWorld(map,map.seed),
   observe:g=>{
+   g.tactical.rallyGateTraceEnabled=true;
+   latestGateTrace=g.tactical.rallyGateTrace;
    const second=Math.floor(g.time+1e-8);
    if(second===lastSecond)return;
    lastSecond=second;
@@ -104,6 +107,12 @@ export function diagnose({map,seconds,output}){
  const report={schema:'ai45-visible-gate-diagnostic-v1',map:map.id,seed:map.seed,
   seconds,policy:'guarded',outcome:metrics.outcome,
   enemyHQDamage:metrics.enemyHQDamage,summary:summarizeSamples(samples),
+  tacticalGateTrace:{samples:latestGateTrace.length,
+   blockedReasons:latestGateTrace.reduce((out,x)=>{
+    for(const reason of x.blockedBy??[])out[reason]=(out[reason]??0)+1;
+    return out;
+   },{}),
+   siegeWindow:latestGateTrace.filter(x=>x.missionSince>=0&&x.phase==='gather').slice(-35)},
   note:'Observable prerequisites only; private home-pressure, route checks and tactical gate reasons are not inferred. No hidden enemy state consulted.'};
  mkdirSync(dirname(output),{recursive:true});
  writeFileSync(output+'.tmp',JSON.stringify(report,null,2)+'\n');
