@@ -36,6 +36,7 @@ import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
+import {ai45ChooseReachableSiegeRally,ai45CanRelocateStuckSiege} from './ai45-reachable-siege-rally.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -164,6 +165,8 @@ export class TacticalAI {
  /** Experimental same-binary A/B switch. The player receives calibrated
   * behavior only for exact, known, fixed desert maps. Never serialized. */
  hqBreakthroughMode:'baseline'|'calibrated'='calibrated';
+ /** Benchmark-only control switch; OFF retains the existing rally controller. */
+ ai45Mode:'off'|'on'='on';
  private recaptureMission:{sector:number;ids:number[];since:number;securedAt:number|null}|null=null;
  private recaptureRetryAt=0;
  private roverAirEscapeRetryAt=new Map<number,number>();
@@ -197,6 +200,9 @@ export class TacticalAI {
  /** Transient cooldown: regroup decisions must never reset the wave timer
   * or write ephemeral A/B test state into a save. */
  private ai40RallyRetryAt=0;
+ private ai45SiegeRallyRetryAt=-1e6;
+ private ai45RecoveredMissionSince=-1;
+ ai45RallyRescues=0;
  /** Only one verified recovery per actual military objective. */
  private ai40RecoveredMissionSince=-1;
  /** Explicitly opt-in ONLY for headless benchmark observation. No saves. */
@@ -226,7 +232,7 @@ export class TacticalAI {
   this.sectorPreference={sectorId,until:this.g.time+35};return true;
  }
  restore(state:TacticalState|undefined):void{
-  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
+  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.ai45SiegeRallyRetryAt=-1e6;this.ai45RecoveredMissionSince=-1;this.ai45RallyRescues=0;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
   if(!state)for(const m of this.g.memories[1])if(m.owner===0&&
     (m.kind==='turret'||m.kind==='bunker')&&m.hp>0)
@@ -1737,6 +1743,88 @@ export class TacticalAI {
    .slice(0,reserve).map(u=>u.id));
   if(policy&&s.phase!=='attack')s.group=s.group.filter(id=>!guards.has(id));
   if(policy)this.stationHomeGuards(mainFighters.filter(u=>guards.has(u.id)),home);
+  // KI 4.5: observed HQ/turret missions can be stranded by a gather point
+  // on the wrong side of a physical plateau. Only after 95+ seconds with
+  // no formed wave do we try a NEW point. It must be reachable by PAID
+  // fighters and have a COMPLETE vehicle path to a safe artillery approach.
+  // No new units, hidden targets, teleporting or bypassing cliffs.
+  if(this.ai45Mode==='on'&&this.ai36Enabled&&s.rally&&intel&&intel.hp>0&&
+     (g.world.generatorVersion===10||
+       (g.world.generatorVersion===7&&g.seed===271121))&&
+     mission.kind==='structure'&&s.phase==='gather'&&
+     g.time-s.phaseAt>=95&&g.time>=this.ai45SiegeRallyRetryAt&&
+     this.ai45RecoveredMissionSince!==mission.since){
+    const sample=mainFighters.filter(u=>!guards.has(u.id)&&
+      combat(u)&&!unitSpec(u).flying&&u.hp>0&&!u.carrier)
+     .sort((a,b)=>distance(a,mission)-distance(b,mission)||a.id-b.id)
+     .slice(0,12);
+    // A nonempty partial A* result can still stop at a canyon wall.
+    // Count a route only if its last node actually reaches the requested point.
+    const completeRallyRoute=(from:Point,to:Point):boolean=>{
+     const path=this.route(from,to);
+     return path.length>0&&distance(path[path.length-1],to)<=g.world.cell*2;
+    };
+    const readyAtRally=sample.filter(u=>distance(u,s.rally!)<330).length;
+    const canReachRally=readyAtRally>=4?readyAtRally:
+     sample.filter(u=>distance(u,s.rally!)<140||
+      completeRallyRoute(u,s.rally!)).length;
+    if(ai45CanRelocateStuckSiege({
+      mapVersion:g.world.mapVersion,
+      generatorVersion:g.world.generatorVersion,seed:g.seed,
+      missionKind:mission.kind,objectiveObserved:true,
+      homePressure:observedHomePressure,fighters:sample.length,
+      phase:s.phase,gatherSeconds:g.time-s.phaseAt,
+      lastAttemptAgo:g.time-this.ai45SiegeRallyRetryAt+45,
+      readyAtRally,canReachRally
+    })){
+      this.ai45SiegeRallyRetryAt=g.time+45;
+      const obstacles=this.obstacles();
+      const valid=(p:Point)=>g.world.walkable(p,obstacles,12)&&
+       this.danger(p)<9&&!s.knownTurrets.some(t=>
+        distance(t,p)<t.range+95);
+      let pathChecks=0;
+      const targetApproach=(p:Point):boolean=>{
+       const radius=Math.max(600,Math.min(840,UNITS.artillery.range*.80));
+       // Navigation colliders have geometry, not IDs; omit only the observed target's own footprint.
+       const lineBlockers=obstacles.filter(b=>distance(b,intel)>1);
+       for(let step=0;step<8;step++){
+        const angle=step*Math.PI/4;
+        const wanted={
+         x:clamp(intel.x+Math.cos(angle)*radius,70,g.world.size-70),
+         y:clamp(intel.y+Math.sin(angle)*radius,70,g.world.size-70)
+        };
+        const aim=g.world.nearest(wanted,obstacles,[],undefined,12);
+        if(!aim||distance(aim,intel)>UNITS.artillery.range-35||
+           distance(aim,intel)<200||
+           !g.world.line(aim,intel,lineBlockers,10))continue;
+        const path=this.route(p,aim);
+        if(!path.length||
+           distance(path[path.length-1],aim)>g.world.cell*2)continue;
+        if(this.sampleRoute(path,p).risk>=20)continue;
+        return true;
+       }
+       return false;
+      };
+      const points=[
+       ...sample.map(u=>({x:u.x,y:u.y})),
+       ...g.territories.filter(t=>t.owner===1).map(t=>t.point)
+      ];
+      const next=ai45ChooseReachableSiegeRally({
+       candidates:points,fighters:sample,objective:mission,
+       safe:valid,
+       reachable:completeRallyRoute,
+       siegeApproachReachable:p=>{
+        if(pathChecks++>=10)return false;
+        return targetApproach(p);
+       }
+      });
+      if(next&&distance(next,s.rally)>260){
+       s.rally=next;
+       this.ai45RecoveredMissionSince=mission.since;
+       this.ai45RallyRescues++;
+      }
+    }
+  }
   // Read-only, benchmark-opt-in gate trace of REAL planner inputs.
   // No changes to AI orders, campaign state, fog, credits or saves.
   if(this.rallyGateTraceEnabled&&g.time>=180&&g.time-this.lastRallyGateTraceAt>=12){

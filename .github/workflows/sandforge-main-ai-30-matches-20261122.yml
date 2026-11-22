@@ -1,0 +1,76 @@
+name: Current main AI · 30 real desert matches (6 x 5)
+on:
+  push:
+    branches:
+      - bench/sandforge-main-ai-30-matches-20261122
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  battle:
+    name: ${{ matrix.map }} · five paid BLUE opponents
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        map: [desert-strike, broken-empire, burning-horizon, last-stronghold, plateau-crossroads, mesa-highlands]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - name: Build current real WebGL engine, 3D assets and AI
+        run: npm run build
+      - name: Check exactly 30 fixed-map scenarios and benchmark accounting
+        run: node --test tests/sandforge-current-main-30-matches-20261122.test.mjs
+      - name: Run five headless 480-second matches, real current terrain
+        run: |
+          node scripts/benchmark-current-desert-ai-20261122.mjs \
+            --map "${{ matrix.map }}" --seconds 480 \
+            --output "reports/${{ matrix.map }}.json"
+      - name: Preserve partial and full match evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-ai-${{ matrix.map }}
+          path: reports/${{ matrix.map }}.json
+          if-no-files-found: warn
+          retention-days: 30
+  report:
+    name: Audit 30 matches and publish actionable diagnosis
+    needs: battle
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: main-ai-*
+          path: reports
+          merge-multiple: true
+      - name: Validate exact paired initial states and outcome accounting
+        run: node scripts/report-current-desert-ai-20261122.mjs reports reports/aggregate
+      - name: Publish summary in GitHub Actions
+        run: cat reports/aggregate/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: main-ai-full-diagnosis
+          path: |
+            reports/aggregate/*.json
+            reports/aggregate/*.md
+          if-no-files-found: warn
+          retention-days: 30

@@ -1,0 +1,59 @@
+name: Sandforge AI45 · validated siege rally paired A/B 30 matches
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+concurrency:
+  group: ai45-paired-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  siege:
+    name: ${{ matrix.map }} · five paired BLUE policies
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        map: [burning-horizon, plateau-crossroads, mesa-highlands]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - name: Build current source and exact v7-v10 terrain
+        run: npm run build
+      - name: Guarded, actual path-validated siege rally repair tests
+        run: |
+          node --test tests/sandforge-ai45-reachable-siege-rally-20261122.test.mjs \
+            tests/sandforge-ai45-paired-benchmark-20261122.test.mjs \
+            tests/sandforge-ai45-evaluation-20261122.test.mjs \
+            tests/sandforge-ai40-rally-recovery-20261120.test.mjs \
+            tests/sandforge-ai40-canyon-mission-20261120.test.mjs
+      - name: Compare paired AI45 OFF and ON against five identical BLUE policies
+        run: |
+          node scripts/benchmark-ai45-paired-20261122.mjs \
+            --map "${{ matrix.map }}" --seconds 480 \
+            --output "reports/${{ matrix.map }}-ai45.json"
+      - name: Evaluate whether AI45 actually triggered and improved results
+        run: |
+          node scripts/evaluate-ai45-paired-20261122.mjs \
+            "reports/${{ matrix.map }}-ai45.json" \
+            "reports/${{ matrix.map }}-ai45-summary.json"
+      - name: Preserve data even on an unsuccessful run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai45-${{ matrix.map }}-matches
+          path: |
+            reports/${{ matrix.map }}-ai45.json
+            reports/${{ matrix.map }}-ai45-summary.json
+          if-no-files-found: warn
+          retention-days: 30
