@@ -2119,8 +2119,8 @@ export class SandforgeBattlefield {
   view.querySelector('#sf-income').textContent='+ '+format(g.income(0))+' / 10s';
    const central=g.centralBastionId===null?null:g.territories[g.centralBastionId];
    const centerOwner=central?.owner===0?'BLAU':central?.owner===1?'ROT':'NEUTRAL';
-   const remaining=Math.ceil(Math.max(0,900-g.centralHold.seconds));
-   const timer=String(Math.floor(remaining/60)).padStart(2,'0')+':'+String(remaining%60).padStart(2,'0');
+   const holdRemaining=Math.ceil(Math.max(0,900-g.centralHold.seconds));
+   const timer=String(Math.floor(holdRemaining/60)).padStart(2,'0')+':'+String(holdRemaining%60).padStart(2,'0');
    const objective=view.querySelector('#sf-central-objective');
    if(objective){
     objective.hidden=!central;
