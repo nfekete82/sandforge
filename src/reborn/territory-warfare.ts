@@ -17,7 +17,7 @@ export const capturePresenceRadius=(version:MapVersion):number=>
  * of adjacent ownership. The simulation still enforces presence, contest and
  * the intact-enemy-HQ lock. Keep the original parameters for caller stability. */
 export function canCaptureSector(_territories:readonly Territory[],sector:Territory,owner:Owner,_version:MapVersion):boolean{
- return (owner===0||owner===1)&&sector.owner!==owner;
+ return (owner===0||owner===1)&&sector.owner!==owner&&(_version<23||sector.isBastion===true);
 }
 
 export interface TerritoryGuard extends Point {owner:Owner;hp:number;carrier?:number|null;kind?:string}
