@@ -2337,7 +2337,7 @@ export class Simulation {
       // Escort already enforces the moving armor's front position. A lagging
       // legacy AI rifleman must be allowed a short catch-up burst instead
       // of being capped to tank speed by the redundant march metadata.
-      if(!formationCatchUp)speedLimit=Math.min(speedLimit,...allies.map(v=>unitSpec(v).speed));
+      if(!formationCatchUp)speedLimit=Math.min(speedLimit,...allies.map(v=>this.speed(v)));
       if(u.orders[0]?.rear&&!u.orders[0].target&&distance(u,target)<Math.max(...allies.map(v=>distance(v,v.orders[0]??target)))+u.orders[0].rear)speedLimit=0;
       // A straight-line distance cannot compare progress on opposite sides of
       // a rock. Let the column pass bends before enforcing its open-ground lead.
@@ -2830,7 +2830,7 @@ export class Simulation {
             const peers=march.map(id=>this.unitById.get(id)).filter((v):v is Unit=>v!==undefined&&v.owner===a.owner&&
               v.hp>0&&v.orders[0]?.march?.includes(a.id)===true);
             if(peers.length){
-              const pace=Math.min(...peers.map(v=>unitSpec(v).speed));
+              const pace=Math.min(...peers.map(v=>this.speed(v)));
               if(Math.hypot(p.x-a.previousX!,p.y-a.previousY!)>pace*dt+1e-8)continue;
             }
           }
