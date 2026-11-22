@@ -5,6 +5,7 @@ on:
     paths:
       - scripts/build.mjs
       - scripts/ensure-final-pbr-buildings.mjs
+      - tests/sandforge-final-pbr-source-selection-20261122.test.mjs
       - tests/sandforge-build-preserves-tracked-glbs-20261122.test.mjs
       - .github/workflows/sandforge-immutable-source-glbs-20261122.yml
   workflow_dispatch:
@@ -24,6 +25,6 @@ jobs:
           package-manager-cache: false
       - run: npm ci --no-audit --no-fund
       - run: npm run build
-      - run: node --test tests/sandforge-build-preserves-tracked-glbs-20261122.test.mjs
+      - run: node --test tests/sandforge-build-preserves-tracked-glbs-20261122.test.mjs tests/sandforge-final-pbr-source-selection-20261122.test.mjs
       - name: Check no tracked files changed during build
         run: git diff --exit-code -- src/assets/reborn/buildings-3d
