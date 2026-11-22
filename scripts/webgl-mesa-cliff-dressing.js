@@ -39,6 +39,9 @@ export function planMesaCliffDressing({
  const random=seededRandom(seed),stones=[],shrubs=[];
  const size=world.size,sites=terrain.sites??[],ruins=terrain.ruins??[],
   roads=terrain.roads??[];
+ // A talus shard from one mesa must not spill into ANOTHER mesa's ramp.
+ const onAnyRamp=(p,threshold)=>terrain.plateaus.some(m=>
+  cliffDressingRampCoverage(p,m)>threshold);
  const protectedPoint=(p,forPlant=false)=>{
   if(p.x<175||p.y<175||p.x>size-175||p.y>size-175)return true;
   if(sites.some(q=>distance(p,q)<(forPlant?390:280)))return true;
@@ -58,14 +61,14 @@ export function planMesaCliffDressing({
    const radial=mesa.footRadius+(random()-.38)*65;
    const center={x:mesa.center.x+c*radial*factor,
     y:mesa.center.y+s*radial*factor};
-   if(protectedPoint(center)||cliffDressingRampCoverage(center,mesa)>.18)continue;
+   if(protectedPoint(center)||onAnyRamp(center,.18))continue;
    if(!Number.isFinite(world.terrainSlope(center.x,center.y)))continue;
    if(random()<.18)continue; // preserve broad empty sand between patches
    const fragments=lowQuality?1+Math.floor(random()*2):2+Math.floor(random()*3);
    for(let n=0;n<fragments;n++){
     const a=angle+(random()-.5)*1.0,spread=8+random()*29;
     const p={x:center.x+Math.cos(a)*spread,y:center.y+Math.sin(a)*spread};
-    if(protectedPoint(p)||cliffDressingRampCoverage(p,mesa)>.18)continue;
+    if(protectedPoint(p)||onAnyRamp(p,.18))continue;
     const width=3.1+random()*7.3;
     stones.push({x:p.x,y:p.y,width,
      aspect:.60+random()*1.15,flat:.20+random()*.34,
@@ -77,7 +80,7 @@ export function planMesaCliffDressing({
     const crest=random()<.27;
     const r=crest?mesa.topRadius-85-random()*35:mesa.footRadius+63+random()*55;
     const p={x:mesa.center.x+c*r*factor,y:mesa.center.y+s*r*factor};
-    if(!protectedPoint(p,true)&&cliffDressingRampCoverage(p,mesa)<.12&&
+    if(!protectedPoint(p,true)&&!onAnyRamp(p,.12)&&
        world.walkable(p,[],14)&&world.terrainSlope(p.x,p.y)<.13){
       shrubs.push({x:p.x,y:p.y,angle:random()*Math.PI*2,
        scale:.62+random()*.70,tint:random()});
