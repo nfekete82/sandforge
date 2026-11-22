@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {readFileSync} from 'node:fs';
+import {createLandscapeMeshes} from '../scripts/webgl-landscape-network.js';
 import {bakeMesaCliffGroundMask,cliffRampCoverage,
  installMesaCliffGroundPBR,DESERT_CLIFF_GROUND_REVISION}
  from '../scripts/webgl-desert-cliff-ground-pbr.js';
@@ -86,4 +87,43 @@ test('actual Desert Strike browser entrypoint uses one rock/sand surface without
  assert.match(preview,/cliffGroundBlend\?\.dispose\(\)/);
  assert.match(build,/webgl-desert-cliff-ground-pbr\.js/);
  assert.doesNotMatch(preview,/renderHeightAt:desertRegion\?\.id==='desert-strike'/);
+});
+
+test('elevated sandstone ridge foot has a true alpha fade into sand, not an opaque carpet',()=>{
+ const scene=new THREE.Scene(),size=3200;
+ const ridges=[{spine:[{x:300,y:1600},{x:2700,y:1600}],
+  width:145,height:95,ramps:[],clearings:[]}];
+ const meshes=createLandscapeMeshes({
+  scene,size,heightAt:()=>0,roads:[],ridges,plateaus:[],
+  biome:'desert',mapId:'desert-strike',seed:765,lowQuality:true,
+  showOutcrops:false
+ });
+ const cliff=meshes.find(m=>m.name==='procedural-v3-eroded-sandstone');
+ assert.ok(cliff,'ridge geometry must remain sculpted 3D, not be removed');
+ assert.equal(cliff.material.map?.isTexture,true);
+ assert.equal(cliff.material.normalMap?.isTexture,true);
+ assert.equal(cliff.material.roughnessMap?.isTexture,true);
+ assert.equal(cliff.material.transparent,true);
+ assert.equal(cliff.material.depthWrite,false);
+ assert.equal(cliff.material.forceSinglePass,true);
+ assert.equal(cliff.userData.cliffFootBlend,'rise-normalized-vertex-alpha-v1');
+ const fade=cliff.geometry.getAttribute('ridgeFade');
+ const p=cliff.geometry.getAttribute('position');
+ assert.ok(fade&&fade.count===p.count);
+ let transparent=0,middle=0,solid=0;
+ for(let i=0;i<fade.count;i++){
+  const alpha=fade.getX(i);
+  assert.ok(alpha>=0&&alpha<=1);
+  if(alpha<.01)transparent++;
+  else if(alpha>.98)solid++;
+  else middle++;
+ }
+ assert.ok(transparent>30,'the entire foot should not be opaque');
+ assert.ok(middle>200,'rock and sand need a broad gradual transition');
+ assert.ok(solid>200,'keep a visible upper face');
+ const shader={vertexShader:'#include <common>\n#include <begin_vertex>',
+  fragmentShader:'#include <common>\n#include <color_fragment>'};
+ cliff.material.onBeforeCompile(shader);
+ assert.match(shader.fragmentShader,/diffuseColor.a \*= clamp\(vSfRidgeFade/);
+ for(const m of meshes){m.removeFromParent();m.geometry.dispose();m.material.dispose();}
 });
