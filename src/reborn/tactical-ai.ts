@@ -13,7 +13,7 @@ import {newBattle,assessBattle,fightingPower,hasDecisiveLocalAdvantage,shouldCom
 import {newAdaptive,updateAdaptive,validAdaptive,type AdaptiveState} from './adaptive-strategy.js';
 import {newExperience,validExperience,finishExperience,canOverrun,observeOwnedLosses,lessonScore,type Experience} from './battle-learning.js';
 import {rankLegacyFrontiers} from './legacy-campaign.js';
-import {canCaptureSector,comebackPressure,chooseComebackOpportunity} from './territory-warfare.js';
+import {canCaptureSector,comebackPressure,chooseComebackOpportunity,capturePresenceRadius} from './territory-warfare.js';
 import {chooseTacticalManeuver,flankCandidate,type TacticalChoice} from './tactical-search.js';
 import {assignScreen,assignFlank,flankRouteScore,isContinuingFlank} from './battle-squads.js';
 import {assaultWaveDecision,reinforcementStagingPoint} from './assault-wave.js';
@@ -37,6 +37,7 @@ import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
 import {ai45ChooseReachableSiegeRally,ai45CanRelocateStuckSiege} from './ai45-reachable-siege-rally.js';
+import {ai46ReachableBastionApproach} from './ai46-bastion-approach.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -167,6 +168,9 @@ export class TacticalAI {
  hqBreakthroughMode:'baseline'|'calibrated'='calibrated';
  /** Benchmark-only control switch; OFF retains the existing rally controller. */
  ai45Mode:'off'|'on'='on';
+ /** Same-binary A/B: guarded, physically reachable scout for open Bastion objectives. */
+ ai46Mode:'off'|'on'='on';
+ private ai46CaptureApproach:{sector:number;unitId:number;at:number;point:Point}|null=null;
  private recaptureMission:{sector:number;ids:number[];since:number;securedAt:number|null}|null=null;
  private recaptureRetryAt=0;
  private roverAirEscapeRetryAt=new Map<number,number>();
@@ -234,7 +238,7 @@ export class TacticalAI {
   this.sectorPreference={sectorId,until:this.g.time+35};return true;
  }
  restore(state:TacticalState|undefined):void{
-  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.ai45SiegeRallyRetryAt=-1e6;this.ai45RecoveredMissionSince=-1;this.ai45RallyRescues=0;this.ai45DecisionTrace=[];this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
+  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.ai45SiegeRallyRetryAt=-1e6;this.ai45RecoveredMissionSince=-1;this.ai45RallyRescues=0;this.ai46CaptureApproach=null;this.ai45DecisionTrace=[];this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
   if(!state)for(const m of this.g.memories[1])if(m.owner===0&&
     (m.kind==='turret'||m.kind==='bunker')&&m.hp>0)
@@ -2270,8 +2274,47 @@ export class TacticalAI {
   }
   const flanking=new Set([...newFlank,...continuingFlank].map(u=>u.id));
   const main=mainUnits.filter(u=>!flanking.has(u.id));
-  if(this.issue(main,mission,'assault',mission.objective??undefined)&&tacticalEnabled)
-    this.diagnostics.mainOrders+=main.length;
+  // KI 4.6 experiment: the visible central tower has a SOLID footprint.
+  // On open Bastions send ONE already-paid vanguard to a fully reachable
+  // position inside the REAL capture ring; the main combat group keeps
+  // its normal formation/order. No unseen enemy data and no teleport.
+  let captureVanguard:Unit|undefined,captureApproach:Point|undefined;
+  if(this.ai46Mode==='on'&&g.world.mapVersion>=25&&g.world.generatorVersion>=7&&
+      mission.kind==='capture'&&g.territories[mission.sector]?.owner!==1&&
+      !visible.length&&!towers.length&&main.length>=2){
+    const radius=capturePresenceRadius(g.world.mapVersion);
+    const eligible=main.filter(u=>!unitSpec(u).flying&&
+      u.hp>=unitSpec(u).hp*.55&&distance(u,mission)>radius-10)
+     .sort((a,b)=>distance(a,mission)-distance(b,mission)||a.id-b.id);
+    const leader=eligible[0];
+    if(leader){
+      const old=this.ai46CaptureApproach;
+      if(old&&old.sector===mission.sector&&old.unitId===leader.id&&
+         g.time-old.at<42&&distance(old.point,mission)<radius-8){
+        captureApproach=old.point;
+      }else{
+        const clearance=Math.max(5,unitSpec(leader).radius-10);
+        const blockers=[...this.obstacles(),...g.bastionColliders()];
+        captureApproach=ai46ReachableBastionApproach({
+          center:mission,from:leader,worldSize:g.world.size,captureRadius:radius,
+          walkable:p=>g.world.walkable(p,blockers,clearance),
+          completeRoute:p=>{
+            const path=g.world.path(leader,p,blockers,clearance);
+            return path.length>0&&distance(path[path.length-1],p)<=g.world.cell*1.5;
+          }
+        });
+        this.ai46CaptureApproach=captureApproach?{
+          sector:mission.sector,unitId:leader.id,at:g.time,point:captureApproach}:null;
+      }
+      if(captureApproach)captureVanguard=leader;
+    }
+  }
+  const assaultMain=captureVanguard?main.filter(u=>u.id!==captureVanguard.id):main;
+  const normalIssued=this.issue(assaultMain,mission,'assault',mission.objective??undefined);
+  const vanguardIssued=captureVanguard&&captureApproach
+   ?this.issue([captureVanguard],captureApproach,'assault',undefined,false,false):false;
+  if((normalIssued||vanguardIssued)&&tacticalEnabled)
+    this.diagnostics.mainOrders+=assaultMain.length+Number(!!vanguardIssued);
   // Escort medics keep the simulation's protected rear formation, rather
   // than receiving a direct attack against a visible close-range defender.
   if(tacticalEnabled)for(const medic of escorts)if(!medic.orders.length)
