@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {createDetailedDesertRuinHouse} from './webgl-detailed-desert-ruins.js';
 import {renderGroundHeightSampler} from './webgl-environment.js';
 import {DESERT_SCENIC_STYLE as desertStyle} from './webgl-desert-style.js';
 import {planOasisVillages,OASIS_HAMLET_REVISION} from './webgl-oasis-village-layout.js';
@@ -162,6 +164,42 @@ export async function createDesertVillages({
  // Historical map versions retain their original two canyon GLTF sources.
  const modernAdobe=world.generatorVersion>=10;
  const modelUrls=oasisStyle||modernAdobe?OASIS_VILLAGE_MODELS:DESERT_VILLAGE_MODELS;
+ const meshes=[];
+ if(modernAdobe){
+  // The v10 villages in the screenshots are separate from the terrain.ruins
+  // pipeline. Render their genuinely damaged geometry here, not clean adobe
+  // GLBs with an intact outer wall and roof.
+  const batches=new Map();
+  const all=villages.flatMap(v=>v.houses);
+  for(const [i,house] of all.entries()){
+   const ruin={width:house.width,depth:house.depth??house.width*.80,
+    height:house.height,variant:house.variant};
+   const root=createDetailedDesertRuinHouse(ruin,seed,i);
+   const point=pos(house.x,house.y,heightAt(house.x,house.y)-1.3);
+   root.position.copy(point);
+   root.rotation.y=house.angle;
+   root.updateMatrixWorld(true);
+   root.traverse(part=>{
+    if(!part.isMesh)return;
+    const geometry=part.geometry.index?part.geometry.toNonIndexed():part.geometry.clone();
+    geometry.applyMatrix4(part.matrixWorld);
+    const material=part.material;
+    if(!batches.has(material))batches.set(material,[]);
+    batches.get(material).push(geometry);
+   });
+  }
+  for(const [material,parts] of batches){
+   const geometry=mergeGeometries(parts,false);
+   for(const part of parts)part.dispose();
+   if(!geometry)throw Error('Cannot batch desert ruin geometry');
+   const mesh=new THREE.Mesh(geometry,material);
+   mesh.name='visual-modern-damaged-adobe-'+material.name;
+   mesh.userData={visualOnly:true,nonPlayable:true,desertVillage:true,
+    detailedRuin:true,revision:'modern-damaged-adobe-v3-20261122'};
+   mesh.castShadow=true;mesh.receiveShadow=true;mesh.raycast=()=>{};
+   scene.add(mesh);meshes.push(mesh);
+  }
+ }else{
  const gltfs=await Promise.all(modelUrls.map(url=>loadModel(url)));
  const templates=gltfs.map((data,variant)=>{
   const source=data.scene.clone(true);
@@ -184,7 +222,7 @@ export async function createDesertVillages({
   return {submeshes,height:extent.y,width:Math.max(.001,extent.x,extent.z)};
  });
  const houses=villages.flatMap(v=>v.houses);
- const meshes=[];
+
  const origin=new THREE.Vector3(),quaternion=new THREE.Quaternion();
  const scale=new THREE.Vector3(),worldMatrix=new THREE.Matrix4(),transformed=new THREE.Matrix4();
  for(let type=0;type<templates.length;type++){
@@ -225,6 +263,7 @@ export async function createDesertVillages({
    mesh.computeBoundingSphere();
    scene.add(mesh);meshes.push(mesh);
   }
+ }
  }
  const road=new THREE.Mesh(makeTracks(villages,world,pos,heightAt),
   new THREE.MeshBasicMaterial({
