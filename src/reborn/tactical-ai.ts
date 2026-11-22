@@ -37,6 +37,7 @@ import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
+import {actionBastionProbePolicy,ACTION_BALANCE} from './action-balance.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -2258,7 +2259,7 @@ export class TacticalAI {
   const legacyEarlyOpening=g.world.mapVersion===11&&
    this.earlyEconomyMode==='barracks-first'&&g.time>=2;
   if(this.mode!=='director'||(!modernOpening&&!legacyEarlyOpening)
-   ||g.time>=RULES.aiOpeningDelay
+   ||g.time>=(g.balancePreset==='action'?65:RULES.aiOpeningDelay)
    ||g.needsHeadquarters(1)||g.status!=='playing')return;
   const army=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier);
   developArmy(g,this.state,army,p=>this.danger(p));
@@ -2275,10 +2276,13 @@ export class TacticalAI {
   const g=this.g,s=this.state;
   const adaptiveLarge=this.ai33Mode==='adaptive'&&
    (g.world.mapVersion===24||g.world.mapVersion===26);
-  const openingLimit=adaptiveLarge?(g.world.mapVersion===24?210:255):145;
+  const actionOpening=g.balancePreset==='action'&&g.world.mapVersion>=23;
+  const openingLimit=actionOpening?ACTION_BALANCE.openingContestSeconds:
+   adaptiveLarge?(g.world.mapVersion===24?210:255):145;
   if(this.mode!=='director'||g.world.mapVersion<23||
-     !(g.territories.length===4||adaptiveLarge)||
-     g.time>openingLimit||g.status!=='playing'){
+     !(g.territories.length===4||adaptiveLarge||actionOpening)||
+     g.time>openingLimit||g.status!=='playing'||
+     actionOpening&&g.needsHeadquarters(1)){
     s.openingContests=[];return new Set();
   }
   const seen=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u));
@@ -2295,9 +2299,14 @@ export class TacticalAI {
   const large=adaptiveLarge
    ?mapBastionContestOpening(g.world.mapVersion,g.time,blue,red,ready.length)
    :null;
-  const counter=large?.counter??(blue>=3&&red<=1&&g.time>=30&&ready.length>=5);
+  const action=actionOpening?actionBastionProbePolicy({
+   preset:g.balancePreset,mapVersion:g.world.mapVersion,time:g.time,
+   available:ready.length,blue,red,observedHomeThreat:seen.some(u=>
+    g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<550))
+  }):null;
+  const counter=action?.counter??large?.counter??(blue>=3&&red<=1&&g.time>=30&&ready.length>=5);
   const targets=g.territories.filter(t=>t.owner===-1||counter&&t.owner===0);
-  const maxAssigned=large?.slots??(counter?2:ready.length>=3?2:ready.length?1:0);
+  const maxAssigned=action?.slots??large?.slots??(counter?2:ready.length>=3?2:ready.length?1:0);
   if(!targets.length||!maxAssigned){s.openingContests=[];return new Set();}
   const blockers=[...this.obstacles(),...g.bastionColliders()];
   const observedThreat=(t:typeof targets[number])=>
