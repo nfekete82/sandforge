@@ -429,6 +429,15 @@ export class World {
        navigationLine(a,b,this.cell,RULES.grid,this.blocked,obstacles,RULES.infantry.radius,clearance)&&
        (maxSlope===Infinity||this.groundVehicleStepSafe(a,b,maxSlope,clearance+10))
       :this.line(a,b,obstacles,clearance,maxSlope);
+    // Coarse A* is intentionally cheap, but its final segments must never
+    // cut through a tiny cliff corner or the edge of a raised plateau.
+    // Validate only the selected route with exact grid traversal. An invalid
+    // coarse candidate returns [] so the caller retries with exact A*.
+    // Keep legacy maps and the existing A* expansion budget unchanged.
+    const strictHighlandRoute=allowPartial&&this.mapVersion>=23&&this.generatorVersion>=7&&!air&&!precise;
+    const safeLine=(a:Point,b:Point)=>line(a,b)&&(!strictHighlandRoute||
+      navigationLine(a,b,this.cell,RULES.grid,this.blocked,obstacles,
+        RULES.infantry.radius,clearance));
     // A* is intentionally capped on 6200-unit WebGL maps. When its goal is
     // directly behind a long canyon wall, aim at the nearest real pass
     // entrance first instead of repeatedly returning partial paths into
@@ -459,7 +468,7 @@ export class World {
     const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(routingTarget,obstacles,[],start,clearance,maxSlope);
     if(!end)return [];
     const cost=(a:Point,b:Point)=>{const d=Math.hypot(b.x-a.x,b.y-a.y),steps=Math.max(1,Math.ceil(d/(this.cell*.6)));let sum=0;for(let i=0;i<=steps;i++)sum+=risk?.[this.index({x:a.x+(b.x-a.x)*i/steps,y:a.y+(b.y-a.y)*i/steps})]??0;return d/this.cell*(1+sum/(steps+1));};
-    if(line(start,end)&&(!risk||cost(start,end)<=Math.hypot(end.x-start.x,end.y-start.y)/this.cell*1.01))return [end];
+    if(safeLine(start,end)&&(!risk||cost(start,end)<=Math.hypot(end.x-start.x,end.y-start.y)/this.cell*1.01))return [end];
     const s=this.index(start), goal=this.index(end), n=this.blocked.length;
     if(s<0||goal<0)return [];
     const workspace=this.pathWorkspace??={costs:new Float64Array(n),prev:new Int32Array(n),
@@ -502,10 +511,10 @@ export class World {
       const smooth:Point[]=[];let anchor=start;
       for(let k=0;k<route.length;){
         let next=k;
-        while(next+1<route.length&&line(anchor,route[next+1])&&
+        while(next+1<route.length&&safeLine(anchor,route[next+1])&&
           (!risk||cost(anchor,route[next+1])<=(prefix[next+2]-prefix[k])*1.04))
           next++;
-        if(precise&&!line(anchor,route[next]))return [];
+        if((precise||strictHighlandRoute)&&!safeLine(anchor,route[next]))return [];
         smooth.push(route[next]);anchor=route[next];k=next+1;
       }
       return smooth;
