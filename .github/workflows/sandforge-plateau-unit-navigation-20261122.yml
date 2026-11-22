@@ -1,0 +1,39 @@
+name: Sandforge · Plateau unit navigation regression
+on:
+  push:
+    branches:
+      - fix/plateau-unit-navigation-20261122
+  pull_request:
+    branches:
+      - main
+    paths:
+      - src/reborn/world.ts
+      - src/reborn/simulation.ts
+      - tests/sandforge-plateau-unit-navigation-20261122.test.mjs
+      - .github/workflows/sandforge-plateau-unit-navigation-20261122.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Plateau corner, steep tank goal and player stall recovery
+        run: node --test tests/sandforge-plateau-unit-navigation-20261122.test.mjs
+      - name: Existing cliff, exact routing, highland ramp and frame-budget regressions
+        run: |
+          node --test \
+            tests/reborn-navigation-clearance.test.mjs \
+            tests/sandforge-tank-cliff-exit-20261119.test.mjs \
+            tests/sandforge-central-four-ramp-mesas-v10-20261121.test.mjs \
+            tests/sandforge-221s-path-hitch-regression-20261119.test.mjs
