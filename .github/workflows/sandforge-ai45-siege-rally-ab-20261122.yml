@@ -30,6 +30,7 @@ jobs:
       - name: Guarded, actual path-validated siege rally repair tests
         run: |
           node --test tests/sandforge-ai45-reachable-siege-rally-20261122.test.mjs \
+            tests/sandforge-ai45-paired-benchmark-20261122.test.mjs \
             tests/sandforge-ai40-rally-recovery-20261120.test.mjs \
             tests/sandforge-ai40-canyon-mission-20261120.test.mjs
       - name: Compare paired AI45 OFF and ON against five identical BLUE policies
