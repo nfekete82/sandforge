@@ -28,3 +28,22 @@ test('bad or unequal match pairs cannot produce release assessment',()=>{
  unequal.details[1].initialStateHash='different';
  assert.throws(()=>evaluateAI45Report(unequal),/Nonidentical/);
 });
+
+test('reports actual wave launches and territory control independently of HQ wins',()=>{
+ const fixture=report(1);
+ for(let i=0;i<fixture.details.length;i++){
+  const row=fixture.details[i],on=row.ai45==='on';
+  row.ai45WaveEvidence={actualWaveLaunches:on?3:1};
+  row.netCaptures=on?2:1;
+  row.bastionControlSeconds=on?900:720;
+  row.enemyBuildingDamage=on?50:20;
+ }
+ const result=evaluateAI45Report(fixture);
+ assert.equal(result.verdict,'INCONCLUSIVE');
+ assert.equal(result.totals.totalActualWaveLaunchDelta,10);
+ assert.equal(result.totals.totalNetCaptureDelta,5);
+ assert.equal(result.totals.totalBastionSecondsDelta,900);
+ assert.equal(result.totals.totalEnemyBuildingDamageDelta,150);
+ assert.equal(result.measuredTacticalProgress,'more-territory-held');
+ assert.equal(result.totals.improvedPairs,0);
+});
