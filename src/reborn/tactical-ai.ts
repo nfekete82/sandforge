@@ -1756,10 +1756,16 @@ export class TacticalAI {
       combat(u)&&!unitSpec(u).flying&&u.hp>0&&!u.carrier)
      .sort((a,b)=>distance(a,mission)-distance(b,mission)||a.id-b.id)
      .slice(0,12);
+    // A nonempty partial A* result can still stop at a canyon wall.
+    // Count a route only if its last node actually reaches the requested point.
+    const completeRallyRoute=(from:Point,to:Point):boolean=>{
+     const path=this.route(from,to);
+     return path.length>0&&distance(path[path.length-1],to)<=g.world.cell*2;
+    };
     const readyAtRally=sample.filter(u=>distance(u,s.rally!)<330).length;
     const canReachRally=readyAtRally>=4?readyAtRally:
      sample.filter(u=>distance(u,s.rally!)<140||
-      this.route(u,s.rally!).length>0).length;
+      completeRallyRoute(u,s.rally!)).length;
     if(ai45CanRelocateStuckSiege({
       mapVersion:g.world.mapVersion,
       generatorVersion:g.world.generatorVersion,seed:g.seed,
@@ -1804,7 +1810,7 @@ export class TacticalAI {
       const next=ai45ChooseReachableSiegeRally({
        candidates:points,fighters:sample,objective:mission,
        safe:valid,
-       reachable:(from,to)=>this.route(from,to).length>0,
+       reachable:completeRallyRoute,
        siegeApproachReachable:p=>{
         if(pathChecks++>=10)return false;
         return targetApproach(p);
