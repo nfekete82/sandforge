@@ -147,7 +147,7 @@ export function createVeyritFieldVisuals(fields,scene,pos,heightAt){
   const centreHeight=heightAt(field.x,field.y);
   root.position.copy(pos(field.x,field.y,centreHeight));
   const radius=field.radius??205;
-  const count=792,mesh=new THREE.InstancedMesh(shard,crystal,count);
+  const count=1260,mesh=new THREE.InstancedMesh(shard,crystal,count);
   mesh.name='Veyrit_Small_Turquoise_Crystal_Rosettes';
   mesh.castShadow=false;mesh.receiveShadow=true;mesh.frustumCulled=false;
   const rng=seedRand(7189+field.id*3001),o=new THREE.Object3D();
