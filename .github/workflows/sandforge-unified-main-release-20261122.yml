@@ -30,5 +30,7 @@ jobs:
         run: node --test tests/sandforge-bastion-direct-click-upgrade-hud-20261122.test.mjs
       - name: New natural Desert Strike cliffs, 4-ramp central plateau and vehicle navigation
         run: node --test tests/sandforge-desert-strike-natural-cliffs-20261122.test.mjs tests/sandforge-central-four-ramp-mesas-v10-20261121.test.mjs
+      - name: Preserve main-only weekly AI ranking and fairness tests
+        run: node --test .github/scripts/weekly-report.test.mjs
       - name: Five old maps, heights and historical save compatibility
         run: node --test tests/sandforge-four-desert-maps-20261120.test.mjs tests/sandforge-five-deserts-height-relief-v8-20261121.test.mjs tests/sandforge-playable-mesa-highlands-20261121.test.mjs
