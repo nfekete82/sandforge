@@ -5,6 +5,7 @@ on:
       - 'scripts/webgl-mesa-cliff-dressing.js'
       - 'scripts/webgl-desert-cliff-ground-pbr.js'
       - 'scripts/webgl-raised-mesa-cliffs.js'
+      - 'scripts/webgl-landscape-network.js'
       - 'scripts/webgl-preview.js'
       - 'scripts/build.mjs'
       - 'tests/sandforge-natural-cliff-dressing-20261122.test.mjs'
