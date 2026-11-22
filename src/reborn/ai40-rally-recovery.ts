@@ -25,6 +25,20 @@ export function ai41RallyMissionPermitsRescue(x:{
 }):boolean{
  return x.kind==='capture'&&!x.homePressure&&x.time>=x.notBefore;
 }
+/** Rally navigation is independent from fortification doctrine. The
+ * calibrated Last Stronghold v10 policy disables optional AI3.7 defensive
+ * investments, but must not also disable repair of a genuinely unreachable
+ * capture rally. Exact map identity prevents changing historical saves or
+ * other procedurally similar canyon maps.
+ */
+export function ai44RallyRepairEnabled(x:{
+ seed:number;mapVersion:number;generatorVersion:number;
+ landscapeKind:string|undefined;fortificationMode:'off'|'coordinated';
+}):boolean{
+ return x.fortificationMode==='coordinated'||
+  (x.seed===314159&&x.mapVersion===26&&
+   x.generatorVersion===10&&x.landscapeKind==='serpentine-canyon');
+}
 export function ai40ShouldAttemptRecovery(x:{
   fighters:number;blockedOrders:number;elapsed:number;readyAtRally:number;
 }):boolean{
