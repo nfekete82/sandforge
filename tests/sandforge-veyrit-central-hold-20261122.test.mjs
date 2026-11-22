@@ -54,9 +54,9 @@ test('central objective: seconds do not advance when enemy contests and restart 
 
 test('Veyrit: former Bastion locations become large seeded turquoise mineral fields and survive saves',()=>{
  const g=create(20261122);
- assert.ok(g.veyritFields.length>=8,'broad deposits replace most former Bastions');
+ assert.ok(g.veyritFields.length>=Math.max(2,g.territories.length-3),'broad deposits replace most former Bastions');
  assert.ok(g.veyritFields.length<=g.territories.length-1);
- assert.ok(g.veyritFields.every(f=>f.radius>=180&&f.radius<240));
+ assert.ok(g.veyritFields.every(f=>f.radius>=255&&f.radius<=325));
  assert.ok(g.veyritFields.every(f=>f.id!==g.centralBastionId));
  assert.ok(g.veyritFields.every(f=>g.world.walkable(f)&&f.amount===f.capacity));
  assert.deepEqual(g.veyritFields,create(20261122).veyritFields);
