@@ -453,6 +453,12 @@ function buildTerrain(){
    // full old orange/gold vertex palette into the real photo texture.
    if(biome==='desert'&&terrain.battlefield&&!desertRegion)
     vertexColor.lerp(new THREE.Color(desertStyle.authoredSandVertex),desertStyle.authoredSandVertexBlend);
+   if(desertRegion?.id==='desert-strike'&&terrain.battlefield?.generatorVersion>=10){
+    // Shade ONLY real steep slopes. The top and traversable ramps retain
+    // their original sand PBR albedo and heightfield continuity.
+    const cliffFace=smooth((slope-.19)/.30);
+    vertexColor.lerp(new THREE.Color('#78604c'),cliffFace*.75);
+   }
    colors[n]=vertexColor.r;colors[n+1]=vertexColor.g;colors[n+2]=vertexColor.b;
    // A 512px photographic sand tile stretched over 2.2km loses all
    // fine detail. Repeat it at a realistic RTS surface scale instead.
