@@ -28,9 +28,9 @@ function metal(color,key='armor'){return new THREE.MeshStandardMaterial({
 });}
 const body=metal('#ded5be'),dark=metal('#646761','black-steel');
 const crystal=new THREE.MeshStandardMaterial({
- ...textureSet('veyrit-crystal',[126,225,223]),color:'#5affea',
- emissive:'#13b9c7',emissiveIntensity:.35,metalness:.18,roughness:.22,
- transparent:false,side:THREE.DoubleSide
+ ...textureSet('veyrit-crystal',[171,235,237]),color:'#c6fff9',
+ emissive:'#0b8599',emissiveIntensity:.47,metalness:.06,roughness:.19,
+ side:THREE.DoubleSide
 });
 function add(group,geom,mat,x=0,y=0,z=0,rot=0){
  const m=new THREE.Mesh(geom,mat);
@@ -39,59 +39,158 @@ function add(group,geom,mat,x=0,y=0,z=0,rot=0){
 }
 function seedRand(seed){let n=seed>>>0;return ()=>{n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296;};}
 
-/** Non-uniform irregular, faceted rock prism with independent peak offsets. */
+/** Faceted leaf-shaped shards grow in compact rosettes, not huge pyramids. */
 function shardGeometry(){
- const sides=6,positions=[],uvs=[],indices=[],lower=[],upper=[];
- for(let i=0;i<sides;i++){
-  const angle=i*Math.PI*2/sides;
-  lower.push([Math.cos(angle)*(0.75+(i%3)*.18),0,Math.sin(angle)*(0.8+(i%2)*.24)]);
-  upper.push([Math.cos(angle+.22)*(.3+(i%3)*.07),.62,Math.sin(angle+.22)*(.3+(i%2)*.08)]);
+ const sides=5,positions=[],uvs=[],indices=[];
+ const bottom=[],middle=[];
+ for(let k=0;k<sides;k++){
+  const t=k*Math.PI*2/sides,skew=Math.sin(t*3)*.12;
+  bottom.push([Math.cos(t)*(.74+skew),0,Math.sin(t)*(.74+skew)]);
+  middle.push([Math.cos(t+.11)*.46,.44,Math.sin(t+.11)*.4]);
  }
- const tip=[.12,1.22,-.14];
- const push=(v,uv)=>{positions.push(...v);uvs.push(...uv);};
- for(let i=0;i<sides;i++){
-  const j=(i+1)%sides,k=positions.length/3;
-  push(lower[i],[i/sides,0]);push(lower[j],[j/sides,0]);
-  push(upper[i],[i/sides,.63]);push(upper[j],[j/sides,.63]);
-  push(tip,[(i+.5)/sides,1]);
-  indices.push(k,k+1,k+2,k+1,k+3,k+2,k+2,k+3,k+4);
+ for(let k=0;k<sides;k++){
+  const j=(k+1)%sides,offset=positions.length/3;
+  for(const [p,uv] of [[bottom[k],[0,0]],[bottom[j],[1,0]],
+    [middle[k],[0,.43]],[middle[j],[1,.43]],[[.09,1.36,-.08],[.5,1]]]){
+   positions.push(...p);uvs.push(...uv);
+  }
+  indices.push(offset,offset+1,offset+2,offset+1,offset+3,offset+2,
+   offset+2,offset+3,offset+4);
  }
- const g=new THREE.BufferGeometry();
- g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
- g.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
- g.setIndex(indices);g.computeVertexNormals();return g;
+ const geometry=new THREE.BufferGeometry();
+ geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+ geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+ geometry.setIndex(indices);geometry.computeVertexNormals();
+ return geometry;
 }
 const shard=shardGeometry();
+
+/** Canvas-generated ground atlas: cyan mineral veins and subtle dark mineral
+ * crust. One shared small texture, no emissive point lights per crystal. */
+function createMineralGroundTexture(){
+ const canvas=document.createElement('canvas');canvas.width=canvas.height=512;
+ const ctx=canvas.getContext('2d'),size=512,rand=seedRand(47899);
+ const image=ctx.createImageData(size,size);
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const dx=(x-256)/236,dy=(y-256)/236;
+  const theta=Math.atan2(dy,dx),r=Math.hypot(dx,dy);
+  const shape=.92+.085*Math.sin(5*theta)+.065*Math.sin(11*theta+1.5)+
+    .038*Math.sin(19*theta+4);
+  const fade=Math.max(0,Math.min(1,(shape-r)*8));
+  const noise=rand(),i=(y*size+x)*4;
+  image.data[i]=18+Math.floor(noise*12);
+  image.data[i+1]=71+Math.floor(noise*18);
+  image.data[i+2]=80+Math.floor(noise*16);
+  image.data[i+3]=Math.round(fade*(31+noise*32));
+ }
+ ctx.putImageData(image,0,0);
+ ctx.lineCap='round';
+ for(let k=0;k<310;k++){
+  const a=rand()*Math.PI*2,r=Math.sqrt(rand())*216;
+  let x=256+Math.cos(a)*r,y=256+Math.sin(a)*r;
+  const theta=a+(rand()-.5)*1.9,len=5+rand()*24;
+  ctx.beginPath();ctx.moveTo(x,y);
+  for(let j=1;j<=3;j++){
+   x+=Math.cos(theta+(rand()-.5)*.7)*len/3;
+   y+=Math.sin(theta+(rand()-.5)*.7)*len/3;
+   ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle='rgba(82,239,233,'+(.12+rand()*.36)+')';
+  ctx.lineWidth=.6+rand()*.9;ctx.stroke();
+ }
+ for(let k=0;k<68;k++){
+  const a=rand()*Math.PI*2,r=Math.sqrt(rand())*219;
+  const x=256+Math.cos(a)*r,y=256+Math.sin(a)*r;
+  const glow=ctx.createRadialGradient(x,y,1,x,y,3+rand()*8);
+  glow.addColorStop(0,'rgba(69,241,229,.23)');
+  glow.addColorStop(1,'rgba(42,200,200,0)');
+  ctx.fillStyle=glow;ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fill();
+ }
+ const map=new THREE.CanvasTexture(canvas);
+ map.colorSpace=THREE.SRGBColorSpace;
+ map.wrapS=map.wrapT=THREE.ClampToEdgeWrapping;
+ map.magFilter=THREE.LinearFilter;
+ map.minFilter=THREE.LinearMipmapLinearFilter;
+ map.generateMipmaps=true;map.needsUpdate=true;
+ return map;
+}
+let mineralTexture;
+function drapedMineralGround(field,heightAt,centreHeight,radius){
+ const divisions=19,geometry=new THREE.PlaneGeometry(radius*2,radius*2,divisions,divisions);
+ geometry.rotateX(-Math.PI/2);
+ const p=geometry.attributes.position;
+ for(let i=0;i<p.count;i++){
+  const x=p.getX(i),z=p.getZ(i);
+  p.setY(i,heightAt(field.x+x,field.y+z)-centreHeight+.9);
+ }
+ p.needsUpdate=true;geometry.computeVertexNormals();
+ mineralTexture??=createMineralGroundTexture();
+ const material=new THREE.MeshBasicMaterial({
+  map:mineralTexture,transparent:true,opacity:.82,
+  side:THREE.DoubleSide,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1
+ });
+ const mesh=new THREE.Mesh(geometry,material);
+ mesh.name='Veyrit_Turquoise_Mineral_Ground';
+ mesh.renderOrder=2;mesh.frustumCulled=false;
+ return mesh;
+}
+
+/** Draws full, broad Tiberium-style mineral beds with small turquoise
+ * crystal rosettes. One instanced draw call + one draped ground mesh/field. */
 export function createVeyritFieldVisuals(fields,scene,pos,heightAt){
- const views=new Map();
+ const views=new Map(),tints=[
+  new THREE.Color('#72f2e7'),new THREE.Color('#5ce2e5'),
+  new THREE.Color('#8cfbef'),new THREE.Color('#2eb3cc')
+ ];
  for(const field of fields){
   const root=new THREE.Group();root.name='Veyrit-Feld-'+field.id;
-  root.position.copy(pos(field.x,field.y,heightAt(field.x,field.y)+.3));
-  const count=36,mesh=new THREE.InstancedMesh(shard,crystal,count);
-  mesh.name='Veyrit_Sharp_Crystal_Clusters';mesh.castShadow=true;mesh.receiveShadow=true;
+  const centreHeight=heightAt(field.x,field.y);
+  root.position.copy(pos(field.x,field.y,centreHeight));
+  const radius=field.radius??205;
+  const count=792,mesh=new THREE.InstancedMesh(shard,crystal,count);
+  mesh.name='Veyrit_Small_Turquoise_Crystal_Rosettes';
+  mesh.castShadow=false;mesh.receiveShadow=true;mesh.frustumCulled=false;
   const rng=seedRand(7189+field.id*3001),o=new THREE.Object3D();
+  const usable=radius*.91;
   for(let i=0;i<count;i++){
-   const angle=i*2.39996+rng()*.3,radius=9+Math.sqrt(rng())*83;
-   o.position.set(Math.cos(angle)*radius,0,Math.sin(angle)*radius);
-   o.rotation.set((rng()-.5)*.3,rng()*Math.PI*2,(rng()-.5)*.3);
-   const h=12+rng()*31+(i%9===0?20:0);
-   o.scale.set(h*(.42+rng()*.2),h,h*(.42+rng()*.2));o.updateMatrix();
-   mesh.setMatrixAt(i,o.matrix);
+   // Four tiny shafts form one irregular rosette; many rosettes fill the field.
+   const cluster=Math.floor(i/4),member=i%4;
+   const angle=cluster*2.399963+(.5-rng())*.45;
+   const r=Math.sqrt((cluster+.5)/Math.ceil(count/4))*usable*(.84+rng()*.28);
+   const offset=member===0?0:2.2+rng()*4.2;
+   const theta=member*2.39996+rng()*.7;
+   const x=Math.cos(angle)*r+Math.cos(theta)*offset;
+   const z=Math.sin(angle)*r+Math.sin(theta)*offset;
+   o.position.set(x,heightAt(field.x+x,field.y+z)-centreHeight-.1,z);
+   o.rotation.set((rng()-.5)*.24,rng()*Math.PI*2,(rng()-.5)*.25);
+   const h=member===0?5+rng()*7:2.5+rng()*5;
+   o.scale.set(h*(.30+rng()*.14),h,h*(.32+rng()*.12));
+   o.updateMatrix();mesh.setMatrixAt(i,o.matrix);
+   mesh.setColorAt(i,tints[(Math.floor(rng()*tints.length))%tints.length]);
   }
-  mesh.instanceMatrix.needsUpdate=true;root.add(mesh);
-  scene.add(root);views.set(field.id,{root,mesh});
+  mesh.instanceMatrix.needsUpdate=true;
+  if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+  root.add(drapedMineralGround(field,heightAt,centreHeight,radius));
+  root.add(mesh);scene.add(root);
+  views.set(field.id,{root,mesh,ground:root.children[0],count});
  }
  return {
   sync(live){
-   for(const f of live){
-    const view=views.get(f.id);if(!view)continue;
-    const ratio=Math.max(0,Math.min(1,f.amount/f.capacity));
-    view.mesh.count=Math.max(3,Math.round(36*ratio));
-    view.root.visible=f.amount>0;
+   for(const field of live){
+    const view=views.get(field.id);if(!view)continue;
+    const ratio=Math.max(0,Math.min(1,field.amount/field.capacity));
+    view.mesh.count=Math.max(0,Math.round(view.count*ratio));
+    view.ground.material.opacity=.18+.64*ratio;
+    view.root.visible=field.amount>0;
    }
   },
   dispose(){
-   for(const v of views.values())scene.remove(v.root);
+   for(const view of views.values()){
+    scene.remove(view.root);
+    view.ground.geometry.dispose();
+    view.ground.material.dispose();
+    view.mesh.dispose();
+   }
    views.clear();
   }
  };
