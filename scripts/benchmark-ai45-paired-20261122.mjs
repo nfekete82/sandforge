@@ -26,10 +26,10 @@ export function pairSummary(details){
    initialStateHash:control.initialStateHash,
    control:{outcome:control.outcome,hqDamage:control.enemyHQDamage,
     stalled:control.stalledMissions,aborted:control.abortedMissions,
-    rallyRescues:control.ai45SiegeRallyRescues},
+    rallyRescues:control.ai45SiegeRallyRescues,wave:control.ai45WaveEvidence},
    treatment:{outcome:treatment.outcome,hqDamage:treatment.enemyHQDamage,
     stalled:treatment.stalledMissions,aborted:treatment.abortedMissions,
-    rallyRescues:treatment.ai45SiegeRallyRescues}});
+    rallyRescues:treatment.ai45SiegeRallyRescues,wave:treatment.ai45WaveEvidence}});
  }
  return {completePairs:pairs.length,controlWins:pairs.filter(p=>p.control.outcome==='win').length,
   treatmentWins:pairs.filter(p=>p.treatment.outcome==='win').length,
