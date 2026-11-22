@@ -447,7 +447,13 @@ export class SandforgeCombatEffects {
   const height=impactGround+(armored?impactHeight(shot):7);
   // Metal makes sharp bright ricochets and flying chips. Sand kicks up
   // low ochre dust. Infantry hits never create a giant fireball or splat.
-  for(let i=0;i<response.sparkCount;i++){
+  // Action intensifies actual impact events, never spawns synthetic combat.
+  // Existing InstancedMesh GPU pools still enforce their bounded budgets.
+  const actionFeedback=this.game.balancePreset==='action';
+  const sparkBudget=actionFeedback?Math.min(16,Math.ceil(response.sparkCount*1.2)):response.sparkCount;
+  const chipBudget=actionFeedback?Math.min(12,Math.ceil(response.chipCount*1.2)):response.chipCount;
+  const dustBudget=actionFeedback?Math.min(16,Math.ceil(response.dustCount*1.2)):response.dustCount;
+  for(let i=0;i<sparkBudget;i++){
    const a=this.rand()*Math.PI*2;
    const side=armored?22:8;
    const vx=Math.cos(a)*(18+this.rand()*side)+nx*(armored?17:5);
@@ -457,14 +463,14 @@ export class SandforgeCombatEffects {
     armored?2.9+this.rand()*4:2.4+this.rand()*2.3,
     .08+this.rand()*(armored?.17:.07),vx,vz,armored?27+this.rand()*46:15);
   }
-  for(let i=0;i<response.chipCount;i++){
+  for(let i=0;i<chipBudget;i++){
    const a=this.rand()*Math.PI*2;
    this.particle(this.debris,p.x,p.y,height+2,
     2+this.rand()*3,.23+this.rand()*.27,
     Math.cos(a)*(23+this.rand()*38)+nx*17,
     Math.sin(a)*(23+this.rand()*38)+nz*17,25+this.rand()*40);
   }
-  for(let i=0;i<response.dustCount;i++){
+  for(let i=0;i<dustBudget;i++){
    const a=this.rand()*Math.PI*2;
    this.particle(this.dust,p.x+(this.rand()-.5)*9,p.y+(this.rand()-.5)*9,
     impactGround+3,armored?8+this.rand()*7:11+this.rand()*15,
@@ -518,7 +524,8 @@ export class SandforgeCombatEffects {
  blastAt(x,z,strong=true,weaponKind='default'){
   if(!this.game.canSee(0,{x,y:z}))return;
   this.stats.blasts++;
-  const impactScale=strong?(ORDNANCE_VISUALS[weaponKind]??ORDNANCE_VISUALS.default).impactScale:1;
+  const impactScale=(strong?(ORDNANCE_VISUALS[weaponKind]??ORDNANCE_VISUALS.default).impactScale:1)*
+   (this.game.balancePreset==='action'?1.10:1);
   // A single precise terrain sample is sufficient for a 25-unit visual
   // particle burst. Previously a bombing run triggered 50+ expensive
   // procedural terrain samples synchronously on the impact frame.
@@ -537,9 +544,11 @@ export class SandforgeCombatEffects {
   this.particle(this.flash,x,z,impactGround+(strong?31:21)*impactScale,
    (strong?96:58)*impactScale,weaponKind==='bomb'?.15:.12,0,0,0);
   const light=weaponKind==='scoutRocket';
-  const fires=light?3:strong?(weaponKind==='bomb'?14:11):6,
-   smokes=light?5:strong?(weaponKind==='bomb'?19:16):9,
-   dust=light?5:strong?(weaponKind==='bomb'?19:15):8;
+  const action=this.game.balancePreset==='action';
+  const budget=n=>action?Math.min(24,Math.ceil(n*1.17)):n;
+  const fires=budget(light?3:strong?(weaponKind==='bomb'?14:11):6),
+   smokes=budget(light?5:strong?(weaponKind==='bomb'?19:16):9),
+   dust=budget(light?5:strong?(weaponKind==='bomb'?19:15):8);
   for(let i=0;i<fires;i++){
    const a=this.rand()*Math.PI*2,r=Math.sqrt(this.rand())*(strong?25:13);
    const fx=x+Math.cos(a)*r,fz=z+Math.sin(a)*r;
