@@ -191,7 +191,10 @@ export function createLandscapeMeshes({scene,size,heightAt,roads=[],ridges=[],pl
  const silhouette=[0,.013,.036,.09,.24,.53,.81,.94,
                    .978,.989,.995,1,.998,1,.994,.989,.977,.96,
                    .88,.57,.19,.05,0];
- for(const ridge of ridges){
+ // Desert Strike's sandstone slopes are part of the physical terrain.
+ // Avoid the raised ribbon mesh that made brown polygon overlays.
+ const visualRidges=biome==='desert'&&mapId==='desert-strike'?[]:ridges;
+ for(const ridge of visualRidges){
   const spine=ridge.spine;
   if(spine.length<2)continue;
   const line=[];
