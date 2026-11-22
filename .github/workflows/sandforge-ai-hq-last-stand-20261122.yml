@@ -1,0 +1,30 @@
+name: Sandforge · HQ last stand vs armored rush
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/reborn/ai-hq-last-stand.ts
+      - src/reborn/tactical-ai.ts
+      - tests/sandforge-ai-hq-last-stand-seven-tanks-20261122.test.mjs
+      - .github/workflows/sandforge-ai-hq-last-stand-20261122.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  seven-tank-defense:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      # The old home-defense test expects 3 static sentries at 8 fighters,
+      # but main currently plans 2. It already fails without this PR.
+      # Keep that legacy behavior test unchanged for a separate policy update.
+      - run: node --test tests/sandforge-ai-hq-last-stand-seven-tanks-20261122.test.mjs tests/sandforge-ai35-bastion-defense-20261118.test.mjs
