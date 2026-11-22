@@ -102,7 +102,8 @@ test('Desert Strike restores previous physical cliff as default; rejected integr
   'restore original 3D cliff treatment from before the integrated paint');
  assert.match(preview,/cliffGroundBlend\?\.dispose\(\)/);
  assert.match(build,/webgl-desert-cliff-ground-pbr\.js/);
- assert.doesNotMatch(preview,/renderHeightAt:desertRegion\?\.id==='desert-strike'/);
+ assert.match(preview,/renderHeightAt:desertRegion\?\.id==='desert-strike'/,
+  'physical cliffs must follow the real rendered sand triangles');
 });
 
 test('elevated sandstone ridge foot has a true alpha fade into sand, not an opaque carpet',()=>{
