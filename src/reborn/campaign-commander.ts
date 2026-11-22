@@ -158,14 +158,18 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
   // Never infer enemy movement behind fog or ignore a visible raiding squad.
   const visibleGuards=g.units.some(u=>u.owner===0&&u.hp>0&&!u.carrier&&
    g.canSee(1,u)&&distance(u,t.point)<350);
-  if(clear&&!visibleGuards&&(t.owner===-1||pressured&&t.owner===0))openBastions.add(t.id);
+  // A public ENEMY Bastion is not proven unguarded simply because no
+  // defender has ever entered RED's vision. Neutral expansion stays fast.
+  const surveyed=t.owner===-1||g.hasExplored(1,t.point);
+  if(clear&&!visibleGuards&&surveyed&&
+     (t.owner===-1||pressured&&t.owner===0))openBastions.add(t.id);
   // Neutral unfortified income is the fastest way to support paid armies.
   // Public enemy-held sectors still matter (especially recent losses), but
   // don't outrank a safe nearby Bastion just for being colored blue.
   const retake=context?.experience?.lastLostSector===t.id;
   const score=distance(origin,t.point)-t.income*10-
    (clear&&t.owner===-1?1800:0)-
-   (pressured&&clear&&t.owner===0&&!visibleGuards?
+   (pressured&&clear&&t.owner===0&&surveyed&&!visibleGuards?
     (context?.bastionControl?2300:1700):0)-
    (retake?1450:0)+(blockers.length?1000:0)+(t.owner===0?200:0);
   choices.push({kind:'capture',p:t.point,sector:t.id,objective:null,hp:0,score});
