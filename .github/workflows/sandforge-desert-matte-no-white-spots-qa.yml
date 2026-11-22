@@ -1,0 +1,43 @@
+name: Sandforge desert matte sand no-white-spots QA
+on:
+  push:
+    branches: [fix/webgl-desert-remove-white-spots-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-desert-matte-white-spots-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  white-spot-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - name: Preserve real village and biome logic, ensure no near-white sand
+        run: node --test tests/webgl-desert-no-white-blotches-20261115.test.mjs tests/webgl-desert-villages-palette-20261115.test.mjs tests/webgl-cinematic-desert-art-20261108.test.mjs
+      - run: npm ci --prefix tests/browser --no-audit --no-fund
+      - run: |
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Real WebGL 4-bastion sand map pixel/color validation
+        env:
+          ATLAS_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-desert-no-white-blotches-20261115.spec.mjs --config=playwright.config.mjs
+      - name: Save pixel-test diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-desert-matte-qa
+          path: tests/browser/artifacts/
+          retention-days: 7

@@ -1,0 +1,29 @@
+name: Desert Strike · natural sandstone cliffs
+on:
+  push:
+    branches:
+      - feat/sandforge-desert-strike-natural-cliffs-20261122
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cliffs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - name: Compile WebGL terrain and generate all factory assets
+        run: npm run build
+      - name: Verify real cliff colors, grounding and safe four-way driving
+        run: node --test tests/sandforge-desert-strike-natural-cliffs-20261122.test.mjs
+      - name: Preserve existing four-ramp navigation and old saves
+        run: node --test tests/sandforge-central-four-ramp-mesas-v10-20261121.test.mjs
+      - name: Preserve other desert geology and plateau ramp behavior
+        run: node --test tests/sandforge-expanded-plateaus-cliff-uv-v9-20261121.test.mjs tests/sandforge-playable-mesa-highlands-20261121.test.mjs

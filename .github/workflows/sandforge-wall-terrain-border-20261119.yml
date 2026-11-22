@@ -1,0 +1,48 @@
+name: Sandforge wall hillside and border placement
+on:
+  push:
+    branches: ['feat/sandforge-wall-terrain-border-placement-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  wall-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript and browser WebGL module audit
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Wall placement, rocks, edge, collision, existing infantry and navigation regression tests
+        run: |
+          node --test \
+            tests/sandforge-wall-terrain-border-20261119.test.mjs \
+            tests/sandforge-defensive-walls-20261111.test.mjs \
+            tests/sandforge-minimap-rightclick-orders-20261119.test.mjs \
+            tests/sandforge-vehicle-slope-heli-pbr-20261119.test.mjs \
+            tests/sandforge-a-star-perf-stability-20261119.test.mjs \
+            tests/sandforge-ai36-attack-continuity-cas-20261119.test.mjs \
+            tests/reborn-control-retreat.test.mjs
+      - name: 'AI 3.6 smoke: wall map navigation remains stable'
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps 24,26 --seeds 2026 \
+            --seconds 180 --modes director --ai36 coordinated \
+            --label wall-hillside-border \
+            --output ai-arena-results/ci-wall-hillside-border.json
+      - name: Archive battle report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-wall-terrain-border
+          path: ai-arena-results/ci-wall-hillside-border.*
+          if-no-files-found: warn

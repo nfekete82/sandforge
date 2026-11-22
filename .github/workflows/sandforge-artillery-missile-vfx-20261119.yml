@@ -1,0 +1,36 @@
+name: Sandforge detailed artillery missile VFX
+on:
+  push:
+    branches:
+      - feat/sandforge-artillery-realistic-missiles-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  artillery-vfx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile simulation and audit 3D imports without local-only PBR models
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --check scripts/webgl-combat-vfx.js
+          node --check scripts/webgl-ordnance-profile.js
+      - name: Live geometry tests, rocket ballistics, performance and effects
+        run: |
+          node --test \
+            tests/sandforge-artillery-missile-vfx-20261119.test.mjs \
+            tests/sandforge-desert-shrubs-20261119.test.mjs \
+            tests/sandforge-ai-offense-before-walls-20261119.test.mjs \
+            tests/sandforge-ai-base-fortifications-20261119.test.mjs \
+            tests/reborn-rocket-pbr.test.mjs \
+            tests/sandforge-728s-performance-regression-20261119.test.mjs \
+            tests/sandforge-webgl-combat-vfx.test.mjs \
+            tests/sandforge-vehicle-gate-clearance-20261119.test.mjs

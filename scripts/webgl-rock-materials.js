@@ -92,6 +92,113 @@ export function sharedStoneMaps(lowQuality=false){
  cache.set(key,maps);
  return maps;
 }
+
+/**
+ * Desert Strike mesa faces need weathered, broken pale sandstone rather than
+ * the regular 8-stripe sediment atlas used by other rocks. One cached set of
+ * tiled PBR maps per quality tier; the exact same rock-ground geometry and
+ * vehicle collision remains authoritative.
+ */
+export function desertStrikeNaturalCliffMaps(lowQuality=false){
+ const key=lowQuality?'desert-strike-natural-lite':'desert-strike-natural';
+ if(cache.has(key))return cache.get(key);
+ const size=lowQuality?128:512,count=size*size;
+ const relief=new Float32Array(count),albedo=new Uint8Array(count*4);
+ const roughness=new Uint8Array(count*4),normal=new Uint8Array(count*4);
+ const pi=Math.PI*2;
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const u=x/size,v=y/size;
+  const broad=tileNoise(u,v,4,0x5a12eb1);
+  const fracture=tileNoise(u,v,11,0x12ef762);
+  const mid=tileNoise(u,v,24,0xbad2171);
+  const grain=tileNoise(u,v,79,0x19a23f8);
+  // Wide, imperfect bedding breaks up after a few meters. The old atlas
+  // had eight evenly spaced solid ridges that read like horizontal bricks.
+  const warp=.46*(broad-.5)+.13*(fracture-.5);
+  const bedding=Math.sin(pi*(v*5+warp+Math.sin(u*pi*6)*.08));
+  const pockets=Math.max(0,(.58-fracture)*2.2);
+  const brokenSeam=Math.pow(Math.max(0,1-Math.abs(bedding)),5)*
+   (.25+.65*mid);
+  const fissure=Math.pow(Math.max(0,1-Math.abs(
+   Math.sin(pi*(u*3+.39*broad+.2*v*2)))),12)*(.5+.5*fracture);
+  const strata=.14*brokenSeam+.12*fissure;
+  const rock=.46*broad+.36*mid+.18*grain;
+  relief[y*size+x]=.46*rock-.17*strata+.12*pockets;
+  const shade=clamp(.85+.19*rock-.11*strata-.08*pockets,.66,1);
+  const p=(y*size+x)*4;
+  albedo[p]=Math.round(253*shade);
+  albedo[p+1]=Math.round(247*shade);
+  albedo[p+2]=Math.round(231*shade);
+  albedo[p+3]=255;
+  const r=clamp(206+29*grain+12*fissure,0,255);
+  roughness[p]=roughness[p+1]=roughness[p+2]=Math.round(r);
+  roughness[p+3]=255;
+ }
+ // The tangent normal is baked from the SAME relief as the color/roughness.
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const hL=relief[y*size+(x+size-1)%size];
+  const hR=relief[y*size+(x+1)%size];
+  const hU=relief[((y+size-1)%size)*size+x];
+  const hD=relief[((y+1)%size)*size+x];
+  const dx=(hL-hR)*2.0,dy=(hU-hD)*2.0;
+  const length=Math.hypot(dx,dy,1),p=(y*size+x)*4;
+  normal[p]=Math.round((dx/length*.5+.5)*255);
+  normal[p+1]=Math.round((dy/length*.5+.5)*255);
+  normal[p+2]=Math.round((1/length*.5+.5)*255);
+  normal[p+3]=255;
+ }
+ const maps=Object.freeze({
+  map:dataTexture(albedo,size,true),
+  normalMap:dataTexture(normal,size),
+  roughnessMap:dataTexture(roughness,size),
+  resolution:size,variant:'desert-strike-fractured-sandstone'
+ });
+ cache.set(key,maps);
+ return maps;
+}
+
+/** Dark, irregular mineral seams on real sandstone. The effect is layered
+ * ON TOP of the authored PBR albedo/normal/roughness, not a replacement
+ * material or a new rock mesh. Rock-local coordinates avoid visible atlas
+ * seams and make every face continuous; one shader, zero extra draw calls.
+ * Keeps simulation obstacles, camera, FoW and physical slopes untouched.
+ */
+export function applyRockMineralVeins(material,{strength=.55,frequency=1}={}){
+ if(!material?.isMeshStandardMaterial)return material;
+ if(material.userData.sandforgeRockMineralVeins)return material;
+ const amount=clamp(strength,0,.75),freq=clamp(frequency,.25,3);
+ const code=[
+  'vec3 sfRockP = vSfRockPosition * '+freq.toFixed(3)+';',
+  'float sfWarp = 1.10*sin(sfRockP.x*.043+sfRockP.z*.037)',
+  '             + .36*sin(sfRockP.z*.097-sfRockP.x*.084);',
+  'float sfBands = sfRockP.y*.185 + sfWarp',
+  '               + .28*sin(sfRockP.y*.049+sfRockP.z*.061);',
+  'float sfVein = abs(sin(sfBands));',
+  'float sfLine = 1.0-smoothstep(.044,.205,sfVein);',
+  'float sfStain = sin(sfRockP.x*.096-sfRockP.z*.059+sfRockP.y*.031);',
+  'float sfMottling = smoothstep(.62,.98,sfStain)*.16;',
+  'float sfPigment = clamp((sfLine*(.80+.2*sfStain)+sfMottling)',
+  '                  * '+amount.toFixed(3)+',0.0,.72);',
+  'diffuseColor.rgb *= (1.0-sfPigment);'
+ ].join(String.fromCharCode(10));
+ const previous=material.onBeforeCompile;
+ material.onBeforeCompile=shader=>{
+  previous?.(shader);
+  const nl=String.fromCharCode(10);
+  shader.vertexShader=shader.vertexShader
+   .replace('#include <common>','#include <common>'+nl+'varying vec3 vSfRockPosition;')
+   .replace('#include <begin_vertex>','#include <begin_vertex>'+nl+'vSfRockPosition = position;');
+  shader.fragmentShader=shader.fragmentShader
+   .replace('#include <common>','#include <common>'+nl+'varying vec3 vSfRockPosition;')
+   .replace('#include <color_fragment>','#include <color_fragment>'+nl+code);
+ };
+ const key=material.customProgramCacheKey.bind(material);
+ material.customProgramCacheKey=()=>key()+'-sf-mineral-veins-v1-'+amount+'-'+freq;
+ material.userData.sandforgeRockMineralVeins={strength:amount,frequency:freq};
+ material.needsUpdate=true;
+ return material;
+}
+
 export function stoneMaterial(color='#c9ad8d',options={}){
  const {lowQuality=false,roughness=.96,normalScale=.58,flatShading=true}=options;
  const maps=sharedStoneMaps(lowQuality);

@@ -1,0 +1,37 @@
+name: Sandforge Battle Director and canyon pass navigation
+on:
+  push:
+    branches:
+      - feat/sandforge-battle-director-combined-arms-action-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  director-and-passes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript, WebGL module graph and build
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-scale.js
+          node --check scripts/webgl-battlefield.js
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Battle Director, navigation, air support and historical regressions
+        run: |
+          node --test \
+            tests/sandforge-battle-director-mountain-20261119.test.mjs \
+            tests/sandforge-diverse-landscapes-v4-20261119.test.mjs \
+            tests/sandforge-balance-audit-20261119.test.mjs \
+            tests/sandforge-natural-landscape-v3-20261119.test.mjs \
+            tests/sandforge-ai36-recon-bomber-support-20261119.test.mjs \
+            tests/sandforge-ai-combat-ready-waves.test.mjs \
+            tests/sandforge-ai36-terrain-routes-20261119.test.mjs \
+            tests/sandforge-ai36-fight-dont-flee-20261119.test.mjs

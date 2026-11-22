@@ -1,0 +1,49 @@
+name: Sandforge unified desert scenery material QA
+on:
+  push:
+    branches: [feat/desert-one-material-style-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-one-desert-style-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  unified-desert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - name: One scene palette, seeded villages, existing PBR, and clean sand
+        run: |
+          node --test \
+            tests/webgl-unified-desert-scenery-style-20261115.test.mjs \
+            tests/webgl-desert-no-white-blotches-20261115.test.mjs \
+            tests/webgl-desert-villages-palette-20261115.test.mjs \
+            tests/webgl-cinematic-desert-art-20261108.test.mjs \
+            tests/webgl-desert-rock-crater-polish-20261110.test.mjs
+      - run: npm ci --prefix tests/browser --no-audit --no-fund
+      - run: |
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Real modern four-bastion desert material render
+        env:
+          ATLAS_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-desert-no-white-blotches-20261115.spec.mjs --config=playwright.config.mjs
+      - name: Save diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-one-style-qa
+          path: tests/browser/artifacts/
+          retention-days: 7

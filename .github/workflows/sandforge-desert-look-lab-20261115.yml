@@ -1,0 +1,46 @@
+name: Sandforge desert look lab GPU comparison
+on:
+  push:
+    branches: [feat/desert-look-lab-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install project packages
+        run: npm ci --no-audit --no-fund
+      - name: Build optional scene and game
+        run: npm run build:3d
+      - name: Check JavaScript and shipped files
+        run: |
+          node --check scripts/desert-look-lab.js
+          node --test tests/sandforge-desert-look-lab-20261115.test.mjs
+      - name: Install browser test packages
+        run: npm ci --prefix tests/browser --no-audit --no-fund
+      - name: Install Chromium
+        run: |
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Render actual A/B scene and capture frames
+        env:
+          ATLAS_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-desert-look-lab-20261115.spec.mjs --config=playwright.config.mjs
+      - name: Save before/after screenshots and browser diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-desert-look-lab
+          path: tests/browser/artifacts/
+          retention-days: 7

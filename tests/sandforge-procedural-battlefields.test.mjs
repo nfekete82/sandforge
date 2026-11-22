@@ -45,13 +45,13 @@ test('all sizes, profiles and four actual starting orientations have connected t
  }
 });
 
-test('named streams and profile choice are deterministic; seeds change continuous relief, sites, rocks and ruins',()=>{
+test('named streams and profile choice are deterministic; seeds change relief, sites and ruins without modern mesa obstacles',()=>{
  assert.notEqual(streamSeed(42,'terrain'),streamSeed(42,'rocks'));
  for(const profile of TERRAIN_PROFILES){
   const a=new World(2074,23,profile),b=new World(2074,23,profile),c=new World(2075,23,profile);
   assert.equal(hash(a),hash(b));assert.deepEqual(a.generated,generateMap(2074,23,profile,a.validation.candidate));
   assert.notDeepEqual(a.generated.battlefield.heights,c.generated.battlefield.heights);
-  assert.notDeepEqual(a.generated.sites,c.generated.sites);assert.notDeepEqual(a.rocks,c.rocks);
+  assert.notDeepEqual(a.generated.sites,c.generated.sites);assert.deepEqual(a.rocks,[]);assert.deepEqual(c.rocks,[]);
   assert.notDeepEqual(a.generated.ruins,c.generated.ruins);
  }
  const profiles=new Set(Array.from({length:60},(_,seed)=>terrainProfile(seed)));assert.equal(profiles.size,5);

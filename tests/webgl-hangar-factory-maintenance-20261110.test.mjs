@@ -7,6 +7,7 @@ import {factoryRepairPoint,FACTORY_REPAIR_HP_PER_CREDIT} from '../dist/src/rebor
 import {unitRenderAltitude} from '../scripts/webgl-scale.js';
 import {createAirfieldServiceYard,updateAirfieldServiceYard,disposeAirfieldServiceYard} from '../scripts/webgl-airfield-service.js';
 import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '../scripts/webgl-factory-service.js';
+import {createBuildingYard,YARD_DECOR_KINDS} from '../scripts/webgl-building-yard.js';
 import {serviceVisualGround,approachGroundHeight,AIRFIELD_HANGAR_FLOOR_HEIGHT,FACTORY_LIFT_HEIGHT} from '../scripts/webgl-service-grounding.js';
 import {selectedMaintenanceKind,serviceFootprintContains} from '../scripts/webgl-maintenance-input.js';
 
@@ -80,58 +81,48 @@ test('finished bomber remains docked until an explicit launch, then actually tak
  assert.ok(Math.hypot(plane.x-stationary.x,plane.y-stationary.y)>100);
 });
 
-test('factory maintenance accepts one vehicle at a time, then reuses its single slot',()=>{
- const {g,garage}=setup(),roster=['tank','rover','artillery'].map((kind,i)=>g.spawn(0,
-   {x:2560+i*10,y:2310},kind));
- for(const u of roster)u.hp=g.maxUnitHp(u)*.4;
- assert.equal(g.requestFactoryRepair(roster.map(u=>u.id)),1);
- assert.deepEqual(roster.slice(0,1).map(u=>u.factoryService.bay),[0]);
- assert.equal(roster[1].factoryService,undefined);
- assert.equal(roster[2].factoryService,undefined);
- assert.deepEqual(factoryRepairPoint(garage,0),factoryRepairPoint(garage,1),'legacy bay maps to same physical lift');
- roster[0].factoryService.phase='repair';
- Object.assign(roster[0],factoryRepairPoint(garage,0));
- const initial=roster[0].hp,credits=g.credits[0];advance(g,1);
- assert.ok(roster[0].hp>initial);
- assert.ok(g.credits[0]<credits);
- assert.ok((roster[0].hp-initial)<=g.maxUnitHp(roster[0])*.012+.01);
- assert.ok(g.credits[0]>=credits-Math.ceil((roster[0].hp-initial)/FACTORY_REPAIR_HP_PER_CREDIT)-1);
- roster[0].hp=g.maxUnitHp(roster[0]);advance(g,.05);
- assert.equal(roster[0].factoryService.phase,'ready','repair still active at HP '+roster[0].hp+' / max '+g.maxUnitHp(roster[0])+' game='+g.status);
- assert.equal(g.releaseFactoryRepair([roster[0].id]),1);
- assert.equal(roster[0].factoryService,undefined);
- assert.equal(g.requestFactoryRepair([roster[2].id]),1,'freed bay is reused');
-});
-
-test('repair states survive version-2 saves and reject corrupt slot values',()=>{
+test('factory servicing is disabled: Pioniere now repair vehicles',()=>{
  const {g}=setup();
+ const tank=g.spawn(0,{x:2530,y:2320},'tank');
+ tank.hp=600;
+ const credits=g.credits[0];
+ assert.equal(g.requestFactoryRepair([tank.id]),0);
+ assert.equal(g.setAutoFactoryRepair([tank.id],true),0);
+ advance(g,.5);
+ assert.equal(tank.hp,600);
+ assert.equal(tank.factoryService,undefined);
+ assert.equal(g.credits[0],credits);
+});
+test('old vehicle repair states are cleared on load; hangar state still persists',()=>{
+ const {g,garage}=setup();
  const bomber=g.spawn(0,{x:1850,y:1980},'bomber');bomber.hp=400;
  const tank=g.spawn(0,{x:2600,y:2200},'tank');tank.hp=500;
  assert.equal(g.requestAirfieldRepair([bomber.id]),1);
- assert.equal(g.requestFactoryRepair([tank.id]),1);
- g.setAutoAirfieldRepair([bomber.id],true);g.setAutoFactoryRepair([tank.id],true);
+ tank.factoryService={baseId:garage.id,bay:0,phase:'repair',paidHp:0};
+ tank.autoFactoryRepair=true;
+ g.setAutoAirfieldRepair([bomber.id],true);
  const stored=g.save(),restored=Simulation.load(stored);
  assert.deepEqual(restored.units.find(u=>u.id===bomber.id).airfieldService,bomber.airfieldService);
- assert.deepEqual(restored.units.find(u=>u.id===tank.id).factoryService,tank.factoryService);
- assert.equal(restored.units.find(u=>u.id===tank.id).autoFactoryRepair,true);
+ assert.equal(restored.units.find(u=>u.id===tank.id).factoryService,undefined);
+ assert.equal(restored.units.find(u=>u.id===tank.id).autoFactoryRepair,undefined);
+ assert.equal(restored.units.find(u=>u.id===tank.id).hp,500);
  assert.equal(restored.units.find(u=>u.id===bomber.id).autoAirfieldRepair,true);
  const broken=structuredClone(stored);
  broken.units.find(u=>u.id===tank.id).factoryService.bay=99;
  assert.throws(()=>Simulation.load(broken),/beschädigt/);
 });
-
-test('3D maintenance assets are wired into build and battlefield lifecycle',()=>{
+test('only hangar service is wired into the live scene and HUD',()=>{
  const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
  const build=read('scripts/build.mjs'),battlefield=read('scripts/webgl-battlefield.js');
- const airfield=read('scripts/webgl-airfield-service.js'),factory=read('scripts/webgl-factory-service.js');
- for(const name of ['webgl-airfield-service.js','webgl-factory-service.js'])assert.ok(build.includes(name));
+ const airfield=read('scripts/webgl-airfield-service.js');
+ assert.ok(build.includes('webgl-airfield-service.js'));
  for(const phrase of ['createAirfieldServiceYard','updateAirfieldServiceYard','disposeAirfieldServiceYard',
-   'createFactoryServiceYard','updateFactoryServiceYard','disposeFactoryServiceYard',
-   'hangar-repair','factory-repair','hangar-auto','factory-auto'])assert.ok(battlefield.includes(phrase),phrase);
- for(const phrase of ['HangarDoorLeft_','AirfieldExtendedRunway','HangarCamoArch_'])assert.ok(airfield.includes(phrase));
- for(const phrase of ['FactoryVehicleRepairApron','HydraulicVehicleLiftRail_','FactorySideWorkshopWallLeft'])assert.ok(factory.includes(phrase));
+   'hangar-repair','hangar-auto'])assert.ok(battlefield.includes(phrase),phrase);
+ for(const phrase of ['createFactoryServiceYard(','updateFactoryServiceYard(','factory-repair','factory-auto'])
+  assert.ok(!battlefield.includes(phrase),'legacy garage must not be used: '+phrase);
+ for(const phrase of ['HangarDoorLeft_','AirfieldExtendedRunway','HangarCamoArch_'])
+  assert.ok(airfield.includes(phrase));
 });
-
 test('Three.js service yards create, animate and dispose with no DOM or WebGL context',()=>{
  const airfield=createAirfieldServiceYard();
  assert.ok(airfield.getObjectByName('AirfieldExtendedRunway'));
@@ -149,7 +140,7 @@ test('Three.js service yards create, animate and dispose with no DOM or WebGL co
  assert.equal(airEntry.airfieldServiceYard,null);
 
  const factory=createFactoryServiceYard();
- assert.ok(factory.getObjectByName('FactorySideWorkshopWallLeft'));
+ assert.equal(factory.name,'FactoryOpenAirRepairPlatform');
  assert.ok(factory.getObjectByName('VehicleRepairBaySurface_0'));
  assert.equal(factory.getObjectByName('VehicleRepairBaySurface_1'),undefined);
  const truck={id:81,hp:100,factoryService:{baseId:901,bay:0,phase:'repair'}};
@@ -183,43 +174,26 @@ test('end-to-end: real bomber lands and taxis into its assigned hangar',()=>{
  assert.equal(bomber.flightHeight,0,'bomber must actually touch ground');
 });
 
-test('end-to-end: ground tank drives to factory apron and enters service',()=>{
- const {g,garage}=setup(),tank=g.spawn(0,{x:2592,y:2320},'tank');
- tank.hp=700;
- assert.equal(g.requestFactoryRepair([tank.id]),1);
- let startedParking=false,servicing=false;
- for(let i=0;i<2200;i++){
-  g.step(.05);
-  if(!tank.factoryService)break;
-  if(tank.factoryService.phase==='parking')startedParking=true;
-  if(tank.factoryService.phase==='repair'){servicing=true;break;}
- }
- const goal=factoryRepairPoint(garage,0,true);
- const blockers=g.movingColliders();
- const obstacles=[...blockers.buildings,...blockers.vehicleFacades,...blockers.decor,...blockers.towers];
- const targetWalkable=g.world.walkable(goal,obstacles,12);
- assert.equal(startedParking,true,
-  'tank must reach the approach lane | position='+JSON.stringify({x:tank.x,y:tank.y,hp:tank.hp,phase:tank.factoryService?.phase,driveSpeed:tank.driveSpeed,
-   path:tank.path.length,goal,walkable:targetWalkable,game:g.status,
-   colliders:obstacles.filter(o=>Math.hypot(o.x-goal.x,o.y-goal.y)<200).slice(0,10)}));
- assert.equal(servicing,true,'tank must actually park at workshop bay');
- const dock=factoryRepairPoint(garage,0);
- assert.ok(Math.hypot(dock.x-tank.x,dock.y-tank.y)<15);
+test('end-to-end: Pionier repairs a damaged tank without factory docking',()=>{
+ const {g}=setup(),tank=g.spawn(0,{x:2580,y:2330},'tank');
+ const engineer=g.spawn(0,{x:2600,y:2330},'engineer');
+ tank.hp=600;
+ assert.equal(g.requestFactoryRepair([tank.id]),0);
+ g.spatial.rebuild(g.units);
+ engineer.orders=[{kind:'repair',target:tank.id,x:tank.x,y:tank.y}];
+ advance(g,1);
+ assert.ok(tank.hp>600,'Pionier must restore real tank HP');
+ assert.equal(tank.factoryService,undefined);
 });
-
-test('orders cancel vehicle maintenance but aircraft take off rather than teleporting',()=>{
- const {g,garage,airport}=setup();
+test('ground vehicles obey direct orders; aircraft take off rather than teleport',()=>{
+ const {g,airport}=setup();
  const rover=g.spawn(0,{x:2680,y:2390},'rover');rover.hp=180;
- assert.equal(g.requestFactoryRepair([rover.id]),1);
- g.setAutoFactoryRepair([rover.id],true);
- rover.factoryService.phase='repair';Object.assign(rover,factoryRepairPoint(garage,0));
+ assert.equal(g.requestFactoryRepair([rover.id]),0);
  const before={x:rover.x,y:rover.y};
  assert.equal(g.command([rover.id],{x:2590,y:2370,kind:'move'}),1);
  assert.equal(rover.factoryService,undefined);
- assert.equal(rover.autoFactoryRepair,false,'manual order must suppress immediate automatic return');
- assert.deepEqual({x:rover.x,y:rover.y},before,'no garage teleport when redirected');
+ assert.deepEqual({x:rover.x,y:rover.y},before);
  assert.equal(rover.orders[0]?.kind,'move');
-
  const bomber=g.spawn(0,{x:1640,y:2050},'bomber');bomber.hp=500;
  assert.equal(g.requestAirfieldRepair([bomber.id]),1);
  g.setAutoAirfieldRepair([bomber.id],true);
@@ -230,13 +204,12 @@ test('orders cancel vehicle maintenance but aircraft take off rather than telepo
  assert.equal(bomber.airfieldService.phase,'takeoff');
  assert.equal(bomber.autoAirfieldRepair,false);
  assert.deepEqual({x:bomber.x,y:bomber.y},dock);
- assert.equal(bomber.flightHeight,0,'manual override cannot jump straight to flight altitude');
+ assert.equal(bomber.flightHeight,0);
  assert.equal(bomber.orders[0]?.kind,'move');
  advance(g,AIRFIELD_TAKEOFF_SECONDS+.05);
  assert.equal(bomber.airfieldService,undefined);
  assert.equal(bomber.flightHeight,1);
 });
-
 test('aircraft diverted before landing can change orders immediately and release the bay',()=>{
  const {g}=setup(),bomber=g.spawn(0,{x:1800,y:2000},'bomber');bomber.hp=400;
  assert.equal(g.requestAirfieldRepair([bomber.id]),1);
@@ -248,17 +221,19 @@ test('aircraft diverted before landing can change orders immediately and release
  assert.equal(g.requestAirfieldRepair([bomber.id]),1,'slot is no longer occupied');
 });
 
-test('finished vehicle in a workshop stays at the exact saved 3D platform position',()=>{
- const {g,garage}=setup(),vehicle=g.spawn(0,{x:2690,y:2360},'tank');
- vehicle.hp=600;assert.equal(g.requestFactoryRepair([vehicle.id]),1);
- vehicle.factoryService.phase='repair';Object.assign(vehicle,factoryRepairPoint(garage,0));
+test('loaded tank can resume gameplay instead of remaining trapped on removed garage lift',()=>{
+ const {g,garage}=setup(),tank=g.spawn(0,{x:2690,y:2360},'tank');
+ tank.hp=600;
+ tank.factoryService={baseId:garage.id,bay:0,phase:'ready',paidHp:0};
+ tank.autoFactoryRepair=true;
  const saved=g.save(),restored=Simulation.load(saved);
- const restoredVehicle=restored.units.find(u=>u.id===vehicle.id);
- assert.equal(restoredVehicle.x,vehicle.x);
- assert.equal(restoredVehicle.y,vehicle.y);
- assert.deepEqual(restoredVehicle.factoryService,vehicle.factoryService);
+ const unit=restored.units.find(u=>u.id===tank.id);
+ assert.ok(unit);
+ assert.equal(unit.factoryService,undefined);
+ assert.equal(unit.autoFactoryRepair,undefined);
+ assert.equal(unit.hp,600);
+ assert.ok(Number.isFinite(unit.x)&&Number.isFinite(unit.y));
 });
-
 test('uneven terrain: maintenance altitude meets flat workshop floors without visual popping',()=>{
  const ground=24,building=12;
  const plane={flightHeight:1,airfieldService:{phase:'approach'}};
@@ -298,50 +273,41 @@ test('workshop provides actual raised hydraulic service decks and ramps',()=>{
  disposeFactoryServiceYard(entry);
 });
 
-test('garage and airfield selected-building HUD can recover unclickable parked aircraft',()=>{
+test('airfield HUD retains hangar controls; factory HUD has no repair buttons',()=>{
  const source=readFileSync(new URL('../scripts/webgl-battlefield.js',import.meta.url),'utf8');
- for(const command of ['hangar-repair-all','hangar-launch-ready',
-  'factory-repair-all','factory-release-ready']){
+ for(const command of ['hangar-repair-all','hangar-launch-ready'])
   assert.match(source,new RegExp(command));
- }
+ for(const command of ['factory-repair-all','factory-release-ready','factory-auto'])
+  assert.doesNotMatch(source,new RegExp(command));
  assert.match(source,/WARTUNGSPLÄTZE/);
- assert.match(source,/ALLE ZURÜCK/);
 });
-
-test('manual right-click routes a tank and bomber to the clicked, not another, service building',()=>{
+test('only aircraft can be routed to clicked hangar for maintenance',()=>{
  const {g,airport,garage}=setup();
  const tank=g.spawn(0,{x:2530,y:2110},'tank');
  const bomber=g.spawn(0,{x:1850,y:2020},'bomber');
  tank.hp=600;bomber.hp=400;
- assert.equal(g.requestFactoryRepair([tank.id],airport.id),0);
+ assert.equal(g.requestFactoryRepair([tank.id],garage.id),0);
  assert.equal(g.requestAirfieldRepair([bomber.id],garage.id),0);
- assert.equal(g.requestFactoryRepair([tank.id],garage.id),1);
  assert.equal(g.requestAirfieldRepair([bomber.id],airport.id),1);
- assert.equal(tank.factoryService.baseId,garage.id);
+ assert.equal(tank.factoryService,undefined);
  assert.equal(bomber.airfieldService.baseId,airport.id);
- assert.equal(tank.factoryService.phase,'approach');
- assert.equal(bomber.airfieldService.phase,'approach');
 });
-test('repair right-click detects angled roofs, pads and runway without hijacking soldiers',()=>{
+test('repair right-click recognizes hangar, not factory or infantry',()=>{
  const units=[{id:1,kind:'tank',owner:0,hp:300},
   {id:2,kind:'scout',owner:0,hp:100},{id:3,kind:'infantry',owner:0,hp:50}];
- assert.equal(selectedMaintenanceKind(units,new Set([1])),'factory');
+ assert.equal(selectedMaintenanceKind(units,new Set([1])),null);
  assert.equal(selectedMaintenanceKind(units,new Set([2])),'airfield');
  assert.equal(selectedMaintenanceKind(units,new Set([3])),null);
- assert.equal(selectedMaintenanceKind(units,new Set([1,2])),null);
  const garage={kind:'factory',x:400,y:500,facing:0};
  const airfield={kind:'airfield',x:800,y:900,facing:2};
- assert.equal(serviceFootprintContains(garage,{x:476,y:672}),true);
- assert.equal(serviceFootprintContains(garage,{x:400,y:950}),false);
+ assert.equal(serviceFootprintContains(garage,{x:476,y:672}),false);
  assert.equal(serviceFootprintContains(airfield,{x:975,y:900}),true);
  assert.equal(serviceFootprintContains(airfield,{x:1530,y:900}),false);
  const source=readFileSync('scripts/webgl-battlefield.js','utf8');
  assert.match(source,/this\.maintenanceFacilityAtPointer\(event,serviceKind\)/);
  assert.match(source,/this\.game\.requestAirfieldRepair\(ids,facility\.id\)/);
- assert.match(source,/this\.game\.requestFactoryRepair\(ids,facility\.id\)/);
- assert.match(readFileSync('scripts/build.mjs','utf8'),/webgl-maintenance-input\.js/);
+ assert.doesNotMatch(source,/this\.game\.requestFactoryRepair\(ids,facility\.id\)/);
 });
-
 test('damaged vehicles display a distinct service cross and animated welding sparks',()=>{
  const yard=createFactoryServiceYard();
  const base={id:910,kind:'factory',x:1200,y:1200,facing:0};
@@ -374,21 +340,46 @@ test('factory and airfield use real PBR camouflage/data textures, roof details a
  const {servicePaint}=await import('../scripts/webgl-service-materials.js');
  const material=servicePaint(['#727a5e','#a79976','#bdac88'],{seed:7});
  assert.ok(material.map?.isDataTexture);
- assert.equal(material.map.image.data.length,96*96*4);
+ assert.equal(material.map.image.data.length,256*256*4);
  assert.equal(material.map.colorSpace,'srgb');
  material.map.dispose();material.dispose();
  const yard=createFactoryServiceYard(),hangar=createAirfieldServiceYard();
- for(const name of ['FactoryCamoVerticalRib_0','FactorySideVentLouvre_0',
-   'FactoryRoofAirDuct_0','FactoryToolChest_0'])
+ for(const name of ['VehicleLiftPlatform_0','VehicleDriveOnRamp_0',
+   'FactoryRepairToolTray_0','FactoryPlatformEdgeMarker_0'])
   assert.ok(yard.getObjectByName(name),name);
  for(const name of ['HangarRoofVent_0','HangarDoorCorrugation_0_0',
-   'HangarRearVent_0','AirfieldTouchdownRubber'])
+   'HangarRearVent_0','AirfieldRunwayLandingBars'])
   assert.ok(hangar.getObjectByName(name),name);
  for(const root of [yard,hangar]){
   let textureCount=0;
   root.traverse(mesh=>{if(mesh.isMesh&&mesh.material.map?.isDataTexture)textureCount++;});
-  assert.ok(textureCount>10,'camouflage and steel surfaces must be textured');
+  assert.ok(textureCount>=(root===yard?5:11),'service deck and metal use PBR textures');
  }
  disposeFactoryServiceYard({factoryServiceYard:yard});
  disposeAirfieldServiceYard({airfieldServiceYard:hangar});
+});
+
+test('WebGL airfield runway has no generic crates/lamp posts and has low-profile off-pavement edge lights',()=>{
+ assert.equal(YARD_DECOR_KINDS.includes('airfield'),false,
+  'generic SiteSupplyCache and SecurityLamp overlap the working runway');
+ assert.equal(createBuildingYard('airfield',218),null,
+  'airfield service yard is the single authority for its visual apron');
+ assert.ok(createBuildingYard('barracks',158),'other building yards must stay intact');
+ const airfield=createAirfieldServiceYard();
+ const runway=airfield.getObjectByName('AirfieldExtendedRunway');
+ assert.ok(runway);
+ const runwayCenter=airfield.position.x+airfield.scale.x*runway.position.x;
+ const runwayHalfWidth=runway.geometry.parameters.width*airfield.scale.x*.5;
+ const lamps=airfield.children.filter(x=>x.name==='AirfieldRunwayLamp');
+ assert.equal(lamps.length,24,'retain all 24 symmetric low-profile landing-zone markers');
+ for(const lamp of lamps){
+  const wx=airfield.position.x+airfield.scale.x*lamp.position.x;
+  const lampHalf=lamp.geometry.parameters.width*airfield.scale.x*.5;
+  assert.ok(Math.abs(wx-runwayCenter)-lampHalf>runwayHalfWidth,
+   'light must sit fully outside the aircraft runway');
+  assert.ok(lamp.geometry.parameters.height<=.3,
+   'flush taxi/landing light must not become a physical obstacle');
+ }
+ assert.ok(airfield.getObjectByName('HangarDoorLeft_0'),'hangar door still exists');
+ disposeAirfieldServiceYard({airfieldServiceYard:airfield});
 });

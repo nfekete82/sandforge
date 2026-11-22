@@ -11,34 +11,29 @@ const battlefield=source('scripts/webgl-battlefield.js');
 const hud=source('scripts/webgl-classic-hud.js');
 const css=source('src/reborn/webgl-classic-hud.css');
 
-test('the global dock has five separate categories, tabs hidden until their building is finished',()=>{
+test('the global dock has exactly four production tabs; research is building-only',()=>{
  for(const [tab,name] of [
   ['buildings','GEBÄUDE'],['infantry','INFANTERIE'],
-  ['vehicles','FAHRZEUGE'],['aircraft','FLUGZEUGE'],['research','FORSCHUNG']]){
+  ['vehicles','FAHRZEUGE'],['aircraft','FLUGZEUGE']]){
   assert.match(hud,new RegExp('data-tab="'+tab+'"[^>]*>'+name+'</button>'));
-  assert.ok(battlefield.includes('data-sf-group="'+tab+'"')||
-   battlefield.includes("data-sf-group=\\\""+tab+"\\\""));
+  assert.ok(battlefield.includes('data-sf-group="'+tab+'"'));
   assert.ok(css.includes('[data-tab="'+tab+'"]'),
    'missing CSS for category '+tab);
  }
- assert.equal((hud.match(/<button data-tab=/g)||[]).length,5);
- assert.deepEqual(GLOBAL_PRODUCTION_TABS,['buildings','infantry','vehicles','aircraft','research']);
+ assert.equal((hud.match(/<button data-tab=/g)||[]).length,4);
+ assert.deepEqual(GLOBAL_PRODUCTION_TABS,['buildings','infantry','vehicles','aircraft']);
+ assert.doesNotMatch(hud,/data-tab="research"/,'no global research button');
+ assert.doesNotMatch(battlefield,/data-sf-group="research"/,'no duplicate research catalogue');
+ assert.match(battlefield,/createSandforgeResearchDeck\(\{/);
  assert.match(hud,/data-tab="aircraft"[^>]*hidden>FLUGZEUGE<\/button>/);
- assert.ok(hud.includes('panel.dataset.tab=\'buildings\''),'building tab initially shown');
- assert.ok(hud.includes('data-action="sectors"'),'sector navigation remains accessible');
- assert.ok(battlefield.includes('g.producer(0,unit)')||
-  battlefield.includes('this.game.producer(0,unit)'),
-  'production routes to authoritative global producer');
- assert.ok(!battlefield.includes("section.hidden=!context.producer"),
-  'selectedBase must never hide another production building');
- assert.ok(battlefield.includes('const researchOnline=g.bases.some('));
+ assert.ok(hud.includes("panel.dataset.tab='buildings'"));
+ assert.ok(hud.includes('data-action="sectors"'));
  assert.match(battlefield,/const available=globalCatalogAvailability\(g\)/);
- assert.match(battlefield,/const aircraftRoster=roster\(\[\['airfield','FLUGFELD'\]\]\)/);
- assert.match(battlefield,/const vehicleRoster=roster\(\[\['factory','FAHRZEUGFABRIK'\]\]\)/);
- assert.ok(battlefield.includes('if(!ready)return'),
-  'no gray unbuilt production groups may be rendered');
- assert.ok(css.includes('button[hidden]'),'hidden tabs must never occupy room');
-
+ assert.ok(battlefield.includes("const aircraftRoster=roster([['headquarters','KOMMANDOZENTRALE · AUFKLÄRUNG'],"));
+ assert.match(battlefield,/\['airfield','FLUGFELD'\]\],'Luftunterstützung'\)/);
+ assert.match(battlefield,/const vehicleRoster=roster\(\[\['factory','FAHRZEUGFABRIK'\]\],'Fahrzeuge'\)/);
+ assert.ok(battlefield.includes('if(!ready)return'));
+ assert.ok(css.includes('button[hidden]'));
 });
 
 const setup=()=>{
@@ -61,7 +56,7 @@ test('real simulation automatically chooses barracks/factory/airfield despite no
  const cases=[
   ['engineer','headquarters'],['infantry','barracks'],['medic','barracks'],
   ['heavy','barracks'],['rocket','barracks'],
-  ['rover','factory'],['tank','factory'],['artillery','factory'],
+  ['drone','headquarters'],['rover','factory'],['tank','factory'],['artillery','factory'],
   ['scout','airfield'],['bomber','airfield']
  ];
  for(const [kind,sourceKind] of cases){
@@ -74,6 +69,8 @@ test('real simulation automatically chooses barracks/factory/airfield despite no
  }
  assert.equal(barracks.queueTypes.length,4);
  assert.equal(factory.queueTypes.length,3);
+ assert.ok(g.bases.some(b=>b.kind==='headquarters'&&b.queueTypes.includes('drone')),
+  'R-01 reconnaissance drones are queued at the HQ');
  assert.equal(airfield.queueTypes.length,2);
  assert.equal(g.count(0)+g.queued(0)<=48,true);
 });
@@ -93,11 +90,15 @@ test('actual HUD click queues from auto-detected producer even if nothing is sel
    throw Error('Unexpected selector '+selector);
   }};
  const constructor=new Function('installClassicHud','BUILDINGS','UNITS','UPGRADES',
-  'INTERCEPTOR_ENABLED','globalCatalogAvailability','return class TestUI {'+
+  'UPGRADE_KINDS','researchIconMarkup','createSandforgeResearchDeck',
+  'createSandforgeConfirmDialog','INTERCEPTOR_ENABLED','globalCatalogAvailability',
+  'return class TestUI {'+
   battlefield.slice(battlefield.indexOf(' buildInterface(){'),
    battlefield.indexOf('\n saveGame(){',battlefield.indexOf(' buildInterface(){')))+
   '}');
- const UI=constructor(()=>panel,BUILDINGS,UNITS,UPGRADES,true,globalCatalogAvailability);
+ const UI=constructor(()=>panel,BUILDINGS,UNITS,UPGRADES,UPGRADE_KINDS,
+  ()=>'<svg></svg>',()=>({reopen(){},update(){}}),
+  ()=>({ask:()=>Promise.resolve(false)}),true,globalCatalogAvailability);
  const ui=new UI();
  ui.game=g;ui.selected=new Set();ui.selectedBase=null;
  ui.sound={enabled:false};
@@ -123,10 +124,10 @@ test('actual HUD click queues from auto-detected producer even if nothing is sel
  assert.ok(freeTech);
  ui.selectedBase=null;
  click({upgrade:freeTech});
- assert.equal(g.research[0].active,freeTech,
-  'lab research must start without selecting research facility');
+ assert.equal(g.research[0].active,null,
+  'global HUD must NOT start research; select the lab to open its separate modal');
  assert.equal(ui.selectedBase,null);
- for(const tab of ['buildings','infantry','vehicles','research']){
+ for(const tab of ['buildings','infantry','vehicles','aircraft']){
   listeners.get('sandforge-tabchange')({detail:{tab}});
   assert.equal(panel.dataset.tab,'vehicles',
    'tab events must only change the clicked view, not force an unrelated selection');
@@ -165,33 +166,36 @@ test('only finished player-owned source buildings unlock their relevant producti
  const {g,add}=setup();
  const available=()=>globalCatalogAvailability(g);
  assert.deepEqual(available(),{
-  buildings:true,infantry:true,vehicles:false,aircraft:false,
-  research:false,territories:true
- },'starting HQ unlocks pioneer production only');
+  buildings:true,infantry:true,vehicles:false,aircraft:true,
+  territories:true
+ },'HQ unlocks pioneers and recon drones, not retired cargo vehicles');
  const barracks=add('barracks');
  barracks.buildRemaining=4;
  assert.equal(available().infantry,true);
  const factory=add('factory');
  factory.buildRemaining=3;
- assert.equal(available().vehicles,false,'construction in progress is NOT unlocked');
+ assert.equal(available().vehicles,false,'only a completed factory unlocks vehicle production');
  factory.buildRemaining=0;
  assert.equal(available().vehicles,true);
- assert.equal(available().aircraft,false);
+ assert.equal(available().aircraft,true);
  const airfield=add('airfield');
  airfield.buildRemaining=1;
- assert.equal(available().aircraft,false);
+ assert.equal(available().aircraft,true,'HQ drone production remains available during airfield construction');
  airfield.buildRemaining=0;
- assert.equal(available().aircraft,true,'airfield unlocks ONLY aircraft tab');
+ assert.equal(available().aircraft,true,'airfield additionally unlocks the helicopter and bomber');
  const lab=add('research');
  lab.buildRemaining=0;
- assert.equal(available().research,true);
+ assert.equal('research' in available(),false,'research is not a global production tab');
  lab.hp=0;
- assert.equal(available().research,false,'destroyed lab hides research tab again');
+ assert.equal('research' in available(),false,'destroying lab cannot show an obsolete tab');
  airfield.owner=1;
- assert.equal(available().aircraft,false,'enemy-owned airfield does not unlock air tab');
- // Current tab disappears gracefully when the last factory is destroyed.
+ assert.equal(available().aircraft,true,'own HQ still permits drones after the airfield becomes enemy-owned');
+ // Factory destruction hides combat vehicle production; the HQ retains recon drones.
  factory.hp=0;
  assert.equal(available().vehicles,false);
+ g.bases.find(b=>b.kind==='headquarters'&&b.owner===0).hp=0;
+ assert.equal(available().vehicles,false);
+ assert.equal(available().aircraft,false,'no surviving HQ or airfield means no aircraft production');
  assert.equal(available().buildings,true);
 });
 
@@ -200,6 +204,8 @@ test('unit types are split into independent factory and aircraft menus',()=>{
  const ground=units.filter(u=>UNITS[u].producers.includes('factory'));
  const airborne=units.filter(u=>UNITS[u].producers.includes('airfield'));
  assert.deepEqual(ground,['rover','tank','artillery']);
+ assert.equal(UNITS.supply.group,'Fahrzeuge');
+ assert.deepEqual(UNITS.supply.producers,[]);
  assert.deepEqual(airborne,['scout','bomber']);
  for(const u of airborne)assert.ok(!ground.includes(u));
  const {g,add}=setup();add('factory');add('airfield');

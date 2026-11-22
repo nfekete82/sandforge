@@ -7,6 +7,11 @@
 .sf-rts .top{z-index:3}
 .sf-rts .tools{z-index:4;right:12px;top:10px;min-width:312px;justify-content:flex-end}
 .sf-rts .tools button{width:35px;height:33px;font:700 15px/1 var(--display)}
+/* The 1x/2x/4x control must be visible in the REAL top gameplay bar.
+   Override inherited stacked footer label styles after reparenting. */
+.sf-rts .tools .sf-tool-speed{display:inline-flex;align-items:center;gap:4px;min-width:0;height:33px;margin:0;padding:0 3px;color:#dfc596;font:700 9px/1 var(--display);white-space:nowrap}
+.sf-rts .tools .sf-tool-speed select{display:block;flex:0 0 auto;width:51px;min-width:51px;height:27px;min-height:27px;margin:0;padding:2px 5px;border:1px solid #867550;border-radius:3px;background:#2a2d23;color:#f5ddb0;font:800 11px/1 var(--display);cursor:pointer}
+.sf-rts .tools .sf-tool-speed select:focus-visible{outline:2px solid #edc378;outline-offset:2px}
 .sf-rts .tools #simulation,.sf-rts .tools #sound{font-size:0}
 .sf-rts .tools #simulation::before{content:'Ⅱ';font:700 21px var(--display)}
 .sf-rts .tools #simulation[aria-pressed=false]::before{content:'▶';font-size:17px}
@@ -467,6 +472,17 @@
 #sf-classic-root #sf-selection-panel .commands button{
  width:100%!important;min-width:0!important;min-height:40px!important;
  height:40px!important;padding:4px!important;font-size:13px!important;font-weight:800!important;
+}
+/* The command grid has authored display rules, so respect the native
+   hidden property at every breakpoint. Otherwise troop commands remain
+   visible even after a building is selected. */
+#sf-classic-root #sf-selection-panel .commands button[hidden]{
+ display:none!important;
+}
+/* Demolition must read as intentional/destructive, not a unit attack. */
+#sf-classic-root #sf-selection-panel .commands button[data-action="demolish"]:not([hidden]){
+ border-color:#ae7158!important;background:#48302c!important;
+ color:#ffdfce!important;
 }
 /* Use readable typography without sacrificing the six-column building row.
    These overrides are scoped to the WebGL HUD; Canvas retains its own UI. */
@@ -1212,6 +1228,7 @@
 #sf-classic-root .sf-passenger-slot{display:flex;align-items:center;justify-content:center;height:29px;min-width:0;border:1px solid #a38a56;border-radius:3px;background:linear-gradient(145deg,#455b50,#25372e);color:#f0dfb4;font:700 10px var(--mono);padding:0;cursor:pointer}
 #sf-classic-root button.sf-passenger-slot:hover,#sf-classic-root button.sf-passenger-slot:focus-visible{outline:2px solid #e9ce7e;background:#62715a}
 #sf-classic-root .sf-passenger-empty{border-color:#4d5a4d;color:#667469;background:#1b2925;cursor:default}
+#sf-classic-root .sf-passenger-pending{border:1px dashed #ab925f;color:#d4b883;background:#403c2a;cursor:default}
 @media(max-width:1050px){#sf-classic-root .sf-passenger-slot{height:24px;font-size:9px}}
 @media(max-width:800px){#sf-classic-root #sf-selection-panel.sf-transport-selected{height:auto;min-height:190px}}
 
@@ -2201,6 +2218,9 @@
 }
 
 
+/* A low defensive wall should read as a smaller structure than the command
+ * buildings. Final rule below also covers locked/disabled cards. */
+
 /* Final WebGL catalogue state: unaffordable and tech-locked cards are muted,
  * gently defocused, never blue/selected. The actual title/cost stay sharp. */
 #sf-classic-root #sf-actions button.catalog-card[data-build]:disabled,
@@ -2466,4 +2486,626 @@
   flex-basis:96px!important;width:96px!important;
   min-width:96px!important;max-width:96px!important;
  }
+}
+
+/* Sperrmauer thumbnail: 82% only affects the wall artwork, never price/card. */
+#sf-classic-root[data-tab="buildings"] #sf-actions
+ button.catalog-card[data-build="wall"] .sf-card-image img,
+#sf-classic-root[data-tab="buildings"] #sf-actions
+ button.catalog-card[data-build="wall"]:disabled .sf-card-image img,
+#sf-classic-root[data-tab="buildings"] #sf-actions
+ button.catalog-card[data-build="wall"].locked .sf-card-image img{
+ transform:scale(.82)!important;
+ transform-origin:center center!important;
+}
+
+/* Building portraits must remain legible even while a facility is locked.
+   Older rules stacked opacity(.78) on the card with grayscale/blur,
+   brightness(.70) and image opacity(.77), making HQ almost black.
+   Keep the locked border, subdued footer and disabled interaction; only
+   remove the destructive image darkening. Does not affect unit cards. */
+#sf-classic-root #sf-actions button.catalog-card[data-build]:disabled,
+#sf-classic-root #sf-actions button.catalog-card[data-build].locked {
+  opacity:1!important;
+  filter:none!important;
+  border-color:#686b5e!important;
+  background:linear-gradient(155deg,#42443c,#292e2b 72%)!important;
+}
+#sf-classic-root #sf-actions button.catalog-card[data-build]:disabled .sf-card-image,
+#sf-classic-root #sf-actions button.catalog-card[data-build].locked .sf-card-image {
+  background:radial-gradient(ellipse at 50% 75%,#8d81664d 0%,#333a348a 76%,#262b28 100%)!important;
+}
+#sf-classic-root #sf-actions button.catalog-card[data-build]:disabled .sf-card-image img,
+#sf-classic-root #sf-actions button.catalog-card[data-build].locked .sf-card-image img {
+  opacity:.96!important;
+  filter:grayscale(.26) brightness(1.08) contrast(1.04)!important;
+}
+#sf-classic-root #sf-actions button.catalog-card[data-build]:disabled .card-meta,
+#sf-classic-root #sf-actions button.catalog-card[data-build].locked .card-meta {
+  background:#282d29!important;
+  border-top-color:#686b5e!important;
+}
+/* Normal building artwork receives the true bright portrait, no extra CSS
+   color filter, so tan desert camo and dark details stay recognizable. */
+#sf-classic-root #sf-actions button.catalog-card[data-build]:not(:disabled):not(.locked) .sf-card-image img {
+  filter:none!important;
+  opacity:1!important;
+}
+
+
+/* Compact desktop tactical dock: the former 270px strip was much taller
+ * than the 156px minimap and hid playable terrain. At 225px CSS the map,
+ * building tiles and action/production columns form one restrained footer.
+ * Narrow/mobile breakpoints retain their independent two-row layouts. */
+@media (min-width:901px){
+ #sf-classic-root{
+  --sf-dock-height:225px!important;
+ }
+ #sf-classic-root #sidebar > .catalog .catalog-scroll{
+  min-height:0!important;
+ }
+ #sf-classic-root #sidebar > #sf-selection-panel .selection-copy p{
+  -webkit-line-clamp:2!important;
+  line-clamp:2;
+ }
+}
+@media (min-width:901px) and (max-height:620px){
+ #sf-classic-root{--sf-dock-height:210px!important}
+}
+
+
+/* Research Center / tactical tech tree 2026-11-16
+ * Appears only when the player's completed Research Center is selected.
+ * Fully independent of regular build/production dock and its scroll state.
+ * No decorative glows or stock UI effects: matte military engineering.
+ */
+#sf-classic-root .sf-research-overlay[hidden]{display:none!important}
+#sf-classic-root .sf-research-overlay{
+ position:fixed!important;
+ z-index:1200!important;
+ inset:7px 8px calc(var(--sf-dock-height,175px) + 10px) 8px!important;
+ display:flex!important;
+ justify-content:center!important;
+ align-items:center!important;
+ padding:10px!important;
+ background:rgba(4,10,11,.77)!important;
+ backdrop-filter:blur(3px);
+ pointer-events:auto!important;
+}
+#sf-classic-root .sf-research-window{
+ box-sizing:border-box!important;
+ display:flex!important;
+ flex-direction:column!important;
+ width:min(1090px,100%)!important;
+ max-height:100%!important;
+ min-height:240px;
+ overflow:hidden!important;
+ border:1px solid #9a895d!important;
+ border-radius:3px!important;
+ background:#1a2524!important;
+ box-shadow:0 20px 65px #050b0ccc, inset 0 0 0 3px #2b3530;
+ color:#e6e0cb!important;
+ font-family:var(--display,system-ui),sans-serif!important;
+}
+#sf-classic-root .sf-research-header{
+ display:flex;flex:0 0 auto;justify-content:space-between;
+ align-items:center;gap:14px;
+ padding:16px 19px 14px;
+ background:linear-gradient(112deg,#293b39,#1d2d2e);
+ border-bottom:2px solid #9a8654;
+}
+#sf-classic-root .sf-research-header-title small,
+#sf-classic-root .sf-research-detail-eyebrow{
+ display:block;color:#b7c8bf;
+ font:800 10px/1.4 var(--mono,monospace)!important;
+ letter-spacing:1.5px;
+}
+#sf-classic-root .sf-research-header-title h2{
+ margin:3px 0 4px!important;padding:0!important;
+ color:#f1dfb2!important;
+ font:900 25px/1.1 var(--display,system-ui)!important;
+ letter-spacing:1.1px;
+}
+#sf-classic-root .sf-research-header-title p{
+ margin:0!important;color:#b4b9a6;
+ font:700 10px/1.4 var(--mono,monospace)!important;
+}
+#sf-classic-root .sf-research-header-actions{
+ display:flex;align-items:center;gap:13px;
+}
+#sf-classic-root .sf-research-completion{
+ display:flex;flex-direction:column;align-items:flex-end;
+ gap:2px;white-space:nowrap;
+}
+#sf-classic-root .sf-research-completion strong{
+ color:#e6d09d;font:900 17px/1 var(--mono,monospace);
+}
+#sf-classic-root .sf-research-completion small{
+ color:#a7bbad;font:800 9px var(--mono,monospace);
+}
+#sf-classic-root button.sf-research-close{
+ display:grid!important;place-items:center!important;
+ flex:0 0 34px!important;width:34px!important;
+ height:34px!important;min-height:34px!important;
+ border:1px solid #657874!important;border-radius:2px!important;
+ color:#d1dfd5!important;background:#233331!important;
+ font-size:19px!important;font-weight:700!important;
+}
+#sf-classic-root button.sf-research-close:hover{
+ background:#354b47!important;border-color:#b5ac87!important;
+}
+#sf-classic-root .sf-research-activity{
+ flex:0 0 auto;
+ display:flex;align-items:center;gap:13px;
+ min-height:40px;padding:6px 19px;
+ border-bottom:1px solid #53605a;
+ background:#192321;
+}
+#sf-classic-root .sf-research-activity-label{
+ flex:0 0 235px;overflow:hidden;text-overflow:ellipsis;
+ white-space:nowrap;color:#d9d6b6;
+ font:800 10px/1.2 var(--display,system-ui);
+}
+#sf-classic-root .sf-research-activity-track{
+ display:block;flex:1 1 auto;height:8px;
+ border:1px solid #55635c;background:#0c1819;
+}
+#sf-classic-root .sf-research-activity-track span{
+ display:block;height:100%;width:0;
+ background:#9cb68a;
+ transition:width .15s linear;
+}
+#sf-classic-root .sf-research-activity-time{
+ min-width:44px;color:#d9deb8;text-align:right;
+ font:800 11px var(--mono,monospace);
+}
+#sf-classic-root .sf-research-activity-credits{
+ color:#e6c780;white-space:nowrap;
+ border-left:1px solid #617069;padding-left:12px;
+ font:800 12px var(--mono,monospace);
+}
+#sf-classic-root .sf-research-workspace{
+ display:grid;grid-template-columns:minmax(0,1fr) 285px;
+ flex:1 1 auto;min-height:0;overflow:hidden;
+}
+#sf-classic-root .sf-research-techgroups{
+ display:grid;
+ grid-template-columns:repeat(3,minmax(0,1fr));
+ align-items:start;gap:12px;
+ padding:17px 15px 20px 18px;
+ min-width:0;min-height:0;
+ overflow:auto;
+ scrollbar-color:#627468 #1a2926;
+}
+#sf-classic-root .sf-research-category{
+ display:flex;flex-direction:column;gap:7px;min-width:0;
+}
+#sf-classic-root .sf-research-category-heading{
+ display:flex;flex-direction:column;gap:3px;
+ padding:0 0 9px;border-bottom:1px solid #7d7961;
+}
+#sf-classic-root .sf-research-category-heading strong{
+ color:#e0d19c;font:900 12px/1.25 var(--display,system-ui)!important;
+}
+#sf-classic-root .sf-research-category-heading small{
+ color:#9caea4;font:700 10px/1.25 var(--mono,monospace)!important;
+}
+#sf-classic-root .sf-research-category-cards{
+ display:flex;flex-direction:column;gap:7px;
+}
+#sf-classic-root button.sf-research-upgrade{
+ display:flex!important;position:relative;
+ align-items:center!important;gap:10px!important;
+ box-sizing:border-box!important;
+ width:100%!important;min-width:0!important;
+ min-height:81px!important;height:auto!important;
+ padding:9px 9px 12px!important;
+ text-align:left!important;
+ border:1px solid #5a7165!important;border-left:3px solid #789482!important;
+ border-radius:2px!important;background:#253330!important;
+ color:#e7e6d5!important;
+ cursor:pointer!important;
+}
+#sf-classic-root button.sf-research-upgrade:hover,
+#sf-classic-root button.sf-research-upgrade.is-selected{
+ border-color:#d6b676!important;
+ border-left-color:#e7ce91!important;
+ background:#38413a!important;
+}
+#sf-classic-root button.sf-research-upgrade[data-state="done"]{
+ border-left-color:#79bca4!important;background:#263c36!important;
+}
+#sf-classic-root button.sf-research-upgrade[data-state="active"]{
+ border-left-color:#e6bc70!important;background:#403b2b!important;
+}
+#sf-classic-root button.sf-research-upgrade[data-state="exclusive"],
+#sf-classic-root button.sf-research-upgrade[data-state="prerequisite"]{
+ opacity:.77;
+}
+#sf-classic-root button.sf-research-upgrade .sf-research-upgrade-icon{
+ display:grid;place-items:center;flex:0 0 46px;
+ width:46px;height:47px;
+ border:1px solid #627c73;background:#142321;
+ color:#c3d4c7;
+}
+#sf-classic-root .sf-research-upgrade-icon svg{
+ width:31px!important;height:31px!important;stroke-width:1.5;
+}
+#sf-classic-root .sf-research-upgrade-copy{
+ display:flex;flex-direction:column;align-items:flex-start;
+ gap:4px;min-width:0;flex:1;
+}
+#sf-classic-root .sf-research-upgrade-copy strong{
+ color:#eadeb9;font:900 11px/1.2 var(--display,system-ui)!important;
+ white-space:normal;overflow-wrap:anywhere;
+}
+#sf-classic-root .sf-research-upgrade-copy small{
+ color:#c5c7a8;font:700 10px/1.25 var(--mono,monospace)!important;
+}
+#sf-classic-root .sf-research-upgrade-state{
+ color:#a8bfae;font:900 9px/1.2 var(--mono,monospace)!important;
+ letter-spacing:.3px;overflow-wrap:anywhere;
+}
+#sf-classic-root button.sf-research-upgrade[data-state="active"] .sf-research-upgrade-state{
+ color:#efcb82;
+}
+#sf-classic-root button.sf-research-upgrade[data-state="done"] .sf-research-upgrade-state{
+ color:#a8e3c9;
+}
+#sf-classic-root .sf-research-upgrade-progress{
+ position:absolute;left:0;right:0;bottom:0;height:3px;
+ background:#16231f;
+}
+#sf-classic-root .sf-research-upgrade-progress i{
+ display:block;width:0;height:100%;background:#c9b27b;
+ transition:width .15s linear;
+}
+#sf-classic-root .sf-research-detail{
+ display:flex;flex-direction:column;gap:13px;
+ min-height:0;overflow:auto;
+ padding:18px 18px 20px;
+ border-left:1px solid #718070;
+ background:linear-gradient(#283734,#1c2b29);
+}
+#sf-classic-root .sf-research-detail-icon{
+ display:grid;place-items:center;
+ flex:0 0 96px;min-height:96px;
+ color:#d2d9c0;border:1px solid #788579;
+ background:linear-gradient(125deg,#354b45,#20322e);
+}
+#sf-classic-root .sf-research-detail-icon svg{
+ width:68px!important;height:68px!important;stroke-width:1.3;
+}
+#sf-classic-root .sf-research-detail h3{
+ margin:0!important;color:#f4dfb2!important;
+ font:900 19px/1.15 var(--display,system-ui)!important;
+}
+#sf-classic-root .sf-research-detail-description{
+ margin:0!important;color:#cbd7c9!important;
+ font:500 12px/1.5 var(--display,system-ui)!important;
+}
+#sf-classic-root .sf-research-detail-stats{
+ display:flex;flex-direction:column;gap:0;margin:0!important;
+ border-block:1px solid #627368;
+}
+#sf-classic-root .sf-research-detail-stats div{
+ display:flex;justify-content:space-between;gap:12px;
+ padding:9px 0;border-bottom:1px solid #4c5d53;
+}
+#sf-classic-root .sf-research-detail-stats div:last-child{border:0}
+#sf-classic-root .sf-research-detail-stats dt{
+ color:#9eac9e;font:800 9px/1.3 var(--mono,monospace);
+}
+#sf-classic-root .sf-research-detail-stats dd{
+ margin:0!important;text-align:right;color:#e6dab5;
+ font:800 11px/1.3 var(--mono,monospace);
+}
+#sf-classic-root .sf-research-detail-state{
+ margin-top:auto;color:#b9cabc;
+ font:700 11px/1.3 var(--display,system-ui);
+}
+#sf-classic-root .sf-research-detail-state[data-state="prerequisite"],
+#sf-classic-root .sf-research-detail-state[data-state="exclusive"]{
+ color:#e1b7a3;
+}
+#sf-classic-root button.sf-research-start{
+ display:block!important;
+ width:100%!important;min-height:40px!important;
+ background:#b5a36d!important;border:1px solid #dbc58c!important;
+ color:#1d2723!important;
+ font:900 12px var(--display,system-ui)!important;
+ letter-spacing:.6px;
+ cursor:pointer;
+}
+#sf-classic-root button.sf-research-start:disabled{
+ background:#38443b!important;border-color:#687567!important;
+ color:#a8b1a4!important;cursor:not-allowed!important;
+}
+#sf-classic-root .sf-research-detail-hint{
+ color:#95a89b;font:500 10px/1.4 var(--display,system-ui);
+}
+@media(max-width:1080px){
+ #sf-classic-root .sf-research-workspace{grid-template-columns:minmax(0,1fr) 255px}
+ #sf-classic-root .sf-research-techgroups{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+}
+@media(max-width:720px){
+ #sf-classic-root .sf-research-overlay{
+  inset:5px 5px calc(var(--sf-dock-height,170px) + 6px) 5px!important;
+  padding:3px!important;
+ }
+ #sf-classic-root .sf-research-header{padding:10px 12px;gap:5px}
+ #sf-classic-root .sf-research-header-title h2{font-size:17px!important}
+ #sf-classic-root .sf-research-header-title p{display:none}
+ #sf-classic-root .sf-research-activity{padding:5px 9px;gap:6px;flex-wrap:wrap}
+ #sf-classic-root .sf-research-activity-label{flex:1 0 140px}
+ #sf-classic-root .sf-research-activity-credits{padding-left:6px}
+ #sf-classic-root .sf-research-workspace{grid-template-columns:minmax(0,1fr)}
+ #sf-classic-root .sf-research-techgroups{grid-template-columns:repeat(2,minmax(0,1fr));padding:10px;gap:8px}
+ #sf-classic-root .sf-research-detail{
+  max-height:175px;border-left:0;border-top:1px solid #718070;
+  padding:10px 12px;
+  display:grid;grid-template-columns:65px 1fr;gap:4px 10px;
+ }
+ #sf-classic-root .sf-research-detail-eyebrow,
+ #sf-classic-root .sf-research-detail-hint{display:none}
+ #sf-classic-root .sf-research-detail-icon{grid-row:span 2;min-height:56px;height:56px}
+ #sf-classic-root .sf-research-detail-icon svg{width:38px!important;height:38px!important}
+ #sf-classic-root .sf-research-detail h3{font-size:14px!important}
+ #sf-classic-root .sf-research-detail-description{font-size:10px!important}
+ #sf-classic-root .sf-research-detail-stats{display:none}
+ #sf-classic-root .sf-research-detail-state{grid-column:1/-1}
+ #sf-classic-root button.sf-research-start{grid-column:1/-1;min-height:30px!important}
+}
+@media(prefers-reduced-motion:reduce){
+ #sf-classic-root .sf-research-overlay *{transition:none!important}
+}
+
+
+/* Centered Sandforge confirmation: real HTML <dialog>, no OS/browser popup.
+ * The top layer blocks HUD/map interaction and provides native focus trapping. */
+#sf-classic-root dialog.sf-confirm-dialog:not([open]){display:none!important}
+#sf-classic-root dialog.sf-confirm-dialog{
+ position:fixed!important;
+ inset:0!important;
+ box-sizing:border-box!important;
+ margin:auto!important;
+ width:min(480px,calc(100vw - 28px))!important;
+ max-width:calc(100vw - 28px)!important;
+ max-height:calc(100dvh - 32px)!important;
+ overflow:auto!important;
+ border:1px solid #b5a078!important;
+ border-radius:4px!important;
+ padding:0!important;
+ background:#202b29!important;
+ color:#e8e3d2!important;
+ box-shadow:0 22px 65px #000b,inset 0 0 0 3px #35423b!important;
+ pointer-events:auto!important;
+ font-family:var(--display,system-ui)!important;
+ z-index:2400!important;
+}
+#sf-classic-root dialog.sf-confirm-dialog::backdrop{
+ background:rgba(4,10,12,.77);
+ backdrop-filter:blur(3px);
+}
+#sf-classic-root .sf-confirm-heading{
+ padding:20px 24px 14px;
+ border-bottom:1px solid #766f54;
+ background:linear-gradient(120deg,#30423c,#202e2d);
+}
+#sf-classic-root .sf-confirm-heading small{
+ display:block;
+ color:#b3c6b9;
+ font:800 10px/1.4 var(--mono,monospace);
+ letter-spacing:1.3px;
+}
+#sf-classic-root .sf-confirm-heading h2{
+ margin:5px 0 0!important;
+ color:#f0dca9!important;
+ font:900 23px/1.15 var(--display,system-ui)!important;
+ letter-spacing:.8px;
+}
+#sf-classic-root dialog.sf-confirm-dialog p{
+ margin:0!important;
+ padding:21px 24px!important;
+ font:500 14px/1.55 var(--display,system-ui)!important;
+ color:#e9e5d7!important;
+}
+#sf-classic-root .sf-confirm-actions{
+ display:flex;justify-content:flex-end;gap:10px;
+ padding:13px 23px 20px;
+}
+#sf-classic-root .sf-confirm-actions button{
+ min-height:42px!important;
+ width:auto!important;
+ min-width:125px!important;
+ padding:9px 16px!important;
+ border:1px solid #718078!important;
+ border-radius:2px!important;
+ background:#33413d!important;
+ color:#f3edda!important;
+ font:800 12px/1.2 var(--display,system-ui)!important;
+ cursor:pointer!important;
+}
+#sf-classic-root .sf-confirm-actions button[data-sf-confirm="approve"]{
+ border-color:#c3ac75!important;
+ background:#77633c!important;
+ color:#fff2d0!important;
+}
+#sf-classic-root .sf-confirm-danger .sf-confirm-actions button[data-sf-confirm="approve"]{
+ border-color:#be7d70!important;
+ background:#79473b!important;
+ color:#fff2e8!important;
+}
+#sf-classic-root .sf-confirm-actions button:hover{filter:brightness(1.15)!important}
+#sf-classic-root .sf-confirm-actions button:focus-visible{
+ outline:2px solid #e4c987!important;outline-offset:3px;
+}
+@media(max-width:460px){
+ #sf-classic-root .sf-confirm-heading{padding:16px 15px 12px}
+ #sf-classic-root dialog.sf-confirm-dialog p{padding:17px 15px!important}
+ #sf-classic-root .sf-confirm-actions{padding:12px 14px 16px}
+ #sf-classic-root .sf-confirm-actions button{flex:1;min-width:0!important}
+}
+
+/* Fine tactical HUD pictograms, left of tab/command labels. Respect existing
+ * tabs, shortcuts, responsive dock and disabled/hidden states. */
+#sf-classic-root #sf-tabs button[data-tab],
+#sf-classic-root #sf-command-buttons button[data-action]{
+ display:inline-flex!important;
+ align-items:center!important;
+ justify-content:center!important;
+ gap:5px!important;
+}
+#sf-classic-root .sf-hud-label-icon{
+ display:inline-block!important;
+ flex:0 0 14px!important;
+ width:14px!important;
+ height:14px!important;
+ min-width:14px!important;
+ color:#dbbf89;
+ opacity:.94;
+ overflow:visible;
+ pointer-events:none;
+ vertical-align:middle;
+}
+#sf-classic-root #sf-tabs button[aria-pressed="true"] .sf-hud-label-icon{
+ color:#f2d697;
+}
+#sf-classic-root #sf-tabs button:disabled .sf-hud-label-icon,
+#sf-classic-root #sf-command-buttons button:disabled .sf-hud-label-icon{
+ opacity:.46;
+}
+#sf-classic-root #sf-tabs button[hidden],
+#sf-classic-root #sf-command-buttons button[hidden]{
+ display:none!important;
+}
+@media(max-width:900px){
+ #sf-classic-root .sf-hud-label-icon{
+  width:12px!important;height:12px!important;
+  min-width:12px!important;flex-basis:12px!important;
+ }
+ #sf-classic-root #sf-tabs button[data-tab],
+ #sf-classic-root #sf-command-buttons button[data-action]{
+  gap:3px!important;
+ }
+}
+
+/* Single selection: exactly three tactical commands. Ship/unload stays in
+ * the cargo roster; factory/repair/research controls are contextual panels. */
+#sf-classic-root #sidebar > #sf-selection-panel .commands{
+ grid-template-columns:repeat(3,minmax(0,1fr))!important;
+ gap:5px!important;
+}
+#sf-classic-root #sidebar > #sf-selection-panel .commands button{
+ min-width:0!important;
+ white-space:nowrap!important;
+ font-size:10px!important;
+ letter-spacing:.01em!important;
+}
+#sf-classic-root #sf-command-buttons [data-action="return-base"]{
+ border-color:#7e8e78!important;
+}
+#sf-classic-root .sf-passenger-heading{
+ flex-wrap:wrap;
+ align-items:center;
+}
+#sf-classic-root .sf-passenger-unload-all{
+ border:1px solid #a38a56;
+ background:#3d4d42;
+ color:#ead4a9;
+ padding:3px 6px;
+ font:700 9px/1.1 var(--display);
+ border-radius:3px;
+ cursor:pointer;
+ white-space:nowrap;
+}
+#sf-classic-root .sf-passenger-unload-all:hover{
+ background:#526852;
+}
+@media(max-width:800px){
+ #sf-classic-root #sidebar > #sf-selection-panel .commands{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:3px!important;
+ }
+ #sf-classic-root #sidebar > #sf-selection-panel .commands button{
+  font-size:8px!important;
+  padding:2px!important;
+ }
+ #sf-classic-root #sf-command-buttons .sf-hud-label-icon{
+  width:10px!important;height:10px!important;
+  min-width:10px!important;flex-basis:10px!important;
+ }
+}
+
+/* Optional read-only battle debrief: collapsed until the player opens it.
+   Deliberately separate from the central victory artwork. */
+#sf3d-battle-debrief.sf3d-battle-debrief{
+ position:fixed;right:14px;bottom:16px;z-index:40;
+ width:min(340px,calc(100vw - 28px));max-height:min(74vh,520px);
+ display:flex;flex-direction:column;gap:0;
+ color:#f1dfb7;background:#16221fee;border:1px solid #b99d66;
+ box-shadow:0 9px 32px #000b;font:12px/1.4 system-ui,sans-serif;
+ pointer-events:auto;
+}
+#sf3d-battle-debrief[hidden],#sf3d-battle-debrief .sf3d-debrief-details[hidden]{display:none!important}
+#sf3d-battle-debrief .sf3d-debrief-toggle{
+ width:100%;min-height:42px;padding:10px 14px;text-align:left;
+ border:0;background:#333628;color:#ffe2a5;cursor:pointer;
+ font:800 12px/1.3 system-ui,sans-serif;letter-spacing:.02em;
+}
+#sf3d-battle-debrief .sf3d-debrief-toggle::after{content:' ▸';float:right}
+#sf3d-battle-debrief .sf3d-debrief-toggle[aria-expanded=true]::after{content:' ▾'}
+#sf3d-battle-debrief .sf3d-debrief-toggle:focus-visible{outline:2px solid #f3ce77;outline-offset:-3px}
+#sf3d-battle-debrief .sf3d-debrief-details{padding:10px 14px 12px;overflow-y:auto}
+#sf3d-battle-debrief .sf3d-debrief-title{display:block;margin-bottom:8px;color:#f2cb79;font-size:14px}
+#sf3d-battle-debrief .sf3d-debrief-facts{display:grid;grid-template-columns:minmax(90px,1fr) auto;gap:5px 12px;margin:0 0 10px}
+#sf3d-battle-debrief .sf3d-debrief-facts dt{color:#b9b9aa}
+#sf3d-battle-debrief .sf3d-debrief-facts dd{margin:0;text-align:right;font-weight:700}
+#sf3d-battle-debrief .sf3d-debrief-events{margin:6px 0 8px;padding-left:18px;max-height:100px;overflow:auto}
+#sf3d-battle-debrief .sf3d-debrief-events li{margin-bottom:2px}
+#sf3d-battle-debrief .sf3d-debrief-note{margin:5px 0 0;color:#abbaa9;font-size:10px}
+@media(max-width:640px){#sf3d-battle-debrief.sf3d-battle-debrief{bottom:8px;right:8px}}
+
+/* Bastion economy tier: compact upgrade action inside each sector row.
+ * Never cover the map, production queue or existing troop controls. */
+#sf-classic-root #sf-actions .sf-sector-controls{
+ display:flex;align-items:center;gap:5px;min-width:0;
+}
+#sf-classic-root #sf-actions .sf-sector-controls .territory-row{
+ flex:1;min-width:0;
+}
+#sf-classic-root #sf-actions .sf-bastion-upgrade{
+ flex:0 0 auto;background:#3f4d3c;color:#e8d7b3;border:1px solid #8e9c70;
+ padding:8px 9px;border-radius:4px;font:700 10px/1.1 inherit;
+ letter-spacing:.025em;cursor:pointer;
+}
+#sf-classic-root #sf-actions .sf-bastion-upgrade:hover:not(:disabled){
+ background:#5b7050;border-color:#b6c28a;
+}
+#sf-classic-root #sf-actions .sf-bastion-upgrade:disabled{
+ opacity:.51;cursor:default;
+}
+#sf-classic-root .sf-passenger-manifest .sf-passenger-unload-all{
+ cursor:pointer;
+}
+
+/* Direct 3D Bastion selection: readable income tier and a single obvious
+ * upgrade command in the regular bottom dock. No new floating overlays. */
+#sf-classic-root #sidebar > #sf-selection-panel .sf-bastion-level{
+ color:#e9d4a3;font:700 11px/1.3 var(--mono);
+ letter-spacing:.025em;padding-top:1px;
+}
+#sf-classic-root #sidebar > #sf-selection-panel
+ #sf-bastion-upgrade:not([hidden]){
+ background:#416446;color:#f9f1d4;border:1px solid #a7c188;
+ font-weight:800!important;letter-spacing:.015em;
+}
+#sf-classic-root #sidebar > #sf-selection-panel
+ #sf-bastion-upgrade:not([hidden]):hover:not(:disabled){
+ background:#58815a;border-color:#c1dc98;
+}
+#sf-classic-root #sidebar > #sf-selection-panel
+ #sf-bastion-upgrade:not([hidden]):disabled{
+ background:#353a35;color:#b0ab9e;border-color:#696b58;
+ opacity:.82;cursor:not-allowed;
 }

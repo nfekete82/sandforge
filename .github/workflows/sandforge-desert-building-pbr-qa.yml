@@ -1,0 +1,48 @@
+name: Sandforge authored PBR building texture QA
+on:
+  push:
+    branches: [feat/desert-building-pbr-materials-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-building-pbr-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  building-materials:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - name: Validate five real graphics, PBR role separation and existing facade behavior
+        run: |
+          node --test \
+            tests/webgl-desert-building-pbr-20261115.test.mjs \
+            tests/webgl-barracks-sides-20261115.test.mjs \
+            tests/webgl-faction-accents-20261108.test.mjs \
+            tests/webgl-building-shading-20261115.test.mjs
+      - run: npm ci --prefix tests/browser --no-audit --no-fund
+      - run: |
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Real Kasernen/HQ/Fabrik GLBs, moving doors and HUD portrait WebGL
+        env:
+          ATLAS_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-desert-building-pbr-20261115.spec.mjs --config=playwright.config.mjs
+      - name: Preserve browser diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-buildings-pbr-qa
+          path: tests/browser/artifacts/
+          retention-days: 7

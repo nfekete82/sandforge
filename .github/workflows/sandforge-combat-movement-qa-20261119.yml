@@ -1,0 +1,101 @@
+name: Sandforge combat movement, formation and pathing QA
+on:
+  push:
+    branches: ['feat/sandforge-ai36-combat-movement-lab-20261119']
+  pull_request:
+    branches: ['feat/sandforge-ai36-coordinated-recapture-lab-20261118']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  movement:
+    name: 3D vehicle yield, rocket standoff, assault cohesion and safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile and audit the complete WebGL graph
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Movement, combat and Bastion anti-regression tests
+        run: |
+          node --test \
+            tests/sandforge-ai36-combat-movement-20261119.test.mjs \
+            tests/webgl-vehicle-yield-spacing-stuck-20261108.test.mjs \
+            tests/sandforge-armored-vanguard-base-spacing.test.mjs \
+            tests/webgl-pathfinding-budget-20261111.test.mjs \
+            tests/sandforge-ai36-recapture-20261118.test.mjs \
+            tests/sandforge-ai35-bastion-defense-20261118.test.mjs \
+            tests/sandforge-ai34-bastion-control-20261118.test.mjs \
+            tests/sandforge-ai33-bastion-near-capture-20261118.test.mjs \
+            tests/reborn-bastion-defense.test.mjs \
+            tests/reborn-ai-ignore-drone-20261118.test.mjs \
+            tests/reborn-tank-dual-weapon.test.mjs \
+            tests/sandforge-rocket-launcher-polish.test.mjs
+  benchmark:
+    name: 'Realistic Bastion-rush smoke: AI 3.6 movement before vs after'
+    needs: movement
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build headless movement variants without local PBR files
+        run: |
+          git worktree add --detach /tmp/sandforge-ai36-before 67e0bca8fa7ad9df90771bfd89e30702d839f76e
+          ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/sandforge-ai36-before/node_modules
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          (cd /tmp/sandforge-ai36-before && npx tsc -p tsconfig.json && SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs)
+      - name: Identical seeds and paid Bastion-rush opponent
+        run: |
+          mkdir -p reports
+          for POLICY in before after; do
+            if [ "$POLICY" = before ]; then DIR=/tmp/sandforge-ai36-before; else DIR="$PWD"; fi
+            (cd "$DIR" && node scripts/benchmark-reborn-ai.mjs \
+              --maps 24,26 --seconds 360 --seeds 2026,2027,2028 \
+              --modes director --opponent bastion-rush \
+              --ai33 adaptive --ai35 control --ai36 coordinated \
+              --label "$POLICY" --output "$GITHUB_WORKSPACE/reports/$POLICY.json") \
+              > "reports/$POLICY.log"
+          done
+      - name: Report per-map sector control, not pretend that one match proves victory
+        run: |
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const a=JSON.parse(fs.readFileSync('reports/before.json','utf8'));
+          const b=JSON.parse(fs.readFileSync('reports/after.json','utf8'));
+          if(!a.complete||!b.complete||a.details.length!==6||b.details.length!==6)
+            throw Error('Incomplete comparative movement runs');
+          for(const map of [24,26]){
+            const pairs=a.details.filter(d=>d.mapVersion===map).map(x=>{
+              const y=b.details.find(d=>d.mapVersion===map&&d.seed===x.seed);
+              if(!y||x.initialStateHash!==y.initialStateHash)
+                throw Error('Different seed or start state in movement A/B');
+              const held=d=>d.bastionControlSeconds/(d.elapsedSeconds*(map===24?8:16));
+              return {seed:x.seed,old:{win:x.win,held:x.redSectors,control:held(x)},
+                new:{win:y.win,held:y.redSectors,control:held(y)},delta:held(y)-held(x)};
+            });
+            const delta=pairs.reduce((sum,p)=>sum+p.delta,0)/pairs.length;
+            console.log('FORMATION A/B',JSON.stringify({map,meanControlDelta:delta,pairs}));
+          }
+          NODE
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-formation-movement-ab
+          path: reports/
+          retention-days: 45

@@ -1,0 +1,42 @@
+name: Sandforge cinematic artillery and bomb VFX QA
+on:
+  push:
+    branches: [feat/webgl-ordnance-cinematic-fx-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-cinematic-ordnance-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  cinematic-ordnance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - run: node --test tests/webgl-ordnance-cinematic-20261115.test.mjs tests/webgl-generals-combat-impacts-20261108.test.mjs tests/sandforge-webgl-combat-vfx.test.mjs
+      - run: npm ci --prefix tests/browser --no-audit --no-fund
+      - run: |
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Real GL renderer with tank, artillery and bomber missile flight
+        env:
+          ATLAS_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-cinematic-ordnance-20261115.spec.mjs --config=playwright.config.mjs
+      - name: Retain diagnostic rendering traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-cinematic-ordnance-qa
+          path: tests/browser/artifacts/
+          retention-days: 7

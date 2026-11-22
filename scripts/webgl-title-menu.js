@@ -7,6 +7,15 @@
  const savedKey='sandforge:webgl:v1';
  const optionKey='sandforge:webgl:options';
  const savedBiomeKey='sandforge:webgl:save-biome';
+ const desertMaps=globalThis.SandforgeDesertMaps;
+ const chosenMap=()=>desertMaps?.byId($('sf3d-desert-map')?.value);
+ const describeMap=()=>{
+  const map=chosenMap();
+  $('sf3d-desert-map-description').textContent=map
+   ?map.description+' · Inspiration: '+map.inspiration+'.'
+   :'Bitte eine Wüstenkarte auswählen.';
+  $('sf3d-new-status').textContent='';
+ };
  const validBiome=value=>['desert','snow','jungle'].includes(value)?value:'desert';
  // The 3D game may run at / (release candidate) or /webgl-preview.html
  // (existing QA/deep links). Stay on the active entry during navigation.
@@ -52,24 +61,42 @@
   a.setEngineSoundsEnabled($('sf3d-engine-sounds').checked);
  }
  const running=()=>Boolean(window.__sandforgeWebGL?.simulationRunning);
- const changePause=(shouldRun)=>{
-  if(running()!==shouldRun)$('simulation')?.click();
+ const changePause=(shouldRun,source='Taktische Pause')=>{
+  // The actual simulation state is authoritative. Clicking a focused button
+  // programmatically is not safe: the browser may fire its own Space click.
+  const runtime=window.__sandforgeWebGL;
+  if(typeof runtime?.setSimulationRunning==='function')
+   runtime.setSimulationRunning(shouldRun,source);
+  else if(running()!==shouldRun)$('simulation')?.click(); // pre-update compatibility
  };
- // Typed only in the actual tactical-pause modal. No visible debug controls.
- // The sequence may be entered again to grant another 1,000 credits.
+ // Typed only in the tactical-pause modal. The gameplay listener in
+ // webgl-preview.js uses the exact same Simulation.enableTestMode() entrypoint.
+ // Handle the modal separately because it captures keyboard focus.
  const pauseCheat='iddqd';
  let pauseCheatProgress=0;
- let returnToGame=false;
+ let suppressSpaceRelease=false;
  const saved=readSave();
- const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert'}={})=>{
+ const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert',landscape='network',mapId=null}={})=>{
   const params=new URLSearchParams({bastions:String(count),seed:String(seed>>>0),play:'1'});
+  // Keep local A/B policy selection while navigating from the main menu.
+  if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
+   params.set('ai33',query.get('ai33'));
+  if(query.get('ai35')==='off'||query.get('ai35')==='control')
+   params.set('ai35',query.get('ai35'));
+  if(query.get('ai36')==='off'||query.get('ai36')==='coordinated')
+   params.set('ai36',query.get('ai36'));
   if(resume)params.set('resume','1');
   if(legacy)params.set('legacy','1');
   const options=readOptions();
   if(options.quality==='lite')params.set('lite','1');
   if(options.fog===false)params.set('fog','0');
-  if(!resume&&!legacy)params.set('terrain',terrain);
+  if(!resume&&!legacy){params.set('terrain',terrain);params.set('landscape',landscape==='classic'?'classic':'network');}
   if(!legacy)params.set('biome',validBiome(biome));
+  // The name is just metadata; only show it when the real world matches.
+  const named=desertMaps?.byId(mapId);
+  if(named&&named.seed===(seed>>>0)&&named.bastions===count&&
+   named.terrain===terrain&&biome===named.biome)params.set('map',named.id);
+  else if(resume&&mapId)params.set('map',mapId);
   location.assign(gameRoute()+'?'+params);
  };
  function continueSave(){
@@ -83,7 +110,11 @@
   try{visual=JSON.parse(localStorage.getItem(savedBiomeKey)||'null');}catch{}
   const biome=visual?.seed===data.seed&&visual?.mapVersion===data.mapVersion
    ?validBiome(visual.biome):'desert';
-  play(bastions,data.seed,{resume:true,legacy:data.mapVersion<=18,biome});
+  const map=desertMaps?.byId(visual?.mapId);
+  const mapId=map&&visual?.seed===data.seed&&
+   map.mapVersion===data.mapVersion&&map.generatorVersion===data.generatorVersion&&
+   map.terrain===data.terrainProfile&&map.biome===biome?map.id:null;
+  play(bastions,data.seed,{resume:true,legacy:data.mapVersion<=18,biome,mapId});
  }
  function randomSeed(){
   if(window.crypto?.getRandomValues){
@@ -133,29 +164,32 @@
  function openPause(){
   if(!window.__sandforgeWebGL?.loaded)return;
   if(pauseDialog.open)return;
-  returnToGame=running();
   pauseCheatProgress=0;
   $('sf3d-pause-status').textContent='';
-  if(returnToGame)changePause(false);
+  // Even when a toolbar/old shortcut already paused the simulation,
+  // opening this dialog must never preserve a stale paused state on resume.
+  changePause(false,'Taktische Pause');
   pauseDialog.showModal();
  }
  function resumeGame(){
+  if(!pauseDialog.open)return;
   pauseCheatProgress=0;
   pauseDialog.close();
-  if(returnToGame)changePause(true);
+  // "Spiel fortsetzen" is an explicit command, not a conditional toggle.
+  // Always leave the game RUNNING regardless of its pre-dialog state.
+  changePause(true,'Taktische Pause');
  }
  function goMain(){
   location.assign(gameRoute());
  }
+ $('sf3d-desert-map').addEventListener('change',describeMap);
  $('sf3d-new').addEventListener('click',()=>{
-  const source=$('bastions');
-  $('sf3d-map-size').value=source?.value??'8';
-  $('sf3d-seed').value='';
-  $('sf3d-terrain').value='random';
-  $('sf3d-biome').value='desert';
-  newDialog.showModal();
+  $('sf3d-desert-map').value='desert-strike';
+  describeMap();newDialog.showModal();
  });
- $('sf3d-campaign').addEventListener('click',()=>newDialog.showModal());
+ $('sf3d-campaign').addEventListener('click',()=>{
+  describeMap();newDialog.showModal();
+ });
  $('sf3d-continue').addEventListener('click',continueSave);
  $('sf3d-main-load').addEventListener('click',continueSave);
  $('sf3d-main-options').addEventListener('click',openOptions);
@@ -190,13 +224,12 @@
   }
  });
  $('sf3d-new-confirm').addEventListener('click',()=>{
-  const count=Number($('sf3d-map-size').value);
-  const text=$('sf3d-seed').value.trim();
-  const n=text.length?Number(text):randomSeed();
-  if(!Number.isSafeInteger(n)||n<0||n>4294967295){
-   $('sf3d-new-status').textContent='Seed muss zwischen 0 und 4294967295 liegen.';return;
+  const map=chosenMap();
+  if(!map){
+   $('sf3d-new-status').textContent='Bitte eine der vier Wüstenkarten auswählen.';return;
   }
-  play(count,n,{terrain:$('sf3d-terrain').value,biome:$('sf3d-biome').value});
+  play(map.bastions,map.seed,{terrain:map.terrain,biome:'desert',
+   landscape:'network',mapId:map.id});
  });
  $('sf3d-pause-resume').addEventListener('click',resumeGame);
  $('sf3d-pause-save').addEventListener('click',()=>{
@@ -205,7 +238,8 @@
   if(saved)try{
    localStorage.setItem(savedBiomeKey,JSON.stringify({
     seed:game.game.seed,mapVersion:game.world.mapVersion,
-    biome:validBiome(window.__sandforgeWebGL?.biome)
+    biome:validBiome(window.__sandforgeWebGL?.biome),
+    mapId:window.__sandforgeWebGL?.desertMapId??null
    }));
   }catch(error){console.warn('Biom-Einstellung konnte nicht gespeichert werden:',error);}
   $('sf3d-pause-status').textContent=saved
@@ -215,7 +249,7 @@
  $('sf3d-pause-load').addEventListener('click',continueSave);
  $('sf3d-pause-options').addEventListener('click',openOptions);
  $('sf3d-pause-new').addEventListener('click',()=>{
-  pauseDialog.close();newDialog.showModal();
+  pauseDialog.close();describeMap();newDialog.showModal();
  });
  $('sf3d-pause-main').addEventListener('click',goMain);
  for(const el of document.querySelectorAll('[data-sf3d-close]')){
@@ -225,6 +259,8 @@
  pauseDialog.addEventListener('cancel',e=>{e.preventDefault();resumeGame();});
  pauseDialog.addEventListener('close',()=>{pauseCheatProgress=0;});
  document.addEventListener('keydown',e=>{
+  // HTML confirmation is the active modal: never trigger tactical pause/ESC.
+  if(document.getElementById('sf-confirm-dialog')?.open)return;
   if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||
    (e.target instanceof Element&&e.target.matches('input,select,textarea,[contenteditable]')))return;
   if(pauseDialog.open&&!menu.open&&!newDialog.open&&!optionsDialog.open){
@@ -237,10 +273,12 @@
     if(pauseCheatProgress===pauseCheat.length){
      pauseCheatProgress=0;
      const active=window.__sandforgeWebGL,g=active?.game;
-     if(active?.loaded&&g?.status==='playing'&&Number.isFinite(g.credits?.[0])){
-      g.credits[0]+=1000;
+     if(active?.loaded&&g?.status==='playing'&&typeof g.enableTestMode==='function'){
+      const activated=g.enableTestMode();
       active.battlefield?.drawInterface?.();
-      $('sf3d-pause-status').textContent='TESTCODE AKTIV · +1.000 CREDITS';
+      $('sf3d-pause-status').textContent=activated
+       ?'TESTMODUS AKTIV · ∞ Credits · Sofortbau, Produktion und Forschung'
+       :'TESTMODUS BEREITS AKTIV · ∞ Credits';
      }
     }
     return;
@@ -251,8 +289,9 @@
   if(e.code==='Space'){
    if(menu.open||newDialog.open||optionsDialog.open)return;
    if(!window.__sandforgeWebGL?.loaded)return;
-   // A modal dialog is the actual classic-style pause screen. The key must
-   // not also toggle the bare simulation button in webgl-preview.js.
+   // Own this keystroke end to end, including its native button keyup.
+   // One keypress means ONE modal transition and ONE simulation transition.
+   suppressSpaceRelease=true;
    e.preventDefault();e.stopImmediatePropagation();
    if(pauseDialog.open)resumeGame();
    else openPause();
@@ -263,8 +302,19 @@
   if(field&&(field.attackMode||field.buildKind))return;
   if(window.__sandforgeWebGL?.loaded){e.preventDefault();e.stopImmediatePropagation();openPause();}
  },true);
+ // Space activates the currently focused <button> on keyup in browsers.
+ // If the modal closes on keydown, that late native click could hit the
+ // toolbar and pause again. Consume ONLY the release of our handled key.
+ document.addEventListener('keyup',e=>{
+  if(e.code!=='Space'||!suppressSpaceRelease)return;
+  suppressSpaceRelease=false;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+ },true);
+ window.addEventListener('blur',()=>{suppressSpaceRelease=false;});
  window.Sandforge3DMenu={openPause,goMain,continueSave,play,readSave,readOptions,gameRoute};
  const options=readOptions();
+ describeMap();
  $('sf3d-continue').hidden=!Boolean(saved&&modes[saved.mapVersion]);
  $('sf3d-main-load').disabled=!Boolean(saved&&modes[saved.mapVersion]);
  if(query.has('play')||query.has('bastions')||query.has('seed')||query.has('resume')){

@@ -9,9 +9,10 @@ import {createHash} from 'node:crypto';
 import {readFileSync,mkdirSync,writeFileSync,renameSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {blueDefense} from './benchmark-ai-opponent.mjs';
+import {blueDefense,blueContest,blueBastionRush} from './benchmark-ai-opponent.mjs';
 import {createArtilleryObserver} from './ai-artillery-observer.mjs';
 import {createEndgameObserver} from './ai-51-endgame-observer.mjs';
+import {classifyMissionTransition} from './ai-test-mission-transition.mjs';
 
 const vehicles=new Set(['tank','rover','artillery','bomber','scout']);
 const groundVehicles=new Set(['tank','rover','artillery']);
@@ -27,17 +28,19 @@ export function parseOptions(argv){
  for(let i=0;i<argv.length;i+=2){
   if(!argv[i].startsWith('--')||argv[i+1]===undefined||argv[i+1].startsWith('--'))throw Error('Every option requires a value.');
   const key=argv[i].slice(2);
-  if(!['map','maps','seconds','seeds','opponent','modes','output','label'].includes(key))throw Error('Unknown option: '+argv[i]);
+  if(!['map','maps','seconds','seeds','opponent','modes','output','label','ai33','ai35','ai36'].includes(key))throw Error('Unknown option: '+argv[i]);
   values[key]=argv[i+1];
  }
  const result={maps:String(values.maps??values.map??4).split(',').map(Number),seconds:Number(values.seconds??240),
   seeds:String(values.seeds??'2026,2027,2028').split(',').map(Number),opponent:values.opponent??'guarded',
-  modes:String(values.modes??'baseline,director').split(','),output:values.output?resolve(values.output):null,label:values.label??'current'};
- if(result.maps.some(v=>![3,4,5].includes(v))||new Set(result.maps).size!==result.maps.length
-  ||!['guarded','idle'].includes(result.opponent)||!Number.isInteger(result.seconds)||result.seconds<30||result.seconds>3600
+  modes:String(values.modes??'baseline,director').split(','),output:values.output?resolve(values.output):null,label:values.label??'current',
+  ai33:values.ai33??'adaptive',ai35:values.ai35??'control',ai36:values.ai36??'coordinated'};
+ if(result.maps.some(v=>![3,4,5,23,24,25,26].includes(v))||new Set(result.maps).size!==result.maps.length
+  ||!['guarded','contesting','bastion-rush','idle'].includes(result.opponent)||!Number.isInteger(result.seconds)||result.seconds<30||result.seconds>3600
   ||result.seeds.length<1||result.seeds.length>24||result.seeds.some(v=>!Number.isSafeInteger(v)||v<0||v>4294967295)
   ||new Set(result.seeds).size!==result.seeds.length||result.modes.some(v=>!['baseline','director'].includes(v))
-  ||new Set(result.modes).size!==result.modes.length)throw Error('Invalid benchmark options.');
+  ||new Set(result.modes).size!==result.modes.length||!['off','adaptive'].includes(result.ai33)||!['off','control'].includes(result.ai35)||!['off','coordinated'].includes(result.ai36))
+    throw Error('Invalid benchmark options.');
  return result;
 }
 
@@ -59,6 +62,11 @@ export function productionIdleReason(g,b,UNITS){
 /** Kept separate from CLI so observer accounting can be checked without running/building matches. */
 export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,version){
  const g=new Simulation(seed,version);g.tactical.mode=mode;
+ // Controlled ablation within ONE compiled game: 'off' is exact AI 3.2
+ // tactical policy, 'adaptive' enables KI 3.3. No saved game or cost changes.
+ if('ai33Mode' in g.tactical)g.tactical.ai33Mode=options.ai33??'adaptive';
+ if('ai35Mode' in g.tactical)g.tactical.ai35Mode=options.ai35??'control';
+ if('ai36Mode' in g.tactical)g.tactical.ai36Mode=options.ai36??'coordinated';
  if(options.plannerMode&&'planningMode' in g.tactical)g.tactical.planningMode=options.plannerMode;
  if(options.waveMode&&'waveMode' in g.tactical)g.tactical.waveMode=options.waveMode;
  if(options.doctrineMode&&'doctrineMode' in g.tactical)g.tactical.doctrineMode=options.doctrineMode;
@@ -71,7 +79,8 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
  const initialHQ=g.bases.find(b=>b.owner===0&&b.kind==='headquarters');
  const initialHQId=initialHQ?.id,initialHQHp=initialHQ?.hp??0;
  const startingRedSectors=g.territories.filter(t=>t.owner===1).length;
- const metrics={seed,mode,mapVersion:version,label:options.label,opponent:options.opponent,initialStateHash,initialStateHashScope:'playable-world-v1',
+ const metrics={seed,mode,mapVersion:version,label:options.label,opponent:options.opponent,
+  ai33Policy:options.ai33??'adaptive',ai35Policy:options.ai35??'control',ai36Policy:options.ai36??'coordinated',initialStateHash,initialStateHashScope:'playable-world-v1',
   requestedSeconds:options.seconds,elapsedSeconds:0,terminalStatus:'playing',outcome:'timeout',win:false,loss:false,
   initialCredits:g.credits[1],initialComposition:{red:Object.fromEntries(Object.keys(UNITS).map(k=>[k,g.units.filter(u=>u.owner===1&&u.kind===k).length])),blue:Object.fromEntries(Object.keys(UNITS).map(k=>[k,g.units.filter(u=>u.owner===0&&u.kind===k).length]))},firstAssault:null,firstOrganizedAttack:null,firstVehicle:null,firstTank:null,
   firstArtillery:null,firstAircraft:null,firstEnemyHQSeen:null,firstEnemyHQDamage:null,firstEnemyHQDestroyed:null,
@@ -84,13 +93,14 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
   redOrdersByKind:{},redProducedByKind:{},blueProducedByKind:{},redLossesByKind:{},blueLossesByKind:{},
   paidRecruitCredits:0,refundedRecruitCredits:0,vehiclesProduced:0,aircraftProduced:0,
   redSectors:startingRedSectors,captures:0,netCaptures:0,territoriesLost:0,blueCaptures:0,blueTerritoriesLost:0,
+  bastionControlSeconds:0,bastionRecaptures:0,exposedFrontierSeconds:0,guardedFrontierSeconds:0,
   blueUnitsLost:0,redUnitsLost:0,blueUnitDamage:0,redUnitDamage:0,redUnits:0,redCredits:0,
   firstVehicleShot:null,vehicleShots:0,shotsByKind:{},damageByRedKind:{},
   vehicleDeaths:0,vehicleRepairHp:0,vehicleEvacuations:0,vehicleReturned:0,repairedVehiclesReused:0,
   attackingSeconds:0,productiveFactorySeconds:0,productiveBarracksSeconds:0,productiveAirfieldSeconds:0,
   parallelProductionSeconds:0,tripleProductionSeconds:0,maxParallelProducers:0,
   productionSeconds:{barracks:{available:0,busy:0,idle:0},factory:{available:0,busy:0,idle:0},airfield:{available:0,busy:0,idle:0}},
-  phaseTransitions:0,commanderTransitions:0,commanderSeconds:{},missionCount:0,abortedMissions:0,unfinishedMissions:0,stalledMissions:0,
+  phaseTransitions:0,commanderTransitions:0,commanderSeconds:{},missionCount:0,abortedMissions:0,retargetedMissions:0,unfinishedMissions:0,stalledMissions:0,
   commands:0,unitCommands:0,attackCommands:0,buildingAttackCommands:0,repeatedUnitCommands:0,rapidUnitOrderChanges:0,
   productionIdleReasons:{},productionIdleReasonSources:{},productionDecisionReasons:{},bluePaidOrdersByKind:{},bluePaidRecruitCredits:0,
   paidBuildCredits:0,bluePaidBuildCredits:0,paidBuildingsByKind:{},bluePaidBuildingsByKind:{},
@@ -192,13 +202,15 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
   const survivors=g.units.filter(u=>u.hp>0&&mission.units.includes(u.id)).length;
   const outcome=completed?'completed':survivors===0?'annihilated':reason;
   if(!completed&&reason==='aborted')metrics.abortedMissions++;
+  if(!completed&&reason==='retargeted')metrics.retargetedMissions++;
   if(!completed&&reason==='unfinished')metrics.unfinishedMissions++;
   metrics.missionEvents.push({...mission,units:undefined,ended:time(),survivors,outcome});mission=null;
  };
  const begin=performance.now(),dt=.05,steps=Math.round(options.seconds/dt);
  try{
   for(let step=0;step<steps&&g.status==='playing';step++){
-   if(options.opponent==='guarded'&&step%60===0)(options.defender??blueDefense)(g);
+   if(options.opponent!=='idle'&&step%60===0)
+    (options.defender??(options.opponent==='bastion-rush'?blueBastionRush:options.opponent==='contesting'?blueContest:blueDefense))(g);
    const at=performance.now();g.step(dt);stepTimes.push(performance.now()-at);options.observe?.(g);artilleryObserver.sample(g);endgameObserver.sample(g);
    const s=g.tactical.state,now=time();metrics.elapsedSeconds=now;
    for(const u of g.units){
@@ -222,11 +234,24 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
    }
    previousBases=currentBases;
    for(const t of g.territories){const previous=previousOwnership.get(t.id);
+    if(previous===0&&t.owner===1)metrics.bastionRecaptures++;
     if(previous!==1&&t.owner===1)metrics.captures++;
     if(previous===1&&t.owner!==1)metrics.territoriesLost++;
     if(previous!==0&&t.owner===0)metrics.blueCaptures++;if(previous===0&&t.owner!==0)metrics.blueTerritoriesLost++;
    }
    previousOwnership=new Map(g.territories.map(t=>[t.id,t.owner]));
+   // Area under the public sector-control curve, in Bastion-seconds.
+   // End-of-game holdings alone hide sectors lost midway through a battle.
+   // Sample nearby actual paid defenders at 1 Hz, never issue commands.
+   metrics.bastionControlSeconds+=g.territories.filter(t=>t.owner===1).length*dt;
+   if(step%20===0)for(const sector of g.territories){
+    if(sector.owner!==1||!sector.neighbors?.some(id=>g.territories[id]?.owner!==1))continue;
+    metrics.exposedFrontierSeconds++;
+    if(g.units.some(u=>u.owner===1&&u.hp>0&&!u.carrier&&
+     !['engineer','medic','scout'].includes(u.kind)&&
+     Math.hypot(u.x-sector.point.x,u.y-sector.point.y)<185))
+     metrics.guardedFrontierSeconds++;
+   }
    for(const b of g.memories[1])if(b.owner===0&&b.hp>0){seenBuildings.add(b.id);if(b.id===initialHQId)metrics.firstEnemyHQSeen??=now;}
    const red=g.units.filter(u=>u.owner===1&&u.hp>0),deployed=red.filter(u=>!u.carrier),available=red.filter(u=>vehicles.has(u.kind));
    metrics.peakVehicles=Math.max(metrics.peakVehicles,available.length);metrics.peakArmy=Math.max(metrics.peakArmy,red.length);
@@ -256,7 +281,8 @@ export function runMatch({Simulation,UNITS,performanceModule},options,seed,mode,
    metrics.commanderSeconds[strategic]=(metrics.commanderSeconds[strategic]??0)+dt;
    if(commanderPhase!==null&&commanderPhase!==strategic){metrics.commanderTransitions++;if(commanderPhase==='emergencyDefense'&&['offensive','siege','endgame'].includes(strategic))metrics.counterattacks++;}
    commanderPhase=strategic;
-   if(mission&&(s.phase!=='attack'||s.groupId!==mission.groupId||s.target!==mission.target||s.objective!==mission.objective))endMission('aborted');
+   if(mission&&(s.phase!=='attack'||s.groupId!==mission.groupId||s.target!==mission.target||s.objective!==mission.objective))
+    endMission(classifyMissionTransition(mission,s));
    if(s.phase==='attack'&&!mission){metrics.missionCount++;mission={groupId:s.groupId,target:s.target,objective:s.objective,started:now,units:[...s.group],stalled:false};}
    if(mission){for(const id of s.group)if(!mission.units.includes(id)){mission.units.push(id);metrics.reinforcements++;}
     if(!mission.stalled&&g.time-s.progressAt>95){mission.stalled=true;metrics.stalledMissions++;}}

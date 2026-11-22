@@ -1,0 +1,25 @@
+name: Sandforge subtle sand brightness QA
+on:
+  push:
+    branches: [fix/desert-sand-subtle-brightness-only-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-subtle-sand-brightness-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  terrain-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - name: Verify light desert tint and unchanged villages / buildings
+        run: node --test tests/webgl-desert-villages-palette-20261115.test.mjs

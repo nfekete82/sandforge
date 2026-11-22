@@ -1,0 +1,29 @@
+name: Sandforge v10 · central plateau + 2-4 ramps + sandstone
+on:
+  push:
+    branches:
+      - feat/sandforge-central-multi-ramp-mesas-sandstone-v10-20261121
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  central-mesas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - name: Compile terrain, scripts and GLB assets
+        run: npm run build
+      - name: Test four central ramps, two-side entries and matching PBR cliffs
+        run: node --test tests/sandforge-central-four-ramp-mesas-v10-20261121.test.mjs
+      - name: Existing highlands, deterministic maps and vehicle regression
+        run: node --test tests/sandforge-four-desert-maps-20261120.test.mjs tests/sandforge-five-deserts-height-relief-v8-20261121.test.mjs tests/sandforge-expanded-plateaus-cliff-uv-v9-20261121.test.mjs
+      - name: Historic Mesa Highlands and Plateau Crossroads
+        run: node --test tests/sandforge-playable-mesa-highlands-20261121.test.mjs tests/sandforge-authored-plateau-crossroads-20261121.test.mjs

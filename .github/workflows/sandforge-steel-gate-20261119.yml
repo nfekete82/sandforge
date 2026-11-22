@@ -1,0 +1,30 @@
+name: Sandforge premium steel wall gate
+on:
+  push:
+    branches:
+      - feat/sandforge-premium-steel-wall-gate-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  steel-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile gameplay and validate gate WebGL module
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-strategic-buildings.js
+          node --check scripts/webgl-battlefield.js
+      - name: Steel gate, opening, collision and wall-placement regression
+        run: |
+          node --test \
+            tests/sandforge-steel-gate-20261119.test.mjs \
+            tests/sandforge-heli-gates-longmatch-20261119.test.mjs \
+            tests/sandforge-wall-terrain-border-20261119.test.mjs

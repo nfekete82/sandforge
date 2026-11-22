@@ -5,6 +5,7 @@ import {Simulation} from '../dist/src/reborn/simulation.js';
 import {eliminationOutcome,hasFactionAssets}
  from '../dist/src/reborn/match-outcome.js';
 import {matchResultCopy} from '../scripts/webgl-match-result.js';
+import {createBattleDebrief,battleDebriefCopy} from '../scripts/webgl-battle-debrief.js';
 
 const soldier=(owner,overrides={})=>({owner,hp:100,kind:'infantry',...overrides});
 const building=(owner,overrides={})=>({owner,hp:500,kind:'turret',buildRemaining:0,...overrides});
@@ -16,7 +17,7 @@ const fresh=(bootstrap=true)=>{
  return g;
 };
 
-test('victory requires every enemy unit AND every enemy building to be destroyed',()=>{
+test('army elimination fallback without building history requires every last unit and building',()=>{
  assert.equal(eliminationOutcome([soldier(0),soldier(1)],[building(1)]),'playing');
  assert.equal(eliminationOutcome([soldier(0),soldier(1)],[]),'playing');
  assert.equal(eliminationOutcome([soldier(0)],[building(1)]),'playing');
@@ -54,21 +55,22 @@ test('the missing enemy engineer/HQ cannot trigger the old instant victory',()=>
  assert.equal(g.status,'victory','last enemy killed is the only winning condition');
 });
 
-test('capturing every enemy HQ sector is not a shortcut to victory',()=>{
+test('capturing every enemy HQ sector alone does not win while its headquarters survives',()=>{
  const g=fresh(false);
  const enemy=g.units.find(u=>u.owner===1);
- assert.ok(enemy);
+ const redHQ=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
+ assert.ok(enemy&&redHQ);
  g.territories.forEach(t=>{t.owner=0;t.progress=0;t.capturing=-1;});
- for(const b of g.bases.filter(b=>b.kind==='headquarters')){
-  b.owner=0;b.hp=Math.max(1,b.hp);
- }
- // Keep one last opposing actor and no opposing structures.
+ // Territory control NEVER deletes or transfers the enemy's surviving HQ.
  g.units=g.units.filter(u=>u.owner===0||u.id===enemy.id);
  g.step(.05);
  assert.equal(g.status,'playing');
  g.units=g.units.filter(u=>u.owner===0);
  g.step(.05);
- assert.equal(g.status,'victory');
+ assert.equal(g.status,'playing','a living enemy HQ still blocks victory without troops');
+ redHQ.hp=0;
+ g.step(.05);
+ assert.equal(g.status,'victory','last building destroyed triggers the win');
 });
 
 test('last enemy building persists victory check after troops are eliminated',()=>{
@@ -127,7 +129,7 @@ test('large central outcome has distinct text for each side and no pause duplica
  assert.deepEqual(victory,{
   title:'SIEG',
   subtitle:'Gefecht beendet',
-  detail:'Alle gegnerischen Einheiten und Gebäude sind vernichtet.'
+  detail:'Alle gegnerischen Gebäude wurden zerstört oder die letzten Einheiten besiegt.'
  });
  assert.equal(matchResultCopy('defeat').title,'NIEDERLAGE');
  assert.equal(matchResultCopy('playing'),null);
@@ -161,9 +163,59 @@ test('winner displays the supplied gold-frame artwork while defeat remains text-
 
 test('outcome evaluation uses current live HP and excludes dead HQ capture stubs',()=>{
  const code=readFileSync('src/reborn/simulation.ts','utf8');
- assert.match(code,/this\.status=eliminationOutcome\(this\.units,this\.bases\)/);
+ assert.match(code,/this\.status=eliminationOutcome\(this\.units,this\.bases,this\.hadBuildings\)/);
  assert.doesNotMatch(code,/this\.bootstrapLost\(1\)/);
  assert.doesNotMatch(code,/campaignLayout\(this\.world\.mapVersion,this\.seed\)\.starts\[1\]\.every/);
  assert.doesNotMatch(code,/this\.status='victory'/);
  assert.doesNotMatch(code,/this\.status='defeat'/);
+});
+
+
+test('postgame debrief tracks real sector control without modifying simulation',()=>{
+ const g=fresh();g.time=0;g.status='playing';
+ const before=JSON.stringify(g.save()),reporter=createBattleDebrief(g);
+ assert.equal(reporter.report().allies[0].captures,0);
+ assert.equal(reporter.report().allies[1].captures,0);
+ const target=g.territories.find(t=>t.owner!==0);
+ assert.ok(target);
+ g.time=6;target.owner=0;reporter.sample();
+ g.time=11;reporter.sample();
+ let out=reporter.report();
+ assert.equal(out.allies[0].captures,1);
+ assert.equal(out.allies[0].lost,0);
+ assert.equal(out.allies[0].peak>=1,true);
+ assert.equal(out.events[0].owner,0);
+ g.time=18;target.owner=1;reporter.sample();
+ out=reporter.report();
+ assert.equal(out.allies[0].lost,1);
+ assert.equal(out.allies[1].captures>=1,true);
+ assert.ok(out.allies[0].controlSeconds>0);
+ assert.ok(out.allies[0].share>=0&&out.allies[0].share<=1);
+ assert.equal(before.includes('battleDebrief'),false);
+ assert.equal(JSON.stringify(g.save()).includes('battleDebrief'),false);
+ const copy=battleDebriefCopy(out,'victory');
+ assert.match(copy.label,/Gefechtsbilanz/);
+ assert.ok(copy.facts.some(x=>x[0]==='Ø Gebietskontrolle'));
+ assert.equal(copy.events[0].includes('Rot'),true);
+});
+test('resumed sessions make no invented full-game history claims',()=>{
+ const g=fresh(),recorder=createBattleDebrief(g,{resumed:true});
+ const data=recorder.report();
+ assert.equal(data.duration,0);
+ assert.equal(data.allies[0].share,0);
+ assert.match(battleDebriefCopy(data,'defeat').note,/seit dem Laden/);
+});
+test('after-action DOM remains outside centered victory illustration',()=>{
+ const preview=readFileSync('scripts/webgl-preview.js','utf8');
+ const script=readFileSync('scripts/webgl-battle-debrief.js','utf8');
+ const style=readFileSync('src/reborn/webgl-classic-hud.css','utf8');
+ const build=readFileSync('scripts/build.mjs','utf8');
+ assert.match(preview,/installBattleDebrief\(document,game,\{resumed:!!session\}\)/);
+ assert.match(preview,/battleDebrief\.sample\(\)/);
+ assert.match(preview,/battleDebrief\.render\(game\.status\)/);
+ assert.match(script,/doc\.body\.append\(root\)/);
+ assert.match(style,/#sf3d-battle-debrief\.sf3d-battle-debrief/);
+ assert.match(style,/pointer-events:auto/);
+ assert.match(build,/cpSync\('scripts\/webgl-battle-debrief\.js','dist\/webgl-battle-debrief\.js'\)/);
+ assert.ok(existsSync('dist/webgl-battle-debrief.js'));
 });

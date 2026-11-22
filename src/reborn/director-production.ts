@@ -1,13 +1,28 @@
 import {UNITS,canAttack,type UnitKind} from './catalog.js';
 import {preferredRole} from './ai-director.js';
 import {rocketInfantryQuota,bomberAntiArmorQuota} from './ai-counter-doctrine.js';
+import {ai36AirDoctrineEnabled,bomberSupportQuota} from './ai36-air-support.js';
 import type {Simulation,Unit,Base} from './simulation.js';
 import type {TacticalState} from './tactical-ai.js';
 import type {ProductionDecision} from './army-economy.js';
 
+/** Bastion control funds larger mechanized armies, not piles of unused credits.
+ * In particular, do not mistake `rover:2` or `artillery:2` for a permanent
+ * ceiling once the AI owns the majority of income-producing Bastions.
+ * Use ONLY public ownership and earned periodic income; no fog information.
+ * Stage is derived each macro tick, no persistent save migration needed.
+ */
+export function bastionSurplusArmyStage(input:{
+ time:number;income:number;ownedBastions:number;totalBastions:number;
+}):0|1|2{
+ const {time,income,ownedBastions,totalBastions}=input;
+ if(time<140||income<60||totalBastions<2||
+    ownedBastions<Math.max(2,Math.ceil(totalBastions*.6)))return 0;
+ return income>=90?2:1;
+}
 interface ProductionContext {
  own:Base[]; army:Unit[]; seen:Unit[]; income:number; underAttack:boolean;
- knownTurrets:number; knownEnemyHQ:boolean; reserve:number; siegeReserve?:number; maxArmy:number;
+ knownTurrets:number; knownEnemyHQ:boolean; reserve:number; siegeReserve?:number; infrastructureReserve?:number; maxArmy:number;
  scores:Record<UnitKind,number>;defenseNeedsWorker:boolean;finishing:boolean;
 }
 /** A paid early rocket after the first scout vehicle covers the eventual tower
@@ -21,6 +36,21 @@ export function earlyArtilleryWindow(input:{
   &&input.fighters>=5&&input.income>=65&&input.time>=60&&input.time<210
   &&!input.underAttack&&!input.visibleEnemyAir;
 }
+/** Keep a committed Bunker budget even when an urgent barracks would
+ * otherwise spend nearly every incoming credit on 100-credit riflemen.
+ * Real home-defense emergencies release this budget upstream.
+ */
+export function ai38CommittedProductionReserve(input:{
+ urgentBarracks:boolean;plannedArtillery:boolean;
+ reserve:number;siegeReserve:number;infrastructureReserve:number;
+}):number{
+ const x=input;
+ return x.urgentBarracks
+  ?Math.max(x.infrastructureReserve,Math.min(125,x.reserve)):
+  x.plannedArtillery
+   ?Math.max(x.infrastructureReserve,x.reserve-x.siegeReserve):x.reserve;
+}
+
 /** Purchase priorities are persistent composition deficits, not affordable-unit scores.
  * Counts include paid queues, so one factory never reserves money for a unit it
  * has already ordered. Every purchase still goes through Simulation.recruit. */
@@ -31,10 +61,12 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
  const available=(kind:UnitKind)=>c.own.some(b=>b.buildRemaining<=0&&b.queue.length<2&&UNITS[kind].producers.includes(b.kind));
  const counts=()=>Object.fromEntries((Object.keys(UNITS) as UnitKind[]).map(k=>[k,count(k)])) as Record<UnitKind,number>;
  const ground=()=>count('rover')+count('tank')+count('artillery');
- const enemyAir=c.seen.find(u=>UNITS[u.kind].flying);
- const observed={infantry:c.seen.filter(u=>UNITS[u.kind].group==='Infanterie'&&!['engineer','medic'].includes(u.kind)).length,
-  armor:c.seen.filter(u=>UNITS[u.kind].group==='Fahrzeuge'&&!UNITS[u.kind].flying).length,
-  air:c.seen.filter(u=>UNITS[u.kind].flying).length};
+ // Unarmed recon drones must not consume AA budgets or suspend a bomber plan.
+ const seen=c.seen.filter(u=>u.kind!=='drone');
+ const enemyAir=seen.find(u=>UNITS[u.kind].flying);
+ const observed={infantry:seen.filter(u=>UNITS[u.kind].group==='Infanterie'&&!['engineer','medic'].includes(u.kind)).length,
+  armor:seen.filter(u=>UNITS[u.kind].group==='Fahrzeuge'&&!UNITS[u.kind].flying).length,
+  air:seen.filter(u=>UNITS[u.kind].flying).length};
  const belief=s.adaptive;
  if(belief&&belief.confidence>=.55&&g.time-belief.updatedAt<=30){
   // Briefly losing sight of a force should not immediately restart a siege
@@ -45,14 +77,27 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   if(belief.strategy==='infantry')observed.infantry=Math.max(observed.infantry,recent.filter(v=>v.kind==='infantry'||v.kind==='heavy').length);
  }
  const airTarget=enemyAir??(observed.air?{kind:'bomber' as const}:undefined);
- const fighters=c.army.filter(u=>!['engineer','medic','scout'].includes(u.kind)).length;
+ const fighters=c.army.filter(u=>!['engineer','medic','scout','supply','drone'].includes(u.kind)).length;
  const rocketQuota=rocketInfantryQuota({fighters,time:g.time,
   vehicles:observed.armor,air:observed.air,
   barracksReady:available('rocket'),underAttack:c.underAttack});
- const bomberQuota=bomberAntiArmorQuota({airfieldReady:available('bomber'),
+ const antiArmorQuota=bomberAntiArmorQuota({airfieldReady:available('bomber'),
   income:c.income,fighters,groundVehicles:ground(),
   enemyArmor:observed.armor,enemyAir:observed.air,
   underAttack:c.underAttack,finishing:c.finishing});
+ const supportQuota=bomberSupportQuota({
+  enabled:ai36AirDoctrineEnabled(g),airfieldReady:available('bomber'),
+  fighters,groundVehicles:ground(),income:c.income,time:g.time,
+  underAttack:c.underAttack,enemyAir:observed.air,
+  contestedBastions:g.territories.some(t=>t.owner!==1),
+  finishing:c.finishing
+ });
+ const bomberQuota=Math.max(antiArmorQuota,supportQuota);
+ const armyStage=g.world.mapVersion>=23&&!c.finishing?bastionSurplusArmyStage({
+  time:g.time,income:c.income,
+  ownedBastions:g.territories.filter(t=>t.owner===1).length,
+  totalBastions:g.territories.length
+ }):0;
  // A visible force, rather than an unseen technology assumption, creates a
  // counter deficit. Queue counts make this stable across successive pulses.
  const counter=():UnitKind|null=>{
@@ -131,11 +176,23 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   if(available('medic')&&count('infantry')+count('heavy')>=4&&count('heavy')>0&&count('medic')===0)return 'medic';
   return null;
  };
+ // Real paid unit-count ceilings: the earlier 8 rifles / 3 heavy / 1
+ // rover / 2 tanks exhausted almost every factory's useful composition
+ // before the global army cap. Keep anti-air and airstrike quotas driven
+ // by OBSERVED enemies, rather than manufacturing invisible-threat counters.
  const ceiling=(kind:UnitKind):number=>({
-  infantry:8,heavy:c.income>=65?4:3,rocket:rocketQuota,medic:Math.min(2,Math.ceil((count('infantry')+count('heavy'))/5)),
-  engineer:c.defenseNeedsWorker||c.own.length>=4&&(s.recovering?.length??0)>0?2:1,rover:1,tank:c.income>=65||observed.armor>=3?4:2,
-  artillery:c.knownTurrets>1?3:c.knownEnemyHQ||c.knownTurrets?2:1,
+  infantry:12,heavy:armyStage===2?8:armyStage===1?7:c.income>=65?6:5,
+  rocket:rocketQuota,
+  medic:Math.min(3,Math.ceil((count('infantry')+count('heavy'))/5)),
+  engineer:c.defenseNeedsWorker||c.own.length>=4&&(s.recovering?.length??0)>0?2:1,
+  supply:0,
+  rover:armyStage===2?5:armyStage===1?4:2,
+  tank:armyStage===2?9:armyStage===1?7:
+   c.income>=65||observed.armor>=3?6:4,
+  artillery:armyStage===2?6:armyStage===1?4:
+   c.knownTurrets>1?4:c.knownEnemyHQ||c.knownTurrets?3:2,
   scout:1,bomber:Math.max(bomberQuota,c.income>=65&&!c.finishing?1:0),
+  drone:0,
  })[kind];
  const ranks=(producer:Base):UnitKind[]=>{
   const n=counts();
@@ -151,11 +208,32 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
    result=['rocket',...result.filter(k=>k!=='rocket')];
   if(producer.kind==='airfield'&&n.bomber<bomberQuota)
    result=['bomber',...result.filter(k=>k!=='bomber')];
+  if(armyStage&&producer.kind==='factory'&&!observed.air){
+   // Ratio-to-ceiling spreads surplus orders across ALL three real vehicles,
+   // rather than queuing tanks forever and then leaving artillery unused.
+   // True counter/siege orders still win through planned() above.
+   const order:['tank','rover','artillery']=['tank','rover','artillery'];
+   const tieBreak:Record<'tank'|'rover'|'artillery',number>={
+    tank:0,rover:1,artillery:2
+   };
+   result=order.sort((a,b)=>
+    n[a]/ceiling(a)-n[b]/ceiling(b)||
+    tieBreak[a]-tieBreak[b]);
+  }
   return result.filter(k=>n[k]<ceiling(k));
  };
  const producers=c.own.filter(b=>b.buildRemaining<=0&&b.queue.length<2);
+ // A long-running offensive with fewer than fourteen living fighters needs
+ // paid infantry NOW, not an idle barracks while one factory saves for an
+ // aircraft or a second heavy vehicle. Barracks take a limited first turn;
+ // observed AA and anti-armor counter quotas are still handled in ranks().
+ const offensiveShortfall=g.world.mapVersion>=23&&g.time>=100&&!c.finishing&&
+  !c.underAttack&&fighters<14&&
+  g.territories.some(t=>t.owner!==1)&&available('infantry');
  const initial=planned();
- const priority=(b:Base)=>(initial&&UNITS[initial].producers.includes(b.kind)?-1:({factory:0,airfield:1,barracks:2,headquarters:3} as Record<string,number>)[b.kind]??4);
+ const priority=(b:Base)=>offensiveShortfall&&b.kind==='barracks'?-2:
+  (initial&&UNITS[initial].producers.includes(b.kind)?-1:
+   ({factory:0,airfield:1,barracks:2,headquarters:3} as Record<string,number>)[b.kind]??4);
  producers.sort((a,b)=>priority(a)-priority(b)||a.id-b.id);
  const facilities:Record<number,ProductionDecision>={};
  for(const b of c.own.filter(b=>b.buildRemaining<=0&&b.queue.length>=2))facilities[b.id]={reason:'queue-blocked',goal:null,missing:0};
@@ -164,11 +242,19 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   const workerLost=count('engineer')===0&&producer.kind==='headquarters';
   if(g.count(1)+g.queued(1)>=c.maxArmy&&!workerLost){facilities[producer.id]={reason:'army-cap',goal:null,missing:0};continue;}
   const need=planned(),isPlanned=need!==null&&UNITS[need].producers.includes(producer.kind);
-  const protection=need&&!isPlanned?UNITS[need].cost:0;
-  // The reservation is not a tax on the rocket it protects. Release only
-  // that portion for a real paid artillery purchase, never for other units.
-  const committedReserve=isPlanned&&need==='artillery'
-   ?Math.max(0,c.reserve-(c.siegeReserve??0)):c.reserve;
+  const urgentBarracks=offensiveShortfall&&producer.kind==='barracks'&&
+   (c.siegeReserve??0)===0;
+  const protection=need&&!isPlanned&&!urgentBarracks?UNITS[need].cost:0;
+  // On the offensive, an idle barracks may spend real earned credits on
+  // infantry instead of protecting an entire *optional* expensive queue.
+  // KI 3.8: optional factory/artillery reservations can be released to an
+  // urgent infantry screen, but a deliberately funded 650-credit Bunker
+  // must not be starved by repeated 100-credit rifle purchases.
+  const committedReserve=ai38CommittedProductionReserve({
+    urgentBarracks,plannedArtillery:isPlanned&&need==='artillery',
+    reserve:c.reserve,siegeReserve:c.siegeReserve??0,
+    infrastructureReserve:c.infrastructureReserve??0
+  });
   const budget=g.credits[1]-(workerLost?0:committedReserve)-protection;
   let choices=isPlanned?[need!,...ranks(producer).filter(k=>k!==need)]:ranks(producer);
   // Barracks and airfields are independent production facilities. A high

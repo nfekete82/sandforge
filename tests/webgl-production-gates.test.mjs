@@ -61,9 +61,13 @@ test('pause uses simulation clock; stale events and missing models do not hide u
 for(const owner of [0,1])test(`GLB faction ${owner} has a real opening; UVs and PBR textures survive`,()=>{
  const raw=readFileSync(new URL(`../src/assets/reborn/buildings-3d/factory-${owner}.glb`,import.meta.url));
  const len=raw.readUInt32LE(12),j=JSON.parse(raw.subarray(20,20+len)),bin=raw.subarray(28+len);
- const door=j.nodes.find(n=>n.name==='FactoryRollupDoor');assert.ok(door?.children.length>=2);
+ const exit=j.nodes.find(n=>n.name==='SF_Factory_PBR_OpenBay');
+ assert.ok(exit,'the original vehicle-factory GLB must have a permanent, open exit');
+ assert.equal(exit.extras?.vehicleDriveThrough,true);
+ assert.equal(j.nodes.some(n=>n.name==='FactoryRollupDoor'),false,
+  'no blocking gate leaves or visual door dependency');
  assert.ok(j.images.length>0);assert.ok(j.materials.some(m=>m.pbrMetallicRoughness?.baseColorTexture));
- const moving=new Set(door.children),ray=new THREE.Raycaster(new THREE.Vector3(.18,.75,1.7),new THREE.Vector3(0,0,-1),0,2.5);
+ const moving=new Set(),ray=new THREE.Raycaster(new THREE.Vector3(.18,.75,1.7),new THREE.Vector3(0,0,-1),0,2.5);
  const scene=new THREE.Group();
  for(const [ni,n]of j.nodes.entries()){
   if(n.mesh===undefined||moving.has(ni))continue;
@@ -85,8 +89,12 @@ for(const owner of [0,1])test(`GLB faction ${owner} has a real opening; UVs and 
   }
  }
  scene.updateMatrixWorld(true);assert.equal(ray.intersectObjects(scene.children).length,0,'closed fixed facade remains behind the door');
- const roofRay=new THREE.Raycaster(new THREE.Vector3(.18,2,.9),new THREE.Vector3(0,-1,0),0,.7);
- assert.ok(roofRay.intersectObjects(scene.children).length>0,'the portal roof must remain closed before the first production');
+ // The new factory roof is at y~2.5, not below the old 2.0 m probe.
+ // Shoot DOWN from above the actual model roof, ignoring the moving door.
+ // The new pitched reference hangar rises to ~3.21 m at the ridge;
+ // probe from ABOVE its top, not from inside the sloping metal roof.
+ const roofRay=new THREE.Raycaster(new THREE.Vector3(.18,4.80,.9),new THREE.Vector3(0,-1,0),0,3.20);
+ assert.ok(roofRay.intersectObjects(scene.children).length>0,'the fixed roof remains closed above the vehicle portal');
 });
 test('independent buildings animate concurrently; repeated releases reuse a closed gate',()=>{
  const f=fixture(),second=fixture(2,1);
@@ -98,7 +106,9 @@ test('independent buildings animate concurrently; repeated releases reuse a clos
  const tick=age=>{second.actor.node.visible=true;f.tick(age);};tick(0);
  assert.equal(f.controller.active.size,2);tick(.75);
  assert.equal(f.entry.gate.door.scale.y,second.entry.gate.door.scale.y);
- tick(5.9);assert.equal(f.controller.active.size,0);
+ const finalAge=Math.max(...[...f.controller.active.values()].map(s=>
+  GATE_TIMING.warning+GATE_TIMING.opening+s.duration+GATE_TIMING.closing))+.12;
+ tick(finalAge);assert.equal(f.controller.active.size,0);
  f.event={...f.event,at:f.game.time};f.game.productionReleases.push(f.event);
  f.controller.update();assert.equal(f.controller.active.size,1);
 });
@@ -175,5 +185,146 @@ test('factory interior is a valid visual drive route, not a normal public path',
  f.controller.battlefield.world.walkable=()=>false;
  f.tick(0);assert.equal(f.controller.active.size,1);
  f.tick(2);assert.equal(f.controller.active.size,1);
+ f.controller.dispose();
+});
+
+
+test('Humvee and rocket truck queue behind a tank until the shared factory door is free, even past 5.5s',()=>{
+ const f=fixture();
+ f.game.stageWebGLProduction=true;
+ const holds=new Map(),cancelled=[];
+ f.game.extendProductionDeparture=(id,until)=>holds.set(id,Math.max(holds.get(id)??0,until));
+ f.game.cancelProductionDeparture=id=>cancelled.push(id);
+ const follow=[
+  {id:3,kind:'rover',hp:295,x:610,y:580},
+  {id:4,kind:'artillery',hp:340,x:605,y:575}
+ ];
+ const actors=new Map();
+ for(const u of follow){
+  const unit={...f.unit,...u,orders:[{kind:'move',x:950,y:800}]};
+  const actor={node:new THREE.Group()};
+  f.game.units.push(unit);f.controller.battlefield.units.set(u.id,actor);
+  f.game.productionReleases.push({...f.event,unitId:u.id,kind:u.kind,at:10});
+  actors.set(u.id,actor);
+ }
+ const step=age=>{
+  f.game.time=10+age;
+  // Same as battlefield.sync(): all existing actors stand at their legal
+  // authoritative spawn before the cosmetic gate pass is applied.
+  f.actor.node.visible=true;
+  f.actor.node.position.copy(f.controller.battlefield.entityPosition(f.unit));
+  for(const unit of f.game.units.slice(1)){
+   const actor=actors.get(unit.id);
+   actor.node.visible=true;
+   actor.node.position.copy(f.controller.battlefield.entityPosition(unit));
+  }
+  f.controller.update(true,1);
+ };
+ step(0);
+ assert.equal(f.controller.active.get(1)?.event.unitId,2,'tank opens the shared door first');
+ const tankState=f.controller.active.get(1);
+ const tankDone=GATE_TIMING.warning+GATE_TIMING.opening+tankState.duration+GATE_TIMING.closing+.2;
+ step(tankDone);
+ assert.equal(f.controller.active.size,0,'first tank rollout has finished');
+ assert.equal(f.game.productionReleases.length,3,'real unit release events remain unchanged');
+ assert.ok(tankDone>5.5,'exercise the old timeout');
+ assert.ok(holds.get(3)>10+tankDone,'Humvee remains staged after 5.5 seconds');
+ assert.ok(holds.get(4)>10+tankDone,'rocket truck remains staged after 5.5 seconds');
+ assert.equal(actors.get(3).node.visible,false);
+ assert.equal(actors.get(4).node.visible,false);
+ const roverStart=tankDone+.05;
+ step(roverStart);
+ assert.equal(f.controller.active.get(1)?.event.unitId,3,'Humvee starts through the same door');
+ assert.equal(actors.get(4).node.visible,false,'rocket truck remains queued');
+ const roverState=f.controller.active.get(1);
+ step(roverStart+1.3);
+ assert.ok(f.entry.gate.door.position.y>0,'real factory shutter opens for Humvee');
+ assert.ok(actors.get(3).productionMotion);
+ const roverDone=roverStart+GATE_TIMING.warning+GATE_TIMING.opening+roverState.duration+GATE_TIMING.closing+.2;
+ step(roverDone);
+ assert.equal(f.controller.active.size,0,'Humvee departure completed');
+ const rocketStart=roverDone+.05;
+ step(rocketStart);
+ assert.equal(f.controller.active.get(1)?.event.unitId,4,'rocket truck starts through the same factory door');
+ const rocketState=f.controller.active.get(1);
+ step(rocketStart+1.3);
+ assert.ok(f.entry.gate.door.position.y>0,'factory shutter reopens for rocket truck');
+ assert.ok(actors.get(4).productionMotion);
+ step(rocketStart+GATE_TIMING.warning+GATE_TIMING.opening+rocketState.duration+GATE_TIMING.closing+.2);
+ assert.equal(f.controller.active.size,0);
+ assert.equal(actors.get(4).node.visible,true);
+ assert.ok(cancelled.includes(2)&&cancelled.includes(3)&&cancelled.includes(4),'holds are released on departure');
+ assert.deepEqual(f.game.units.map(u=>u.kind),['tank','rover','artillery']);
+ f.controller.dispose();
+});
+
+test('regression: hiding vehicle until gate warning never aborts the rollout',()=>{
+ const f=fixture();f.tick(0);
+ assert.equal(f.actor.node.visible,false);
+ // A real frame loop does NOT restore visible before every frame.
+ f.game.time=10+.1;f.controller.update(true,1);
+ assert.equal(f.controller.active.size,1);
+ assert.equal(f.actor.node.visible,false);
+ f.game.time=10+.45;f.controller.update(true,1);
+ assert.equal(f.controller.active.size,1);
+ assert.equal(f.actor.node.visible,true);
+ f.controller.dispose();
+});
+
+test('factory rollout locks onto authoritative exterior destination, not its previous animated position',()=>{
+ const f=fixture();f.tick(0);
+ const state=f.controller.active.get(1);
+ const fixed=state.target.clone();
+ assert.ok(fixed.distanceTo(new THREE.Vector3(112,0,82))<1e-6);
+ f.game.time=10+1.25+state.duration*.62;
+ f.controller.update(true,1);
+ const first=f.actor.node.position.clone();
+ f.game.time=10+1.25+state.duration*.73;
+ f.controller.update(true,1);
+ const second=f.actor.node.position.clone();
+ assert.ok(second.distanceTo(first)>1,'vehicle moves after threshold');
+ assert.ok(state.target.distanceTo(fixed)<1e-6,'no self-targeting feedback loop');
+ f.game.time=10+1.25+state.duration;
+ f.controller.update(true,1);
+ assert.ok(f.actor.node.position.distanceTo(fixed)<1.2,
+  'last visible pose ends at authoritative release coordinate');
+ f.controller.dispose();
+});
+
+test('front-facing factory vehicle keeps a constant speed then continues its paid rally',()=>{
+ const f=fixture();f.unit.x=500;f.unit.y=800;
+ let released=0;
+ f.game.cancelProductionDeparture=()=>{released++};
+ f.tick(0);
+ const state=f.controller.active.get(1);
+ assert.equal(state.directRollout,true);
+ assert.equal(state.hasRally,true);
+ const pts=[];
+ for(const t of [.67,.73,.79,.85]){
+  f.game.time=10+1.25+state.duration*t;
+  f.controller.update(true,1);
+  pts.push(f.actor.node.position.clone());
+ }
+ const steps=pts.slice(1).map((p,i)=>p.distanceTo(pts[i]));
+ assert.ok(steps.every(d=>d>1));
+ assert.ok(Math.max(...steps)/Math.min(...steps)<1.2,
+  'no fast-then-slow easing after leaving the roller shutter');
+ f.game.time=10+1.25+state.duration;
+ f.controller.update(true,1);
+ assert.equal(released,1);
+ assert.equal(f.controller.active.size,1,
+  'the gate may still close, but rally movement is already released');
+ f.controller.dispose();
+});
+
+test('without a rally the vehicle parks immediately outside, not on the apron loop',()=>{
+ const f=fixture();f.unit.orders=[];f.tick(0);
+ const state=f.controller.active.get(1);
+ assert.equal(state.hasRally,false);
+ f.game.time=10+1.25+state.duration;
+ f.controller.update(true,1);
+ assert.ok(f.actor.node.position.distanceTo(state.target)<1.2);
+ assert.equal(f.actor.productionMotion,null);
+ assert.deepEqual(f.unit.orders,[]);
  f.controller.dispose();
 });

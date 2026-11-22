@@ -1,0 +1,22 @@
+name: Sandforge 4-bastion AI expansion QA
+on:
+  push:
+    branches: [fix/ai-neutral-expansion-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-ai-neutral-expansion-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  tactical-expansion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - run: node --test tests/sandforge-ai-home-defense-20261111.test.mjs tests/sandforge-ai-neutral-expansion-20261115.test.mjs

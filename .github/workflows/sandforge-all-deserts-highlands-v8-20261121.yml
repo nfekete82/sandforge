@@ -1,0 +1,32 @@
+name: All Desert Highlands v8 · 3D relief and routes
+on:
+  push:
+    branches:
+      - feat/sandforge-all-deserts-real-highlands-v8-20261121
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  highlands:
+    name: Five fixed maps · gameplay, PBR, historical saves
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - name: Build all 3D modules and GLBs
+        run: npm run build
+      - name: Five existing maps with real elevated/dry-valley terrain, old save compatibility
+        run: node --test tests/sandforge-five-deserts-height-relief-v8-20261121.test.mjs
+      - name: Regression original desert routing and doctrines
+        run: node --test tests/sandforge-four-desert-maps-20261120.test.mjs
+      - name: Regression old v6 Plateau Crossroads and new v8 passes
+        run: node --test tests/sandforge-authored-plateau-crossroads-20261121.test.mjs
+      - name: Regression standalone v7 Mesa Highlands
+        run: node --test tests/sandforge-playable-mesa-highlands-20261121.test.mjs

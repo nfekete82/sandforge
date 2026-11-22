@@ -1,0 +1,91 @@
+name: Sandforge live Meshy PBR factory teams and real rollover QA
+on:
+  push:
+    branches: [feat/sandforge-meshy-factory-team-gates-20261121]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-meshy-live-factory-20261121
+  cancel-in-progress: true
+jobs:
+  real-game-logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and all changed WebGL node scripts
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/prepare-meshy-factory.mjs
+          node --check scripts/webgl-meshy-factory-team.js
+          node --check scripts/webgl-production-gates.js
+          node --check scripts/webgl-battlefield.js
+          node --check scripts/webgl-meshy-factory-viewer.js
+          node --check scripts/build-meshy-preview.mjs
+      - name: Export real 737-triangle door from blue and red optimized PBR factories
+        run: |
+          node scripts/generate-factory-pbr.mjs
+          node scripts/prepare-meshy-factory.mjs
+      - name: Check unchanged 2K PBR UV maps, blue/red accents and synchronized rollup
+        run: |
+          node --test tests/sandforge-meshy-live-factory-20261121.test.mjs
+          node --test tests/sandforge-meshy-reference-optimized-20261120.test.mjs
+      - name: Verify entire Three/WebGL module graph from main game
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+      - name: Standalone Meshy viewer and blue/red production GLB build on fresh checkout
+        run: |
+          npm run build:meshy-preview
+          node -e "const fs=require('fs');const p='dist/src/assets/reborn/buildings-3d/';for(const f of ['factory-0.glb','factory-1.glb','factory-procedural-0.glb','factory-procedural-1.glb']){if(!fs.existsSync(p+f))throw Error('missing real GLB '+f);console.log(f,fs.statSync(p+f).size)}"
+      - name: Save genuine generated playable GLBs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-meshy-real-factory-animated-doors-both-teams
+          path: |
+            dist/src/assets/reborn/buildings-3d/factory-0.glb
+            dist/src/assets/reborn/buildings-3d/factory-1.glb
+          retention-days: 30
+          if-no-files-found: warn
+  chromium-render-and-door:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install Chromium and actual PBR renderer
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tests/browser --no-audit --no-fund
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Package blue/red real Meshy GLBs and original open-factory backup
+        run: npm run build:meshy-preview
+      - name: Render two teams closed and door open with original normal maps
+        env:
+          SANDFORGE_BROWSER_CHANNEL: chromium
+          SANDFORGE_MESHY_STANDALONE: '1'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-meshy-live-factory-20261121.spec.mjs webgl-meshy-live-production-20261121.spec.mjs --config=playwright.config.mjs
+      - name: Keep actual open/closed 3D factory screenshots and shader errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-meshy-live-blue-red-gate-webgl-screenshots
+          path: |
+            tests/browser/artifacts/screenshots/
+            tests/browser/artifacts/results.json
+            tests/browser/artifacts/report/
+            tests/browser/artifacts/runs/
+          if-no-files-found: warn
+          retention-days: 30

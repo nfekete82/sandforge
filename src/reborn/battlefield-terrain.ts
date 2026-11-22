@@ -1,13 +1,22 @@
 import {campaignLayout, type MapVersion, type Point} from './config.js';
+import type {CanyonRidge} from './canyon-front.js';
+import {ridgeCenterY} from './canyon-height.js';
+import {raisedMesaHeight,type RaisedMesa} from './raised-mesas.js';
 
 /** Revision 2: roomier buildable pads around bastions / headquarters.
  * Revision 1 remains reproducible for existing saves. */
 export const BATTLEFIELD_GENERATOR = 2;
-export type BattlefieldGeneratorVersion=1|2;
+export type BattlefieldGeneratorVersion=1|2|3|4|5|6|7|8|9|10;
 export const TERRAIN_GRADING_V2={
  bastionFlatRadius:540,bastionShoulder:360,
  homeFlatRadius:775,homeShoulder:460,
  rockSafetyMargin:110
+} as const;
+/** Generator v3 only: wide build pads with a smooth transition into the cliffs. */
+export const TERRAIN_GRADING_V3={
+ bastionFlatRadius:680,bastionShoulder:350,
+ homeFlatRadius:890,homeShoulder:430,
+ rockSafetyMargin:180
 } as const;
 export const TERRAIN_PROFILES = ['open','dunes','rocky','oasis','mixed'] as const;
 export type TerrainProfile = typeof TERRAIN_PROFILES[number];
@@ -50,7 +59,7 @@ export interface BattlefieldTerrain {
  * All expensive noise work runs once. Movement, art and combat sample these
  * same triangles, with an explicit conservative maximum walkable gradient. */
 export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:number,sites:readonly Point[],
- profile:TerrainProfile,candidate=0,basins:Point[]=[],generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR):BattlefieldTerrain{
+ profile:TerrainProfile,candidate=0,basins:Point[]=[],generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR,ridges:readonly CanyonRidge[]=[],plateaus:readonly RaisedMesa[]=[]):BattlefieldTerrain{
  const segments=TERRAIN_SEGMENTS,n=segments+1,step=size/segments,heights=new Float32Array(n*n);
  const s=streamSeed(seed,'terrain',candidate),angle=hash(s,7,s)*Math.PI*2,c=Math.cos(angle),d=Math.sin(angle);
  const homes=campaignLayout(version,seed).headquarters.map(i=>battlefieldStart(sites[i],size));
@@ -61,7 +70,11 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
   const u=(wx*c+wy*d)/690,v=(-wx*d+wy*c)/1370;
   const broad=fbm(wx/1900,wy/1900,s),detail=fbm(wx/630,wy/630,s^731);
   const crest=(Math.sin(u*4.2+(fbm(u*.65,v*.65,s^51)-.5)*5.4+v*.65)+1)*.5;
-  const dunes=18+crest*crest*(64+55*broad)+detail*17;
+  // More small, walkable wind-blown mounds; all still pass through the same
+  // grading/gradient limiter as units, navigation, construction and fog.
+  const hummocks=(profile==='dunes'||profile==='mixed'?12:0)*
+   smooth((fbm(wx/430+7,wy/430-11,s^0x47f2)-.35)/.32);
+  const dunes=18+crest*crest*(64+55*broad)+detail*17+hummocks;
   const ridge=1-Math.abs(fbm(wx/1100,wy/1100,s^107)*2-1);
   const plateau=smooth((broad-.30)/.38)*154;
   const rocky=12+plateau+ridge*ridge*64+detail*15;
@@ -73,6 +86,21 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
   const mixed=open*(1-smooth((zone-.18)/.25))+dunes*smooth((zone-.18)/.25)*(1-smooth((zone-.52)/.25))+
    rocky*smooth((zone-.52)/.25);
   let h=profile==='open'?open:profile==='dunes'?dunes:profile==='rocky'?rocky:profile==='oasis'?oasis:mixed;
+  if(generatorVersion>=3){
+   // True continuous mountain relief follows the same physical canyon spine.
+   // The navigation grid blocks the cliff itself; only real ramps cross it.
+   for(const mountain of ridges){
+    if(mountain.ramps.some(r=>Math.abs(x-r.x)<=r.width*.55))continue;
+    let nearest=Infinity;
+    for(let k=1;k<mountain.spine.length;k++){
+     const a=mountain.spine[k-1],b=mountain.spine[k],dx=b.x-a.x,dy=b.y-a.y;
+     const t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1)));
+     nearest=Math.min(nearest,Math.hypot(x-a.x-t*dx,y-a.y-t*dy));
+    }
+    const shoulder=smooth((710-nearest)/710);
+    h+=shoulder*shoulder*(profile==='rocky'?165:profile==='open'?93:132);
+   }
+  }
   // Grade the actual authoritative terrain used by rendering, navigation
   // and placement – no floating decorative mesh and no run-time deformation.
   // Wider pads preserve the same profile on all v2 maps; in-between dunes
@@ -82,12 +110,13 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
    for(const home of homes)mask=Math.min(mask,smooth((Math.hypot(x-home.x,y-home.y)-650)/480));
    for(const site of sites)mask=Math.min(mask,smooth((Math.hypot(x-site.x,y-site.y)-230)/360));
   }else{
+   const grading=generatorVersion>=3?TERRAIN_GRADING_V3:TERRAIN_GRADING_V2;
    for(const home of homes)mask=Math.min(mask,smooth(
-    (Math.hypot(x-home.x,y-home.y)-TERRAIN_GRADING_V2.homeFlatRadius)/
-     TERRAIN_GRADING_V2.homeShoulder));
+    (Math.hypot(x-home.x,y-home.y)-grading.homeFlatRadius)/
+     grading.homeShoulder));
    for(const site of sites)mask=Math.min(mask,smooth(
-    (Math.hypot(x-site.x,y-site.y)-TERRAIN_GRADING_V2.bastionFlatRadius)/
-     TERRAIN_GRADING_V2.bastionShoulder));
+    (Math.hypot(x-site.x,y-site.y)-grading.bastionFlatRadius)/
+     grading.bastionShoulder));
   }
   h*=mask;
   for(const basin of basins){
@@ -106,6 +135,72 @@ export function generateBattlefieldTerrain(seed:number,version:MapVersion,size:n
  for(let j=n-1;j>=0;j--)for(let i=n-1;i>=0;i--){
   const k=j*n+i;let h=heights[k];if(i<segments)h=Math.min(h,heights[k+1]+delta);if(j<segments)h=Math.min(h,heights[k+n]+delta);heights[k]=h;
  }
+ // Versioned desert-route repair for the four authored battlefields.
+ // The old V4 mountains and sand materials remain identical everywhere
+ // except the actual vehicle pass shoulders. Old V4 saves stay unchanged.
+ // Existing .22 per-axis Lipschitz grading permits .31 diagonal slopes,
+ // above paid rover (.195), tank (.215), artillery (.185) driving limits.
+ // A LOWER-ONLY envelope at the drawn gaps brings every triangle below .15.
+ if(generatorVersion>=5&&ridges.some(r=>r.ramps.length)){
+  const passCells=new Uint8Array(n*n);
+  for(const ridge of ridges)for(const ramp of ridge.ramps){
+   const left=Math.max(0,Math.floor((ramp.x-ramp.width*.5-115)/step));
+   const right=Math.min(segments,Math.ceil((ramp.x+ramp.width*.5+115)/step));
+   for(let i=left;i<=right;i++){
+    const x=i*step,center=ridgeCenterY(ridge,x);
+    for(let j=0;j<n;j++)if(Math.abs(j*step-center)<=1450)
+     passCells[j*n+i]=1;
+   }
+  }
+  const regularEdge=step*.22,roadEdge=step*.105;
+  const edge=(a:number,b:number)=>passCells[a]||passCells[b]?roadEdge:regularEdge;
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+   const k=j*n+i;let h=heights[k];
+   if(i)h=Math.min(h,heights[k-1]+edge(k,k-1));
+   if(j)h=Math.min(h,heights[k-n]+edge(k,k-n));
+   heights[k]=h;
+  }
+  for(let j=n-1;j>=0;j--)for(let i=n-1;i>=0;i--){
+   const k=j*n+i;let h=heights[k];
+   if(i<segments)h=Math.min(h,heights[k+1]+edge(k,k+1));
+   if(j<segments)h=Math.min(h,heights[k+n]+edge(k,k+n));
+   heights[k]=h;
+  }
+ }
+ // V8 introduces broad DRY LOWLANDS instead of just isolated mountains.
+ // These are depressions in the actual terrain mesh (not dark decals).
+ // Gentle >600-unit shoulders keep all normal vehicle slopes accessible.
+ // Graded Bastion/HQ pads remain unchanged, even beside a valley.
+ if(generatorVersion>=8){
+  const valleyCenters=[
+   {x:size*.27,y:size*.52,r:size*.13,depth:44},
+   {x:size*.74,y:size*.47,r:size*.12,depth:36}
+  ];
+  const smoothStep=(t:number)=>{const u=Math.max(0,Math.min(1,t));return u*u*(3-2*u);};
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+   const p={x:i*step,y:j*step};let lowering=0;
+   const clearSite=sites.reduce((t,q)=>Math.min(t,
+     smoothStep((Math.hypot(p.x-q.x,p.y-q.y)-TERRAIN_GRADING_V3.bastionFlatRadius)/300)),1);
+   for(const valley of valleyCenters){
+    const dist=Math.hypot((p.x-valley.x)*.83,(p.y-valley.y)*1.10);
+    const v=1-smoothStep((dist-valley.r*.34)/(valley.r*.9));
+    lowering=Math.max(lowering,valley.depth*v*clearSite);
+   }
+   heights[j*n+i]-=lowering;
+  }
+ }
+ // Version 7/8 add physical walkable summits AFTER the legacy lower-only
+ // height envelope. Their sheer rock edges must not be artificially graded
+ // into round slopes; only the long carved ramps are vehicle-safe.
+ // The exact SAME final height grid drives rendering, physics and fog.
+ if(generatorVersion>=7&&plateaus.length){
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+   const k=j*n+i,p={x:i*step,y:j*step};
+   let h=heights[k];
+   for(const mesa of plateaus)h=raisedMesaHeight(h,p,mesa);
+   heights[k]=h;
+  }
+ }
  let minHeight=Infinity,maxHeight=-Infinity;
  for(const h of heights){minHeight=Math.min(minHeight,h);maxHeight=Math.max(maxHeight,h);}
  return {generatorVersion,profile,candidate,segments,size,heights,basins,minHeight,maxHeight};
@@ -117,8 +212,8 @@ export function terrainGradingEdge(x:number,y:number,sites:readonly Point[],
  if(version<2)return 0;
  let strongest=0;
  for(const [positions,flat] of [
-  [sites,TERRAIN_GRADING_V2.bastionFlatRadius] as const,
-  [homes,TERRAIN_GRADING_V2.homeFlatRadius] as const
+  [sites,version>=3?TERRAIN_GRADING_V3.bastionFlatRadius:TERRAIN_GRADING_V2.bastionFlatRadius] as const,
+  [homes,version>=3?TERRAIN_GRADING_V3.homeFlatRadius:TERRAIN_GRADING_V2.homeFlatRadius] as const
  ]){
   for(const p of positions){
    const offset=Math.hypot(x-p.x,y-p.y)-flat;

@@ -1,5 +1,4 @@
 import type {Point} from './config.js';
-import {segmentDistance} from './world-generation.js';
 const probes=Array.from({length:8},(_,i)=>({x:Math.cos(i*Math.PI/4),y:Math.sin(i*Math.PI/4)}));
 
 /** Movement uses a centre and eight clearance probes. Traverse every grid cell
@@ -7,7 +6,22 @@ const probes=Array.from({length:8},(_,i)=>({x:Math.cos(i*Math.PI/4),y:Math.sin(i
  * a very short intersection with a cliff corner. Combat/vision rays stay separate. */
 export function navigationLine(a:Point,b:Point,cell:number,columns:number,blocked:Uint8Array,
  obstacles:readonly (Point&{radius:number})[],radius:number,clearance:number):boolean {
- for(const o of obstacles)if(segmentDistance(o,a,b)<o.radius+radius+clearance)return false;
+ // A* uses this for each short grid-edge candidate, repeatedly comparing
+ // against dozens of wall, vehicle-decor and building circles. Reject distant
+ // candidates with an AABB before computing squared point-segment distance.
+ // Exact inequality matches segmentDistance < combinedRadius (no extra gaps).
+ const minX=Math.min(a.x,b.x),maxX=Math.max(a.x,b.x);
+ const minY=Math.min(a.y,b.y),maxY=Math.max(a.y,b.y);
+ const dx=b.x-a.x,dy=b.y-a.y,denom=dx*dx+dy*dy||1;
+ for(const o of obstacles){
+  const limit=o.radius+radius+clearance;
+  if(o.x+limit<minX||o.x-limit>maxX||
+     o.y+limit<minY||o.y-limit>maxY)continue;
+  const vx=o.x-a.x,vy=o.y-a.y;
+  const t=Math.max(0,Math.min(1,(vx*dx+vy*dy)/denom));
+  const ex=vx-dx*t,ey=vy-dy*t;
+  if(ex*ex+ey*ey<limit*limit)return false;
+ }
  const clear=(x:number,y:number)=>x>=0&&y>=0&&x<columns&&y<columns&&!blocked[y*columns+x];
  const ray=(ox:number,oy:number)=>{
   const ax=a.x+ox,ay=a.y+oy,bx=b.x+ox,by=b.y+oy,dx=bx-ax,dy=by-ay;

@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 import {disposeOwnedMeshes} from './webgl-resource-lifecycle.js';
 import {servicePaint,disposeServicePaint} from './webgl-service-materials.js';
+import {ensureAirfieldPbr,detachAirfieldPbr} from './webgl-airfield-pbr.js';
+import {applyAirfieldRollup} from './webgl-airfield-rollup.js';
+import {createAirfieldSecurityFence,conformAirfieldSecurityFence}
+ from './webgl-airfield-security-fence.js';
 
+// Only the visual runway length changes (+15.2%); aircraft docking, flight
+// times and saved airfield coordinates remain simulation-owned.
+export const AIRFIELD_RUNWAY_LENGTH=484;
+export const AIRFIELD_RUNWAY_CENTER_Z=35;
 // Explicit, single-bay 3D service hangar on the simulation's local flightline.
 // All meshes are presentation-only; the actual bomber remains one Simulation unit.
 const paint={
@@ -24,7 +32,7 @@ function cylinder(parent,name,radius,height,x,y,z,mat,axis='y'){
  mesh.castShadow=false;mesh.receiveShadow=true;
  parent.add(mesh);return mesh;
 }
-export function createAirfieldServiceYard(){
+export function createAirfieldServiceYard(owner=0,{ghost=false}={}){
  const group=new THREE.Group();
  group.name='AirfieldSingleMaintenanceHangar';
  group.userData={visualOnly:true,nonPlayable:true,hangarService:true};
@@ -37,14 +45,14 @@ export function createAirfieldServiceYard(){
  const roofCamo=servicePaint(['#657258','#aa9c78','#c1ab86'],{seed:31,repeat:4});
  const wallCamo=servicePaint(['#918467','#b4a17d','#70765d'],{seed:15,repeat:3});
  const ribbedSteel=servicePaint(['#45514a','#69776e','#899083'],{pattern:'metal',seed:45,repeat:2,metalness:.57,roughness:.52});
- const wornPaving=servicePaint(['#77736b','#a49c86','#b3a892'],{pattern:'concrete',seed:39,repeat:5,roughness:.96});
- const runwayWear=servicePaint(['#3d4542','#515752','#64665e'],{pattern:'concrete',seed:49,repeat:5,roughness:.96});
+ const wornPaving=servicePaint(['#8e8c85','#a8a69e','#c2bcb0'],{pattern:'slab',seed:39,repeat:4,roughness:.97});
+ const runwayWear=servicePaint(['#3d4542','#525652','#62665d'],{pattern:'asphalt',seed:49,repeat:5,roughness:.97});
  // True weathered textures on the ramps and fuel depot. The old plain
  // tan/olive cubes read like missing-material placeholders at RTS zoom.
- const apronWear=servicePaint(['#918b7b','#aaa18e','#777a6d'],
-  {pattern:'concrete',seed:67,repeat:6,roughness:.94});
- const rampGrip=servicePaint(['#626b64','#454e4b','#929080'],
-  {pattern:'metal',seed:25,repeat:4,metalness:.3,roughness:.84});
+ const apronWear=servicePaint(['#8c8c85','#adaaa2','#c6c2b7'],
+  {pattern:'slab',seed:67,repeat:4,roughness:.96});
+ const rampGrip=servicePaint(['#787c78','#a29f96','#bbb7ad'],
+  {pattern:'slab',seed:25,repeat:4,metalness:.04,roughness:.95});
  const fuelPaint=servicePaint(['#788371','#aba68b','#626b64'],
   {pattern:'metal',seed:61,repeat:3,metalness:.42,roughness:.65});
  const fuelMetal=servicePaint(['#444f4d','#92998e','#65716c'],
@@ -54,8 +62,10 @@ export function createAirfieldServiceYard(){
  // hangars; the old short cross-runway ahead of the building is gone.
  // Painted taxi directions are not a second black asphalt runway.
  box(group,'AirfieldExpandedConcreteApron',255,1.5,260,-145,.75,-5,wornPaving);
- box(group,'AirfieldRunwaySandShoulder',154,.7,438,12,1.05,35,wornPaving);
- box(group,'AirfieldExtendedRunway',141,1.6,420,12,1.85,35,runwayWear);
+ box(group,'AirfieldRunwaySandShoulder',154,.7,AIRFIELD_RUNWAY_LENGTH+18,
+  12,1.05,AIRFIELD_RUNWAY_CENTER_Z,wornPaving);
+ box(group,'AirfieldExtendedRunway',141,1.6,AIRFIELD_RUNWAY_LENGTH,
+  12,1.85,AIRFIELD_RUNWAY_CENTER_Z,runwayWear);
  // One aircraft stand outside the single hangar.
  for(const bay of [0]){
   const cx=bay===0?-151:-26;
@@ -69,9 +79,8 @@ export function createAirfieldServiceYard(){
   for(let n=0;n<7;n++){
    box(group,'AirfieldParkingRampTread_'+bay,103,.18,1.7,cx,2.28,176+n*4.8,fuelMetal);
   }
-  for(const z of [82,123,163]){
-   box(group,'AirfieldConcreteJoint_'+bay,111,.14,1.8,cx,2.04,z,steel);
-  }
+  // No three dark cross-stripes across the bomber parking apron.
+  // The slab PBR map already contains fine, subtle concrete seams.
   for(const x of [-40,-20,20,40]){
    box(group,'AirfieldParkingWearMark_'+bay,4,.12,19,cx+x,2.08,147,runwayWear);
   }
@@ -83,22 +92,30 @@ export function createAirfieldServiceYard(){
   box(group,'AirfieldAircraftParkingStop_'+bay,93,.15,3,cx,1.96,54,yellow);
   box(group,'AirfieldAircraftParkingNumber_'+bay,14,.12,8,cx,1.98,184,markings);
  }
- for(let z=-154;z<=232;z+=42)
+ for(let z=-190;z<=270;z+=42)
   box(group,'AirfieldRunwayCenterDash',3,.12,27,12,2.80,z,markings);
- for(const x of [-56,80]){
-  box(group,'AirfieldRunwayEdgeLine',2,.12,416,x,2.80,35,markings);
-  for(let z=-164;z<=236;z+=42)
-   box(group,'AirfieldRunwayLamp',5,2,8,x,4.0,z,yellow);
+ // Runway lights are flush insets OUTSIDE the usable asphalt, not tall
+ // yellow cuboids across the aircraft's landing path. The old lamp positions
+ // (-56,80) sit on the runway edges (-58.5,82.5), and their 2m height
+ // makes them look like stray obstacles at tactical camera distance.
+ for(const [lineX,lampX] of [[-56,-69],[80,93]]){
+  box(group,'AirfieldRunwayEdgeLine',2,.12,AIRFIELD_RUNWAY_LENGTH-4,
+   lineX,2.80,AIRFIELD_RUNWAY_CENTER_Z,markings);
+  for(let z=-196;z<=270;z+=42)
+   box(group,'AirfieldRunwayLamp',3,.28,6,lampX,2.80,z,yellow);
  }
  // Clear runway thresholds and staggered military landing-zone stripes.
- for(const z of [-161,-150,-139])for(const x of [-32,-13,37,56])
+ for(const z of [-193,-182,-171])for(const x of [-32,-13,37,56])
   box(group,'AirfieldRunwayThreshold',11,.16,5,x,2.83,z,markings);
- for(const z of [190,202,214,226])for(const x of [-33,57])
+ for(const z of [222,234,246,258])for(const x of [-33,57])
   box(group,'AirfieldRunwayLandingBars',19,.15,7,x,2.84,z,markings);
- // One simple taxi guideline connects the wide stands with the long runway.
- // It does not cover the apron as the old short black runway did.
- box(group,'AirfieldTaxiCrossGuide',188,.16,2.6,-82,2.03,24,yellow);
- for(const x of [-158,-126,-94,-62,-30,2])
+ // Three taxi-guide dashes at x=-62,-30,+2 were positioned *under* the
+ // asphalt mesh (whose left edge is x=-58.5). Heightfield adaptation made
+ // these buried strips bleed through as THREE BLACK BARS on the runway.
+ // End both the continuous guide and its dashes BEFORE the asphalt edge.
+ // Taxiing does not use these cosmetic meshes, so flight paths stay intact.
+ box(group,'AirfieldTaxiCrossGuide',112,.16,2.6,-120,2.03,24,yellow);
+ for(const x of [-158,-126,-94])
   box(group,'AirfieldTaxiGuideDash',16,.14,3,x,2.08,24,markings);
  for(const bay of [0]){
   const cx=-151,half=59,front=18,rear=-171;
@@ -181,23 +198,26 @@ export function createAirfieldServiceYard(){
   for(let i=0;i<4;i++)box(sparkGroup,'MaintenanceSpark_'+i,2.1,2.1,2.1,
    -21+i*14,i%2?7:0,0,glow);
   sparkGroup.visible=false;
-  group.userData['bay'+bay]={left,right,cx,open:0,sparks:sparkGroup};
+  group.userData['bay'+bay]={left,right,cx,open:0,slats:null,drum:null,sparks:sparkGroup};
  }
- // Scuffed touchdown marks and pavement expansion joints.
- for(const x of [-11,33])for(const z of [-116,24,128,201])
-  box(group,'AirfieldTouchdownRubber',4,.12,18,x,2.76,z,dark);
- for(const x of [-195,-110,-45,29])for(const z of [-143,-72,8])
-  box(group,'AirfieldApronExpansionJoint',24,.11,1.5,x,1.65,z,steel);
- for(const x of [-216,45]){
+ // No raised black rubber bars or debris on the runway: the only
+ // markings inside the aircraft corridor are flat painted lines/thresholds.
+ // No raised painted black dashes anywhere along the service apron.
+ // Real concrete joints already live in the subtle slab texture.
+ // Both maintenance cabinets belong in the service compound. The old
+ // x=45 cabinet sat ON the runway; its three dark drawers appeared as
+ // the remaining two black skid marks after visual cleanup hid the first.
+ for(const x of [-238,-223]){
   box(group,'HangarMaintenanceToolCabinet',15,26,19,x,14,-109,ribbedSteel);
   for(const yy of [11,18,25])
    box(group,'HangarCabinetDrawer',12,1.4,2,x,yy,-98,dark);
  }
  // Wartime workshop details that read at tactical camera distance.
- for(const x of [-204,28]){
-  box(group,'HangarSecurityLampMast',5,60,5,x,32,32,steel);
-  box(group,'HangarSecurityLamp',18,7,12,x,64,32,yellow);
- }
+ // The old mast at x=28,z=32 was INSIDE the runway, blocking the approach.
+ // Keep only the service-yard lamp, well away from the landing strip.
+ const serviceLampX=-204;
+ box(group,'HangarSecurityLampMast',5,60,5,serviceLampX,32,32,steel);
+ box(group,'HangarSecurityLamp',18,7,12,serviceLampX,64,32,yellow);
  // Keep both aircraft door approaches fully empty. The control tower,
  // fuel tanks and ancillary equipment occupy the outside LEFT service strip.
  // The right maintenance bay is as unobstructed as the first.
@@ -260,6 +280,10 @@ export function createAirfieldServiceYard(){
  box(group,'AirfieldFuelPumpRoof',24,3,23,-306,27,136,roofSand);
  for(const x of [-169,-134,-44,-8])
   box(group,'HangarSafetyChevron',8,.15,5,x,3.5,42,yellow);
+ // A visual-only military chain-link + barbed-wire fence encloses the
+ // hangar/tower/fuel compound, not the runway, taxiway or bomber apron.
+ // The entire approach opening to the east stays open at every map rotation.
+ group.add(createAirfieldSecurityFence());
  // Reduce site, runway and tower without changing the shared building anchor.
  const towerScale=.60; // reuse the existing towerX/towerZ coordinates
  for(const part of group.children)if(part.isMesh&&part.name.startsWith('AirfieldLeftControlTower')){
@@ -274,6 +298,9 @@ export function createAirfieldServiceYard(){
   part.position.x+=57;
  group.scale.set(.90,.84,.82);group.position.x=95;
  group.traverse(mesh=>{if(mesh.isMesh){mesh.castShadow=false;mesh.receiveShadow=false;mesh.raycast=()=>{};}});
+ // Show existing hangar until the real PBR pair (blue/red) has loaded.
+ // The model is in this SAME compact service coordinate system as its runway.
+ void ensureAirfieldPbr(group,owner,{ghost});
  return group;
 }
 /** Terrain-following surface mesh used by both the construction ghost and
@@ -286,7 +313,7 @@ export function createAirfieldServiceYard(){
  * The same function is called for the ghost at its prospective location and
  * for the built site, including every cardinal facing.
  */
-const AIRFIELD_GROUND_SURFACE=/^(AirfieldFuelServicePad|AirfieldFuelConcreteJoint|AirfieldParkingRampGrip|AirfieldParkingRampEdge|AirfieldParkingRampTread|AirfieldConcreteJoint|AirfieldParkingWearMark|AirfieldExpandedConcreteApron|AirfieldRunwaySandShoulder|AirfieldExtendedRunway|AirfieldAircraftParking(?:Pad|Centerline|Edge|Stop|Number)|AirfieldRunwayCenterDash|AirfieldRunwayEdgeLine|AirfieldRunwayThreshold|AirfieldRunwayLandingBars|AirfieldTouchdownRubber|AirfieldTaxiCrossGuide|AirfieldTaxiGuideDash|HangarCenterGuide|HangarApronStop|HangarSafetyChevron|AirfieldApronExpansionJoint)/;
+const AIRFIELD_GROUND_SURFACE=/^(AirfieldFuelServicePad|AirfieldFuelConcreteJoint|AirfieldParkingRampGrip|AirfieldParkingRampEdge|AirfieldParkingRampTread|AirfieldParkingWearMark|AirfieldExpandedConcreteApron|AirfieldRunwaySandShoulder|AirfieldExtendedRunway|AirfieldAircraftParking(?:Pad|Centerline|Edge|Stop|Number)|AirfieldRunwayCenterDash|AirfieldRunwayEdgeLine|AirfieldRunwayThreshold|AirfieldRunwayLandingBars|AirfieldTaxiCrossGuide|AirfieldTaxiGuideDash|HangarCenterGuide|HangarApronStop|HangarSafetyChevron|AirfieldApronExpansionJoint)/;
 const AIRFIELD_GROUND_PROPS=/^(AirfieldRunwayLamp|AirfieldAircraftParkingChock)$/;
 export function conformAirfieldSurface(group,base,heightAt,{force=false}={}){
  if(!group||typeof heightAt!=='function'||!Number.isFinite(base?.x)||!Number.isFinite(base?.y))return 0;
@@ -350,11 +377,15 @@ export function conformAirfieldSurface(group,base,heightAt,{force=false}={}){
   data.geometry.computeBoundingSphere();
   changed++;
  });
+ changed+=conformAirfieldSecurityFence(group,base,heightAt,origin);
  return changed;
 }
 
-export function updateAirfieldServiceYard(entry,base,units,time,dt){
+export function updateAirfieldServiceYard(entry,base,units,time,dt,active=true){
  const group=entry.airfieldServiceYard;if(!group)return;
+ // Owner changes swap the whole authored PBR atlas without recoloring camo.
+ if(group.userData.airfieldPbrOwner!==base.owner)
+  void ensureAirfieldPbr(group,base.owner);
  for(const bay of [0]){
   const gate=group.userData['bay'+bay];
   // Historic saves with bay 1 also use the only visible door.
@@ -362,16 +393,21 @@ export function updateAirfieldServiceYard(entry,base,units,time,dt){
   const phase=aircraft?.airfieldService?.phase;
   // Start opening while the bomber is still landing. The shutters must
   // be fully clear before ground taxi reaches the entrance.
-  const target=phase&&phase!=='approach'?1:0;
+  const target=phase&&phase!=='approach'?1:
+   Math.max(0,Math.min(1,group.userData.airfieldProductionOpen??0));
   gate.open+=(target-gate.open)*Math.min(1,Math.max(0,dt)*2.5);
-  // The two halves physically slide sideways into reinforced wall pockets.
-  gate.left.position.x=gate.cx-27-28*gate.open;
-  gate.right.position.x=gate.cx+27+28*gate.open;
-  // A sideways split alone leaves only a 58-unit slot, narrower than
-  // the bomber's 107-unit wings. Retract both corrugated doors up into
-  // the fascia so the FULL physical entrance becomes unobstructed.
-  gate.left.scale.y=gate.right.scale.y=1-.94*gate.open;
-  gate.left.position.y=gate.right.position.y=36+42*gate.open;
+  if(gate.slats?.length){
+   // One continuous vertically winding PBR shutter. The door stays centered
+   // and its horizontal stamped ribs keep their normal thickness.
+   applyAirfieldRollup(gate,gate.open);
+  }else{
+   // Safe loading/legacy fallback: both old textures rise vertically; never
+   // split sideways while the new GLB is loading or when offline.
+   gate.left.position.x=gate.cx-27;
+   gate.right.position.x=gate.cx+27;
+   gate.left.scale.y=gate.right.scale.y=1-.94*gate.open;
+   gate.left.position.y=gate.right.position.y=36+42*gate.open;
+  }
   gate.sparks.visible=phase==='repair';
   if(gate.sparks.visible){
    gate.sparks.children.forEach((spark,i)=>{
@@ -381,17 +417,25 @@ export function updateAirfieldServiceYard(entry,base,units,time,dt){
    });
   }
  }
+ const rotor=group.userData.airfieldDishRotor;
+ if(rotor&&active&&dt>0)rotor.rotation.y+=dt*.44;
 }
 export function hideOldAirfieldHangar(entry){
- if(!entry.detail||entry.airfieldOldHidden)return;
- entry.detail.traverse(child=>{
-  if(/^(?:Atlas_)?(?:Hangar|ParkedJet|JetWheel|AirfieldRunway|AirfieldConcreteApron|TaxiwayFromHangar|Runway|ApronStopLine|SecurityPerimeter|ControlTower|Tower|MaintenanceServiceBlock|ServiceFlatRoof|ServiceRollerDoor|ServiceDoorLouvre|RoofCoolingUnit|AntennaEquipmentPad|AntennaStem|Beacon|FuelStorageTank|FuelTankSteelBand|FuelTankSupport|FuelPipingMain|FuelPipeTap|CargoContainer|AirbaseFloodlightMast|AirbaseFloodlightTop|AirbaseFloodlightLens|GroundPlinth|CeramicFoundation)/.test(child.name))
-   {child.visible=false;child.userData.airfieldLegacyHidden=true;}
- });
+ if(!entry?.detail||entry.airfieldHiddenDetail===entry.detail)return;
+ // The airfield has ONE complete authored service yard with its own
+ // hangar, tower, apron and runway. The old building GLB must NEVER render
+ // alongside it, even if it has an unexpected mesh/asset naming convention:
+ // old unlabelled skids/landing strips otherwise leak onto the new runway.
+ // Hide only the duplicate detail root, not aircraft units or game entities.
+ // Async GLB swaps can replace entry.detail: hide each new identity as well.
+ entry.detail.visible=false;
+ entry.detail.userData.airfieldLegacyHidden=true;
+ entry.airfieldHiddenDetail=entry.detail;
  entry.airfieldOldHidden=true;
 }
 export function disposeAirfieldServiceYard(entry){
  if(!entry?.airfieldServiceYard)return;
  const root=entry.airfieldServiceYard;root.removeFromParent();
+ detachAirfieldPbr(root); // imported glTF buffers are shared across bases
  disposeServicePaint(root);disposeOwnedMeshes(root);entry.airfieldServiceYard=null;
 }

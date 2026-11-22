@@ -1,0 +1,42 @@
+name: Sandforge WebGL startup packaging
+on:
+  push:
+    branches:
+      - fix/sandforge-webgl-shadow-module-packaging-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser-startup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build all gameplay JS and audit WebGL import graph without local PBR binaries
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+      - name: Test module packaging and previous performance changes
+        run: |
+          node --test \
+            tests/sandforge-webgl-shadow-module-packaging-20261119.test.mjs \
+            tests/sandforge-728s-performance-regression-20261119.test.mjs \
+            tests/sandforge-vehicle-gate-clearance-20261119.test.mjs
+      - name: HTTP smoke test actual module URLs
+        run: |
+          PORT=18095 node scripts/serve.mjs >/tmp/sandforge-server.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18095/healthz >/dev/null; then break; fi
+            sleep .2
+          done
+          curl --fail --silent --show-error http://127.0.0.1:18095/webgl-preview.js >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:18095/webgl-battlefield.js >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:18095/webgl-shadow-budget.js >/dev/null
+          echo '3D preview module and all new runtime dependencies: HTTP 200'

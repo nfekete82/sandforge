@@ -1,0 +1,47 @@
+name: Sandforge warm unified desert rock PBR QA
+on:
+  push:
+    branches: [fix/desert-rocks-match-sand-pbr-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-unified-stone-pbr-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  stone-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - name: Warm rock material, legacy geometry and unified scenic pigments
+        run: |
+          node --test \
+            tests/webgl-stone-desert-unified-pbr-20261115.test.mjs \
+            tests/webgl-desert-rock-crater-polish-20261110.test.mjs \
+            tests/webgl-unified-desert-scenery-style-20261115.test.mjs
+      - run: npm ci --prefix tests/browser --no-audit --no-fund
+      - run: |
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Real golden dune and rock material in Chromium/WebGL
+        env:
+          ATLAS_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-desert-stone-pbr-20261115.spec.mjs --config=playwright.config.mjs
+      - name: Preserve WebGL diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-unified-rock-pbr-qa
+          path: tests/browser/artifacts/
+          retention-days: 7

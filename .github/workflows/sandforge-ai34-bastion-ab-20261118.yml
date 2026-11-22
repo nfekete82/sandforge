@@ -1,0 +1,72 @@
+name: Sandforge AI 3.3 vs 3.4 Bastion A/B
+on:
+  push:
+    branches: ['feat/sandforge-ai34-bastion-control-local-20261118']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  paired-bastion-control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build both variants, retaining same assets and world generator
+        run: |
+          git worktree add --detach /tmp/sf-ai33 5f2ca559dda67938bc2c627702f67cb8d0d22c69
+          ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/sf-ai33/node_modules
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          (cd /tmp/sf-ai33 && npx tsc -p tsconfig.json && SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs)
+      - name: Run same-seed 8/16 Bastion match set for AI 3.3
+        run: |
+          (cd /tmp/sf-ai33 && node scripts/benchmark-reborn-ai.mjs \
+            --maps 24,26 --seconds 420 --seeds 2026,2027,2028 \
+            --modes director --opponent contesting --ai33 adaptive \
+            --label ai33 --output /tmp/sandforge-ai33-compare.json \
+            > /tmp/sandforge-ai33-compare.log)
+      - name: Run same-seed 8/16 Bastion match set for AI 3.4
+        run: |
+          node scripts/benchmark-reborn-ai.mjs \
+            --maps 24,26 --seconds 420 --seeds 2026,2027,2028 \
+            --modes director --opponent contesting --ai33 adaptive \
+            --label ai34 --output /tmp/sandforge-ai34-compare.json \
+            > /tmp/sandforge-ai34-compare.log
+      - name: Report real economic Bastion possession, no exaggerated victory claims
+        run: |
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const old=JSON.parse(fs.readFileSync('/tmp/sandforge-ai33-compare.json','utf8'));
+          const newer=JSON.parse(fs.readFileSync('/tmp/sandforge-ai34-compare.json','utf8'));
+          if(!old.complete||!newer.complete||old.details.length!==6||newer.details.length!==6)
+            throw Error('Missing paired finished benchmark matches');
+          for(const map of [24,26]){
+            const a=old.details.filter(d=>d.mapVersion===map);
+            const b=newer.details.filter(d=>d.mapVersion===map);
+            const paired=a.map((d,i)=>{
+              const current=b.find(v=>v.seed===d.seed);
+              if(!current||current.initialStateHash!==d.initialStateHash)
+                throw Error('Mismatched start state for map '+map+' seed '+d.seed);
+              return {seed:d.seed,
+                old:{held:d.redSectors,control:d.bastionControlSeconds,captures:d.captures,
+                  lost:d.territoriesLost,outcome:d.outcome},
+                new:{held:current.redSectors,control:current.bastionControlSeconds,
+                  captures:current.captures,lost:current.territoriesLost,outcome:current.outcome}};
+            });
+            const mean=(items,key)=>Number((items.reduce((sum,d)=>sum+d[key],0)/items.length).toFixed(1));
+            const prior=a.map(x=>({held:x.redSectors,control:x.bastionControlSeconds}));
+            const current=b.map(x=>({held:x.redSectors,control:x.bastionControlSeconds}));
+            console.log('BASTION CONTROL',JSON.stringify({
+              map,old:{held:mean(prior,'held'),controlSeconds:mean(prior,'control')},
+              new:{held:mean(current,'held'),controlSeconds:mean(current,'control')},
+              pairs:paired
+            }));
+          }
+          NODE

@@ -1,0 +1,36 @@
+name: Sandforge R-01 Recon Drone QA
+on:
+  pull_request:
+    paths:
+      - 'src/reborn/**'
+      - 'scripts/webgl-*'
+      - 'scripts/build.mjs'
+      - 'tests/sandforge-recon-drone.test.mjs'
+      - 'tests/webgl-global-production-20261111.test.mjs'
+      - '.github/workflows/sandforge-r01-recon-drone-qa.yml'
+  push:
+    branches:
+      - 'feat/sandforge-r01-recon-drone-20261118'
+    paths:
+      - 'src/reborn/**'
+      - 'scripts/webgl-*'
+      - 'scripts/build.mjs'
+      - 'tests/sandforge-recon-drone.test.mjs'
+      - 'tests/webgl-global-production-20261111.test.mjs'
+      - '.github/workflows/sandforge-r01-recon-drone-qa.yml'
+jobs:
+  drone-simulation:
+    name: R-01 TypeScript, gameplay and 3D model
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc -p tsconfig.json
+      - run: node --check scripts/webgl-recon-drone.js
+      - name: Build WebGL runtime without optional Mac-local PBR source worktrees
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+      - run: node --test tests/sandforge-recon-drone.test.mjs tests/webgl-global-production-20261111.test.mjs

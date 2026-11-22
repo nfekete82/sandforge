@@ -1,0 +1,27 @@
+name: WebGL Bastion · click to upgrade
+on:
+  push:
+    branches:
+      - fix/sandforge-bastion-direct-click-upgrade-hud-20261122
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bastion-hud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - name: Build authoritative game and 3D HUD
+        run: npm run build
+      - name: Clickable Bastion controls, 750-credit upgrade, home restrictions and saves
+        run: node --test tests/sandforge-bastion-direct-click-upgrade-hud-20261122.test.mjs
+      - name: Preserve Desert Strike natural cliffs and four access ramps
+        run: node --test tests/sandforge-desert-strike-natural-cliffs-20261122.test.mjs tests/sandforge-central-four-ramp-mesas-v10-20261121.test.mjs

@@ -6,10 +6,14 @@ import { TERRAIN_BLOCKED, TERRAIN_CLIFFS } from './terrain-art.js';
 import { generateMap, polygonContains, segmentDistance, type GeneratedMap } from './world-generation.js';
 import { navigationLine } from './navigation-line.js';
 import {canyonCliffBlocked,canyonRuinBlocked} from './canyon-front.js';
+import {raisedMesaCliffBlocked} from './raised-mesas.js';
+import {canyonPassWaypoint} from './ai36-terrain-routes.js';
 
 export interface Territory {
   id: number; name: string; polygon: Point[]; point: Point; neighbors: number[];
   owner: Owner; capturing: Owner; progress: number; income: number; value: number;
+  /** Optional paid tier 2; missing/1 means normal income (legacy saves). */
+  upgradeLevel?:1|2;
 }
 // Hand-traced against the supplied landscape, in original image pixels.
 const ROCKS = [
@@ -77,9 +81,30 @@ export class World {
       for(const [n,ridge] of this.generated.ridges.entries()){
         const id=this.generated.mesas.length+n;
         this.cliffCells[id]=[];
+        // The v3 renderer's stratified cliff occupies a wider footprint
+        // than the old .5-width collision spine. Without this skirt tanks
+        // and infantry can drive into the VISIBLE hillside and then stall
+        // when the strict vehicle slope test rejects every further step.
+        // Keep genuine passes and protected Bastion clearings unchanged.
+        const collisionRidge=this.generatorVersion>=3
+          ?{...ridge,width:ridge.width*1.9}:ridge;
         for(let i=0;i<this.blocked.length;i++){
           const p=this.center(i);
-          if(!canyonCliffBlocked(p,ridge))continue;
+          if(!canyonCliffBlocked(p,collisionRidge))continue;
+          this.blocked[i]=1;this.opaque[i]=1;this.cliffIds[i]=id;
+          this.cliffCells[id].push(i);
+        }
+      }
+      // V7 authentic buildable mesas: only their measured CLIFF RIM is
+      // opaque/blocked. Flat summit and the single carved vehicle ramp stay
+      // fully walkable. Ground height is the same WebGL terrain field.
+      if(this.generatorVersion>=7)for(const [n,mesa] of
+        (this.generated.plateaus??[]).entries()){
+        const id=this.generated.mesas.length+this.generated.ridges.length+n;
+        this.cliffCells[id]=[];
+        for(let i=0;i<this.blocked.length;i++){
+          const p=this.center(i);
+          if(!raisedMesaCliffBlocked(p,mesa,this.terrainSlope(p.x,p.y)))continue;
           this.blocked[i]=1;this.opaque[i]=1;this.cliffIds[i]=id;
           this.cliffCells[id].push(i);
         }
@@ -97,6 +122,63 @@ export class World {
         if(cliff>=0){this.opaque[i]=1;this.cliffIds[i]=cliff;(this.cliffCells[cliff]??=[]).push(i);}
       }
     }
+    // Physical cliff topology cleanup for the new v8 highland maps only:
+    // a single exposed raster pixel fully enclosed by 4 opaque cliff cells
+    // is actually part of that 3D rock face, not a 32-unit playable island.
+    // Fill only such single-cell pinholes. This never closes any traversable
+    // path (it has no walkable cardinal neighbor), never touches old saves,
+    // and keeps the collision mask aligned with the continuous PBR cliff.
+    if(this.generatorVersion>=8){
+      const grid=RULES.grid;
+      for(let y=1;y<grid-1;y++)for(let x=1;x<grid-1;x++){
+        const i=y*grid+x;
+        if(this.blocked[i])continue;
+        const neighbors=[i-1,i+1,i-grid,i+grid];
+        if(neighbors.every(j=>this.blocked[j]!==0)&&
+           neighbors.some(j=>this.cliffIds[j]>=0)){
+          const source=neighbors.find(j=>this.cliffIds[j]>=0)!;
+          const id=this.cliffIds[source];
+          this.blocked[i]=1;this.opaque[i]=1;this.cliffIds[i]=id;
+          (this.cliffCells[id]??=[]).push(i);
+        }
+      }
+    }
+    // V8 layered ridge-and-mesa geology can leave sub-64-cell sand flecks
+    // trapped *inside* two adjoining cliff faces. These are not playable
+    // islands: no ground unit can enter or leave them, and they are smaller
+    // than a real construction pad. Classify only cliff-bounded tiny holes
+    // as continuous rock, never clear the original collision or add routes.
+    // Do not touch old maps, larger platforms, reachable valleys or Bastions.
+    if(this.generatorVersion>=8){
+      const grid=RULES.grid,visited=new Uint8Array(this.blocked.length);
+      for(let root=0;root<this.blocked.length;root++){
+        if(visited[root]||this.blocked[root])continue;
+        const queue=[root];visited[root]=1;let cliffId=-1;
+        for(let head=0;head<queue.length;head++){
+          const i=queue[head],x=i%grid,y=Math.floor(i/grid);
+          for(const neighbor of [
+            x?i-1:-1,x<grid-1?i+1:-1,
+            y?i-grid:-1,y<grid-1?i+grid:-1
+          ]){
+            if(neighbor<0)continue;
+            if(this.blocked[neighbor]){
+              if(this.cliffIds[neighbor]>=0)cliffId=this.cliffIds[neighbor];
+            }else if(!visited[neighbor]){
+              visited[neighbor]=1;queue.push(neighbor);
+            }
+          }
+        }
+        if(queue.length>64||cliffId<0||!this.generated||
+           queue.some(i=>this.generated!.sites.some(site=>{
+             const p=this.center(i);
+             return Math.hypot(site.x-p.x,site.y-p.y)<190;
+           })))continue;
+        for(const i of queue){
+          this.blocked[i]=1;this.opaque[i]=1;this.cliffIds[i]=cliffId;
+          (this.cliffCells[cliffId]??=[]).push(i);
+        }
+      }
+    }
     // Static connectivity keeps move destinations out of isolated terrain pockets.
     let component=0;
     for(let i=0;i<this.blocked.length;i++)if(!this.blocked[i]&&this.components[i]<0){
@@ -112,7 +194,21 @@ export class World {
     if(mapVersion>=23){
       this.validation=validateBattlefield(this);
       if(!this.validation.valid){
-        if(candidate>=3)throw new Error('Battlefield validation failed: '+this.validation.errors.join(', '));
+        if(candidate>=3){
+          if(this.generatorVersion>=7&&this.validation.errors.includes('isolated-ground')){
+            const groups=new Map<number,{count:number;example:Point}>();
+            for(let i=0;i<this.blocked.length;i++){
+              if(this.blocked[i])continue;
+              const id=this.components[i],g=groups.get(id);
+              if(g)g.count++;
+              else groups.set(id,{count:1,example:this.center(i)});
+            }
+            console.error('Mesa v7 disconnected navigation:',[...groups.entries()]
+              .map(([id,g])=>({id,count:g.count,example:g.example}))
+              .sort((a,b)=>b.count-a.count));
+          }
+          throw new Error('Battlefield validation failed: '+this.validation.errors.join(', '));
+        }
         const corrected=new World(seed,mapVersion,profile,candidate+1,generatorVersion);
         this.generated=corrected.generated;this.rocks=corrected.rocks;this.validation=corrected.validation;
         this.blocked.set(corrected.blocked);this.opaque.set(corrected.opaque);this.cliffIds.set(corrected.cliffIds);this.components.set(corrected.components);
@@ -130,6 +226,69 @@ export class World {
   /** New terrain authority. Old versions deliberately keep their old samplers. */
   terrainHeight(x:number,y:number):number{return this.generated?.battlefield?battlefieldHeightAt(this.generated.battlefield,x,y):0;}
   terrainSlope(x:number,y:number):number{return this.generated?.battlefield?battlefieldSlopeAt(this.generated.battlefield,x,y):0;}
+  /** Vehicle-only grade check on modern 3D battlefields. The authored
+   * canyon ramps stay open if they meet the same measured slope limit.
+   * Older seeded map navigation and all infantry/aircraft stay unchanged.
+   * Check wheel/track contact offsets, not just the vehicle center.
+   */
+  groundVehicleSlopeSafe(p:Point,maxSlope:number,footprint=0,measuredSlope?:number):boolean{
+    if(!this.generated?.battlefield||!Number.isFinite(maxSlope))return true;
+    const x=p.x,y=p.y,radius=Math.max(0,Math.min(footprint,26))*.72;
+    if((measuredSlope??this.terrainSlope(x,y))>maxSlope)return false;
+    if(radius<1)return true;
+    // Hot path for every wheel/track contact and A* edge. Four numeric
+    // checks avoid a fresh array, tuple objects and callback per sample.
+    return this.terrainSlope(x+radius,y)<=maxSlope&&
+      this.terrainSlope(x-radius,y)<=maxSlope&&
+      this.terrainSlope(x,y+radius)<=maxSlope&&
+      this.terrainSlope(x,y-radius)<=maxSlope;
+  }
+  /** The actual world-space displacement must not tunnel up a cliff, even
+   * if a short 50-ms step ends in a neighboring walkable navigation cell.
+   * If a loaded old vehicle already sits on the slope, allow ONLY a step
+   * toward strictly gentler ground, so it can escape instead of freezing.
+   */
+  groundVehicleStepSafe(from:Point,to:Point,maxSlope:number,footprint=0):boolean{
+    if(!this.generated?.battlefield||!Number.isFinite(maxSlope))return true;
+    const dist=Math.hypot(to.x-from.x,to.y-from.y);
+    if(dist<1e-9)return true;
+    const steps=Math.max(1,Math.ceil(dist/Math.max(7,this.cell*.32)));
+    const oldSlope=this.terrainSlope(from.x,from.y);
+    // At a cliff LIP, a broad vehicle can have its centre on safe sand,
+    // but one wheel/track sample is still within a forbidden slope. The old
+    // method rejected movement in EVERY direction because it looked only at
+    // the centre to detect a possible escape. Permit only a short, verified
+    // outward movement that aims toward completely clear, gentler ground.
+    const radius=Math.max(0,Math.min(footprint,26))*.72;
+    const startOverhang=radius>=1&&oldSlope<=maxSlope&&
+      !this.groundVehicleSlopeSafe(from,maxSlope,footprint);
+    const forward=Math.max(32,radius*2.5);
+    const safeAhead=startOverhang&&this.groundVehicleSlopeSafe({
+      x:from.x+(to.x-from.x)/dist*forward,
+      y:from.y+(to.y-from.y)/dist*forward
+    },maxSlope,footprint);
+    const peakSlope=(p:Point)=>Math.max(this.terrainSlope(p.x,p.y),
+      this.terrainSlope(p.x+radius,p.y),this.terrainSlope(p.x-radius,p.y),
+      this.terrainSlope(p.x,p.y+radius),this.terrainSlope(p.x,p.y-radius));
+    const startPeak=safeAhead?peakSlope(from):0;
+    let last=from,lastHeight=this.terrainHeight(from.x,from.y);
+    for(let i=1;i<=steps;i++){
+      const point={x:from.x+(to.x-from.x)*i/steps,
+        y:from.y+(to.y-from.y)*i/steps};
+      const slope=this.terrainSlope(point.x,point.y);
+      const escaping=oldSlope>maxSlope&&slope<oldSlope-.007;
+      const normalSafe=this.groundVehicleSlopeSafe(point,maxSlope,footprint,slope);
+      const overhangRetreat=safeAhead&&slope<=maxSlope&&
+        peakSlope(point)<=startPeak+1e-6;
+      if(!escaping&&!normalSafe&&!overhangRetreat)return false;
+      const height=this.terrainHeight(point.x,point.y);
+      const segment=Math.hypot(point.x-last.x,point.y-last.y);
+      if(!escaping&&segment>1e-6&&
+        Math.abs(height-lastHeight)/segment>maxSlope+.015)return false;
+      last=point;lastHeight=height;
+    }
+    return true;
+  }
   buildable(p:Point,radius:number):boolean{
     if(!this.walkable(p))return false;
     let min=this.terrainHeight(p.x,p.y),max=min;
@@ -156,9 +315,9 @@ export class World {
     if(clearance>0)for(const d of clearanceDirections){const j=this.indexXY(p.x+d.x*clearance,p.y+d.y*clearance);if(j<0||this.blocked[j])return false;}
     return true;
   }
-  nearest(p: Point, obstacles: {x:number;y:number;radius:number}[]=[], occupied: Point[]=[], from?:Point,clearance=0): Point | null {
+  nearest(p: Point, obstacles: {x:number;y:number;radius:number}[]=[], occupied: Point[]=[], from?:Point,clearance=0,maxSlope=Infinity): Point | null {
     const start=from?this.index(from):-1,component=start>=0?this.components[start]:-1;
-    const valid=(q:Point)=>this.walkable(q,obstacles,clearance)&&(component<0||this.components[this.index(q)]===component)&&occupied.every(u=>Math.hypot(u.x-q.x,u.y-q.y)>23+clearance);
+    const valid=(q:Point)=>this.walkable(q,obstacles,clearance)&&this.groundVehicleSlopeSafe(q,maxSlope,clearance+10)&&(component<0||this.components[this.index(q)]===component)&&occupied.every(u=>Math.hypot(u.x-q.x,u.y-q.y)>23+clearance);
     if(valid(p))return {...p};
     const origin=this.index({x:Math.max(0,Math.min(this.size-1,p.x)),y:Math.max(0,Math.min(this.size-1,p.y))});
     const search=from?RULES.grid:Math.ceil(700/this.cell);
@@ -186,18 +345,28 @@ export class World {
     }
     return null;
   }
-  line(a: Point,b: Point,obstacles: {x:number;y:number;radius:number}[]=[],clearance=0): boolean {
+  line(a: Point,b: Point,obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,maxSlope=Infinity): boolean {
     const steps=Math.max(1,Math.ceil(Math.hypot(a.x-b.x,a.y-b.y)/(this.cell*.45)));
     for(let i=1;i<=steps;i++) if(!this.walkable({x:a.x+(b.x-a.x)*i/steps,y:a.y+(b.y-a.y)*i/steps},obstacles,clearance))return false;
-    return true;
+    return this.groundVehicleStepSafe(a,b,maxSlope,clearance+10);
   }
   /** The first opaque face is visible; only terrain beyond that face is hidden. */
   sightLine(a:Point,b:Point):boolean{
     const end=this.index(b);if(end<0)return false;
     const steps=Math.max(1,Math.ceil(Math.hypot(a.x-b.x,a.y-b.y)/(this.cell*.4)));
+    // The optional v7 summit is REALLY elevated. Test visibility against
+    // the same physical terrain triangles rather than a flat 2D cliff mask:
+    // high units can see over a ledge, low units cannot see through its wall.
+    const raised=this.generatorVersion>=7&&Boolean(this.generated?.plateaus?.length);
+    const eyeA=raised?this.terrainHeight(a.x,a.y)+25:0;
+    const eyeB=raised?this.terrainHeight(b.x,b.y)+25:0;
     for(let i=1;i<=steps;i++){
-      const index=this.indexXY(a.x+(b.x-a.x)*i/steps,a.y+(b.y-a.y)*i/steps);
-      if(index<0)return false;if(index===end)return true;if(this.opaque[index])return false;
+      const t=i/steps,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;
+      const index=this.indexXY(x,y);
+      if(index<0)return false;if(index===end)return true;
+      if(raised){
+        if(this.terrainHeight(x,y)+8>eyeA+(eyeB-eyeA)*t)return false;
+      }else if(this.opaque[index])return false;
     }
     return true;
   }
@@ -206,10 +375,10 @@ export class World {
    * approach segment for moving units, or [] for strategic reachability checks.
    * Expansion counts, not wall-clock timing, keep multiplayer/replays
    * deterministic across machines. Legacy map versions remain unchanged. */
-  path(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false): Point[] {
-    if(!profiler&&!this.profilePaths)return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial);
+  path(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false,maxSlope=Infinity): Point[] {
+    if(!profiler&&!this.profilePaths)return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial,maxSlope);
     const at=performance.now();this.pathNodes=0;
-    try{return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial);}
+    try{return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial,maxSlope);}
     finally{
       const ms=performance.now()-at;
       if(this.profilePaths){
@@ -223,22 +392,89 @@ export class World {
   private pathNodes=0;
   // Searches are synchronous; reuse workspace, resetting traversal for every search.
   // Never cache across calls: construction, fog knowledge and test maps can change.
-  private pathWorkspace?:{costs:Float64Array;prev:Int32Array;closed:Uint8Array;walkable:Int8Array};
-  private findPath(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false): Point[] {
+  // Sparse per-search generation tags avoid clearing the entire 240×240
+  // field for every A* query. Especially valuable with many moving tanks,
+  // high terrain variation and 4× gameplay speed.
+  private pathWorkspace?:{costs:Float64Array;prev:Int32Array;closed:Uint32Array;
+    walkable:Int8Array;seen:Uint32Array;walkEpoch:Uint32Array};
+  private pathEpoch=0;
+  /** Static, per-vehicle physical pass viability. Calculated at most once
+   * for each direction/footprint/slope; unlike runtime movement it ignores
+   * transient buildings and enemy units, which the actual route still checks.
+   * No precomputed artificial route or Fog-of-War information is shared.
+   */
+  private passRouteCache=new Map<string,boolean>();
+  private physicalPassAvailable(near:Point,far:Point,clearance:number,maxSlope:number):boolean{
+    const key=[Math.round(near.x),Math.round(near.y),
+      Math.round(far.x),Math.round(far.y),clearance,maxSlope].join(':');
+    const cached=this.passRouteCache.get(key);
+    if(cached!==undefined)return cached;
+    // World.line is a fast positive proof. A failed direct line is NOT a
+    // failed pass: a legal mountain crossing may need a slight bend.
+    const feasible=this.line(near,far,[],clearance,maxSlope)||
+      this.findPath(near,far,[],clearance,undefined,false,false,false,maxSlope)
+       .some(p=>Math.hypot(p.x-far.x,p.y-far.y)<this.cell*1.4);
+    this.passRouteCache.set(key,feasible);
+    return feasible;
+  }
+
+  private findPath(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false,maxSlope=Infinity): Point[] {
     const precise=exact&&this.mapVersion>=3&&!air;
-    const walk=(p:Point)=>air?(p.x>=10&&p.y>=10&&p.x<=this.size-10&&p.y<=this.size-10):this.walkable(p,obstacles,clearance);
+    const walk=(p:Point)=>air?(p.x>=10&&p.y>=10&&p.x<=this.size-10&&p.y<=this.size-10):this.walkable(p,obstacles,clearance)&&this.groundVehicleSlopeSafe(p,maxSlope,clearance+10);
     const line=(a:Point,b:Point)=>air?walk(a)&&walk(b):precise
-      ?walk(a)&&walk(b)&&navigationLine(a,b,this.cell,RULES.grid,this.blocked,obstacles,RULES.infantry.radius,clearance)
-      :this.line(a,b,obstacles,clearance);
-    const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(target,obstacles,[],start,clearance);
+      // An existing tank may sit with one track over a slope boundary. Its
+      // first waypoint is permitted only if the centre is legally clear,
+      // and the real track-footprint step is a verified escape, not a climb.
+      ?(walk(a)||(a===start&&this.walkable(a,obstacles,clearance)))&&walk(b)&&
+       navigationLine(a,b,this.cell,RULES.grid,this.blocked,obstacles,RULES.infantry.radius,clearance)&&
+       (maxSlope===Infinity||this.groundVehicleStepSafe(a,b,maxSlope,clearance+10))
+      :this.line(a,b,obstacles,clearance,maxSlope);
+    // A* is intentionally capped on 6200-unit WebGL maps. When its goal is
+    // directly behind a long canyon wall, aim at the nearest real pass
+    // entrance first instead of repeatedly returning partial paths into
+    // the rock face. This applies to both factions and all ground vehicles.
+    // Strategic reachability calls (allowPartial=false) are unchanged.
+    // v5 physical pass ranking: a traversable gap is not necessarily
+    // accessible from this particular vehicle's position. Prefer a pass
+    // with both a legal direct approach AND a proven crossing. This is an
+    // inexpensive positive test, not another recursive A* search.
+    // When every approach needs a bend, retain the proven v5 path selector.
+    // v3/v4 historical saves intentionally take their original exact route.
+    const verifyApproach=allowPartial&&!air&&this.generatorVersion>=5&&
+      Number.isFinite(maxSlope)&&Boolean(this.generated?.ridges.length);
+    const directlyReachablePass=verifyApproach
+      ?canyonPassWaypoint(start,target,this.generated!.ridges,clearance,
+        (near,far)=>this.line(start,near,obstacles,clearance,maxSlope)&&
+          this.physicalPassAvailable(near,far,clearance,maxSlope))
+      :undefined;
+    const pass=directlyReachablePass??(allowPartial&&!air&&this.generatorVersion>=3&&
+      this.generated?.ridges.length
+      ?canyonPassWaypoint(start,target,this.generated.ridges,clearance,
+        this.generatorVersion>=5&&Number.isFinite(maxSlope)
+         // The original pass proof remains the fallback for curved approaches
+         // and for vehicles already stranded on an unsafe slope.
+         ?(near,far)=>this.physicalPassAvailable(near,far,clearance,maxSlope):undefined)
+      :undefined);
+    const routingTarget=pass??target;
+    const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(routingTarget,obstacles,[],start,clearance,maxSlope);
     if(!end)return [];
     const cost=(a:Point,b:Point)=>{const d=Math.hypot(b.x-a.x,b.y-a.y),steps=Math.max(1,Math.ceil(d/(this.cell*.6)));let sum=0;for(let i=0;i<=steps;i++)sum+=risk?.[this.index({x:a.x+(b.x-a.x)*i/steps,y:a.y+(b.y-a.y)*i/steps})]??0;return d/this.cell*(1+sum/(steps+1));};
     if(line(start,end)&&(!risk||cost(start,end)<=Math.hypot(end.x-start.x,end.y-start.y)/this.cell*1.01))return [end];
     const s=this.index(start), goal=this.index(end), n=this.blocked.length;
     if(s<0||goal<0)return [];
-    const workspace=this.pathWorkspace??={costs:new Float64Array(n),prev:new Int32Array(n),closed:new Uint8Array(n),walkable:new Int8Array(n)};
-    const {costs,prev,closed,walkable}=workspace;costs.fill(Infinity);prev.fill(-1);closed.fill(0);walkable.fill(0);
-    const cellWalkable=(i:number)=>{if(!walkable[i])walkable[i]=walk(this.center(i))?1:-1;return walkable[i]===1;};
+    const workspace=this.pathWorkspace??={costs:new Float64Array(n),prev:new Int32Array(n),
+      closed:new Uint32Array(n),walkable:new Int8Array(n),
+      seen:new Uint32Array(n),walkEpoch:new Uint32Array(n)};
+    const {costs,prev,closed,walkable,seen,walkEpoch}=workspace;
+    let epoch=(this.pathEpoch+1)>>>0;
+    if(!epoch){seen.fill(0);closed.fill(0);walkEpoch.fill(0);epoch=1;}
+    this.pathEpoch=epoch;
+    const cellCost=(i:number)=>seen[i]===epoch?costs[i]:Infinity;
+    const setCost=(i:number,c:number)=>{seen[i]=epoch;costs[i]=c;};
+    const cellWalkable=(i:number)=>{
+      if(walkEpoch[i]!==epoch){walkEpoch[i]=epoch;walkable[i]=walk(this.center(i))?1:-1;}
+      return walkable[i]===1;
+    };
     const heap: {i:number;f:number}[]=[];
     const h=(i:number)=>Math.hypot(i%RULES.grid-goal%RULES.grid,Math.floor(i/RULES.grid)-Math.floor(goal/RULES.grid));
     const push=(v:{i:number;f:number})=>{heap.push(v);let k=heap.length-1;while(k>0){const p=(k-1)>>1;if(heap[p].f<=v.f)break;heap[k]=heap[p];k=p;}heap[k]=v;};
@@ -274,9 +510,9 @@ export class World {
       }
       return smooth;
     };
-    costs[s]=0;push({i:s,f:startH});
+    setCost(s,0);push({i:s,f:startH});
     while(heap.length) {
-      const i=pop();if(closed[i])continue;closed[i]=1;
+      const i=pop();if(closed[i]===epoch)continue;closed[i]=epoch;
       if(profiler||this.profilePaths)this.pathNodes++;
       if(i===goal)return reconstruct(i,true);
       const distToGoal=h(i);
@@ -292,14 +528,14 @@ export class World {
       for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
         if(!dx&&!dy)continue;const x=ix+dx,y=iy+dy;
         if(x<0||y<0||x>=RULES.grid||y>=RULES.grid)continue;
-        const j=y*RULES.grid+x;if(closed[j]||!cellWalkable(j))continue;
+        const j=y*RULES.grid+x;if(closed[j]===epoch||!cellWalkable(j))continue;
         if(dx&&dy&&(!cellWalkable(iy*RULES.grid+x)||!cellWalkable(y*RULES.grid+ix)))continue;
-        const g=costs[i]+(dx&&dy?Math.SQRT2:1)*(1+Math.max(0,risk?.[j]??0));if(g<costs[j]){
+        const g=cellCost(i)+(dx&&dy?Math.SQRT2:1)*(1+Math.max(0,risk?.[j]??0));if(g<cellCost(j)){
           // Endpoint clearance alone cannot prove that an edge is traversable.
           // Only a cheaper candidate can change the route, so avoid repeating
           // the pure geometric check for candidates already ruled out by cost.
           if(precise&&!line(i===s?start:this.center(i),j===goal?end:this.center(j)))continue;
-          costs[j]=g;prev[j]=i;push({i:j,f:g+h(j)});
+          setCost(j,g);prev[j]=i;push({i:j,f:g+h(j)});
         }
       }
     }

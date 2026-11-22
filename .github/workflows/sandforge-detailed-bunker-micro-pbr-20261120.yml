@@ -1,0 +1,73 @@
+name: Sandforge detailed fortified bunker and military 512px PBR QA
+on:
+  push:
+    branches: [feat/sandforge-bunker-factions-and-micro-pbr-20261120]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bunker-material-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and new authored WebGL modules
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-fortified-bunker.js
+          node --check scripts/webgl-military-micro-pbr.js
+          node --check scripts/webgl-strategic-buildings.js
+          node --check scripts/webgl-battlefield.js
+          node --check scripts/webgl-preview.js
+      - name: Verify real 5-port PBR bunker, faction flags, vehicle ORM and occupancy
+        run: |
+          node --test tests/sandforge-bunker-micro-pbr-20261120.test.mjs
+          node --test tests/sandforge-bunker-bastion-audio-20261119.test.mjs
+      - name: Audit every WebGL ES module without private local building GLBs
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+  actual-pbr-chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install real Chromium software GPU and game modules
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tests/browser --no-audit --no-fund
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Package existing authored GLBs and PBR maps
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          mkdir -p dist/src
+          cp -a src/assets dist/src/assets
+          node scripts/generate-oasis-adobe-glbs.mjs dist/src/assets/reborn/oasis-village
+      - name: Render and capture the actual blue/red 512px PBR bunker
+        env:
+          SANDFORGE_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-fortified-bunker-micro-pbr-20261120.spec.mjs --config=playwright.config.mjs
+      - name: Retain authentic bunker visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-bunker-blue-red-finely-detailed-pbr
+          path: |
+            tests/browser/artifacts/screenshots/
+            tests/browser/artifacts/results.json
+            tests/browser/artifacts/report/
+            tests/browser/artifacts/runs/
+          if-no-files-found: warn
+          retention-days: 30

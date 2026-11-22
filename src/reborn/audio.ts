@@ -18,10 +18,10 @@ export const WEAPON_SOUNDS:Record<Weapon,{duration:number;level:number;high:numb
  heavy:{duration:.15,level:.17,high:650,low:4700,bass:90},
  pistol:{duration:.075,level:.095,high:1500,low:7200,bass:180},
  turret:{duration:.17,level:.19,high:380,low:3400,bass:68},
- rocket:{duration:.32,level:.15,high:180,low:1900,bass:62},
- machinegun:{duration:.10,level:.115,high:820,low:5800,bass:106},
- cannon:{duration:.22,level:.17,high:300,low:2800,bass:55},
- bomb:{duration:.42,level:.19,high:160,low:1350,bass:49},
+ rocket:{duration:.45,level:.205,high:115,low:1550,bass:58},
+ machinegun:{duration:.085,level:.155,high:740,low:6300,bass:112},
+ cannon:{duration:.27,level:.21,high:260,low:2500,bass:49},
+ bomb:{duration:.42,level:.21,high:145,low:1300,bass:46},
 };
 /** Pure visibility-aware levels: distant or unexplored enemy movement never leaks information. */
 export function ambientActivity(g:Simulation,center:Point,visible:(p:Point)=>boolean):{motors:number;generator:number}{
@@ -61,7 +61,7 @@ export class Soundscape {
       this.effects.gain.setTargetAtTime(this.effectsVolume*(active?.55:1),this.context.currentTime,.045);
     this.music?.setDucking(Boolean(active));
   });
-  readonly played={shots:0,steps:0,commands:0,captures:0,production:0,losses:0,rifle:0,heavy:0,pistol:0,turret:0,cannon:0,rocket:0,machinegun:0,bomb:0};
+  readonly played={shots:0,steps:0,commands:0,captures:0,production:0,losses:0,rifle:0,heavy:0,pistol:0,turret:0,cannon:0,rocket:0,machinegun:0,bomb:0,impacts:0,explosions:0};
   readonly voiceLimit=20;peakVoices=0;droppedVoices=0;
   private voices=new Map<AudioScheduledSourceNode,{stop:()=>void;gameplay:boolean}>();
   get activeVoices():number{return this.voices.size;}
@@ -69,6 +69,8 @@ export class Soundscape {
   private master:GainNode|null=null;private effects:GainNode|null=null;
   private readonly engineVoices=new Map<EngineKind,EngineVoice>();
   private noise:AudioBuffer|null=null;private seenShots=new WeakSet<object>();
+  private seenMissiles=new WeakSet<object>();private seenBlasts=new WeakSet<object>();
+  private lastImpactAt=-Infinity;private lastExplosionAt=-Infinity;
   private owners:number[]=[];private unitIds=new Set<number>();
   private game:Simulation|null=null;
   private readonly unitLosses=new UnitLossMonitor();
@@ -306,7 +308,9 @@ export class Soundscape {
     if(typeof window!=='undefined'&&'speechSynthesis' in window)window.speechSynthesis.cancel();
   }
   bindGame(g:Simulation):void{
-    if(this.game===g)return;this.silence();this.silenceAmbientNodes();this.radio.reset();this.game=g;this.owners=g.territories.map(t=>t.owner);this.unitIds=new Set(g.units.map(u=>u.id));this.unitLosses.reset(g.units,g.time);this.lastLossSignal=-Infinity;this.seenShots=new WeakSet();this.pendingReadySpeech=null;this.nextReadySpeechAt=0;
+    if(this.game===g)return;this.silence();this.silenceAmbientNodes();this.radio.reset();this.game=g;this.owners=g.territories.map(t=>t.owner);this.unitIds=new Set(g.units.map(u=>u.id));this.unitLosses.reset(g.units,g.time);this.lastLossSignal=-Infinity;this.seenShots=new WeakSet();this.seenMissiles=new WeakSet();
+    this.seenBlasts=new WeakSet();this.lastImpactAt=-Infinity;this.lastExplosionAt=-Infinity;
+    this.pendingReadySpeech=null;this.nextReadySpeechAt=0;
   }
   private applyVolume():void{if(this.context&&this.master)this.master.gain.setTargetAtTime(this.enabled?this.volume:0,this.context.currentTime,.035);}
   private silence(gameplayOnly=false):void{for(const v of this.voices.values())if(!gameplayOnly||v.gameplay)v.stop();}
@@ -393,8 +397,50 @@ export class Soundscape {
       this.seenShots.add(shot);const from=shot.groundFrom??shot.from,to=shot.groundTo??shot.to;
       if(!active||g.time-(shot.at??g.time)>.15||(!g.canSee(0,from)&&!g.canSee(0,to)))continue;
       const p=r.screen(from);if(p.x<0||p.y<0||p.x>r.width||p.y>r.height)continue;
-      const kind=shot.weapon??'rifle';if(this.weapon(kind,from,r)){this.played.shots++;this.played[kind]++;}
-
+      const kind=shot.weapon??'rifle';
+      if(this.weapon(kind,from,r)){this.played.shots++;this.played[kind]++;}
+      // Distinct positional armour pings, concrete impacts and dry sand.
+      // Cap transients to avoid a wall of overlapping sounds under 100+ shots.
+      if(shot.hit&&this.context&&this.context.currentTime-this.lastImpactAt>.055){
+        const cls=shot.targetClass;
+        if(cls==='armor'||cls==='structure'){
+          this.burst(to,r,cls==='structure'?.15:.12,cls==='structure'?.095:.073,
+            cls==='structure'?750:1170,'bandpass');
+        }else if(cls==='infantry'){
+          this.burst(to,r,.055,.029,2500,'highpass');
+        }else if(cls==='air'){
+          this.burst(to,r,.14,.07,900,'bandpass');
+        }
+        this.lastImpactAt=this.context.currentTime;this.played.impacts++;
+      }
+    }
+    // Guided artillery, shoulder rockets and helicopter rockets are real
+    // missiles rather than hitscan Shot records. Their ignition must be
+    // audible as soon as the launch event becomes visible to the player.
+    for(const missile of g.missiles)if(!this.seenMissiles.has(missile)){
+      this.seenMissiles.add(missile);
+      if(!active||g.time-missile.at>.17||
+        !g.canSee(0,missile.from))continue;
+      const screen=r.screen(missile.from);
+      if(screen.x<0||screen.x>r.width||screen.y<0||screen.y>r.height)continue;
+      const kind=missile.type==='bomb'?'bomb':'rocket';
+      if(this.weapon(kind,missile.from,r)){
+        this.played.shots++;this.played[kind]++;
+      }
+    }
+    // Genuine simulated impact events, not fabricated random explosions.
+    // Limited number of short noise layers, respecting sound visibility.
+    for(const blast of g.blasts)if(!this.seenBlasts.has(blast)){
+      this.seenBlasts.add(blast);
+      if(!active||g.time-blast.at>.2||!g.canSee(0,blast))continue;
+      const screen=r.screen(blast);
+      if(screen.x<0||screen.x>r.width||screen.y<0||screen.y>r.height)continue;
+      if(this.context&&this.context.currentTime-this.lastExplosionAt>.095){
+        this.burst(blast,r,.42,.20,360,'lowpass');
+        this.burst(blast,r,.22,.075,1680,'bandpass');
+        this.lastExplosionAt=this.context.currentTime;
+        this.played.explosions++;
+      }
     }
     if(active)this.flushReadySpeech();
     for(const t of g.territories){if(t.owner===0&&this.owners[t.id]!==0&&active){this.played.captures++;this.tone(523,.18,.1);this.tone(659,.2,.08,.12);this.tone(784,.35,.08,.25);}this.owners[t.id]=t.owner;}

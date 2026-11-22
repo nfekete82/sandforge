@@ -1,4 +1,5 @@
 import {BUILDINGS,type BuildingKind} from './catalog.js';
+import {isWallLike} from './defensive-wall.js';
 import {buildingArtWidth} from './visual-scale.js';
 import {distance,type Point} from './config.js';
 
@@ -26,13 +27,13 @@ type Rect={type:'rect';x:number;z:number;hx:number;hz:number};
 type Shape=Circle|Rect;
 const round=30; // keep a useful walkable/safety strip between painted surfaces
 const localShapes=(kind:BuildingKind):Shape[]=>{
- const s:Shape[]=kind==='wall'?[{type:'rect',x:0,z:0,hx:54,hz:16}]:
+ const s:Shape[]=isWallLike(kind)?[{type:'rect',x:0,z:0,hx:kind==='wallGate'?109:54,hz:16}]:
   [{type:'circle',x:0,z:0,r:buildingVisualRadius(kind)}];
  if(kind==='airfield')s.push(
   {type:'rect',x:106,z:29,hx:71,hz:181}, // short runway directly beside hangar
   {type:'rect',x:-81,z:-3,hx:119,hz:174}); // one hangar, tower and fuel
  if(kind==='research')s.push(
-  {type:'rect',x:0,z:0,hx:70,hz:60}); // actual compact research foundation
+  {type:'rect',x:0,z:0,hx:82,hz:70}); // enlarged research facade and pedestal
  if(kind==='factory')s.push(
   {type:'rect',x:192,z:56,hx:72,hz:116}); // one small side repair garage
  return s;
@@ -113,8 +114,8 @@ export function siteTerrainCompatible(
   }
   return true;
  };
- if(kind==='wall'&&!sampleRect(0,0,53,14))return false;
- if(kind==='research'&&!sampleRect(0,0,70,60))return false;
+ if(isWallLike(kind)&&!sampleRect(0,0,53,14))return false;
+ if(kind==='research'&&!sampleRect(0,0,82,70))return false;
  if(kind==='factory'&&!sampleRect(192,56,72,116))return false;
  if(kind==='airfield'&&(
   !sampleRect(-41,-62,58,79)||!sampleRect(-127,-73,29,35)))return false;
@@ -125,9 +126,9 @@ export function siteTerrainCompatible(
 export function sitesVisuallyOverlap(a:BuildingKind,pa:Point,fa:SiteFacing,
  b:BuildingKind,pb:Point,fb:SiteFacing=0):boolean{
  // Preserve the calibrated legacy separation for ordinary buildings.
- if(a!=='wall'&&b!=='wall'&&a!=='research'&&b!=='research'&&a!=='airfield'&&b!=='airfield'&&a!=='factory'&&b!=='factory')
+ if(!isWallLike(a)&&!isWallLike(b)&&a!=='research'&&b!=='research'&&a!=='airfield'&&b!=='airfield'&&a!=='factory'&&b!=='factory')
   return distance(pa,pb)<constructionVisualClearance(a,b);
- const pad=a==='wall'&&b==='wall'?3:a==='wall'||b==='wall'?15:round;
+ const pad=isWallLike(a)&&isWallLike(b)?0:isWallLike(a)||isWallLike(b)?15:round;
  return localShapes(a).some(sa=>localShapes(b).some(sb=>overlaps(sa,pa,fa,sb,pb,fb,pad)));
 }
 /** Static bastions and capture points retain a larger clear perimeter. */
@@ -138,7 +139,7 @@ export function siteNearBastion(kind:BuildingKind,p:Point,f:SiteFacing,t:Point):
 }
 /** For very long airstrips verify the real four corners, not just the anchor. */
 export function siteExceedsMap(kind:BuildingKind,p:Point,f:SiteFacing,size:number):boolean{
- if(kind!=='airfield'&&kind!=='factory'&&kind!=='wall')return false;
+ if(kind!=='airfield'&&kind!=='factory'&&!isWallLike(kind)&&kind!=='research')return false;
  for(const rect of localShapes(kind))if(rect.type==='rect'){
   for(const x of [-rect.hx,rect.hx])for(const z of [-rect.hz,rect.hz]){
    const world=sitePoint(p,f,rect.x+x,rect.z+z);

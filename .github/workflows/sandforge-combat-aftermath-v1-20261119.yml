@@ -1,0 +1,34 @@
+name: Sandforge combat aftermath VFX QA
+on:
+  push:
+    branches: ['feat/sandforge-combat-aftermath-v1-20261119']
+  pull_request:
+    branches: ['feat/sandforge-ai36-terrain-routes-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  combat-aftermath:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and WebGL dependency graph
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Death effects, crash, wreck and combat regression tests
+        run: |
+          node --test \
+            tests/sandforge-combat-aftermath-v1-20261119.test.mjs \
+            tests/webgl-fallen-infantry-burned-wrecks-20261108.test.mjs \
+            tests/webgl-aircraft-effects-20261110.test.mjs \
+            tests/webgl-generals-combat-impacts-20261108.test.mjs \
+            tests/sandforge-webgl-combat-vfx.test.mjs \
+            tests/sandforge-ai36-combat-movement-20261119.test.mjs

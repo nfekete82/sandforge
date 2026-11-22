@@ -4,7 +4,7 @@ import type {Point} from './config.js';
  * 2.5D Canvas terrain renderer. It uses genuine extruded (x,y,z) faces without
  * introducing a second scene graph or changing old map/save versions. */
 export interface CanyonRamp {x:number; width:number}
-export interface CanyonRidge {spine:Point[]; width:number; height:number; ramps:CanyonRamp[]}
+export interface CanyonRidge {spine:Point[]; width:number; height:number; ramps:CanyonRamp[]; clearings?:{point:Point;radius:number}[]}
 export interface CanyonRuin {x:number;y:number;width:number;depth:number;height:number;rotation:number;variant:number}
 export interface CanyonFeatures {ridges:CanyonRidge[];ruins:CanyonRuin[]}
 
@@ -18,7 +18,8 @@ const segmentDistance=(p:Point,a:Point,b:Point):number=>{
 };
 const nearRidge=(p:Point,r:CanyonRidge)=>r.spine.slice(1).some((b,i)=>segmentDistance(p,r.spine[i],b)<r.width*.5);
 export const isCanyonRamp=(p:Point,r:CanyonRidge):boolean=>r.ramps.some(g=>Math.abs(p.x-g.x)<g.width*.5);
-export const canyonCliffBlocked=(p:Point,r:CanyonRidge):boolean=>!isCanyonRamp(p,r)&&nearRidge(p,r);
+export const canyonCliffBlocked=(p:Point,r:CanyonRidge):boolean=>
+  !(r.clearings?.some(zone=>dist(p,zone.point)<zone.radius)??false)&&!isCanyonRamp(p,r)&&nearRidge(p,r);
 export function canyonRuinBlocked(p:Point,r:CanyonRuin,pad=0):boolean{
  const dx=p.x-r.x,dy=p.y-r.y,c=Math.cos(r.rotation),s=Math.sin(r.rotation);
  return Math.abs(dx*c+dy*s)<r.width*.5+pad&&Math.abs(-dx*s+dy*c)<r.depth*.5+pad;
@@ -28,7 +29,8 @@ export function canyonRuinBlocked(p:Point,r:CanyonRuin,pad=0):boolean{
  * The ridge sits between bastion rows; access remains open around both ends.
  * Candidate props are rejected close to bases, roads and all known ramps. */
 export function generateCanyonFeatures(seed:number,size:number,columns:number,rows:number,
- sites:readonly Point[],corridors:readonly (readonly [Point,Point])[]):CanyonFeatures{
+ sites:readonly Point[],corridors:readonly (readonly [Point,Point])[],
+ modernRemnants=false):CanyonFeatures{
  const random=mix(seed^0x6f2b4a71),seam=(Math.floor(rows/2)/rows)*size;
  const ridge:CanyonRidge={
   width:68,height:116,
@@ -40,7 +42,8 @@ export function generateCanyonFeatures(seed:number,size:number,columns:number,ro
    .map(x=>({x:x*size,width:Math.max(205,size*.045)}))
  };
  const ruins:CanyonRuin[]=[];
- const spacious=size>=6000; // v19+ only; old deterministic canyon maps untouched.
+ const spacious=size>=6000; // v19+ geometry
+ const sparseModern=spacious&&modernRemnants; // ONLY v23+ generator; old seeded v19-v22 untouched.
  const nearRoad=(p:Point)=>corridors.some(([a,b])=>segmentDistance(p,a,b)<(spacious?135:112));
  const safe=(r:CanyonRuin)=>{
   const p={x:r.x,y:r.y},radius=Math.hypot(r.width,r.depth)*.65;
@@ -48,7 +51,10 @@ export function generateCanyonFeatures(seed:number,size:number,columns:number,ro
    &&sites.every(s=>dist(s,p)>280+radius)
    &&!nearRoad(p)
    &&!ridge.spine.slice(1).some((b,i)=>segmentDistance(p,ridge.spine[i],b)<r.width+radius+120)
-   &&ruins.every(o=>dist(o,p)>Math.max(o.width,o.depth)+radius+(spacious?195:55));
+   // Modern 3D sites need open sand between them, not clusters of almost
+   // identical miniature houses. Legacy Canyon seed geometry is untouched.
+   &&ruins.every(o=>dist(o,p)>Math.max(o.width,o.depth)+radius+
+    (sparseModern?265:spacious?195:55));
  };
  // Fixed visual zones, deterministic small offsets. Gameplay paths are never
  // inferred from this decoration; the block grid is built from exact footprints.
@@ -56,17 +62,25 @@ export function generateCanyonFeatures(seed:number,size:number,columns:number,ro
   [[.16,.19],[.82,.18],[.19,.81],[.81,.81],[.46,.19],[.54,.79],[.12,.46],[.87,.54],[.34,.33],[.66,.67]]:
   [[.2,.2],[.8,.22],[.21,.75],[.77,.77],[.48,.2],[.5,.79],[.1,.48],[.9,.53]];
  for(const [index,[ax,ay]] of anchors.entries()){
-  // One or two derelicts per region, not three identical buildings side by side.
-  for(let n=0;n<(spacious?1+(index%3===0?1:0):3);n++){
+  // Spacious maps: ONE distinct site per region (10 maximum, down from 14).
+  // Keep old map generator's 3-per-region layout unchanged.
+  for(let n=0;n<(sparseModern?1:spacious?1+(index%3===0?1:0):3);n++){
    let added=false;
    for(let trial=0;trial<32&&!added;trial++){
-    const variant=Math.floor(random()*3);
+    // Large derelict buildings are deliberately rare. Most sites are
+    // micro-ruins, alternating their fragment profile by variant and seed.
+    const variant=sparseModern?(index%4===0?1:(random()<.5?0:2)):
+     Math.floor(random()*3);
     const r:CanyonRuin={x:(ax+(random()-.5)*.09)*size,y:(ay+(random()-.5)*.09)*size,
-      // On v19+ the *physical* ruin footprint grows with the mesh, so units
-      // cannot walk through larger facades. Older maps remain byte-identical.
-      width:(variant===1?120:80+random()*35)*(spacious?1.35:1),
-      depth:(variant===1?88:66+random()*29)*(spacious?1.35:1),
-      height:(variant===1?63:39+random()*26)*(spacious?1.20:1),
+      // Actual blocked footprints match the visible remains. Tiny broken
+      // walls do not reserve the space of a full-size building.
+      // Older map footprints and RNG calls stay byte-for-byte unchanged.
+      width:sparseModern?(variant===1?162:59+random()*19):
+       (variant===1?120:80+random()*35)*(spacious?1.35:1),
+      depth:sparseModern?(variant===1?119:45+random()*15):
+       (variant===1?88:66+random()*29)*(spacious?1.35:1),
+      height:sparseModern?(variant===1?75.6:14+random()*8):
+       (variant===1?63:39+random()*26)*(spacious?1.20:1),
       // Give spacious 3D ruins genuinely different orientations, not the
       // nearly identical +/-7-degree facing of legacy Canyon maps.
       rotation:spacious?(random()-.5)*Math.PI*1.7:(random()-.5)*.24,variant};
@@ -161,6 +175,26 @@ export function paintCanyonRuins(c:CanvasRenderingContext2D,ruins:readonly Canyo
   const w=r.width*.5,d=r.depth*.5,h=r.height;
   c.fillStyle='#5d422c42';c.beginPath();c.ellipse(7,12,w*1.35,d*.95,0,0,Math.PI*2);c.fill();
   shape(c,[{x:-w-7,y:-d-5},{x:w+7,y:-d-5},{x:w+8,y:d+8},{x:-w-8,y:d+8}],'#c8a579');
+  // Modern tiny fragments are NOT miniature houses in the classic/2D
+  // renderer either. Only two low broken walls and a little loose masonry,
+  // with lots of open sand. Old Canyon versions always have taller ruins.
+  if(r.height<30){
+   const rand=mix(Math.round(r.x*43+r.y*97));
+   const halfH=r.height*.55;
+   wall(c,[{x:-w*.68,y:-d*.25,z:0},{x:w*.05,y:-d*.25,z:0},
+    {x:w*.05,y:-d*.25,z:halfH*.46},{x:-w*.25,y:-d*.25,z:halfH},
+    {x:-w*.68,y:-d*.25,z:halfH*.65}],'#b59b7c');
+   wall(c,[{x:-w*.57,y:-d*.25,z:0},{x:-w*.57,y:d*.34,z:0},
+    {x:-w*.57,y:d*.34,z:halfH*.33},{x:-w*.57,y:d*.10,z:halfH*.72},
+    {x:-w*.57,y:-d*.25,z:halfH*.70}],'#947d64');
+   for(let i=0;i<4;i++){
+    const x=(rand()-.5)*r.width*.65,y=(rand()-.5)*r.depth*.65;
+    const n=2+rand()*3;
+    wall(c,[{x,y,z:0},{x:x+n,y,z:0},
+     {x:x+n*.58,y:y-n*.45,z:n*.52}],'#c7ab87');
+   }
+   c.restore();continue;
+  }
   // Exposed inner courtyard floor; faceted roof remnants read as broken
   // masonry rather than a solid undamaged building.
   shape(c,[{x:-w+8,y:-d+9},{x:w-8,y:-d+9},{x:w-8,y:d-8},{x:-w+8,y:d-8}],'#9d7a53');

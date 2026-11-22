@@ -1,0 +1,80 @@
+name: Sandforge open PBR vehicle factory, compact bunker and five-point faction star QA
+on:
+  push:
+    branches: [fix/sandforge-small-bunker-unified-star-flags-20261120]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  logic-and-glb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and authored production script syntax
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-faction-flags.js
+          node --check scripts/webgl-fortified-bunker.js
+          node --check scripts/webgl-production-gates.js
+          node --check scripts/webgl-battlefield.js
+          node --check scripts/generate-factory-pbr.mjs
+      - name: Re-export and validate both Bastion and open factory GLBs
+        run: |
+          node scripts/generate-bastion-radar.mjs
+          node scripts/generate-factory-pbr.mjs
+      - name: Deterministic star, bunker scale, factory opening and direct vehicle driveout
+        run: |
+          node --test tests/sandforge-open-factory-star-flags-compact-bunker-20261120.test.mjs
+          node --test tests/webgl-factory-pbr-and-faction-palette.test.mjs
+          node --test tests/webgl-production-gates.test.mjs
+          node --test tests/sandforge-bunker-micro-pbr-20261120.test.mjs
+          node --test tests/sandforge-hq-bunker-regression-20261120.test.mjs
+      - name: Full WebGL ES module import graph
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+  chromium-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install Chromium with real WebGL 2 and browser test harness
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tests/browser --no-audit --no-fund
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Package real PBR GLBs, open 3D factory, and authored faction flags
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          mkdir -p dist/src
+          cp -a src/assets dist/src/assets
+          node scripts/generate-factory-pbr.mjs dist/src/assets/reborn/buildings-3d
+      - name: Render actual roofed, open factory with compact two-team bunkers
+        env:
+          SANDFORGE_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-open-factory-white-star-20261120.spec.mjs webgl-factory-open-service-platform-20261115.spec.mjs webgl-factory-queued-rollouts-lite-20261115.spec.mjs --config=playwright.config.mjs
+      - name: Keep original full-resolution screenshots and browser traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-compact-bunker-five-star-open-factory-pbr
+          path: |
+            tests/browser/artifacts/screenshots/
+            tests/browser/artifacts/results.json
+            tests/browser/artifacts/report/
+            tests/browser/artifacts/runs/
+          if-no-files-found: warn
+          retention-days: 30

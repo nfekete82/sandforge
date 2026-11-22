@@ -1,0 +1,34 @@
+name: Sandforge WebGL browser module startup QA
+on:
+  push:
+    branches: [fix/sandforge-webgl-module-boot-20261117]
+  pull_request:
+    branches: [integration/sandforge-current-20261117]
+    paths:
+      - 'scripts/build.mjs'
+      - 'scripts/check-webgl-module-graph.mjs'
+      - 'scripts/webgl-battlefield.js'
+      - 'scripts/webgl-supply-logistics.js'
+      - '.github/workflows/sandforge-webgl-startup-qa-20261117.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser-modules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile all simulation and dependency modules
+        run: npx tsc -p tsconfig.json
+      - name: Package WebGL startup without Mac-only PBR GLBs
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+      - name: Verify recursive ESM imports and browser syntax
+        run: node --experimental-vm-modules scripts/check-webgl-module-graph.mjs

@@ -90,13 +90,22 @@ test('reborn: fog, AI, partial capture and production survive a deterministic sa
  assert.throws(()=>Simulation.load({version:1}));const corrupt=g.save();corrupt.credits[0]=-20;assert.throws(()=>Simulation.load(corrupt));
 });
 
-test('reborn: captured HQ/sectors do not end a battle until all enemy units and buildings are gone',()=>{
- const g=peaceful();g.bases[1].owner=0;g.step();assert.equal(g.status,'playing');for(const id of [4,5,11])g.territories[id].owner=0;g.step();assert.equal(g.status,'playing');
- g.units=g.units.filter(u=>u.owner!==1);g.step();assert.equal(g.status,'victory');
- const lost=peaceful();lost.bases[0].hp=0;lost.step();assert.equal(lost.status,'playing');lost.units=lost.units.filter(u=>u.owner!==0);lost.step();assert.equal(lost.status,'defeat');
+test('reborn: Bastion control cannot end a battle while enemy units or buildings survive',()=>{
+ const g=peaceful();
+ for(const id of [4,5,11])g.territories[id].owner=0;
+ g.step();assert.equal(g.status,'playing','captured sectors are not enemy elimination');
+ const enemyHQ=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
+ assert.ok(enemyHQ&&enemyHQ.hp>0);
+ enemyHQ.hp=0;g.step();
+ assert.equal(g.status,'playing','destroying the enemy HQ alone is not enough');
+ assert.equal(enemyHQ.owner,1,'destroyed HQ never transfers to blue');
+ g.units=g.units.filter(u=>u.owner!==1);
+ g.step();assert.equal(g.status,'victory','only all enemy assets being destroyed ends the battle');
+ const lost=peaceful();lost.bases[0].hp=0;lost.step();assert.equal(lost.status,'playing');
+ lost.units=lost.units.filter(u=>u.owner!==0);lost.step();assert.equal(lost.status,'defeat');
 });
 
-test('reborn: HQ siege and capture remain playable until the last enemy soldier is eliminated',()=>{
+test('reborn: Bastion capture never resurrects or transfers a destroyed enemy HQ',()=>{
  const g=peaceful();g.credits[1]=0;g.units=[];const b=g.bases[1],t=g.territories[5];
  for(const id of [4,11])g.territories[id].owner=0;
  const scout=g.spawn(0,{...t.point});advance(g,9);assert.equal(t.owner,1);assert.equal(t.progress,0);
@@ -106,8 +115,14 @@ test('reborn: HQ siege and capture remain playable until the last enemy soldier 
  g.updateVision();g.command(g.units.filter(u=>u.owner===0).map(u=>u.id),{...b,kind:'attack',target:b.id});advance(g,50);
  assert.equal(b.hp,0);assert.equal(t.owner,1);assert.equal(g.status,'playing');
  g.command(g.units.filter(u=>u.owner===0).map(u=>u.id),{...t.point,kind:'move'});advance(g,30);
- assert.equal(b.owner,0);assert.equal(b.hp,600);assert.equal(t.owner,0);
+ assert.equal(t.owner,0,'Bastion and territory are captured normally');
+ assert.equal(b.owner,1,'the destroyed enemy HQ never changes faction');
+ assert.equal(b.hp,0,'the captured territory must never restore a destroyed HQ');
  assert.equal(g.status,'playing','one surviving opponent prevents early victory');
+ const restored=Simulation.load(g.save());
+ assert.equal(restored.bases.find(x=>x.id===b.id).owner,1);
+ assert.equal(restored.bases.find(x=>x.id===b.id).hp,0,
+  'save/load must preserve destroyed enemy command center ownership');
  survivor.hp=0;g.step();assert.equal(g.status,'victory');
 });
 

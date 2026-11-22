@@ -1,0 +1,53 @@
+name: Sandforge KI 3.8 full 36 paired combats
+on:
+  push:
+    branches:
+      - feat/sandforge-ai38-reliable-offense-fortification-20261120
+  workflow_dispatch:
+concurrency:
+  group: sandforge-ai38-full-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  ai38-full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - map: 24
+            name: 8
+          - map: 25
+            name: 12
+          - map: 26
+            name: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/benchmark-sandforge-ai38-combat.mjs
+      - name: Paired 480-second AI36 versus AI38 combats
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-ai38-combat.mjs \
+            --maps ${{ matrix.map }} \
+            --seeds 824836862,9999 \
+            --opponents guarded,contesting,bastion-rush \
+            --seconds 480 \
+            --output reports/ai38-full-${{ matrix.name }}.json
+      - name: Upload complete or partial combat measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai38-full-${{ matrix.name }}-bastions
+          path: reports/ai38-full-${{ matrix.name }}.json
+          if-no-files-found: warn
+          retention-days: 30

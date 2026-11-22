@@ -1,0 +1,42 @@
+name: Sandforge barracks desert palette QA
+on:
+  push:
+    branches: [fix/barracks-desert-palette-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-barracks-desert-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  barracks-desert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - run: node --test tests/webgl-barracks-sides-20261115.test.mjs tests/webgl-barracks-portal.test.mjs tests/webgl-faction-accents-20261108.test.mjs
+      - run: npm ci --prefix tests/browser --no-audit --no-fund
+      - run: |
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Render real Kasernen GLB and 3D HUD portrait
+        env:
+          ATLAS_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-tank-barracks-finish-20261115.spec.mjs webgl-barracks-portal.spec.mjs --config=playwright.config.mjs
+      - name: Save browser diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-barracks-desert-qa
+          path: tests/browser/artifacts/
+          retention-days: 7

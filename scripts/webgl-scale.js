@@ -7,10 +7,35 @@
  */
 export const MODEL_HEIGHTS=Object.freeze({
  infantry:61,medic:61,engineer:61,heavy:65,rocket:61,
- rover:42,tank:46,artillery:51,scout:48,bomber:51,
- headquarters:158,barracks:119,factory:125,airfield:137,generator:92,turret:95
+ rover:42,supply:49,tank:46,artillery:51,scout:48,bomber:51,drone:12,
+ headquarters:158,barracks:119,factory:125,airfield:137,generator:79,turret:95
 });
 export const DIMENSIONS_VERSION=3;
+// Authored bomber geometry is stretched only in the WebGL presentation:
+// +12% span/length, +5% height. Targeting, hitboxes and flight remain the same.
+export const BOMBER_VISUAL_STRETCH=Object.freeze({horizontal:1.12,vertical:1.05});
+
+// Visual-only: the defensive tower was about 12% too massive next to infantry.
+// The authored model, streaming fallback and construction ghost share this.
+// Do NOT change BUILDINGS.turret radius/width or weapon range.
+export const TURRET_VISUAL_SCALE=0.88;
+/** Coherent barracks / research / command / vehicle-factory silhouette
+ * calibrated against real military base composition, not arbitrary GLB sizes.
+ * Keep gameplay footprints, collision radii, entrance coordinates and costs.
+ * Research is procedural and uses the same factor in createFallback().
+ * Airfield runways and base-capture Bastions must never be resized here.
+ */
+export const BASE_BUILDING_VISUAL_SCALE=Object.freeze({
+ headquarters:.92,
+ barracks:1.10,
+ research:1.08,
+ factory:.92
+});
+export const FACTORY_VISUAL_SCALE=BASE_BUILDING_VISUAL_SCALE.factory;
+export function visualBuildingScale(kind){
+ return kind==='turret'?TURRET_VISUAL_SCALE:
+  BASE_BUILDING_VISUAL_SCALE[kind]??1;
+}
 
 /** Wider selection footprint at tactical zoom. Render-only: never changes
  * unit collision, targeting, squad formation or the saved simulation state.
@@ -53,17 +78,22 @@ export function turretMuzzleOffset(angle,barrel){
 // spacing and saved dimensions unchanged. Infantry read as humans beside
 // larger real structures, rather than as toy-sized buildings.
 export function visualUnitScale(kind){
- // Align all four foot soldiers with larger rocket artillery and Humvee.
- // This is a render-only factor: no change to move, weapon or capture radius.
- if(['infantry','medic','engineer','rocket'].includes(kind))return .56;
- if(kind==='heavy')return .58;
+ // The final PBR barracks' double door is shorter than the former Atlas
+ // doorway. With .56/.58 scaling, soldiers are taller than its opening and
+ // appear to bump their heads during the production exit.
+ // Target ~26 visual world units for every foot soldier at normal RTS zoom.
+ // Render-only: collision, navigation, weapon range and save data stay intact.
+ if(['infantry','medic','engineer','rocket'].includes(kind))return .42;
+ if(kind==='heavy')return .40;
  // Humvee needs a substantial visual presence beside full-scale buildings.
  // Only the rendered mesh changes; navigation/collision/save width stays 76.
- if(kind==='rover')return 1.34;
+ if(kind==='rover'||kind==='supply')return 1.34;
  if(kind==='artillery')return 1.42; // +7.6% for the 6x6 rocket launcher, render-only
- if(kind==='tank')return 1.44;
+ if(kind==='tank')return 1.16; // matches the 8% tighter factory door without touching tank collision
  if(kind==='scout')return 1.34;
  if(kind==='bomber')return 1.03;
+ // R-01 reconnaissance drone: 18% less visual footprint, unchanged sight/range.
+ if(kind==='drone')return .77;
  return .94;
 }
 
@@ -77,6 +107,7 @@ export function unitVisualYaw(kind,heading){
  * really touches the ground at 0, rather than hovering 75 world units above it.
  * The bomber remains in continuous flight at the existing cruise height. */
 export function unitRenderAltitude(kind,flightHeight=1){
+ if(kind==='drone')return 142;
  if(kind==='scout')return 3+172*Math.max(0,Math.min(1,flightHeight));
  if(kind==='bomber')return 175*Math.max(0,Math.min(1,flightHeight));
  return 0;
@@ -95,7 +126,18 @@ export function calibratedScale(kind,type,bounds,targetWidth){
   return humanHeight/height;
  }
  if(type==='unit')return Math.min(byWidth,(MODEL_HEIGHTS[kind]??50)/height);
- // Footprint stays aligned with the original building collision width;
- // huge roofs, towers and dish antennas must not dwarf nearby units.
- return Math.min(byWidth,(MODEL_HEIGHTS[kind]??135)/height);
+ // Energiekern V2 is intentionally ~40% NARROWER in actual gameplay render,
+ // not just in the authored GLB: the normal width calibration used to blow
+ // every small generator back up to its old 112-unit presentation width.
+ // This changes the mesh and construction ghost only. Its original 38-unit
+ // collision radius, income, build placement and saved games are untouched.
+ if(kind==='generator'&&type==='building')
+  return Math.min(byWidth*.63,MODEL_HEIGHTS.generator/height);
+ // Defense turrets are visually 12% smaller than their old calibrated
+ // dimensions, while their gameplay collision/placement footprint is intact.
+ // Keeping this after width/height normalization avoids it being cancelled by
+ // the GLB calibration for large authored turret meshes.
+ // HQ, barracks, factory and research use coherent architectural proportions.
+ return Math.min(byWidth,(MODEL_HEIGHTS[kind]??135)/height)*
+  (type==='building'?visualBuildingScale(kind):1);
 }

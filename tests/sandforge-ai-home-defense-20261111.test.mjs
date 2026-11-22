@@ -8,7 +8,7 @@ const ctx={fighters:8,time:85,recentLosses:0,recentFailures:0,
  confirmedEndgame:false};
 test('modern AI pays for a garrison instead of sending its entire opening roster',()=>{
  const p=homeDefensePlan(ctx);
- assert.equal(p.guards,3);assert.equal(p.minimumReady,4);
+ assert.equal(p.guards,3);assert.equal(p.minimumReady,2);
  assert.equal(p.allowSecondaryRaids,false);
  assert.equal(homeDefensePlan({...ctx,fighters:2}).guards,2);
  assert.equal(homeDefensePlan({...ctx,time:30}).notBefore,65);
@@ -46,4 +46,12 @@ test('modern campaign retains and stations a real garrison without inventing uni
  assert.ok(defenders.length>=3,'at least three paid soldiers protect nearby facilities');
  assert.ok(g.tactical.state.phase!=='attack'||g.tactical.state.group.length<=5,
   'no all-in early attack that removes the entire base screen');
+});
+
+test('two paid fighters can probe unguarded bastion while four paid defenders stay near HQ',()=>{
+ const plan=homeDefensePlan({...ctx,fighters:6,defendedTarget:false});
+ assert.equal(plan.minimumReady,2);
+ assert.equal(plan.guards,3);
+ assert.equal(homeDefensePlan({...ctx,fighters:6,defendedTarget:true}).minimumReady,5);
+ assert.equal(homeDefensePlan({...ctx,fighters:6,recentLosses:3}).minimumReady,5);
 });

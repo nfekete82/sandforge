@@ -10,13 +10,14 @@ export function globalCatalogAvailability(game,owner=0){
  return {
   buildings:true,
   infantry:finished('headquarters')||finished('barracks'),
+  // Retired cargo trucks/depot system no longer unlocks vehicles from the HQ.
   vehicles:finished('factory'),
-  aircraft:finished('airfield'),
-  research:finished('research'),
+  // HQ launches the lightweight reconnaissance drone before an airfield exists.
+  aircraft:finished('headquarters')||finished('airfield'),
   territories:true // accessible through the minimap sector shortcut
  };
 }
 
 export const GLOBAL_PRODUCTION_TABS=Object.freeze([
- 'buildings','infantry','vehicles','aircraft','research'
+ 'buildings','infantry','vehicles','aircraft'
 ]);

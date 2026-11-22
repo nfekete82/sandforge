@@ -1,0 +1,39 @@
+name: Sandforge AI 3.4 Bastion Control
+on:
+  push:
+    branches: ['feat/sandforge-ai34-bastion-control-local-20261118']
+  pull_request:
+    branches: ['feat/sandforge-ai33-local-lab-20261118']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ai34-bastion:
+    name: Bastion control, paid guards and recon safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile + audit WebGL graph without Mac PBR files
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Bastion control and all relevant regression tests
+        run: |
+          node --test \
+            tests/sandforge-ai34-bastion-control-20261118.test.mjs \
+            tests/sandforge-ai33-map-adaptive-20261118.test.mjs \
+            tests/reborn-ai3-bastion-rush-20261117.test.mjs \
+            tests/reborn-bastion-priority-20261117.test.mjs \
+            tests/reborn-bastion-defense.test.mjs \
+            tests/reborn-threat-response.test.mjs \
+            tests/reborn-ai-ignore-drone-20261118.test.mjs \
+            tests/sandforge-ai33-bastion-near-capture-20261118.test.mjs \
+            tests/sandforge-ai33-drone-hud-unstick-20261118.test.mjs \
+            tests/sandforge-engineer-sequential-orders.test.mjs

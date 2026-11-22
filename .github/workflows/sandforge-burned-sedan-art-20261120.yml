@@ -1,0 +1,40 @@
+name: Sandforge burned sedan PBR WebGL props
+on:
+  push:
+    branches:
+      - feat/sandforge-burned-sedan-3d-props-20261120
+    paths:
+      - .github/workflows/sandforge-burned-sedan-art-20261120.yml
+      - scripts/webgl-burned-sedan-plan.js
+      - scripts/webgl-burned-sedan-3d.js
+      - scripts/webgl-burned-sedan-debris-3d.js
+      - scripts/webgl-burned-sedan-debris-plan.js
+      - scripts/webgl-preview.js
+      - scripts/build.mjs
+      - tests/sandforge-burned-sedan-3d-20261120.test.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-3d-art:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck actual simulation and syntax-check all art modules
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-burned-sedan-plan.js
+          node --check scripts/webgl-burned-sedan-3d.js
+          node --check scripts/webgl-burned-sedan-debris-plan.js
+          node --check scripts/webgl-burned-sedan-debris-3d.js
+          node --check scripts/webgl-preview.js
+      - name: Verify real 3D models, textures, instancing and all 4 maps
+        run: node --test tests/sandforge-burned-sedan-3d-20261120.test.mjs
+      - name: Validate WebGL module packaging without workstation-only PBR binaries
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs

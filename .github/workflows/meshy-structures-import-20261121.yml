@@ -1,0 +1,68 @@
+name: Import Sandforge Meshy PBR structures into playable GLB assets
+on:
+  push:
+    branches:
+      - feat/sandforge-meshy-structures-barracks-airfield-bastion-bunker-20261121
+    paths:
+      - .github/workflows/meshy-structures-import-20261121.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: sandforge-meshy-structures-import
+  cancel-in-progress: true
+jobs:
+  import-real-meshy-glbs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Download finished Meshy PBR GLBs (source links expire)
+        env:
+          SF_BARRACKS_URL: "https://assets.meshy.ai/0311140c-0691-4cd3-b106-9a8fc604c93e/tasks/01a1fb58-3922-72e1-ac33-bb9715125a96/output/model.glb?Expires=1795305600&Signature=Ff8V53Tuk7Gkt2dg6atxQd~xNSEfrghRpU2kWixFCo5e96~Niaw6i-XfpH1pZkrOl4w3TuBMYZfSFB65qKrFFPUCxL87PGPEI9Z2Z6GYoHNN7gWC-0V9faYfwDrKyR0X3IrLDdIgMusmsqbty~sCbPNoS6gD9BdmLyToBN~l3KpnEcbWg0LsWVWz3YWEGAX00VTyBUjg9H2RFPK8KuD0U6T93n6Gz0ddeXTPGMm6~iwd2lyvwhDQqsWNLuUadq7MfJJD6IvIEgWbLqaxdW14~Ms95I4xRVFm16RHMYmtKIln5bv2WImzSWrWSmFnxdpNNICfUpT6Fi6l0ohWTKOZNA__&Key-Pair-Id=K1VGYTHIYLM9UM"
+          SF_AIRFIELD_URL: "https://assets.meshy.ai/0311140c-0691-4cd3-b106-9a8fc604c93e/tasks/01a1fb5b-60c8-7164-ba3f-c54a0c84d623/output/model.glb?Expires=1795305600&Signature=evOsHM3woS6B0bW-ipoc9F6GCGmL4ABc477aNa8lU0LJj4S7-VzCBGFg-OtgmasZ6WF~pawFYOfrlp~3JUAQ-uf5BmKkK1tQEt6vmFokaFgpiUK9kPExGyMNy0my-nGSrxhLzfEAbI39nbxEZhdkraoubpQI~6OayJx6fDYNZ5J5u3iNb8WX5PqZgluj8UY3UiYPVEDpNUs6-KSEKrszdjnX1XD3xIUA0Tz7yNG97BszMhaErigrW8ypQULgRJnI~8cgLP9pn-Fjp3Rqo30vUfZK1EDW5TBymy1hkl9mo-g4OWHIJ9~35Qdga1pX9oS67xWVQCU~LrE~PCU4hyrdxA__&Key-Pair-Id=K1VGYTHIYLM9UM"
+          SF_BASTION_URL: "https://assets.meshy.ai/0311140c-0691-4cd3-b106-9a8fc604c93e/tasks/01a1fb5b-6d69-7168-be05-da7acd61b696/output/model.glb?Expires=1795305600&Signature=iTcuj35sJInGus2F2GUDW5GCaL9X2QwJ1OwUertwpHE3XY9aDoG7NammLtrG1WnFMXsYeYZUpK4vG3p5qR9CJ3W5LMoKCbV80qu0YufV2TwSv1hHSxRUfvIAA5xYyWZQTy2lF392jXWaXNOIF4E5RcWcrmt7c2fsXQLz-f6QxLf~s4VLntROzq2WjWjDlbWIrrICXmvmJOplcGW4uTmBnSVoSCCfdc58PVQJV985zuZqV779hYJQwSqJoAEu00t6z6grJYsoBieWsWcY-sBE5Tdfc5KFaveF8oIAH-jvjthphfI7pBD3zZcpmH5ZNCyRnAN54EMWm80e8Q7N8gqWSg__&Key-Pair-Id=K1VGYTHIYLM9UM"
+          SF_BUNKER_URL: "https://assets.meshy.ai/0311140c-0691-4cd3-b106-9a8fc604c93e/tasks/01a1fb5d-9433-7799-a879-c4bd01d18188/output/model.glb?Expires=1795305600&Signature=DPLt9sg5Ug9ofk0R13wKzmBDuAJkXmBU5sk6Ssw-93tMsxuYjuvk8uXF~5dy3Sj9wFu1a4k6wXc5ZMGmaj6ZkpVUSjE-mDbjAtglce~g19NnAyLmExYHYmoSST6veBUMxF8z1X4ZJSOhzu4NEVMW4kuPdoPq8eZ9YiyVb03JPd7AQr36ZdVX3cNanVOapLW1LZrQh2Mr~tS8l~CHtuvFw8w7Ut73pOaKB8o8p~m1uv7lJrLhdmr9jvv4Gxr~JDuOMIEA1fHExJKXLQLSc7pqIG8ljEuSDm~Wgu9QpIP71vlhpGxH6Wld3NzghXcyYTsU4BfoGHib-u-X6~HVay-lbw__&Key-Pair-Id=K1VGYTHIYLM9UM"
+          SF_HEADQUARTERS_URL: "https://assets.meshy.ai/0311140c-0691-4cd3-b106-9a8fc604c93e/tasks/01a1fd66-536b-71d0-9d5a-74afd948e7f9/output/model.glb?Expires=1795392000&Signature=P1nutNC8YRz8-iGJEaREDNb8C1wHXMNjI4eb~daiEOWLXC9WxIR1D-VGWsbPNnrhsLVTNUS4dixKbSPXeW99ksQAJLy0oC4YUSIW181juYUK~zhR3R40NAjUlBD6OB855eaDNvEo0qkr0A-rrwcQCstCeY4rfxIniUDtSqfHqIAYveZUIzDCo7GWt0EW0NrAJfpGVhHmqSWFl9u~fcSE0HTapDDsU4iKwBfD8Ro7nU64uvVgppqBpDHkZFmEaAsN0fbikryij-BulyXC8J9x-2NwcNcB5d88QV097HK~2kjeS8rlsdLhRWBU2ngWch9R447zyV0gxEFh6MELI4JBNg__&Key-Pair-Id=K1VGYTHIYLM9UM"
+          SF_GENERATOR_URL: "https://assets.meshy.ai/0311140c-0691-4cd3-b106-9a8fc604c93e/tasks/01a1fb61-0950-7260-a5c8-e0cfc2f3d6ab/output/model.glb?Expires=1795305600&Signature=fWVxs2A824Ghv8ULQmivIT2QmTLvI-HYQuDMFdHBBmUZX4KzmfwP0mW066v30LKVgPvLRpGkH5FgWmP8JomjNjyWf6J90j~GRpwtFKli8ZPMh2praEs9JMKD8se5QBY2CnEPN9-uroXOil5f8lUlrAKjekQddOU4H9dipDxLejDUpiE2TCg-1OK3AwLh92D-BWXabg4KASy1Zb38yafYvLmPXO2047Z7mljQxv8RRwjmZbYzicSKNRzzC5RbCREh9zek-uGNX-w7gOZGCWhMlH43vUORRlq6RR3~bsgTMa3siP85WcH988kdjr8HWe9Xh18thmiAkLNnTPVdnsEH7Q__&Key-Pair-Id=K1VGYTHIYLM9UM"
+        run: |
+          set -euo pipefail
+          mkdir -p src/assets/reborn/buildings-3d/meshy-structures
+          for kind in barracks airfield bastion bunker headquarters generator; do
+            var="SF_${kind^^}_URL"
+            url="${!var}"
+            curl --fail --location --silent --show-error --retry 3 --max-time 300 \
+              "$url" -o "src/assets/reborn/buildings-3d/meshy-structures/$kind.glb"
+          done
+      - name: Validate all real GLB files and avoid 100MB GitHub blob limit
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync,statSync} from 'node:fs';
+          for(const kind of 'barracks airfield bastion bunker headquarters generator'.split(' ')){
+            const path='src/assets/reborn/buildings-3d/meshy-structures/'+kind+'.glb';
+            const b=readFileSync(path);
+            if(b.toString('ascii',0,4)!=='glTF'||b.readUInt32LE(4)!==2||
+               b.readUInt32LE(8)!==b.length||b.length<50_000||
+               b.length>90_000_000)throw Error('Invalid GLB: '+path);
+            const len=b.readUInt32LE(12);
+            const doc=JSON.parse(b.toString('utf8',20,20+len));
+            if(!doc.meshes?.length||!doc.materials?.length)
+              throw Error('Missing Meshy mesh/PBR material: '+kind);
+            console.log(kind,statSync(path).size,'bytes',doc.meshes.length,'meshes');
+          }
+          NODE
+      - name: Commit stable GLB binaries to this test branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/assets/reborn/buildings-3d/meshy-structures/
+          if git diff --cached --quiet; then
+            echo "Meshy models already imported"
+          else
+            git commit -m "assets(meshy): import six PBR building models [skip ci]"
+            git fetch origin "${GITHUB_REF_NAME}"
+            git rebase "origin/${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi

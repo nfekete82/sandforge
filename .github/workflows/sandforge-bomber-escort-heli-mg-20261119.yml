@@ -1,0 +1,48 @@
+name: Sandforge KI3.6 bomber escort and helicopter MG
+on:
+  push:
+    branches: ['feat/sandforge-bomber-escort-heli-mg-20261119']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  air-support:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript and WebGL module graph audit
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          node --experimental-vm-modules scripts/check-webgl-module-graph.mjs
+      - name: Tests - bomber ground escort, heli MG, prior AI and crash regressions
+        run: |
+          node --test \
+            tests/sandforge-bomber-escort-heli-mg-20261119.test.mjs \
+            tests/sandforge-scout-rocket-support-20261119.test.mjs \
+            tests/sandforge-ai36-endgame-route-recovery-20261119.test.mjs \
+            tests/sandforge-ai36-recon-bomber-support-20261119.test.mjs \
+            tests/sandforge-ai36-fight-dont-flee-20261119.test.mjs \
+            tests/sandforge-combat-aftermath-v1-20261119.test.mjs \
+            tests/webgl-aircraft-effects-20261110.test.mjs
+      - name: AI3.6 battles 600 simulated seconds
+        run: |
+          node scripts/ai-test-arena.mjs \
+            --maps 24,26 --seeds 2026,2027,2028,2029 \
+            --seconds 600 --modes director --ai36 coordinated \
+            --label ai36-escort-safety \
+            --output ai-arena-results/ci-ai36-escort-safety.json
+      - name: Archive AI battle report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai36-bomber-escort-arena
+          path: ai-arena-results/ci-ai36-escort-safety.*
+          if-no-files-found: warn

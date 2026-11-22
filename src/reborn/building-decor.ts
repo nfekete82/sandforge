@@ -37,6 +37,8 @@ const layouts:Record<DecoratedStructure,readonly Slot[]>={
  ],
  generator:[{kind:'service-terminal',x:-2.30,y:-.85,layer:'behind'}],
  turret:[{kind:'military-crate',x:-2.40,y:-.90,layer:'behind'}],
+ bunker:[{kind:'sandbags',x:-2.45,y:-1.25,layer:'behind'},
+  {kind:'military-crate',x:2.35,y:-1.18,layer:'behind'}],
  // The new facilities share the same deterministic, collidable service-yard
  // decor as the existing buildings. Keep props clear of the entrance/launch
  // area, especially the silos' central rocket exhaust.
@@ -53,6 +55,7 @@ const layouts:Record<DecoratedStructure,readonly Slot[]>={
   {kind:'military-crate-stack',x:2.25,y:-.90,layer:'behind'}
  ],
  wall:[],
+ wallGate:[],
  bastion:[{kind:'sandbags',x:-2.20,y:-.90,layer:'behind'}]
 };
 const visualSize:Record<BasePropKind,number>={

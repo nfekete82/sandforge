@@ -42,14 +42,16 @@ for(const biome of ['snow','jungle']){
   expect(errors).toEqual([]);
  });
 }
-test('WebGL new-game menu offers desert, snow and jungle',async({page})=>{
+test('WebGL new-game menu presents four old desert maps and keeps legacy deep links',async({page})=>{
  await page.goto('/webgl-preview.html');
  await page.locator('#sf3d-new').click();
- await expect(page.locator('#sf3d-biome option')).toHaveCount(3);
- await page.locator('#sf3d-biome').selectOption('jungle');
- await page.locator('#sf3d-seed').fill('2074');
+ await expect(page.locator('#sf3d-desert-map option')).toHaveCount(4);
+ await expect(page.locator('#sf3d-biome')).toHaveCount(0);
+ await page.locator('#sf3d-desert-map').selectOption('last-stronghold');
+ await expect(page.locator('#sf3d-desert-map-description')).toContainText('Defcon 6');
  await page.locator('#sf3d-new-confirm').click();
- await expect(page).toHaveURL(/biome=jungle/);
+ await expect(page).toHaveURL(/biome=desert/);
+ await expect(page).toHaveURL(/map=last-stronghold/);
 });
 
 

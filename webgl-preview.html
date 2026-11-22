@@ -32,7 +32,10 @@ a:hover{text-decoration:underline}
 .info #selection{color:#a6d8e2;font-size:12px}
 #error{color:#ffab9c}
 .toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid #ffffff24;border-radius:9px;padding:8px}
-.counter{font:600 12px ui-monospace,monospace;color:#e7d8ac;padding:5px 8px;white-space:nowrap}
+.speed-control{display:flex;align-items:center;gap:6px;font:700 11px system-ui;color:#e7d8ac;white-space:nowrap}
+ .speed-control select{min-width:61px;min-height:34px;padding:6px 7px;font:700 13px ui-monospace,monospace;border-color:#92744c;background:#283334;color:#f7e5ba;cursor:pointer}
+ .speed-control select:focus-visible{outline:2px solid #ecc17c;outline-offset:2px}
+ .counter{font:600 12px ui-monospace,monospace;color:#e7d8ac;padding:5px 8px;white-space:nowrap}
 .note{font-size:11px;color:#bec7bd}
 @media(max-width:900px){
  .header{left:8px;right:8px;top:8px;flex-direction:column}.footer{left:8px;right:8px;bottom:8px;flex-direction:column;align-items:start}
@@ -52,6 +55,7 @@ a:hover{text-decoration:underline}
 #sf3d-options-dialog .sf3d-slider span{display:flex;justify-content:space-between;align-items:center;margin:0 0 5px}
 #sf3d-options-dialog .sf3d-slider input{display:block;width:100%;height:25px;min-height:25px;padding:0;accent-color:#d3ab66;border:0;background:transparent}
 #sf3d-options-dialog .sf3d-slider output{font:700 12px ui-monospace,monospace;color:#f1d39f}
+#sf3d-new-dialog .sf3d-desert-map-description{padding:11px 13px;margin:11px 0 16px;background:#172823;color:#ead7ae;border-left:3px solid #c3a06a;font:12px/1.6 system-ui}
 #sf3d-new-dialog .dialog-actions,#sf3d-options-dialog .dialog-actions{display:flex;justify-content:space-between;gap:8px}
 #sf3d-new-dialog .dialog-actions button,#sf3d-options-dialog .dialog-actions button{min-width:125px}
 #sf3d-boot{position:fixed;z-index:90;bottom:16px;left:16px;color:#f0c782;background:#172526d9;border:1px solid #92734e;padding:10px 14px}
@@ -67,9 +71,9 @@ a:hover{text-decoration:underline}
 <div id="stage" aria-label="Echte Three.js WebGL 3D Landschaft"></div>
 <div class="header">
  <div class="brand"><div class="small">SANDFORGE / THREE.JS PREVIEW</div><h1>BASTION WARS <span style="color:var(--gold)">3D</span></h1>
- <p>Drei Biome · spielbare WebGL-Kampagne</p></div>
+ <p>Vier einzigartige Wüsten · echtes PBR-3D</p></div>
  <div class="panel" role="group" aria-label="3D-Kartensteuerung">
-  <label for="bastions">Bastionen<select id="bastions"><option value="4">4</option><option value="8">8</option><option value="12">12</option><option value="16">16</option></select></label>
+  <label for="bastions">Bastionen<select id="bastions"><option value="8" selected>8</option><option value="12">12</option><option value="16">16</option></select></label>
   <label for="seed">Karten-Seed<input id="seed" inputmode="numeric" type="number" min="0" max="4294967295" value="2026"></label>
   <button id="load" title="Neue 3D-Karte laden">Karte laden</button>
   <a href="/classic.html" style="padding:10px 6px;font-size:12px">Klassische Version</a>
@@ -88,6 +92,13 @@ a:hover{text-decoration:underline}
   <button id="rotate-right" title="Kamera nach rechts drehen" aria-label="Kamera rechts">↷</button>
   <button id="home">Ansicht zurücksetzen</button>
   <button id="simulation" aria-pressed="false">Simulation starten</button>
+  <label for="simulation-speed" class="speed-control" title="Spielgeschwindigkeit für Produktion, Bewegung, Kampf und KI">Tempo
+   <select id="simulation-speed" aria-label="Spielgeschwindigkeit">
+    <option value="1" selected>1×</option>
+    <option value="2">2×</option>
+    <option value="4">4×</option>
+   </select>
+  </label>
   <button id="sound" aria-pressed="false">Sound einschalten</button>
   <span class="counter"><span id="fps">–</span> FPS · <span id="clock">0 s</span></span>
  </div>
@@ -106,19 +117,18 @@ a:hover{text-decoration:underline}
 </dialog>
 <dialog id="sf3d-new-dialog" aria-label="Neue 3D-Kampagne">
  <small>SANDFORGE / NEUE KAMPAGNE</small><h1>Schlachtfeld wählen</h1>
- <p>Neue Landschaft, neue Wege. Ein gleicher Seed und ein gleiches Geländeprofil erzeugen dasselbe Schlachtfeld.</p>
- <label class="sf3d-field" for="sf3d-map-size">Kartengröße / Bastionen
-  <select id="sf3d-map-size"><option value="4">Klein · 4 Bastionen</option><option value="8" selected>Mittel · 8 Bastionen</option><option value="12">Groß · 12 Bastionen</option><option value="16">Sehr groß · 16 Bastionen</option></select>
+ <p>Vier klassische Wüstenkarten mit der bisherigen Sandgrafik. Jede Karte bleibt bei einem Neustart exakt gleich.</p>
+ <label class="sf3d-field" for="sf3d-desert-map">Wüsten-Schlachtfeld
+  <select id="sf3d-desert-map">
+   <option value="desert-strike" selected>DESERT STRIKE · 8 Bastionen</option>
+   <option value="broken-empire">BROKEN EMPIRE · 12 Bastionen</option>
+   <option value="burning-horizon">BURNING HORIZON · 16 Bastionen</option>
+   <option value="last-stronghold">LAST STRONGHOLD · 16 Bastionen</option>
+   <option value="plateau-crossroads">PLATEAU CROSSROADS · 16 Bastionen</option>
+   <option value="mesa-highlands">MESA HIGHLANDS · 16 Bastionen</option>
+  </select>
  </label>
- <label class="sf3d-field" for="sf3d-biome">Umgebung / Biom
-  <select id="sf3d-biome"><option value="desert">Wüste · Sand &amp; Ruinen</option><option value="snow">Schnee · Kiefern &amp; Eis</option><option value="jungle">Dschungel · Wald &amp; Felsen</option></select>
- </label>
- <label class="sf3d-field" for="sf3d-terrain">Geländeprofil
-  <select id="sf3d-terrain"><option value="random">Zufällig</option><option value="open">Offenes Gelände</option><option value="dunes">Dünen / sanfte Hügel</option><option value="rocky">Felsiges Gelände</option><option value="oasis">Oasenprofil (Wüste)</option><option value="mixed">Gemischtes Gelände</option></select>
- </label>
- <label class="sf3d-field" for="sf3d-seed">Karten-Seed (optional)
-  <input id="sf3d-seed" type="number" min="0" max="4294967295" placeholder="Zufällige Karte" autocomplete="off">
- </label>
+ <p id="sf3d-desert-map-description" class="sf3d-desert-map-description" role="status" aria-live="polite"></p>
  <p id="sf3d-new-status" role="status"></p>
  <div class="dialog-actions">
   <button type="button" data-sf3d-close>ABBRECHEN</button>
@@ -177,5 +187,6 @@ a:hover{text-decoration:underline}
  window.addEventListener('unhandledrejection',e=>show(String(e.reason||'Unbehandelter Ladefehler')));
 })();
 </script>
+<script defer src="/webgl-desert-maps.js"></script>
 <script defer src="/webgl-title-menu.js"></script>
 </body></html>

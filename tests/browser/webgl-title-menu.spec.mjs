@@ -17,10 +17,11 @@ test('3D starts with the original Sandforge title and enters a real playable cam
  await page.locator('#sf3d-options-save').click();
  await page.locator('#sf3d-new').click();
  await expect(page.locator('#sf3d-new-dialog')).toBeVisible();
- await page.locator('#sf3d-map-size').selectOption('4');
- await page.locator('#sf3d-seed').fill('2074');
+ await expect(page.locator('#sf3d-desert-map option')).toHaveCount(4);
+ await page.locator('#sf3d-desert-map').selectOption('desert-strike');
  await page.locator('#sf3d-new-confirm').click();
- await expect(page).toHaveURL(/bastions=4&seed=2074&play=1&lite=1/);
+ await expect(page).toHaveURL(/bastions=8&seed=9999&play=1&lite=1/);
+ await expect(page).toHaveURL(/map=desert-strike/);
  await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded===true,{timeout:100000});
  const state=await page.evaluate(()=>({
   actors:window.__sandforgeWebGL.battlefield.units.size,
@@ -59,4 +60,27 @@ test('3D direct-link bootstrap ships ALL required JS modules and reports missing
  for(const name of ['webgl-title-menu.js','webgl-preview.js','webgl-battlefield.js','webgl-actor-presentation.js'])
   expect(responses.find(x=>x.name===name)?.code,name+' not shipped').toBe(200);
  await expect(page.locator('#sf3d-fatal')).toBeHidden();
+});
+
+test('WebGL RTS top HUD exposes 1×, 2×, 4× beside Pause and retains speed while paused',async({page})=>{
+ test.setTimeout(120000);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/webgl-preview.html?bastions=4&seed=2074&lite=1&pause=1',{waitUntil:'domcontentloaded'});
+ await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded===true,{timeout:100000});
+ const control=page.locator('#sf-tools #simulation-speed');
+ await expect(control).toBeVisible();
+ await expect(control).toHaveValue('1');
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationRunning)).toBe(false);
+ await control.selectOption('2');
+ await expect(control).toHaveValue('2');
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationSpeed)).toBe(2);
+ await control.selectOption('4');
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationSpeed)).toBe(4);
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationRunning)).toBe(false);
+ await page.locator('#sf-tools #simulation').click();
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationRunning)).toBe(true);
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationSpeed)).toBe(4);
+ await control.selectOption('1');
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.simulationSpeed)).toBe(1);
+ expect(errors).toEqual([]);
 });

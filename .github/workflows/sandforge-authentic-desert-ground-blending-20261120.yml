@@ -1,0 +1,70 @@
+name: Sandforge authentic four-way desert PBR ground blending
+on:
+  push:
+    branches: [feat/sandforge-authentic-desert-ground-blending-20261120]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ground-masks-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and browser module syntax
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-desert-ground-blending.js
+          node --check scripts/webgl-preview.js
+      - name: Deterministic four-map blend masks and original PBR regression
+        run: |
+          node --test tests/sandforge-authentic-desert-ground-blending-20261120.test.mjs
+          node --test tests/sandforge-desert-route-ecology-polish-20261120.test.mjs
+      - name: Verify all browser ES modules without private local authored building GLBs
+        run: SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+  chromium-four-deserts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install project and real Chromium software WebGL
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tests/browser --no-audit --no-fund
+          cd tests/browser
+          npx playwright install --with-deps chromium
+      - name: Compile, audit and ship the real four PBR source textures
+        run: |
+          npx tsc -p tsconfig.json
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs
+          mkdir -p dist/src
+          cp -a src/assets dist/src/assets
+          node scripts/generate-oasis-adobe-glbs.mjs dist/src/assets/reborn/oasis-village
+      - name: Render true WebGL2 natural ground blends across all four maps
+        env:
+          SANDFORGE_BROWSER_CHANNEL: chromium
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          cd tests/browser
+          npx playwright test webgl-authentic-desert-ground-blending-20261120.spec.mjs --config=playwright.config.mjs
+      - name: Preserve actual screenshots and browser errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-four-real-ground-blending-screenshots
+          path: |
+            tests/browser/artifacts/screenshots/
+            tests/browser/artifacts/results.json
+            tests/browser/artifacts/report/
+            tests/browser/artifacts/runs/
+          if-no-files-found: warn
+          retention-days: 30

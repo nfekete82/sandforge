@@ -91,7 +91,7 @@ export function buildTransportHelicopter(team){
   panel('Rotor blade underside',[p(1.03,.28,.02),p(7.28,.14,-.145),p(7.2,-.17,-.145),p(.97,-.15,-.015)],dark,main);
   panel('Blade warning tip',[p(6.94,-.168,-.12),p(7.2,-.17,-.125),p(7.28,.14,-.125),p(6.94,.15,-.12)],ivory,main);
  }
- const tail=new T.Group();tail.name='TailRotor_Spin';tail.position.set(-.33,5.52,-8.21);root.add(tail);
+ const tail=new T.Group();tail.name='TailRotor_Spin';tail.position.set(-.33,5.42,-7.62);root.add(tail);
  cyl('Tail rotor axle',[0,0,0],.095,.45,steel,'x',tail);sphere('Tail rotor hub',[-.25,0,0],[.13,.15,.15],steel,tail);
  for(let i=0;i<3;i++){const a=i*Math.PI*2/3,p=(r,w)=>[-.25,Math.cos(a)*r-Math.sin(a)*w,Math.sin(a)*r+Math.cos(a)*w];rod('Tail blade root',p(.06,0),p(.31,0),.04,steel,tail);panel('Tail blade',[p(.24,-.09),p(1.28,-.09),p(1.34,.095),p(.24,.13)],steel,tail);panel('Tail tip',[p(1.12,-.09),p(1.28,-.09),p(1.34,.095),p(1.12,.10)],faction,tail);}
  // Merge each material separately; preserve rotor-local geometry and pivots.

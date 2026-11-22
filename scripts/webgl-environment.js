@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {stoneMaterial,weatheredStoneGeometry} from './webgl-rock-materials.js';
+import {DESERT_SCENIC_STYLE as desertStyle} from './webgl-desert-style.js';
 // Browser production serves this file from /dist, alongside compiled /src.
 // The Node geometry tests import its source directly from /scripts, where
 // absolute browser import paths are invalid. Resolve the *same* compiled
@@ -100,13 +101,28 @@ export function createConformingCraterGeometry(craters,{
 // Environmental set dressing mirrors deterministic Canyon sites but has no
 // influence on gameplay or collision. Every asset is a true GPU 3D mesh.
 export class DesertArtPass {
- constructor({scene,world,terrain,heightAt,pos,loader,lowQuality=false,biome='desert'}){
-  Object.assign(this,{scene,world,terrain,heightAt,pos,loader,lowQuality,biome});
+ constructor({scene,world,terrain,heightAt,pos,loader,lowQuality=false,biome='desert',mapId=null}){
+  Object.assign(this,{scene,world,terrain,heightAt,pos,loader,lowQuality,biome,mapId});
   this.details=createGroundDetails(world,terrain.sites);
-  this.items=[];this.animations=[];
+  this.items=[];this.animations=[];this.windPalms=[];
   this.addCraters();
-  this.addDebris();
+  // The modern desert is intentionally rock-free between landmarks.
+  // This purely visual scatter is separate from the physical mesa layout.
+  if(!(biome==='desert'&&world.mapVersion>=23))this.addDebris();
   this.addRuinRubble();
+ }
+ // GLB palms have their model root anchored at ground level, so subtle
+ // procedural bending is cheap and preserves every original PBR texture.
+ // No per-frame mesh creation or modification to collision data.
+ addWindPalm(group,phase){
+  this.windPalms.push({group,phase,baseX:group.rotation.x,baseZ:group.rotation.z});
+ }
+ update(time,storm=0){
+  const gain=.013+Math.max(0,Math.min(1,storm))*.043;
+  for(const p of this.windPalms){
+   p.group.rotation.x=p.baseX+Math.sin(time*.85+p.phase)*gain;
+   p.group.rotation.z=p.baseZ+Math.cos(time*.64+p.phase*1.73)*gain*.75;
+  }
  }
  makeCraterTexture(){
   // Procedural, biome-aware excavation with an eroded rim and granular
@@ -182,12 +198,16 @@ export class DesertArtPass {
   this.scene.add(mesh);this.items.push(mesh);
  }
  addDebris(){
-  const dust=stoneMaterial(this.biome==='snow'?'#a1abb4':this.biome==='jungle'?'#6f7662':'#b69a7c',
+  const dust=stoneMaterial(this.biome==='snow'?'#a1abb4':this.biome==='jungle'?'#6f7662':desertStyle.sceneDebris,
    {lowQuality:this.lowQuality});
   const geometry=weatheredStoneGeometry(this.lowQuality);
   const spacious=this.world.mapVersion>=19;
-  const mesh=new THREE.InstancedMesh(geometry,dust,
-    spacious?(this.lowQuality?160:500):(this.lowQuality?240:850));
+  // Modern sand maps already have a dedicated stone scatter. Keep only a
+  // few environment stones as spatial accents; never cover the dunes.
+  const modernDesert=this.biome==='desert'&&this.world.mapVersion>=23;
+  const debrisLimit=modernDesert?(this.lowQuality?22:40):
+   spacious?(this.lowQuality?160:500):(this.lowQuality?240:850);
+  const mesh=new THREE.InstancedMesh(geometry,dust,debrisLimit);
   const dummy=new THREE.Object3D();
   let count=0;
   for(const d of this.details) {
@@ -217,19 +237,23 @@ export class DesertArtPass {
   // A broken concrete shell needs grounded masonry at its feet, not an
   // immaculate square base. Small fragments deliberately have no collider.
   const spacious=this.world.mapVersion>=19;
-  const rubblePerRuin=spacious?(this.lowQuality?5:13):(this.lowQuality?8:27);
-  const count=this.terrain.ruins.length*rubblePerRuin;
+  const modernDesert=this.biome==='desert'&&this.world.mapVersion>=23;
+  // Just a few wall fragments at each ruin, not stone carpets everywhere.
+  const rubblePerRuin=modernDesert?(this.lowQuality?2:3):
+   spacious?(this.lowQuality?5:13):(this.lowQuality?8:27);
+  const rubbleAt=ruin=>this.world.mapVersion>=19&&ruin.height<30?1:rubblePerRuin;
+  const count=this.terrain.ruins.reduce((n,ruin)=>n+rubbleAt(ruin),0);
   if(!count)return;
   const geometry=weatheredStoneGeometry(this.lowQuality);
   const materials=[
-   stoneMaterial(this.biome==='snow'?'#c7d0d7':this.biome==='jungle'?'#94947e':'#debe98',{lowQuality:this.lowQuality}),
-   stoneMaterial(this.biome==='snow'?'#83919d':this.biome==='jungle'?'#5d6656':'#aa8e70',{lowQuality:this.lowQuality})
+   stoneMaterial(this.biome==='snow'?'#c7d0d7':this.biome==='jungle'?'#94947e':desertStyle.rubbleLight,{lowQuality:this.lowQuality}),
+   stoneMaterial(this.biome==='snow'?'#83919d':this.biome==='jungle'?'#5d6656':desertStyle.rubbleDark,{lowQuality:this.lowQuality})
   ];
   const meshes=materials.map(material=>new THREE.InstancedMesh(geometry,material,count));
   const counters=[0,0],dummy=new THREE.Object3D();
   let state=(this.world.seed^0x6ac8b547)>>>0;
   const rand=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
-  for(const ruin of this.terrain.ruins)for(let k=0;k<rubblePerRuin;k++){
+  for(const ruin of this.terrain.ruins)for(let k=0;k<rubbleAt(ruin);k++){
    const angle=rand()*Math.PI*2,wall=Math.max(ruin.width*.5,ruin.depth*.5);
    const distance=wall*(.78+rand()*.56),x=ruin.x+Math.cos(angle)*distance,z=ruin.y+Math.sin(angle)*distance;
    const radius=1.9+rand()*6,kind=rand()>.55?1:0;
@@ -244,6 +268,10 @@ export class DesertArtPass {
   }
  }
  async loadPalmGroves(){
+  // Indigenous flora by ecoregion: date-palm groves belong to Sandforge's
+  // Saharan oasis map, never Mojave Joshua desert, Sonora Saguaro deserts
+  // or arid Badlands. Do not replace with green sphere/cylinder plants.
+  if(this.mapId&&this.mapId!=='desert-strike')return 0;
   // No tropical palms on a snowfield; jungle keeps the existing groves.
   if(this.biome==='snow')return 0;
   const spacious=this.world.mapVersion>=19;
@@ -257,7 +285,7 @@ export class DesertArtPass {
    const group=new THREE.Group();group.position.copy(this.pos(d.x,d.y));
    group.rotation.y=d.rotation;
    if(spacious)group.scale.setScalar(1.12);
-   group.add(palm);
+   group.add(palm);this.addWindPalm(group,d.rotation+d.x*.001);
    this.scene.add(group);this.items.push(group);
   }
   // Small natural palm clusters enhance the original desert art without
@@ -291,6 +319,7 @@ export class DesertArtPass {
      group.userData={visualOnly:true,nonPlayable:true,inlandGrove:true};
      group.position.copy(this.pos(x,y));group.rotation.y=rand()*Math.PI*2;
      group.scale.setScalar(.80+rand()*.32);group.add(tree);
+     this.addWindPalm(group,x*.007+y*.003);
      this.scene.add(group);this.items.push(group);
     }
    }
@@ -323,7 +352,7 @@ export class DesertArtPass {
     group.position.copy(this.pos(p.x,p.y));
     group.rotation.y=rand()*Math.PI*2;
     group.scale.setScalar((.83+rand()*.38)*(spacious?1.12:1));
-    group.add(palm);
+    group.add(palm);this.addWindPalm(group,p.x*.005+p.y*.013);
     this.scene.add(group);this.items.push(group);borderPalms++;
    }
   }
@@ -350,9 +379,16 @@ export class DesertArtPass {
     return state/4294967296;};
   for(const ruin of sites){
    const radius=Math.max(ruin.width??120,ruin.depth??100)*.5;
-   const props=this.lowQuality?2:3;
+   const micro=this.world.mapVersion>=19&&ruin.height<30;
+   // Micro-ruins should be bare masonry, not miniature supply yards.
+   // Larger derelicts retain 1–2 restrained props; old map counts remain.
+   const props=this.world.mapVersion>=19?
+    micro?(random()<.25?1:0):this.lowQuality?1:2:
+    this.lowQuality?2:3;
+   const choices=micro?available.filter(a=>a.kind==='sandbags'):available;
+   if(!choices.length)continue;
    for(let i=0;i<props;i++){
-    const source=available[(i+Math.floor(random()*available.length))%available.length];
+    const source=choices[(i+Math.floor(random()*choices.length))%choices.length];
     const angle=ruin.rotation+Math.PI*(.2+random()*.6);
     const distance=radius*(1.05+random()*.34);
     const x=ruin.x+Math.cos(angle)*distance;

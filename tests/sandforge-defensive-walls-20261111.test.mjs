@@ -9,7 +9,7 @@ import {sitesVisuallyOverlap,siteExceedsMap} from '../dist/src/reborn/constructi
 import {createStrategicBuilding,isStrategicBuilding} from '../scripts/webgl-strategic-buildings.js';
 test('real paid wall entity is available in the pioneer catalogue',()=>{
  assert.ok(buildingKinds.includes('wall'));
- assert.equal(BUILDINGS.wall.cost,120);
+ assert.equal(BUILDINGS.wall.cost,75);
  assert.ok(BUILDINGS.wall.hp>500);
  assert.ok(isStrategicBuilding('wall'));
  const ui=readFileSync('scripts/webgl-battlefield.js','utf8');

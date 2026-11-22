@@ -34,7 +34,8 @@ test('all nine research benefits have icons and immediately visible stat descrip
  }
  const hud=source('scripts/webgl-battlefield.js');
  assert.match(hud,/researchIconMarkup\(kind\)/);
- assert.match(hud,/sf-tech-effect/);
+ assert.match(hud,/createSandforgeResearchDeck/);
+ assert.match(source('scripts/webgl-research-deck.js'),/sf-research-detail/);
  assert.match(source('src/reborn/webgl-classic-hud.css'),/\.sf-tech-effect/);
 });
 

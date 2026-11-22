@@ -1,0 +1,22 @@
+name: Sandforge runway clearance QA
+on:
+  push:
+    branches: [fix/webgl-airfield-runway-clear-20261115]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-runway-clear-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-and-runway-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:3d
+      - run: node --test tests/webgl-hangar-factory-maintenance-20261110.test.mjs

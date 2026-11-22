@@ -1,0 +1,32 @@
+name: Sandforge 728s performance regression
+on:
+  push:
+    branches:
+      - fix/sandforge-longmatch-path-shadow-performance-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile and validate WebGL modules
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-shadow-budget.js
+          node --check scripts/webgl-battlefield.js
+      - name: Performance, AI defenses and vehicle route regressions
+        run: |
+          node --test \
+            tests/sandforge-728s-performance-regression-20261119.test.mjs \
+            tests/sandforge-vehicle-gate-clearance-20261119.test.mjs \
+            tests/sandforge-ai-base-fortifications-20261119.test.mjs \
+            tests/sandforge-heli-gates-longmatch-20261119.test.mjs \
+            tests/sandforge-wall-terrain-border-20261119.test.mjs

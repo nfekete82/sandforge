@@ -6,7 +6,7 @@ export function disposeOwnedMeshes(root,{geometries=true,materials=true}={}){
  if(!root?.traverse)return {geometries:0,materials:0};
  const g=new Set(),m=new Set();
  root.traverse(o=>{
-  if(!o.isMesh)return;
+  if(!o.isMesh||o.userData?.sandforgeSharedToolMesh)return;
   if(geometries&&o.geometry?.dispose)g.add(o.geometry);
   if(materials){
    const list=Array.isArray(o.material)?o.material:[o.material];

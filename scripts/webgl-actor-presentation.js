@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import {disposeRocketLauncher} from '/webgl-rocket-infantry.js';
+import {restoreHumanStance,applyHumanStance} from '/webgl-human-stance.js';
+import {updateEngineerTools} from '/webgl-engineer-tools.js';
 import {UNITS,BUILDINGS} from '/src/reborn/catalog.js';
-import {healthFraction,healthColor} from '/webgl-health.js';
+import {healthFraction,healthColor,showHealthBar} from '/webgl-health.js';
 import {turretMuzzleOffset} from '/webgl-scale.js';
 
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const infantry=new Set(['infantry','medic','engineer','heavy','rocket']);
-const air=new Set(['scout','bomber']);
+const air=new Set(['scout','bomber','drone']);
 const barGeo=new THREE.PlaneGeometry(1,1);
 const bgMat=new THREE.MeshBasicMaterial({
  color:'#101c21',transparent:true,opacity:.93,depthTest:false,depthWrite:false,side:THREE.DoubleSide
@@ -35,13 +37,13 @@ function muzzleTexture(){
 }
 const flashTex=muzzleTexture();
 const ownerColor=owner=>owner===0?'#68ddf5':'#ff8a69';
-const pulseSize=kind=>infantry.has(kind)?21:air.has(kind)?36:kind==='tank'?40:35;
+const pulseSize=kind=>infantry.has(kind)?17:air.has(kind)?36:kind==='tank'?40:35;
 const barWidth=(kind,type)=>type==='building'
- ?Math.max(42,Math.min(68,(BUILDINGS[kind]?.width??115)*.30)):
- infantry.has(kind)?26:air.has(kind)?44:36;
+ ?Math.max(36,Math.min(56,(BUILDINGS[kind]?.width??115)*.26)):
+ infantry.has(kind)?19:air.has(kind)?36:31;
 const barAltitude=(kind,type)=>type==='building'
  ?Math.max(65,Math.min(144,(BUILDINGS[kind]?.width??130)*.55)):
- infantry.has(kind)?62:air.has(kind)?49:56;
+ infantry.has(kind)?43:air.has(kind)?49:56;
 
 function statusBar(scene,entity,type){
  const width=barWidth(entity.kind,type);
@@ -49,24 +51,25 @@ function statusBar(scene,entity,type){
  root.name='hp-'+type+'-'+entity.id;
  root.userData={type,id:entity.id,healthBar:true};
  const surround=new THREE.Mesh(barGeo,outlineMats[entity.owner===1?1:0]);
- surround.scale.set(width+1.8,4.8,1);surround.position.z=0;surround.renderOrder=1016;
+ surround.scale.set(width+1.4,4.0,1);surround.position.z=0;surround.renderOrder=1016;
  root.add(surround);
  const back=new THREE.Mesh(barGeo,bgMat);
- back.scale.set(width,3.4,1);back.position.z=.9;back.renderOrder=1017;
+ back.scale.set(width,2.8,1);back.position.z=.9;back.renderOrder=1017;
  root.add(back);
  // All three health pieces must share the transparent rendering pass: an
  // opaque fill drawn before the translucent background appeared BLACK.
  const fillMaterial=new THREE.MeshBasicMaterial({color:'#24e568',transparent:true,opacity:1,depthTest:false,
   depthWrite:false,side:THREE.DoubleSide,toneMapped:false});
  const fill=new THREE.Mesh(barGeo,fillMaterial);
- fill.scale.set(width-2.1,2.5,1);fill.position.z=1.8;fill.renderOrder=1018;root.add(fill);
+ fill.scale.set(width-1.8,2.0,1);fill.position.z=1.8;fill.renderOrder=1018;root.add(fill);
  root.renderOrder=1015;
  scene.add(root);
- return {root,fill,fillMaterial,width:width-2.1,altitude:barAltitude(entity.kind,type),
+ return {root,fill,fillMaterial,width:width-1.8,altitude:barAltitude(entity.kind,type),
    previousHp:entity.hp,hitPulse:0,healPulse:0};
 }
 
 function flashSprite(entry,entity,type){
+ if(type==='unit'&&(entity.kind==='drone'||entity.kind==='supply'))return null;
  if(type==='building'&&entity.kind==='turret')return null;
  // Rocket artillery flashes belong to the individual launch tubes. The
  // former generic sprite looked like an MG and hovered above the truck.
@@ -77,7 +80,7 @@ function flashSprite(entry,entity,type){
  const flash=new THREE.Sprite(mat);
  flash.name='weapon-flash';
  const kind=entity.kind,wide=type==='unit'?(UNITS[kind]?.width??38):Math.min(60,(BUILDINGS[kind]?.width??120)*.32);
- flash.position.set(wide*.10,type==='unit'?(infantry.has(kind)?34:38):60,wide*.42);
+ flash.position.set(wide*.10,type==='unit'?(infantry.has(kind)?26:38):60,wide*.42);
  flash.scale.setScalar(pulseSize(kind));
  flash.visible=false;
  entry.node.add(flash);
@@ -94,15 +97,16 @@ export class SandforgeActorPresentation {
   this.status=new Map();
   this.stats={shots:0,hits:0,heals:0,visibleBars:0,walking:0,shooting:0};
   this.time=0;
-  // HUD health must remain visible for every currently seen unit by default.
-  // A pre-existing damaged-only preset hid full-HP soldiers and vehicles.
-  this.showHealth='all';
+  // Default: unobtrusive health indicators, always available by HUD toggle.
+  // Full-health unselected actors do not cover the scene in green bars.
+  this.showHealth='smart';
   // Keep the actual rendered infantry model briefly after death, prone on
   // the sand. No dark rectangular "death decal" or new polygon geometry.
   // Move, don't clone, the existing model: bounded and GPU-cheap.
   this.remnants=[];
-  this.maxRemnants=24;
-  this.remnantSeconds=6;
+  this.maxRemnants=28;
+  this.remnantSeconds=9;
+  this.remnantFadeSeconds=2.1;
  }
  attach(entry,entity,type){
   const bar=statusBar(this.scene,entity,type);
@@ -154,12 +158,32 @@ export class SandforgeActorPresentation {
     pose.rotation.x=Math.PI/2;
     pose.rotation.z=(entity.id%2?1:-1)*.13;
     pose.add(detail);fallen.add(pose);
+    // Reuse the real soldier's rig and PBR textures, but clone just its
+    // material instances. Fading must never modify globally cached GLB
+    // materials shared with living units or other fallen soldiers.
+    const fadeMaterials=[],ownedOriginals=new Set(),materialCopies=new Map();
     detail.traverse(mesh=>{
-     if(mesh.isMesh)mesh.raycast=()=>{};
+     if(!mesh.isMesh)return;
+     mesh.raycast=()=>{};
+     const cloneMaterial=material=>{
+      if(!material)return material;
+      if(materialCopies.has(material))return materialCopies.get(material);
+      const copy=material.clone();
+      copy.transparent=true;copy.depthWrite=true;
+      copy.userData={...copy.userData,cosmeticRemnant:true};
+      delete copy.userData.sandforgeFactionTint;
+      fadeMaterials.push({material:copy,opacity:material.opacity??1});
+      if(wasFallback||material.userData?.sandforgeFactionTint)
+       ownedOriginals.add(material);
+      materialCopies.set(material,copy);
+      return copy;
+     };
+     mesh.material=Array.isArray(mesh.material)
+      ?mesh.material.map(cloneMaterial):cloneMaterial(mesh.material);
     });
     this.scene.add(fallen);
     this.remnants.push({
-     mesh:fallen,model:detail,wasFallback,
+     mesh:fallen,model:detail,wasFallback,fadeMaterials,ownedOriginals,
      time:this.remnantSeconds,total:this.remnantSeconds
     });
     while(this.remnants.length>this.maxRemnants)
@@ -191,6 +215,8 @@ export class SandforgeActorPresentation {
      materials.add(mat);
    }
   });
+  for(const owned of r.ownedOriginals??[])materials.add(owned);
+  for(const {material} of r.fadeMaterials??[])materials.add(material);
   for(const material of materials)material.dispose();
   for(const geometry of geometries)geometry.dispose();
   r.mesh.clear();
@@ -200,8 +226,14 @@ export class SandforgeActorPresentation {
   this.remnants=this.remnants.filter(r=>{
    r.time-=dt;
    if(r.time>0){
-    // After 4.5 seconds sink gently into the sand, not a sudden pop.
-    if(r.time<1.5)r.mesh.position.y-=dt*3.4;
+    // Remain identifiable on the sand before fading over the final 2.1s.
+    // No new meshes; cloned material instances share existing PBR textures.
+    if(r.time<this.remnantFadeSeconds){
+     const alpha=Math.max(0,r.time/this.remnantFadeSeconds);
+     for(const {material,opacity} of r.fadeMaterials)
+      material.opacity=opacity*alpha;
+     r.mesh.position.y-=dt*2.4;
+    }
     return true;
    }
    this.removeRemnant(r);
@@ -209,7 +241,7 @@ export class SandforgeActorPresentation {
   });
  }
  setHealthMode(mode){
-  if(['all','selected','damaged','off'].includes(mode))this.showHealth=mode;
+  if(['smart','all','selected','damaged','off'].includes(mode))this.showHealth=mode;
  }
  consumeShots(units,bases){
   for(const shot of this.game.shots){
@@ -256,9 +288,14 @@ export class SandforgeActorPresentation {
   bar.hitPulse=Math.max(0,bar.hitPulse-dt);
   bar.healPulse=Math.max(0,bar.healPulse-dt);
   const visible=entry.node.visible&&hp>0;
-  const showBar=visible&&(this.showHealth==='all'||
-   this.showHealth==='selected'&&selected||
-   this.showHealth==='damaged'&&(selected||pct<.999));
+  // Hold a full-HP attacker's bar for a short time after its latest real
+  // shot. Damaged units remain visible; no opponent is exposed through fog.
+  if(state.shotPulse>0||bar.hitPulse>0||entity.fire>0)
+   state.healthCombatUntil=Math.max(state.healthCombatUntil??0,this.game.time+3.2);
+  const fighting=!!(state.healthCombatUntil>this.game.time||
+   entity.defendUntil>this.game.time);
+  const showBar=showHealthBar({mode:this.showHealth,visible,selected,
+    fraction:pct,combatActive:fighting});
   bar.root.visible=showBar&&!entry.productionMotion?.hideHealth;
   // Headquarters may be captured and switch faction without respawning.
   bar.root.children[0].material=outlineMats[entity.owner===1?1:0];
@@ -336,12 +373,28 @@ export class SandforgeActorPresentation {
     if(action)action.setEffectiveTimeScale(
      ['rover','tank','artillery'].includes(entity.kind)&&!moving&&desired===clips.idle
       ?0:entry.productionMotion&&moving
-       ?clamp((entity.driveSpeed??80)/80,.15,3):1);
+       // Foot units use the same walk animation cadence as normal play.
+       // The former driveSpeed/80 made the first steps ~31% faster.
+       ?infantry.has(entity.kind)?1:clamp((entity.driveSpeed??80)/80,.15,3):1);
+    // Reset only the prior secondary leg pose, then let the original GLB
+    // mixer author all bones (including both weapon grip hands) as usual.
+    if(entry.humanStance)
+     restoreHumanStance(entry.humanStance);
     clips.mixer.update(Math.min(.08,dt));
+    if(entry.humanStance){
+     const walking=clips.mixer.existingAction(clips.walk);
+     const phase=walking&&clips.walk.duration>0?
+      (walking.time/clips.walk.duration)%1:0;
+     applyHumanStance(entry.humanStance,{
+      moving,shooting,hurt,dt,walkPhase:phase
+     });
+    }
    }
   }
   const body=entry.detail??entry.placeholder;
   if(!body)return;
+  if(entity.kind==='engineer')
+   updateEngineerTools(entry.engineerTools,entity.workingTarget!=null&&!entity.moving,this.game.time);
   const base=entry.visualBaseY??body.position.y;
   if(!Number.isFinite(entry.visualBaseY))entry.visualBaseY=base;
   if(!Number.isFinite(entry.visualBaseZ))entry.visualBaseZ=body.position.z;

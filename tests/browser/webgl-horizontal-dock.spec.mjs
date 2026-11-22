@@ -483,7 +483,7 @@ test('unified production panel lists live queue slots and building progress',asy
    buildHidden:document.querySelector('#sf-building-status').hidden,
    summary:document.querySelector('#sf-queue-count').textContent};
  });
- expect(construction.name).toBe('Feldkommando');
+ expect(construction.name).toBe('Kommandozentrale');
  expect(construction.status).toContain('BAU · 50%');
  expect(Number.parseFloat(construction.progress)).toBeCloseTo(50,5);
  expect(construction.buildHidden).toBe(false);

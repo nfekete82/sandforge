@@ -1,0 +1,30 @@
+name: Sandforge helicopter front pod alignment
+on:
+  push:
+    branches:
+      - feat/sandforge-heli-starboard-pod-alignment-20261119
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-helicopter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile simulation and validate WebGL pod attachment
+        run: |
+          npx tsc -p tsconfig.json
+          node --check scripts/webgl-scout-rocket-pods.js
+      - name: Front-view placement, PBR, missiles and regression tests
+        run: |
+          node --test \
+            tests/sandforge-heli-front-pod-alignment-20261119.test.mjs \
+            tests/sandforge-heli-gates-longmatch-20261119.test.mjs \
+            tests/sandforge-vehicle-slope-heli-pbr-20261119.test.mjs \
+            tests/sandforge-scout-pods-rover-air-evasion-20261119.test.mjs

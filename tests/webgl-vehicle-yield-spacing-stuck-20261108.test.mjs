@@ -10,6 +10,10 @@ import {
 const fixture=()=>{
  const g=new Simulation(2074,23);
  g.units=[];g.bases=[];g.world.blocked.fill(0);g.world.opaque.fill(0);
+ // This deliberately base-free navigation fixture must also clear the
+ // PERSISTED building history. Otherwise the post-HQ-elimination rule ends
+ // the test as defeat after one tick, before either tank can move.
+ g.hadBuildings=[false,false];
  g.aiClock=1e8;g.tactical.plan=()=>{};g.status='playing';g.paused=false;
  // Real elimination semantics end a game with zero red assets. Keep one
  // harmless distant red actor so vehicle-navigation tests stay in combat.
@@ -62,7 +66,8 @@ test('tank behind stopped tank continues along route; spacing cannot freeze both
  const initial=rear.x;
  assert.equal(g.command([rear.id],{kind:'move',x:2800,y:2000}),1);
  for(let i=0;i<340;i++)g.step(.05);
- assert.ok(rear.x>initial+300,'rear tank should make meaningful progress');
+ assert.ok(rear.x>initial+300,
+   `rear tank progress x=${rear.x.toFixed(1)} y=${rear.y.toFixed(1)} time=${g.time.toFixed(2)} status=${g.status} paused=${g.paused} hold=${rear.hold} angle=${rear.angle} hull=${rear.hullAngle} speed=${rear.driveSpeed} moving=${rear.moving} path=${JSON.stringify(rear.path.slice(0,2))} order=${JSON.stringify(rear.orders[0])}`);
  assert.ok(g.world.walkable(rear,g.movingColliders().vehicle,12),
   'tank must never ghost through static world obstacles');
  assert.ok(g.units.includes(front)&&g.units.includes(rear));

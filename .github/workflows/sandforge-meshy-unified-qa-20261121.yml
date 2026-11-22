@@ -1,0 +1,87 @@
+name: Sandforge – base proportions and original PBR aircraft markings
+on:
+  push:
+    branches:
+      - feat/sandforge-meshy-structures-barracks-airfield-bastion-bunker-20261121
+    paths:
+      - scripts/build.mjs
+      - scripts/webgl-battlefield.js
+      - scripts/webgl-maintenance-input.js
+      - scripts/webgl-scale.js
+      - scripts/webgl-team-markings.js
+      - scripts/webgl-bomber-wing-stripes.js
+      - scripts/webgl-strategic-buildings.js
+      - scripts/webgl-recon-drone.js
+      - scripts/webgl-scout-rocket-pods.js
+      - src/reborn/simulation.ts
+      - src/reborn/catalog.ts
+      - scripts/generate-factory-pbr.mjs
+      - scripts/webgl-building-yard.js
+      - scripts/webgl-production-gates.js
+      - tests/sandforge-restore-buildings-noon-20261120.test.mjs
+      - tests/sandforge-engineer-only-factory-repair-20261121.test.mjs
+      - tests/sandforge-visual-tuning-bunker-drone-heli-20261121.test.mjs
+      - tests/sandforge-base-proportions-bomber-stripes-20261121.test.mjs
+      - tests/sandforge-scout-pods-rover-air-evasion-20261119.test.mjs
+      - tests/webgl-hangar-factory-maintenance-20261110.test.mjs
+      - .github/workflows/sandforge-meshy-unified-qa-20261121.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  authentic-original-building-art:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Validate unchanged game logic, legacy graphics and build syntax
+        run: |
+          npm run typecheck
+          node --check scripts/build.mjs
+          node --check scripts/webgl-battlefield.js
+          node --check scripts/webgl-scale.js
+          node --check scripts/webgl-strategic-buildings.js
+          node --check scripts/webgl-recon-drone.js
+          node --check scripts/webgl-scout-rocket-pods.js
+          node --check scripts/webgl-team-markings.js
+          node --check scripts/webgl-bomber-wing-stripes.js
+          node --check scripts/webgl-maintenance-input.js
+          node --check scripts/webgl-building-yard.js
+          node --check scripts/generate-factory-pbr.mjs
+      - name: Rebuild the pre-Meshy buildings and the current game
+        run: npm run build
+      - name: Verify midday building-art preset and engineer-only repairs
+        run: |
+          node --test tests/sandforge-restore-buildings-noon-20261120.test.mjs
+          node --test tests/sandforge-engineer-only-factory-repair-20261121.test.mjs
+          node --test tests/sandforge-visual-tuning-bunker-drone-heli-20261121.test.mjs
+          node --test tests/sandforge-base-proportions-bomber-stripes-20261121.test.mjs
+          node --test tests/sandforge-scout-pods-rover-air-evasion-20261119.test.mjs
+          node --test tests/webgl-hangar-factory-maintenance-20261110.test.mjs
+      - name: Verify real rolled-door GLB and disabled Meshy skins
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const flags=readFileSync('dist/webgl-meshy-asset-flags.js','utf8');
+          for(const name of ['barracks','airfield','bastion','bunker','headquarters','generator'])
+            if(!flags.includes('"'+name+'":false'))
+              throw Error('Non-original Meshy skin still enabled: '+name);
+          for(const owner of [0,1]){
+            const path='dist/src/assets/reborn/buildings-3d/factory-'+owner+'.glb';
+            const binary=readFileSync(path);
+            if(binary.toString('ascii',0,4)!=='glTF'||binary.readUInt32LE(8)!==binary.length)
+              throw Error('Factory GLB corrupt: '+path);
+            const length=binary.readUInt32LE(12);
+            const doc=JSON.parse(binary.toString('utf8',20,20+length));
+            if(!doc.nodes?.some(node=>node.name==='FactoryRollupDoor'))
+              throw Error('Original factory shutter missing: '+path);
+            if(doc.nodes?.some(node=>node.name==='SF_Factory_Meshy_ProductionRig'))
+              throw Error('Late Meshy factory reappeared: '+path);
+          }
+          console.log('Seven categories of original building graphics selected.');
+          NODE

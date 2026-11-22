@@ -55,12 +55,71 @@ export function createBiomeGroundTexture(THREE,biome,seed){
  texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
  return texture;
 }
+/** Three muted desert shrub silhouettes: broad sage scrub, slender dry
+ * grass clumps and small thorny dark bushes. All scenery is GPU instanced,
+ * non-pickable and non-collidable. Deterministic for identical map seeds;
+ * no extra assets, simulation steps, animations or per-frame updates.
+ */
+export function addDesertShrubs({THREE,scene,world,terrain,game,heightAt,seed,lowQuality=false}){
+ const random=seededRandom(seed^0x7ba6b615);
+ const half=world.size*.5,margin=155,max=lowQuality?60:165;
+ const plans=[
+  {name:'sage-scrub',geometry:new THREE.IcosahedronGeometry(1,1),
+   material:new THREE.MeshStandardMaterial({color:'#777a54',roughness:.98,flatShading:true}),
+   color:['#85865c','#77794e','#938b60']},
+  {name:'dry-grass',geometry:new THREE.ConeGeometry(1,1,6),
+   material:new THREE.MeshStandardMaterial({color:'#9a8b5f',roughness:1,flatShading:true}),
+   color:['#bba277','#a99268','#c8b187']},
+  {name:'thorn-bush',geometry:new THREE.DodecahedronGeometry(1,0),
+   material:new THREE.MeshStandardMaterial({color:'#666c50',roughness:.98,flatShading:true}),
+   color:['#73775b','#565f4c','#857d60']}
+ ];
+ const meshes=plans.map(plan=>{
+  const mesh=new THREE.InstancedMesh(plan.geometry,plan.material,max);
+  mesh.name='visual-desert-shrub-'+plan.name;
+  mesh.userData={visualOnly:true,nonPlayable:true,scenery:true,shrubKind:plan.name};
+  mesh.castShadow=false;mesh.receiveShadow=true;mesh.frustumCulled=false;
+  mesh.raycast=()=>{};
+  scene.add(mesh);return mesh;
+ });
+ const tally=[0,0,0],dummy=new THREE.Object3D();
+ const avoid=[...(terrain.sites??[]),...(terrain.ruins??[])];
+ let total=0;
+ for(let attempt=0;attempt<max*18&&total<max;attempt++){
+  const x=margin+random()*(world.size-margin*2);
+  const z=margin+random()*(world.size-margin*2);
+  if(avoid.some(p=>Math.hypot(p.x-x,p.y-z)<185))continue;
+  if((game?.units??[]).some(u=>Math.hypot(u.x-x,u.y-z)<120))continue;
+  if(!world.walkable({x,y:z})||world.terrainSlope(x,z)>.12)continue;
+  // Avoid a uniform grid or a lawn of bushes: several dry clearings stay
+  // empty, with loose mixed clumps in the more sheltered valleys.
+  if(Math.sin(x*.0065+seed*.001)*Math.cos(z*.0045)<-.33)continue;
+  const kind=total%3,plan=plans[kind],i=tally[kind]++;
+  const width=(kind===1?9:16)+(random()*(kind===1?10:23));
+  const height=(kind===1?17:11)+random()*(kind===1?21:17);
+  dummy.position.set(x-half,heightAt(x,z)+height*(kind===1?.36:.33),z-half);
+  dummy.rotation.set((random()-.5)*.13,random()*Math.PI*2,0);
+  dummy.scale.set(width,height,width*(.72+random()*.5));
+  dummy.updateMatrix();meshes[kind].setMatrixAt(i,dummy.matrix);
+  meshes[kind].setColorAt(i,new THREE.Color(plan.color[Math.floor(random()*3)]));
+  total++;
+ }
+ meshes.forEach((mesh,i)=>{
+  mesh.count=tally[i];if(mesh.count)mesh.instanceMatrix.needsUpdate=true;
+  if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+ });
+ return {count:total,meshes};
+}
+
 // A small, bounded number of instanced meshes creates an actual 3D tree
 // silhouette. All placements stay inside the playable bounds and avoid
 // strategic sites, ruins and initial units. Trees are scenery, not cover.
 export function addBiomeVegetation({THREE,scene,world,terrain,game,heightAt,seed,biome,lowQuality=false}){
  const selected=normalizeBiome(biome);
- if(selected==='desert')return {count:0,meshes:[]};
+ // The three former low-poly desert shrubs look like dark boulders and cones.
+ // They add clutter without tactical value. Keep old saved battlefields intact.
+ if(selected==='desert'&&world.mapVersion>=23)return {count:0,meshes:[]};
+ if(selected==='desert')return addDesertShrubs({THREE,scene,world,terrain,game,heightAt,seed,lowQuality});
  const random=seededRandom(seed^0x8ad0310f);
  const half=world.size*.5, margin=140, size=world.size;
  const max=selected==='snow'?(lowQuality?95:210):(lowQuality?120:290);

@@ -1,0 +1,40 @@
+name: Sandforge four desert graded pass physics and savegame checks
+on:
+  push:
+    branches:
+      - feat/sandforge-four-desert-ai-tuning-20261120
+    paths:
+      - .github/workflows/sandforge-four-desert-pass-and-save-tests.yml
+      - scripts/webgl-desert-maps.js
+      - scripts/webgl-preview.js
+      - src/reborn/battlefield-terrain.ts
+      - src/reborn/world.ts
+      - src/reborn/simulation.ts
+      - tests/sandforge-four-desert-maps-20261120.test.mjs
+      - tests/sandforge-desert-ai-navigation-20261120.test.mjs
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  physical-and-save-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile game simulation with deterministic terrain v5
+        run: npx tsc -p tsconfig.json
+      - name: Validate physical routes and every old-save regression
+        run: |
+          node --test tests/sandforge-four-desert-maps-20261120.test.mjs
+          node --test tests/sandforge-desert-ai-navigation-20261120.test.mjs
+          node --test tests/sandforge-diverse-landscapes-v4-20261119.test.mjs
+      - name: Validate packaged WebGL scene and the four names
+        run: |
+          node --check scripts/webgl-preview.js
+          node --check scripts/webgl-title-menu.js
+          SANDFORGE_MODULE_AUDIT=1 node scripts/build.mjs

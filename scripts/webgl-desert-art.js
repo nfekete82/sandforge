@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {stoneMaterial,weatheredStoneGeometry} from './webgl-rock-materials.js';
+import {DESERT_SCENIC_STYLE as desertStyle} from './webgl-desert-style.js';
 
 // Only visual treatment: maps, save games, pathing and the 20 Hz terrain
 // heightfield remain completely untouched by this module.
@@ -35,8 +36,9 @@ export function cinematicSandSample({x,z,size,seed,profile='mixed',slope=0,heigh
  const ridge=Math.sin(height*.14+x*.012+z*.006);
  const rock=smooth((slope-.12)/.24)*(profile==='rocky'?1:.66);
  const strata=rock*(.65+.35*ridge);
- // Slight natural height variation while leaving silhouette/pathing intact.
- const shade=.92+.078*dune+.025*wind;
+ // Broad dune shade, with calm hollows and less noisy texture-wide contrast.
+ // This is visual-only; actual terrain slope/height stays authoritative.
+ const shade=.955+.068*dune+.013*wind;
  const sediment=wadi.strength*(.59+.09*Math.sin(x*.045-z*.071));
  return {dune,shade,rock,strata,wadi:clamp(sediment),wind};
 }
@@ -46,11 +48,15 @@ export function cinematicSandSample({x,z,size,seed,profile='mixed',slope=0,heigh
  * Entirely INSIDE the playable field and off tactical/starting pads.
  */
 export function addDesertWashStones({scene,world,size,seed,heightAt,sites=[],lowQuality=false}){
- if(!world?.generated?.battlefield)return null;
- const target=lowQuality?140:480;
- const palette=['#c8a47a','#917454','#d7b48b','#7f674d'];
+ // On modern maps even decorative dry-wash stones should not reintroduce
+ // dark floating blobs onto otherwise clean build and maneuvering ground.
+ if(!world?.generated?.battlefield||world.mapVersion>=23)return null;
+ // Sparse dry-wash mineral clusters; the earlier 480 stones made every
+ // open dune look like a pebble field. Preserve only representative pockets.
+ const target=lowQuality?25:60;
+ const palette=desertStyle.riverPebbles;
  const geometry=weatheredStoneGeometry(lowQuality);
- const material=stoneMaterial('#ead5b9',{lowQuality,normalScale:.75});
+ const material=stoneMaterial(desertStyle.riverPebbleBase,{lowQuality,normalScale:.43});
  const mesh=new THREE.InstancedMesh(geometry,material,target);
  mesh.name='visual-desert-dry-wash-pebbles';
  mesh.userData={visualOnly:true,nonPlayable:true,dryWash:true};

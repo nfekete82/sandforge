@@ -1,0 +1,39 @@
+name: Sandforge post-victory helicopter and Bastion QA
+on:
+  push:
+    branches: [fix/sandforge-post-victory-test-fixtures-20261117]
+  pull_request:
+    branches: [integration/sandforge-current-20261117]
+    paths:
+      - 'tests/webgl-bastion-hq-ownership-20261117.test.mjs'
+      - 'tests/webgl-helicopter-boarding-building-routes-20261116.test.mjs'
+      - '.github/workflows/sandforge-post-victory-heli-bastion-qa-20261117.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  simulation-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install project dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Compile simulation without unavailable Mac-local PBR GLBs
+        run: |
+          npx tsc -p tsconfig.json
+          # Match-result UI regression expects this module in the built output.
+          cp scripts/webgl-match-result.js dist/webgl-match-result.js
+      - name: Validate Bastion capture, heli boarding, and new victory condition
+        run: |
+          node --test \
+            tests/webgl-bastion-hq-ownership-20261117.test.mjs \
+            tests/webgl-helicopter-boarding-building-routes-20261116.test.mjs \
+            tests/sandforge-building-victory-20261117.test.mjs \
+            tests/webgl-elimination-victory-banner-20261108.test.mjs

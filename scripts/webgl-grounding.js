@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {BUILDINGS} from '/src/reborn/catalog.js';
+import {createBuildingFoundation,disposeBuildingFoundation} from '/webgl-foundation-slabs.js';
 
 /** Soft, low-contrast contact shading to integrate models into desert sand.
  * Rendering only; never changes collision, navigation, visibility or saves. */
@@ -27,11 +28,11 @@ function sandApronMaterial(){
  const canvas=document.createElement('canvas');canvas.width=canvas.height=128;
  const ctx=canvas.getContext('2d');
  const g=ctx.createRadialGradient(64,64,19,64,64,62);
- g.addColorStop(0,'rgba(173,133,78,0)');
- g.addColorStop(.42,'rgba(190,148,91,.06)');
- g.addColorStop(.64,'rgba(214,178,119,.29)');
- g.addColorStop(.84,'rgba(176,138,89,.15)');
- g.addColorStop(1,'rgba(176,138,89,0)');
+ g.addColorStop(0,'rgba(190,169,136,0)');
+ g.addColorStop(.42,'rgba(193,177,147,.06)');
+ g.addColorStop(.64,'rgba(216,197,164,.24)');
+ g.addColorStop(.84,'rgba(183,161,126,.12)');
+ g.addColorStop(1,'rgba(183,161,126,0)');
  ctx.fillStyle=g;ctx.fillRect(0,0,128,128);
  const texture=new THREE.CanvasTexture(canvas);
  texture.colorSpace=THREE.SRGBColorSpace;
@@ -64,14 +65,20 @@ export class SandforgeGroundingPass{
   apron.rotation.x=-Math.PI/2;apron.position.y=.35;
   apron.scale.set(diameter*1.52,diameter*1.16,1);
   apron.renderOrder=2;
-  // Each building owns the pair so deletion removes both in one operation.
+  // Add a real but VERY THIN poured-concrete footing. Existing fog, erosion
+  // aprons and terrain height samples remain authoritative.
+  const foundation=createBuildingFoundation(entity.kind,diameter);
   const group=new THREE.Group();
   group.name='grounding-'+entity.kind+'-'+entity.id;
   group.userData={decoration:true,nonPlayable:true};
+  if(foundation){group.userData.foundation=foundation;group.add(foundation);}
   group.add(apron,base);entry.node.add(group);this.items.set(entity.id,group);
  }
  detachBuilding(id){
   const item=this.items.get(id);
-  if(item){item.parent?.remove(item);this.items.delete(id);}
+  if(item){
+   if(item.userData.foundation)disposeBuildingFoundation(item.userData.foundation);
+   item.parent?.remove(item);this.items.delete(id);
+  }
  }
 }

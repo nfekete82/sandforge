@@ -35,7 +35,15 @@ for(const kind of ['scout','bomber','heavy']){
   }else{
    assert.ok(pilot.x<before-4,`${kind} must retreat without freezing`);
   }
-  assert.equal(enemy.hp,enemyHp,'move order must suppress further auto-fire until destination');
+  if(kind==='scout'){
+   // The transport helicopter's intentionally upgraded defensive MG may
+   // engage nearby infantry WHILE the pilot obeys a direct move order.
+   // Do not turn that defensive burst into a stand-and-fight instruction.
+   assert.ok(enemy.hp<enemyHp,'transport-heli roof MG defends itself in motion');
+   assert.equal(pilot.orders[0]?.kind,'move','self-defence must keep the retreat order');
+  }else{
+   assert.equal(enemy.hp,enemyHp,'move order must suppress further auto-fire until destination');
+  }
   assert.equal(pilot.combatTarget,null);
   assert.equal(pilot.pursuitOrigin,null);
   if(kind==='bomber'){
