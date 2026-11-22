@@ -12,7 +12,7 @@ import {installSkinnedTrousers,disposeSkinnedTrousers} from './webgl-human-skinn
  * per-frame updates are needed. Shared textures/geometries avoid per-unit GPU
  * resource growth.
  */
-export const HUMAN_INFANTRY_REVISION='sandforge-human-infantry-v13-shared-team-kit-20261122';
+export const HUMAN_INFANTRY_REVISION='sandforge-human-infantry-v14-wrapped-helmet-20261122';
 
 const ellipsoid=new THREE.SphereGeometry(1,20,14);
 const rounded=new RoundedBoxGeometry(1,1,1,3,.13);
@@ -180,12 +180,16 @@ export function humanizeInfantry(model,owner=0){
  hideChildren(head);
  oval(head,'Face',skin,[0,-.044,.102],[.129,.147,.109]);
  oval(head,'Nose',skin,[0,-.080,.208],[.018,.029,.020]);
- oval(head,'HelmetCrown',helmetFabric,[0,.091,-.009],[.190,.120,.179]);
- shaped(head,'HelmetBrow',helmetFabric,[0,.066,.141],[.315,.039,.119]);
+ // Full close-fitting shell: crown, lower rear and camouflaged side protection.
+ oval(head,'HelmetCrown',helmetFabric,[0,.078,-.017],[.190,.139,.184]);
+ oval(head,'HelmetRearShell',helmetFabric,[0,-.033,-.134],[.174,.108,.069]);
+ shaped(head,'HelmetBrow',helmetFabric,[0,.045,.144],[.324,.041,.112]);
  shaped(head,'GoggleFrame',dark,[0,-.011,.201],[.270,.059,.037]);
  for(const side of [-1,1]){
   oval(head,'GoggleLens'+side,goggles,[side*.068,-.009,.226],[.057,.019,.010]);
-  oval(head,'EarProtector'+side,dark,[side*.188,-.027,-.027],[.020,.058,.064]);
+  oval(head,'HelmetSideShell'+side,helmetFabric,[side*.153,-.038,-.018],[.050,.098,.122]);
+  oval(head,'HelmetRearFlap'+side,helmetFabric,[side*.117,-.092,-.103],[.057,.061,.058]);
+  oval(head,'EarProtector'+side,dark,[side*.187,-.049,.013],[.012,.038,.045]);
   shaped(head,'ChinStrap'+side,dark,[side*.112,-.123,.152],
    [.019,.018,.136],[side*.14,side*.13,0]);
  }

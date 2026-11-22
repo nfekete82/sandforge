@@ -5,39 +5,17 @@ import {BUILDINGS} from '/src/reborn/catalog.js';
 /** Render-only construction states driven by the classic Simulation's
  * buildRemaining / buildTime. No new gameplay timers or construction rules.
  *
- * Progressively reveal facade, walls and roof over animated scaffolding.
- * Construction uses the same components as the finished structure, not a prefab.
+ * Assemble actual authored 3D components from ground to roof, no scaffolds.
+ * Keep game construction timers and simulation unchanged.
  */
 export class SandforgeConstructionPresentation{
  constructor(renderer){this.renderer=renderer;renderer.localClippingEnabled=true;}
  ensure(entry,base){
   if(entry.construction)return entry.construction;
-  const spec=BUILDINGS[base.kind],width=spec.width*.76,depth=spec.width*.52;
-  const frame=new THREE.Group();frame.name='construction-parts-'+base.id;
-  const steel=new THREE.MeshStandardMaterial({color:base.owner===0?'#4b8592':'#986858',metalness:.65,roughness:.65});
-  const foundationMat=new THREE.MeshStandardMaterial({color:'#867861',roughness:1});
-  const roofMat=new THREE.MeshStandardMaterial({color:'#a8a08c',metalness:.2,roughness:.8});
-  const slab=new THREE.Mesh(new THREE.BoxGeometry(width,5,depth),foundationMat);
-  slab.position.y=2.5;frame.add(slab);
-  const columns=[];
+  const spec=BUILDINGS[base.kind];
+  const frame=new THREE.Group();frame.name='construction-status-'+base.id;
+  // Only the informational label is temporary. There are no scaffolds.
   const height=Math.min(154,Math.max(58,spec.width*.56));
-  for(const x of [-1,1])for(const z of [-1,1]){
-   const post=new THREE.Mesh(new THREE.BoxGeometry(4,height,4),steel);
-   post.position.set(x*width*.43,height*.5,z*depth*.42);
-   frame.add(post);columns.push(post);
-  }
-  const rails=[];
-  for(const t of [0.37,0.68]){
-   const beamA=new THREE.Mesh(new THREE.BoxGeometry(width*.88,4,4),steel);
-   beamA.position.set(0,height*t,-depth*.42);
-   const beamB=beamA.clone();beamB.position.z=depth*.42;
-   const beamC=new THREE.Mesh(new THREE.BoxGeometry(4,4,depth*.84),steel);
-   beamC.position.set(width*.43,height*t,0);
-   const beamD=beamC.clone();beamD.position.x=-width*.43;
-   frame.add(beamA,beamB,beamC,beamD);rails.push({threshold:t,meshes:[beamA,beamB,beamC,beamD]});
-  }
-  const roof=new THREE.Mesh(new THREE.BoxGeometry(width*.93,6,depth*.94),roofMat);
-  roof.position.y=height*.88;frame.add(roof);
   const canvas=document.createElement('canvas');canvas.width=256;canvas.height=64;
   const texture=new THREE.CanvasTexture(canvas);
   const label=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,opacity:.86,depthTest:false,depthWrite:false}));
@@ -45,7 +23,7 @@ export class SandforgeConstructionPresentation{
   // Its final altitude is recalculated when the authored building model loads.
   label.scale.set(83,21,1);label.position.set(0,height+65,0);frame.add(label);
   entry.node.add(frame);
-  const construction={frame,columns,rails,slab,roof,canvas,texture,label,
+  const construction={frame,canvas,texture,label,
    height,lastLabel:-1,finished:false};
   entry.construction=construction;return construction;
  }
@@ -66,15 +44,6 @@ export class SandforgeConstructionPresentation{
   state.label.position.y=Math.max(state.height+65,healthY+45);
   const progress=THREE.MathUtils.clamp(1-base.buildRemaining/spec.buildTime,0,1);
   state.frame.visible=true;
-  state.slab.visible=progress>=.015;
-  const postGrowth=THREE.MathUtils.clamp((progress-.06)/.53,0,1);
-  for(const post of state.columns){
-   post.scale.y=Math.max(.025,postGrowth);
-   post.position.y=state.height*post.scale.y*.5;
-  }
-  for(const rail of state.rails)
-   for(const beam of rail.meshes)beam.visible=progress>=rail.threshold;
-  state.roof.visible=progress>=.77;
   // The previous regression made the finished GLB fully visible at 0%,
   // with only scaffolding layered on top. Instead assemble REAL building
   // components in stages. No clipping planes: no bisected or floating facades.
@@ -105,7 +74,20 @@ export class SandforgeConstructionPresentation{
       /foundation|floor|pad|plinth|base/.test(name)?.22:
       /wall|hull|frame|panel|armor|armour|door|pillar|column|body|facade/.test(name)?.58:.76;
     }
-    stageMesh(mesh,threshold);
+    // Stage individual real meshes by their measured local elevation. Lower
+    // structural pieces appear before the upper walls and roof parts.
+    if(mesh.userData.sandforgeConstructionHeight===undefined){
+     if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
+     const center=mesh.geometry.boundingBox.getCenter(new THREE.Vector3());
+     mesh.updateWorldMatrix(true,false);
+     const worldCenter=mesh.localToWorld(center);
+     const baseCenter=entry.node.worldToLocal(worldCenter);
+     mesh.userData.sandforgeConstructionHeight=THREE.MathUtils.clamp(
+      baseCenter.y/Math.max(1,state.height),0,1);
+    }
+    const stagger=((mode==='yard'||mode==='service') ? .12 : .20)*
+     mesh.userData.sandforgeConstructionHeight;
+    stageMesh(mesh,Math.min(.98,threshold+stagger));
    });
   };
   stageGroup(model,'building');
@@ -137,11 +119,12 @@ export class SandforgeConstructionPresentation{
     if(original!==undefined){
      mesh.visible=original&&!mesh.userData.airfieldLegacyHidden;
      delete mesh.userData.constructionOriginalVisible;
+     delete mesh.userData.sandforgeConstructionHeight;
     }
    });
   }
   entry.node.remove(state.frame);
-  // Scaffolding owns its temporary materials as well as geometries.
+  // Dispose temporary status label only; authored building parts remain.
   disposeOwnedMeshes(state.frame);
   state.texture.dispose();state.label.material.dispose();
   entry.construction=null;
