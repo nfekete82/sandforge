@@ -45,6 +45,7 @@ import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry,applyRockMineralVei
 import {CANYON_GEOLOGY,buildGeologicalMesaSurface} from '/webgl-authentic-canyon-geology.js';
 import {createPlayableMesaCliffs} from '/webgl-raised-mesa-cliffs.js';
 import {makeSmallRuinFragments,isSmallRuin} from '/webgl-ruin-fragments.js';
+import {createDetailedDesertRuinHouse} from '/webgl-detailed-desert-ruins.js';
 import {chooseRareScenicHouseIndex,createScenicDesertHouse} from '/webgl-scenic-desert-houses.js';
 import {createBurnedSedanWrecks} from '/webgl-burned-sedan-3d.js';
 
@@ -854,9 +855,12 @@ async function addRuins(){
   anchor.position.copy(pos(ruin.x,ruin.y));
   anchor.rotation.y=ruin.rotation;
   const micro=spacious&&isSmallRuin(ruin);
-  if(i===rareHouse){
-   // Replace one existing large-ruin site with a rare abandoned whitewashed
-   // house. Same collision/seed/save, never an extra map obstacle.
+  if(spacious&&biome==='desert'&&!micro){
+   // Modern desert maps use varied, physically hollow and roof-damaged
+   // architecture rather than three copies of the same rectangular GLTF.
+   // The original ruin owns the same navigation and save footprint.
+   anchor.add(createDetailedDesertRuinHouse(ruin,seed,i));
+  }else if(i===rareHouse){
    anchor.add(createScenicDesertHouse(ruin,seed,i));
   }else if(micro){
    // Only 2–3 broken walls, 2–4 bits of debris, NO roof/whole building.
