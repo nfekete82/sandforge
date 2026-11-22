@@ -11,7 +11,7 @@ import {TERRAIN_LABELS} from '/src/reborn/battlefield-terrain.js';
 import {RULES,campaignLayout} from '/src/reborn/config.js';
 import {installClassicHud} from '/webgl-classic-hud.js';
 import {globalCatalogAvailability} from '/webgl-global-catalog.js';
-import {hydrateUnitIcons,hydrateBuildingIcons,unitIcon,buildingIcon,buildingIconUrl,researchIconMarkup,hydrateResearchArtworks} from '/webgl-portraits.js';
+import {hydrateUnitIcons,hydrateBuildingIcons,unitIcon,buildingIcon,buildingIconUrl,bastionIcon,bastionIconUrl,researchIconMarkup,hydrateResearchArtworks} from '/webgl-portraits.js';
 import {createSandforgeResearchDeck} from '/webgl-research-deck.js';
 import {createSandforgeConfirmDialog} from '/webgl-confirm-dialog.js';
 import {SandforgeActorPresentation} from '/webgl-actor-presentation.js';
@@ -2502,13 +2502,22 @@ export class SandforgeBattlefield {
     }
    }
   }else{
-   const portraitKey=selectedBastion?'bastion:'+selectedBastion.id:
+   // Owners can change during a match. A team-colored 3D portrait must
+   // refresh when Bastion control changes, not only on a new click.
+   const portraitKey=selectedBastion?
+    'bastion:'+selectedBastion.id+':'+selectedBastion.owner:
     item?(item.queue?'building:':'unit:')+kind:'building:headquarters';
    if(this.previousPortraitKey!==portraitKey){
     this.previousPortraitKey=portraitKey;
     if(selectedBastion){
-     portrait.src='/src/assets/reborn/bastion-grounded-v2.png';
      portrait.alt=selectedBastion.name;
+     // Display the identical authored GLB (including live radar/front trim),
+     // not the older standalone 2D Bastion placeholder.
+     portrait.src=bastionIconUrl(selectedBastion.owner);
+     if(!this.lite)bastionIcon(selectedBastion.owner,this.renderer).then(url=>{
+      if(this.previousPortraitKey===portraitKey&&portrait.isConnected)
+       portrait.src=url;
+     }).catch(error=>console.warn('Bastion 3D portrait fallback:',error));
     }else if(item&&!item.queue){
      unitIcon(kind,this.renderer).then(url=>{
       if(this.previousPortraitKey===portraitKey)portrait.src=url;

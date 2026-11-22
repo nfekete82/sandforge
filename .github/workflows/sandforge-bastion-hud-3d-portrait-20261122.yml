@@ -1,0 +1,32 @@
+name: Sandforge · Bastion HUD uses live 3D model
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/webgl-portraits.js
+      - scripts/webgl-battlefield.js
+      - tests/sandforge-bastion-hud-3d-portrait-20261122.test.mjs
+      - tests/sandforge-bastion-direct-click-upgrade-hud-20261122.test.mjs
+      - .github/workflows/sandforge-bastion-hud-3d-portrait-20261122.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  portrait:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: HUD 3D asset and Bastion upgrade regressions
+        run: |
+          node --test \
+            tests/sandforge-bastion-hud-3d-portrait-20261122.test.mjs \
+            tests/sandforge-bastion-direct-click-upgrade-hud-20261122.test.mjs

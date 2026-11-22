@@ -74,7 +74,8 @@ test('live 3D Bastion click and sector-list click both select the same contextua
  assert.match(js,/bastionButton\.dataset\.upgradeBastion=String\(selectedBastion\.id\)/);
  assert.match(js,/this\.game\.upgradeBastion\(0,id\)/);
  assert.match(js,/bastionButton\.disabled=!bastionStatus\.upgradable/);
- assert.match(js,/portrait\.src='\/src\/assets\/reborn\/bastion-grounded-v2\.png'/);
+ assert.match(js,/portrait\.src=bastionIconUrl\(selectedBastion\.owner\)/);
+ assert.match(js,/bastionIcon\(selectedBastion\.owner,this\.renderer\)\.then/);
  assert.match(hud,/id="sf-bastion-upgrade"/);
  assert.match(hud,/data-action="bastion-upgrade"/);
  assert.match(build,/webgl-bastion-upgrade-ui\.js/);
