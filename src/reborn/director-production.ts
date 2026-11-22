@@ -185,7 +185,7 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   rocket:rocketQuota,
   medic:Math.min(3,Math.ceil((count('infantry')+count('heavy'))/5)),
   engineer:c.defenseNeedsWorker||c.own.length>=4&&(s.recovering?.length??0)>0?2:1,
-  supply:0,
+  supply:0,harvester:0,
   rover:armyStage===2?5:armyStage===1?4:2,
   tank:armyStage===2?9:armyStage===1?7:
    c.income>=65||observed.armor>=3?6:4,
