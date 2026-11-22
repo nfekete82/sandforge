@@ -25,7 +25,13 @@ const root=process.cwd(),rel='src/assets/reborn/buildings-3d';
 const destination=resolve(process.argv[2]||join(root,rel));
 const home=homedir();
 const source=(env,defaultName)=>resolve(process.env[env]||join(home,'Projects',defaultName));
-const combined=source('SANDFORGE_COMBINED_PBR_SOURCE','sandforge-pbr-gesamt-test');
+// The current Sandforge PBR source worktree is sandforge-style-test. Earlier
+// releases used sandforge-pbr-gesamt-test. Validate all four GLBs before
+// choosing either; never assume a directory name implies final geometry.
+const combinedCandidates=process.env.SANDFORGE_COMBINED_PBR_SOURCE
+ ?[resolve(process.env.SANDFORGE_COMBINED_PBR_SOURCE)]
+ :[join(home,'Projects','sandforge-style-test'),
+   join(home,'Projects','sandforge-pbr-gesamt-test')];
 const barracks=source('SANDFORGE_BARRACKS_SOURCE','sandforge-kaserne-prop-polish');
 const hq=source('SANDFORGE_HQ_SOURCE','sandforge-hq-pbr');
 const names=['barracks-0.glb','barracks-1.glb','headquarters-0.glb','headquarters-1.glb'];
@@ -64,8 +70,9 @@ if(allGood(destination)){
 }
 const stage=mkdtempSync(join(tmpdir(),'sandforge-final-pbr-'));
 try{
- if(allGood(join(combined,rel))){
-  console.log('Copying 4 final PBR GLBs from combined worktree: '+combined);
+ const combined=combinedCandidates.find(dir=>allGood(join(dir,rel)));
+ if(combined){
+  console.log('Copying 4 final PBR GLBs from validated combined worktree: '+combined);
   for(const n of names)copyFileSync(join(combined,rel,n),join(stage,n));
  }else{
   console.log('Rebuilding final PBR buildings from authored worktrees.');
@@ -109,6 +116,7 @@ try{
 }catch(error){
  console.error('Sandforge will NOT silently return to the old buildings.');
  console.error(error.message);
- console.error('Required local sources: '+combined+' OR '+barracks+' and '+hq);
+ console.error('Checked combined PBR sources: '+combinedCandidates.join(', '));
+ console.error('Required authored fallback sources: '+barracks+' and '+hq);
  process.exitCode=1;
 }finally{rmSync(stage,{recursive:true,force:true});}
