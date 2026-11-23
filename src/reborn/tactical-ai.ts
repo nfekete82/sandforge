@@ -37,7 +37,7 @@ import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
-import {actionBastionProbePolicy,actionBastionGoalScore,ACTION_BALANCE} from './action-balance.js';
+import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,ACTION_BALANCE} from './action-balance.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -2313,11 +2313,17 @@ export class TacticalAI {
   const maxAssigned=action?.slots??large?.slots??(counter?2:ready.length>=3?2:ready.length?1:0);
   if(!targets.length||!maxAssigned){s.openingContests=[];return new Set();}
   const blockers=[...this.obstacles(),...g.bastionColliders()];
-  const observedThreat=(t:typeof targets[number])=>
-   g.memories[1].some(m=>m.owner===0&&m.hp>0&&(
-    m.kind==='headquarters'&&m.territory===t.id||
-    m.kind==='turret'&&distance(m,t.point)<670))||
-   seen.some(u=>distance(u,t.point)<330);
+  const observedThreat=(t:typeof targets[number])=>{
+   const knownHq=g.memories[1].some(m=>m.owner===0&&m.hp>0&&
+    m.kind==='headquarters'&&m.territory===t.id);
+   const knownTurret=g.memories[1].some(m=>m.owner===0&&m.hp>0&&
+    m.kind==='turret'&&distance(m,t.point)<670);
+   const visibleEnemies=seen.filter(u=>distance(u,t.point)<330).length;
+   return !actionContestedBastionSafe({
+    preset:g.balancePreset,counter,available:ready.length,
+    visibleEnemies,knownHq,knownTurret
+   });
+  };
   // This point is inside the 95-unit capture ring but well outside the
   // 3D Bastion's solid collider; validate a REAL walkable path to it.
   const approach=(u:Unit,t:typeof targets[number]):Point|undefined=>{
@@ -2331,6 +2337,16 @@ export class TacticalAI {
   s.openingContests=(s.openingContests??[]).filter(e=>
    ready.some(u=>u.id===e.unitId)&&targets.some(t=>t.id===e.sectorId)&&
    !observedThreat(g.territories[e.sectorId])).slice(0,maxAssigned);
+  // If a reachable, publicly Blue-held front opens up, reassign neutral
+  // scouts to fight there instead of keeping both early slots occupied by
+  // distant, unopposed land-grabs. Only do this ONCE per new front; the next
+  // pulse retains the already-issued attackMove order for continuity.
+  if(actionOpening&&counter&&!s.openingContests.some(e=>
+    g.territories[e.sectorId]?.owner===0)){
+   const contact=targets.some(t=>t.owner===0&&!observedThreat(t)&&
+    ready.slice(0,4).some(u=>Boolean(approach(u,t))));
+   if(contact)s.openingContests=[];
+  }
   const reserved=new Set(s.openingContests.map(e=>e.unitId));
   // Keep assigned soldiers moving; do not reset their A* order every pulse.
   for(const e of s.openingContests){
@@ -2344,7 +2360,11 @@ export class TacticalAI {
   // Need a real two-soldier counterattack. Ordinary expansion can send one
   // scout first and a second independent scout when paid infantry exists.
   while(s.openingContests.length<maxAssigned&&free.length>=(counter?2:1)){
-   const squad=free.splice(0,counter?2:1);
+   // Counter detachments must have TWO paid fighters, never silently exceed
+   // the four-slot state/save cap when an existing one-soldier probe remains.
+   const count=counter?2:1;
+   if(maxAssigned-s.openingContests.length<count)break;
+   const squad=free.splice(0,count);
    const goals=targets.filter(t=>!observedThreat(t)&&
      (counter||!s.openingContests!.some(e=>e.sectorId===t.id)))
     .map(t=>({t,p:approach(squad[0],t)})).filter(x=>x.p)
