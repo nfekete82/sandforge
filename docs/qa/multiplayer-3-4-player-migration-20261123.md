@@ -15,6 +15,24 @@ Spielsysteme die neuen Fraktionen vollständig unterstützen.**
 - Eigene Wirtschaft, Produktion, Kampfgruppen, Technologie und Fog of War
   pro Spieler; keine Gratis-Ressourcen oder unsichtbare Gegnerkenntnisse.
 
+## Stand 23.11.2026 (PR #471)
+
+- **Implementiert:** alle 1v1-/FFA-/2v2-Start-/Teamkonfigurationen;
+  vier unabhängige Teilnehmer-Slots mit eigenem Sichtpuffer, Gedächtnis,
+  Krediten, Forschung und unabhängigen KI-Uhrzeiten als skalierbare
+  Runtime-Grundlage.
+- **Implementiert:** teamorientierte Feinderkennung, zulässige
+  Ziel- und Eroberungsauswahl, umkämpfte Bastionen mit mehreren
+  gegnerischen Teams und gemeinsame Einnahme durch Verbündete.
+- **In der EXISTIERENDEN 1v1-Simulation eingebunden:**
+  universelle Siegprüfung, unabhängige Fog-/Memory-Allokation und
+  teamorientierte Entscheidung, welche reale Einheit einen
+  Bastions-Eroberungskreis beanspruchen darf.
+- **Noch nicht spielbar:** echte Fraktion-2/-3-Einheiten oder Gebäude.
+  Die Simulator-Typen, Produktions- und Kampflogik sowie TacticalAI
+  benötigen eine systematische per-Actor-Migration; die WebGL-Auswahl
+  bleibt absichtlich bei zwei Teilnehmern.
+
 ## Implementierungsreihenfolge
 
 1. **Match-Konfiguration:** `multiplayer-setup.ts` berechnet
