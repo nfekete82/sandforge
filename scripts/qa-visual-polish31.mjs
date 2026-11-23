@@ -24,6 +24,12 @@ const browser=await chromium.launch({
  channel:process.env.POLISH31_CHANNEL??'chrome',headless:true
 });
 const stress=process.env.POLISH31_STRESS==='1';
+const resolution=(process.env.POLISH31_VIEWPORT??'1440x900').match(/^(\d{3,4})x(\d{3,4})$/);
+assert.ok(resolution,'Invalid POLISH31_VIEWPORT; expected WIDTHxHEIGHT');
+const screenWidth=Number(resolution[1]),screenHeight=Number(resolution[2]);
+assert.ok(screenWidth>=640&&screenWidth<=2560&&screenHeight>=360&&screenHeight<=1600,
+ 'Invalid viewport range');
+const softwareQA=process.env.POLISH31_SOFTWARE_QA==='1';
 const actorCount=stress?48:12,enemyCount=stress?12:4;
 const variantTimeout=Number(process.env.POLISH31_VARIANT_TIMEOUT_MS??720000);
 assert.ok(Number.isFinite(variantTimeout)&&variantTimeout>=120000,
@@ -44,9 +50,12 @@ try{
   if(process.env.POLISH31_MAPS&&!process.env.POLISH31_MAPS.split(',').includes(map))continue;
   for(const [trial,variant] of variants.entries()){
    if(process.env.POLISH31_VARIANT&&process.env.POLISH31_VARIANT!==variant)continue;
-   const page=await browser.newPage({viewport:{width:1440,height:900},deviceScaleFactor:1,
-    ...(process.env.POLISH31_VIDEO==='1'?{recordVideo:{dir:out+'/video',size:{width:1440,height:900}}}:{})});
-   console.log('POLISH31_STAGE '+JSON.stringify({map,variant,stress,stage:'page-open',frames,trial}));
+   const page=await browser.newPage({viewport:{width:screenWidth,height:screenHeight},deviceScaleFactor:1,
+    ...(process.env.POLISH31_VIDEO==='1'?{recordVideo:{dir:out+'/video',size:{width:screenWidth,height:screenHeight}}}:{})});
+   console.log('POLISH31_STAGE '+JSON.stringify({
+    map,variant,stress,stage:'page-open',frames,trial,
+    viewport:screenWidth+'x'+screenHeight,softwareQA
+   }));
    page.on('pageerror',e=>errors.push({map,variant,message:e.message}));
    page.on('console',m=>{
     if(m.text().startsWith('POLISH31_PROGRESS '))console.log(m.text());
@@ -115,7 +124,7 @@ try{
     a.renderer.info.reset();a.visualPost.render(a.scene,a.camera);
    });
    await page.screenshot({path:`${out}/${map}-${variant}-rts.png`});
-   const metrics=await timeBound(page.evaluate(async({frames,profile,stress})=>{
+   const metrics=await timeBound(page.evaluate(async({frames,profile,stress,softwareQA})=>{
     const a=window.__sandforgeWebGL,g=a.game,b=a.battlefield;
     const ids=globalThis.__polish31Actors;
     const movers=g.units.filter(u=>ids.includes(u.id)).slice(0,stress?24:6);
@@ -128,7 +137,10 @@ try{
     const render=()=>{a.renderer.info.reset();a.visualPost.render(a.scene,a.camera);};
     // Warm all visible PBR/particle shader variants before recording costs.
     const centre=movers[0];a.effects.blastAt(centre.x+170,centre.y+70,true);
-    for(let i=0;i<45;i++){a.effects.update(1/60,true);render();await new Promise(r=>requestAnimationFrame(r));}
+    for(let i=0;i<45;i++){
+     a.effects.update(1/60,true);render();
+     await new Promise(r=>softwareQA?setTimeout(r,0):requestAnimationFrame(r));
+    }
     const samples=[];let last=performance.now();
     let lastAi=g.aiPlanCompletedAt,lastVision=g.visionCompletedAt;
     for(let i=0;i<frames;i++){
@@ -136,7 +148,7 @@ try{
       frame:i,frames,stress,simTime:Number(g.time.toFixed(2)),
       vehicleCount:g.units.filter(u=>u.owner===0||u.owner===1).length
      }));
-     await new Promise(r=>requestAnimationFrame(r));
+     await new Promise(r=>softwareQA?setTimeout(r,0):requestAnimationFrame(r));
      const now=performance.now();samples.push(now-last);last=now;
      if(profile){g.resetSquadProfile?.();g.world.resetPathProfile?.();}
      const start=performance.now();
@@ -167,7 +179,8 @@ try{
     return {
      ...(raw?{profile:{columns:['startedAt','intervalMs','simulationMs','syncMs','effectsMs','emissionMs','renderMs','heapBytes','particles','calls','triangles','workMs','clock','aiMs','visionMs','pathMs'],
       frames:Array.from({length:frames},(_,i)=>Array.from(raw.subarray(i*16,(i+1)*16))),longTasks}}:{}),
-     fps:1000/mean(sorted),lowFps:1000/mean(sorted.slice(-Math.ceil(sorted.length*.01))),
+     fps:softwareQA?null:1000/mean(sorted),
+     lowFps:softwareQA?null:1000/mean(sorted.slice(-Math.ceil(sorted.length*.01))),
      frameP95:sorted[Math.ceil(sorted.length*.95)-1],workMs:metric('work'),simulationMs:metric('simulation'),presentationMs:metric('presentation'),renderMs:metric('render'),
      drawCalls:metric('calls'),triangles:metric('triangles'),geometries:geometry,textures,
      heapMB:performance.memory?.usedJSHeapSize/1048576,initialDetails,shots:b.presentation.stats.shots-shotsBefore,
@@ -175,10 +188,11 @@ try{
      actualDetails:ids.filter(id=>b.units.get(id)?.detail).length,
      particleCap:a.effects.pools.map(p=>({mode:p.mode,max:p.max,count:p.mesh.count})),
      post:a.visualPost.snapshot(),glError:a.renderer.getContext().getError()};
-   },{frames,profile,stress}),map+'/'+variant+'/600-frames');
+   },{frames,profile,stress,softwareQA}),map+'/'+variant+'/frames');
    console.log('POLISH31_STAGE '+JSON.stringify({map,variant,stage:'metrics-done',workMs:metrics.workMs}));
    await page.screenshot({path:`${out}/${map}-${variant}-combat.png`});
-   reports.push({map,variant,trial,stress,actorCount,enemyCount,scene,metrics});
+   reports.push({map,variant,trial,stress,actorCount,enemyCount,
+    screenWidth,screenHeight,softwareQA,scene,metrics});
    writeFileSync(out+'/report.json',JSON.stringify({baseRef:ref,reports,errors},null,2)+'\n');
    console.log(JSON.stringify({map,variant,...Object.fromEntries(Object.entries(metrics).filter(([k])=>!['poses','simulation','particleCap','profile'].includes(k)))}));
    const video=page.video();await page.close();
