@@ -309,12 +309,12 @@ test('Action keeps a real HQ guard while freeing surplus opening reserves',()=>{
  assert.match(ai,/homeGuardCapPulses\+\+/);
 });
 
-test('Action pays for an early six-fighter infantry wave before optional tech',()=>{
+test('Action pays for an early five-fighter infantry wave before optional tech',()=>{
  const x={preset:'action',time:80,barracksReady:true,fighters:4,
   underAttack:false,observedSiege:false};
  assert.equal(actionEarlyArmyBeforeInfrastructure(x),true);
- assert.equal(actionEarlyArmyBeforeInfrastructure({...x,fighters:5}),true);
- for(const v of [{preset:'classic'},{fighters:6},{time:200},
+ assert.equal(actionEarlyArmyBeforeInfrastructure({...x,fighters:4}),true);
+ for(const v of [{preset:'classic'},{fighters:5},{fighters:6},{time:200},
   {time:5},{barracksReady:false},{underAttack:true},{observedSiege:true}])
   assert.equal(actionEarlyArmyBeforeInfrastructure({...x,...v}),false,
    'genuine urgent tech/legacy/play state must win: '+JSON.stringify(v));
