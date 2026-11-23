@@ -195,17 +195,17 @@ export class SandforgeBattlefield {
   }
   const make=(geo,mat,x,y,z)=>{const mesh=new THREE.Mesh(geo,mat);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);return mesh;};
   if(type==='unit'){
-   if(['tank','rover','artillery'].includes(kind)){
-    const length=kind==='tank'?77:kind==='artillery'?84:57;
+   if(['tank','flamer','rover','artillery'].includes(kind)){
+    const length=kind==='tank'||kind==='flamer'?77:kind==='artillery'?84:57;
     // A combat tank must never appear as a bright team-blue four-wheeled
     // toy car while the 12 MB authored tank GLB streams in (or fails).
     // Even the temporary rig has a desert hull, armoured turret and tracks.
-    const hullPaint=kind==='tank'?new THREE.MeshStandardMaterial({
+    const hullPaint=['tank','flamer'].includes(kind)?new THREE.MeshStandardMaterial({
      color:'#9b9176',metalness:.24,roughness:.84}):metal;
-    const trackPaint=kind==='tank'?new THREE.MeshStandardMaterial({
+    const trackPaint=['tank','flamer'].includes(kind)?new THREE.MeshStandardMaterial({
      color:'#3a3b34',metalness:.16,roughness:.92}):dark;
-    const hull=make(new THREE.BoxGeometry(kind==='tank'?48:44,15,length),hullPaint,0,16,0);
-    if(kind==='tank'){
+    const hull=make(new THREE.BoxGeometry(['tank','flamer'].includes(kind)?48:44,15,length),hullPaint,0,16,0);
+    if(kind==='tank'||kind==='flamer'){
      hull.name='Tank_HullArmour';
      const nose=make(new THREE.BoxGeometry(45,9,20),hullPaint,0,24,25);
      nose.name='Tank_SlopedFrontArmour';nose.rotation.x=-.20;
@@ -234,13 +234,19 @@ export class SandforgeBattlefield {
      hatch.name='Tank_CommandHatch';hatch.position.y=8;
      hatch.castShadow=true;turret.add(hatch);
      const gun=new THREE.Group();gun.name='Tank_Gun';turret.add(gun);
-     const tube=new THREE.Mesh(new THREE.CylinderGeometry(2.8,3.7,52,10),dark);
+     const tube=new THREE.Mesh(new THREE.CylinderGeometry(kind==='flamer'?4:2.8,kind==='flamer'?4:3.7,kind==='flamer'?29:52,10),dark);
      tube.name='Tank_MainCannon';
-     tube.rotation.x=Math.PI/2;tube.position.set(0,0,35);
+     tube.rotation.x=Math.PI/2;tube.position.set(0,0,kind==='flamer'?23:35);
      tube.castShadow=true;gun.add(tube);
      const muzzle=new THREE.Mesh(new THREE.CylinderGeometry(4.2,4.2,5,10),
       trackPaint);muzzle.name='Tank_MuzzleBrake';
-     muzzle.rotation.x=Math.PI/2;muzzle.position.z=59;gun.add(muzzle);
+     muzzle.rotation.x=Math.PI/2;muzzle.position.z=kind==='flamer'?38:59;gun.add(muzzle);
+      if(kind==='flamer')for(const x of [-12,12]){
+       const tank=make(new THREE.CylinderGeometry(11,11,34,16),hullPaint,x,39,-19);
+       tank.rotation.x=Math.PI/2;tank.name='Flame_FuelTank_'+x;
+       const nozzle=make(new THREE.CylinderGeometry(3.8,4.5,25,12),trackPaint,x*.53,31,48);
+       nozzle.rotation.x=Math.PI/2;nozzle.name='Flame_Nozzle_'+x;
+      }
     }else if(kind==='artillery'){
      // The lite-mode rocket launcher must look and behave like a six-tube
      // launcher, not a generic MG truck while its authored GLB is absent.
@@ -258,7 +264,7 @@ export class SandforgeBattlefield {
       muzzle.position.set(x,y,26);gun.add(muzzle);
      }
     }else make(new THREE.BoxGeometry(32,12,length*.45),dark,0,30,0);
-    if(kind!=='tank')for(const x of [-22,22])for(const z of [-length*.33,length*.33])
+    if(!['tank','flamer'].includes(kind))for(const x of [-22,22])for(const z of [-length*.33,length*.33])
      make(new THREE.CylinderGeometry(10,10,7,12),dark,x,9,z).rotation.z=Math.PI*.5;
    }else if(['scout','bomber'].includes(kind)){
     make(new THREE.CapsuleGeometry(13,36,4,8),metal,0,15,0).rotation.x=Math.PI*.5;
@@ -316,7 +322,7 @@ export class SandforgeBattlefield {
   // Rocket specialists share the fully animated Atlas infantry skeleton.
   // Keep the original prototype rig and clips, replace only its rifle mesh.
   if(type==='unit'&&kind==='rocket')return prefix+'prototype/infantry-'+owner+'.glb';
-  return prefix+(['rover','tank','artillery','scout','bomber'].includes(kind)?'animation/':'prototype/')+kind+'-'+owner+'.glb';
+  return prefix+(['rover','tank','flamer','artillery','scout','bomber'].includes(kind)?'animation/':'prototype/')+kind+'-'+owner+'.glb';
  }
  // Do not download every 15–25 MB faction model on the first frame.
  scheduleDetail(entry,entity,type){
@@ -329,16 +335,16 @@ export class SandforgeBattlefield {
   // The tank is visually indispensable: load its real authored GLB even in
   // ?lite=1 mode. Queue pressure must not permanently demote a paid tank to
   // the emergency cuboid geometry.
-  const priorityTank=type==='unit'&&entity.kind==='tank';
+  const priorityTank=type==='unit'&&['tank','flamer'].includes(entity.kind);
   if((this.lite&&type!=='building'&&
-      !['medic','rocket','tank'].includes(entity.kind))||
+      !['medic','rocket','tank','flamer'].includes(entity.kind))||
      (type==='building'&&isStrategicBuilding(entity.kind))||entry.requested||
      (!priorityTank&&this.loadingCount+this.modelQueue.length>=this.maxModels))return;
   entry.requested=true;
   const url=this.asset(entity.kind,entity.owner,type);
   if(type==='building'&&['factory','barracks'].includes(entity.kind))
    this.modelQueue.unshift({url,entry,type});
-  else if(type==='unit'&&['tank','medic'].includes(entity.kind))
+  else if(type==='unit'&&['tank','flamer','medic'].includes(entity.kind))
    this.modelQueue.unshift({url,entry,type});
   else this.modelQueue.push({url,entry,type});
   this.pumpModelQueue();
@@ -509,6 +515,8 @@ export class SandforgeBattlefield {
    this.getModel(task.url).then(data=>{
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
+    // Flammenpanzer source GLB points -X; game models face +Z.
+    if(type==='unit'&&entry.kind==='flamer')model.rotation.y+=Math.PI/2;
     const hasMeshySkin=type==='building'&&task.url.includes('/meshy-structures/');
     if(hasMeshySkin)prepareMeshyStructure(model,entry.kind,entry.owner);
     if(type==='building'&&((entry.kind==='headquarters'&&
@@ -588,7 +596,7 @@ export class SandforgeBattlefield {
     if(entry.placeholder){
      // Tank flags now belong to the fallback turret. Detach them before
      // disposing the fallback; their geometry/materials are module-shared.
-     if(type==='unit'&&['tank','artillery'].includes(entry.kind))
+     if(type==='unit'&&['tank','flamer','artillery'].includes(entry.kind))
       detachTeamMarkings(entry);
      entry.node.remove(entry.placeholder);
      disposeActorPlaceholder(entry.placeholder);
@@ -682,7 +690,7 @@ export class SandforgeBattlefield {
     // Transient 12 MB tank model failures used to leave entry.requested=true
     // forever. Retry once via the normal bounded queue, then keep the proper
     // tracked emergency tank rather than a blue cuboid.
-    if(type==='unit'&&entry.kind==='tank'&&entry.node.parent&&
+    if(type==='unit'&&['tank','flamer'].includes(entry.kind)&&entry.node.parent&&
        (entry.modelLoadRetries??0)<1){
      entry.modelLoadRetries=(entry.modelLoadRetries??0)+1;
      entry.requested=false;
@@ -1642,6 +1650,7 @@ export class SandforgeBattlefield {
   const shots=this.game.shots;
   for(let i=Math.max(0,shots.length-this.maxTracerShots);i<shots.length;i++){
    const shot=shots[i];
+   if(shot.weapon==='flame')continue;
    const streak=tracerWindow(shot);
    if(!streak)continue;
    if(!this.game.canSee(0,shot.from)&&!this.game.canSee(0,shot.to))continue;
