@@ -15,8 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      OPENING_SECONDS: '135'
-      OPENING_MAPS: desert-strike,broken-empire
+      OPENING_SECONDS: '180'
+      OPENING_MAPS: desert-strike,broken-empire,desert-strike@4102,broken-empire@4102,burning-horizon@4102,last-stronghold,plateau-crossroads
     steps:
       - uses: actions/checkout@v4
         with:
