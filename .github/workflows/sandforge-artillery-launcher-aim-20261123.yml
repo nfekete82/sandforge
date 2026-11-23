@@ -1,0 +1,32 @@
+name: Sandforge · Rocket artillery launcher only aims in combat
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/webgl-battlefield.js
+      - tests/sandforge-artillery-launcher-aim-20261123.test.mjs
+      - .github/workflows/sandforge-artillery-launcher-aim-20261123.yml
+permissions:
+  contents: read
+jobs:
+  artillery-traverse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile WebGL game
+        run: npm run build
+      - name: Verify actual truck launcher rig, rocket VFX and gameplay stats
+        run: |
+          node --test \
+            tests/sandforge-artillery-launcher-aim-20261123.test.mjs \
+            tests/sandforge-rocket-launcher-polish.test.mjs \
+            tests/sandforge-artillery-missile-vfx-20261119.test.mjs \
+            tests/reborn-rocket-kinematics-v2.test.mjs
