@@ -137,3 +137,44 @@ node scripts/report-visual-polish31-spikes.mjs \
 `8512c9e8`; `after` verwendet die aktuell gebauten Module. `before` lädt die
 ursprünglichen fünf Renderer-Module von `POLISH31_BASE_REF` / `origin/main`.
 Das Profiling ergänzt keine Instrumentierung in normalen Spielsessions.
+
+
+## 23.11.2026 – Hardwarefreigabe nach Integration von `main`
+
+Der bereits freigegebene A*-Performance-Fix aus #485 ist über #486 in diesen **Grafik-Draft-Branch** aufgenommen worden, ohne `main` durch Grafikänderungen zu ersetzen. Für die endgültige Bewertung muss die neue GPU-Messung gegen den aktuellen `main` erfolgen.
+
+**Unterschied der zwei Prüfarten:**
+
+- **GitHub Actions / Linux-Chromium mit Software-Rendering:** Auf 800 × 500 beziehungsweise 960 × 600 und ohne künstliche RAF-Wartezeit; 600 explizite Simulations-/Rendering-Frames (Canary: 60) sowie GLB-/Shader-/Save-Parität. Der QA-Report kennzeichnet diese Läufe als `softwareRendererBench` und unterdrückt FPS und 1%-Low-Werte. Er darf **nicht** als Aussage zur Apple-M5-Max-GPU verwendet werden.
+- **Lokaler echter Mac-GPU-Vergleich:** 1440 × 900, DPR 1 und natürliche `requestAnimationFrame`-Taktung (`POLISH31_SOFTWARE_QA=0`). Nur daraus werden FPS/1%-Lows mit derselben Szene, Kamera und identischen Eingabedaten berichtet. Diese Messung muss nach der Synchronisierung erneut ausgeführt werden; ältere Zahlen sind historische Angaben.
+
+Wiederholbare GPU-Abnahme auf dem Mac mit dem bereits ausgecheckten Grafik-Branch:
+
+```sh
+npm ci
+npm ci --prefix tests/browser
+npm run build
+PORT=8133 npm run preview
+# In einem zweiten Terminal, bei laufendem Preview:
+POLISH31_URL=http://127.0.0.1:8133 \
+POLISH31_BASE_REF=origin/main \
+POLISH31_CHANNEL=chrome \
+POLISH31_VIEWPORT=1440x900 \
+POLISH31_SOFTWARE_QA=0 \
+POLISH31_FRAMES=600 \
+POLISH31_VARIANTS=before,after,after,before \
+POLISH31_PROFILE=1 \
+POLISH31_OUTPUT=artifacts/visual31/mac-native \
+node scripts/qa-visual-polish31.mjs
+node scripts/report-visual-polish31-spikes.mjs \
+ artifacts/visual31/mac-native/report.json \
+ artifacts/visual31/mac-native/frame-summary.json
+node scripts/compare-visual-polish31-acceptance.mjs \
+ artifacts/visual31/mac-native/report.json \
+ artifacts/visual31/mac-native/acceptance.json
+```
+
+Für einen zusätzlichen Mac-GPU-Konvoi-Test dieselben Befehle mit
+`POLISH31_MAPS=broken-empire POLISH31_STRESS=1` und eigenem `POLISH31_OUTPUT`-Pfad ausführen.
+
+Die vorangegangene Messung dokumentiert kein statistisch gesichertes Plus bei den 1%-Lows. **Dieser Anhang ist eine Reproduktionsanleitung, keine behauptete neue GPU-Freigabe.** PR #484 bleibt Draft, bis die Prüfung auf dem aktualisierten Branch abgeschlossen und bewertet ist.
