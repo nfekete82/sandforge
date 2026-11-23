@@ -62,3 +62,21 @@ export function mapFrontierPosts(mapVersion:number,guards:number,frontiers:numbe
  if(mapVersion===24)return Math.min(ready>=6?2:ready>=3?1:0,sites);
  return Math.min(ready>=6?2:ready>=4?1:0,sites);
 }
+
+/** An opening scout that is ALREADY physically inside an uncontested
+ * neutral Bastion's capture ring must not be ordered to march to its own
+ * feet every 3s. Keep the original active-order guard, and allow genuine
+ * counterattacks on BLUE sectors to issue commands normally.
+ *
+ * A small margin avoids claiming capture while barely outside the ring
+ * because the physical unit/collider has a finite size. No path, fog or
+ * mission data are inferred by this pure check. */
+export function openingScoutNeedsCaptureMove(x:{
+ sectorOwner:number;distanceToSector:number;
+ capturePresenceRadius:number;existingCaptureOrder:boolean;
+}):boolean{
+ if(x.existingCaptureOrder)return false;
+ if(x.sectorOwner===-1&&Number.isFinite(x.distanceToSector)&&
+    x.distanceToSector<=x.capturePresenceRadius-8)return false;
+ return true;
+}
