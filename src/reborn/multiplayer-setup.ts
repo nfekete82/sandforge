@@ -77,9 +77,15 @@ export function planMultiplayerSetup(options:{
  let sectors:number[];
  let teams:TeamId[];
  if(mode==='two-versus-two'){
-  // Sector order in clockwise ring: teammate occupies next side corner,
-  // opponents occupy the opposite side. Rotated consistently per seed.
-  sectors=selected;
+  // Four-column desert maps are often much wider than they are high.
+  // Put teammates on the SAME short west/east edge, not across the long
+  // north/south side. Seed only swaps the two sides or player order.
+  const west=[corners[0],corners[3]];
+  const east=[corners[1],corners[2]];
+  const first=orientation>=2?east:west;
+  const second=orientation>=2?west:east;
+  sectors=orientation%2===0?
+   [...first,...second]:[first[1],first[0],second[1],second[0]];
   teams=[0,0,1,1];
  }else if(playerCount===3){
   // Spread the three controllers over three different distant corners.
