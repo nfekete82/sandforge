@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure,actionPublicFrontPressure,actionTerritoryRecoveryPolicy,actionTerritoryRecoveryBlock,actionReleaseTemporaryRecaptureHold}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure,actionPublicFrontPressure,actionTerritoryRecoveryPolicy,actionTerritoryRecoveryBlock,actionReleaseTemporaryRecaptureHold,actionBootstrapScoutPlan}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -436,4 +436,22 @@ test('Recovery rejection reasons separate stale BLUE mission from valid defense'
  const trace=readFileSync('scripts/benchmark-sandforge-action-20261122.mjs','utf8');
  assert.match(trace,/territoryTimeline\.push\(/);
  assert.match(trace,/territoryEvents\.push\(/);
+});
+
+test('Action first paid soldier scouts a NEUTRAL sector during HQ bootstrap',()=>{
+ const base={preset:'action',mapVersion:24,needsHeadquarters:true,
+  time:8,available:1,observedHomeThreat:false};
+ assert.deepEqual(actionBootstrapScoutPlan(base),{slots:1,counter:false});
+ assert.deepEqual(actionBootstrapScoutPlan({...base,available:3}),{slots:1,counter:false},
+  'bootstrap may never strip more than one paid infantry for a premature rush');
+ for(const variant of [
+  {preset:'classic'},{mapVersion:11},{needsHeadquarters:false},
+  {available:0},{observedHomeThreat:true},{time:121}
+ ])assert.deepEqual(actionBootstrapScoutPlan({...base,...variant}),{slots:0,counter:false},
+  'no bootstrap diversion when '+JSON.stringify(variant));
+ const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(ai,/needsHQ\?actionBootstrapScoutPlan\(/);
+ assert.match(ai,/const startThreat=!!start&&seen\.some/);
+ assert.match(ai,/g\.time>openingLimit\|\|g\.status!=='playing'\)/);
+ assert.match(ai,/const targets=g\.territories\.filter\(t=>t\.owner===-1\|\|counter&&t\.owner===0\)/);
 });
