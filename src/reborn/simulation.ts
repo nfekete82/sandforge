@@ -7,6 +7,7 @@ import {VisionCache} from './vision-cache.js';
 import {generateRollingHills,standsOnHill,HIGH_GROUND_SIGHT_MULTIPLIER,type RollingHill} from './rolling-hills.js';
 import { profiler } from './performance.js';
 import { RULES, WEATHER_RULES, clamp, distance, type Faction, type Owner, type Point, type MapVersion, mapLayout, campaignLayout, mapWorldSize } from './config.js';
+import {ACTION_BALANCE,balancePresetValid,initialActionCredits,constructionRate,productionRate,groundSpeedRate,type BalancePreset} from './action-balance.js';
 import { World, inside, type Territory } from './world.js';
 import {visibleBasePropColliders} from './vehicle-decor-collision.js';
 import {vehicleStructureCollider,vehicleStructureColliders} from './vehicle-structure-collision.js';
@@ -121,7 +122,9 @@ export interface Blast extends Point {at:number;id:number}
 export type CaptureReadiness='owned'|'no-unit'|'out-of-range'|'contested'|'enemy-hq'|'capturing';
 export interface Memory extends Point { id:number; owner:Faction; hp:number; territory:number; kind?:BuildingKind }
 export interface Save {
-  version:2; terrainProfile?:TerrainProfile; generatorVersion?:BattlefieldGeneratorVersion; bootstrapVersion?:1; weatherVersion?:1; productionVersion?:1; supportVersion?:1;rosterVersion?:2;missiles?:Missile[]; seed:number; mapVersion?:MapVersion; time:number; nextId:number; credits:number[]; incomeClock:number;
+  version:2; balancePreset?:BalancePreset;
+  actionScanReadyAt?:number;actionScan?:{point:Point;until:number};
+  terrainProfile?:TerrainProfile; generatorVersion?:BattlefieldGeneratorVersion; bootstrapVersion?:1; weatherVersion?:1; productionVersion?:1; supportVersion?:1;rosterVersion?:2;missiles?:Missile[]; seed:number; mapVersion?:MapVersion; time:number; nextId:number; credits:number[]; incomeClock:number;
   units:Unit[]; bases:Base[]; territories:Territory[]; explored:number[][];
   memories:Memory[][]; aiClock:number; ai?:TacticalState; status:'playing'|'victory'|'defeat'; stats?:MatchStatistics;
   research?:[ResearchState,ResearchState];
@@ -203,7 +206,7 @@ export class Simulation {
     return unitSpec(u).hp*researchModifiers(this.research[u.owner],u.kind).hp;
   }
   speed(u:Unit):number{
-    return unitSpec(u).speed*researchModifiers(this.research[u.owner],u.kind).speed;
+    return unitSpec(u).speed*researchModifiers(this.research[u.owner],u.kind).speed*groundSpeedRate(this.balancePreset,unitSpec(u).flying);
   }
   range(u:Unit):number{
     return unitSpec(u).range*researchModifiers(this.research[u.owner],u.kind).range;
@@ -455,6 +458,35 @@ export class Simulation {
   strategicEvents:StrategicEvent[]=[];
   private strategicAiAt=-Infinity;
   private seenEnemySilos=new Set<number>();
+  /** Per-campaign rules, persisted only when Action is selected. */
+  balancePreset:BalancePreset='classic';
+  /** Paid player scan, Action only. Persist cooldown to prevent save-reload abuse. */
+  actionScanReadyAt=0;
+  actionScan:{point:Point;until:number}|null=null;
+  useActionReconScan(center:Point):boolean{
+    if(this.balancePreset!=='action'||this.status!=='playing'||
+      !this.hasHeadquarters(0)||this.credits[0]<ACTION_BALANCE.reconScanCredits||
+      this.time+1e-6<this.actionScanReadyAt||!center||
+      !Number.isFinite(center.x)||!Number.isFinite(center.y)||
+      this.world.index(center)<0)return false;
+    this.credits[0]-=ACTION_BALANCE.reconScanCredits;
+    this.actionScan={point:{x:center.x,y:center.y},
+      until:this.time+ACTION_BALANCE.reconScanDuration};
+    this.actionScanReadyAt=this.time+ACTION_BALANCE.reconScanCooldown;
+    this.notices.push('Aufklärungsscan aktiv · '+ACTION_BALANCE.reconScanDuration+' Sekunden.');
+    this.updateVision();
+    return true;
+  }
+  /** Set before the first simulation tick. Existing saves never get credits twice. */
+  configureBalancePreset(preset:BalancePreset,openingCredits=this.time===0):boolean {
+    if(!balancePresetValid(preset))throw Error('Unbekannte Spielbalance.');
+    if(preset===this.balancePreset)return false;
+    if(this.time>0&&openingCredits)throw Error('Action-Balance nur für neue Partien aktivierbar.');
+    this.balancePreset=preset;
+    if(preset==='action'&&openingCredits)
+      this.credits=this.credits.map(initialActionCredits);
+    return true;
+  }
   seed:number; time=0; nextId=1; credits=[RULES.initialCredits as number,RULES.initialCredits as number];
   incomeClock=0; aiClock=0; status:'playing'|'victory'|'defeat'='playing';
   stats:MatchStatistics=newMatchStatistics();
@@ -1399,10 +1431,17 @@ export class Simulation {
    * after another structure or unit moves into the way. Try a DIFFERENT,
    * reachable side before asking the director to reassign the idle pioneer.
    * Real enemy fire still takes precedence; no construction speed bonus. */
+  /** Modern 3D building facades stop infantry a few units before the old
+   * radius+55 threshold. Let an actual line-of-sight worker finish from
+   * the physically reachable edge; do not teleport, ignore obstacles,
+   * expand repairs or change any legacy-map construction distances. */
+  private constructionWorkRange(site:Base):number {
+    return site.radius+(this.world.mapVersion>=23?65:55);
+  }
   private recoverStalledAiBuilder(u:Unit,site:Base,order:Order):boolean {
     if(u.owner!==1||u.kind!=='engineer'||u.hold||
        u.defendUntil>this.time)return false;
-    if(distance(u,site)<=site.radius+55&&this.world.line(u,site)){
+    if(distance(u,site)<=this.constructionWorkRange(site)&&this.world.line(u,site)){
       this.aiBuilderProgress.delete(u);return false;
     }
     let s=this.aiBuilderProgress.get(u);
@@ -1538,7 +1577,7 @@ export class Simulation {
        this.recoverStalledAiBuilder(u,target,order))return true;
     // A recently attacked worker pauses construction/repair to defend itself.
     if(u.kind==='engineer'&&u.defendUntil>this.time)return false;
-    const range='queue' in target?target.radius+55:u.kind==='engineer'?REPAIR_RADIUS:this.healRadius(u);
+    const range='queue' in target?(order?.kind==='build'?this.constructionWorkRange(target):target.radius+55):u.kind==='engineer'?REPAIR_RADIUS:this.healRadius(u);
     if(distance(u,target)>range||!this.world.line(u,target)){
       if(explicit&&!u.hold){if(u.repath<=0)u.path=[];const buildings=this.obstacles();const p=order?.approach&&this.world.walkable(order.approach,[...buildings,...infantryStructureColliders(buildings),...this.bastionColliders()])&&this.world.line(order.approach,target)?order.approach:this.supportApproach(u,target,true);if(p)this.move(u,p,dt);}
       return true;
@@ -1845,6 +1884,14 @@ export class Simulation {
       const sources=[...this.units.filter(u=>u.owner===owner&&u.hp>0&&!u.carrier).map(u=>({key:`u${u.id}`,x:u.x,y:u.y,sight:this.sight(u)*this.visionScale,close:unitSpec(u).radius+this.world.cell*2,air:unitSpec(u).flying})),
         ...this.bases.filter(b=>b.owner===owner&&b.hp>0).map(b=>({key:`b${b.id}`,x:b.x,y:b.y,sight:(b.buildRemaining>0?110:buildingSpec(b).sight)*this.visionScale,close:b.radius+this.world.cell*2,air:false})),
         ...this.territories.filter(t=>t.owner===owner).map(t=>({key:`t${t.id}`,...t.point,sight:RULES.bastion.sight*this.visionScale,close:RULES.bastion.radius+this.world.cell*2,air:false}))];
+      // Only the player can call the paid Action scan. A radar-like airborne
+      // source is visible for exactly nine simulated seconds. It uses the
+      // same fog/intel pipeline as physical scouting, not hidden AI state.
+      if(owner===0&&this.balancePreset==='action'&&this.actionScan&&
+        this.actionScan.until>this.time) sources.push({
+          key:'action-recon-scan',...this.actionScan.point,
+          sight:ACTION_BALANCE.reconScanRadius,close:0,air:true
+        });
       this.visionCache.update(this.world,owner,sources,visible);
       const discovered=new Set<number>();
       for(let i=0;i<visible.length;i++)if(visible[i]){this.explored[owner][i]=1;const cliff=this.world.cliffIds[i];if(cliff>=0)discovered.add(cliff);}
@@ -2344,7 +2391,7 @@ export class Simulation {
       // Escort already enforces the moving armor's front position. A lagging
       // legacy AI rifleman must be allowed a short catch-up burst instead
       // of being capped to tank speed by the redundant march metadata.
-      if(!formationCatchUp)speedLimit=Math.min(speedLimit,...allies.map(v=>unitSpec(v).speed));
+      if(!formationCatchUp)speedLimit=Math.min(speedLimit,...allies.map(v=>this.speed(v)));
       if(u.orders[0]?.rear&&!u.orders[0].target&&distance(u,target)<Math.max(...allies.map(v=>distance(v,v.orders[0]??target)))+u.orders[0].rear)speedLimit=0;
       // A straight-line distance cannot compare progress on opposite sides of
       // a rock. Let the column pass bends before enforcing its open-ground lead.
@@ -2837,7 +2884,7 @@ export class Simulation {
             const peers=march.map(id=>this.unitById.get(id)).filter((v):v is Unit=>v!==undefined&&v.owner===a.owner&&
               v.hp>0&&v.orders[0]?.march?.includes(a.id)===true);
             if(peers.length){
-              const pace=Math.min(...peers.map(v=>unitSpec(v).speed));
+              const pace=Math.min(...peers.map(v=>this.speed(v)));
               if(Math.hypot(p.x-a.previousX!,p.y-a.previousY!)>pace*dt+1e-8)continue;
             }
           }
@@ -2868,10 +2915,10 @@ export class Simulation {
     for(const b of this.bases){
       if(b.hp<=0)continue;
       if(b.buildRemaining>0){
-        const workers=this.units.filter(u=>u.hp>0&&u.owner===b.owner&&u.kind==='engineer'&&u.workingTarget===b.id&&u.orders[0]?.kind==='build'&&u.defendUntil<=this.time&&distance(u,b)<=b.radius+55);
+        const workers=this.units.filter(u=>u.hp>0&&u.owner===b.owner&&u.kind==='engineer'&&u.workingTarget===b.id&&u.orders[0]?.kind==='build'&&u.defendUntil<=this.time&&distance(u,b)<=this.constructionWorkRange(b)&&this.world.line(u,b));
         b.constructionActive=workers.length>0;
         const rates=workers.map(u=>getVeterancyModifiers(u).buildRate),total=rates.reduce((n,v)=>n+v,0);
-        const work=Math.min(b.buildRemaining,dt*Math.min(1.5,total));
+        const work=Math.min(b.buildRemaining,dt*Math.min(1.5,total)*constructionRate(this.balancePreset));
         if(work>0)workers.forEach((u,i)=>{const share=rates[i]/total;gainUnitXp(u,work*share*XP_RULES.build,'build');if(b.buildRemaining-work<1e-8)gainUnitXp(u,XP_RULES.completion*share,'completion');});
         if(work>0)this.work('build',workers[0].id,b.id,work);
         b.buildRemaining=Math.max(0,b.buildRemaining-work);if(b.buildRemaining<1e-8)b.buildRemaining=0;
@@ -2910,7 +2957,7 @@ export class Simulation {
       // QA fast production: retain exact stored queue durations for valid
       // save games and run the ordinary obstacle-safe spawn code this tick.
       b.production=this.testMode&&b.owner===0
-       ?b.queue[0]:Math.min(b.queue[0],b.production+dt);
+       ?b.queue[0]:Math.min(b.queue[0],b.production+dt*productionRate(this.balancePreset,unitSpec({kind:b.queueTypes[0]??'infantry'}).group));
       if(b.production+1e-8>=b.queue[0]){
         const kind=b.queueTypes[0]??'infantry',spec=UNITS[kind],sign=this.world.mapVersion>=2&&b.kind==='headquarters'&&b.owner===1?-1:1,exit={x:b.x+(b.radius+42)*sign,y:b.y+(b.radius+12)*sign};
         const vehicle=spec.group==='Fahrzeuge'&&!spec.flying;
@@ -3082,7 +3129,10 @@ export class Simulation {
     }
   }
   save():Save {
-    return structuredClone({version:2,...(this.world.generated?.battlefield?{terrainProfile:this.world.generated.battlefield.profile,generatorVersion:this.world.generated.battlefield.generatorVersion}:{}),...(this.bootstrapVersion?{bootstrapVersion:this.bootstrapVersion}:{}),weatherVersion:1,productionVersion:1,supportVersion:1,rosterVersion:2,missiles:this.missiles,seed:this.seed,mapVersion:this.world.mapVersion,time:this.time,nextId:this.nextId,credits:this.credits,incomeClock:this.incomeClock,
+    return structuredClone({version:2,...(this.balancePreset==='action'?{
+      balancePreset:'action' as const,actionScanReadyAt:this.actionScanReadyAt,
+      ...(this.actionScan&&this.actionScan.until>this.time?{actionScan:this.actionScan}:{}),
+    }:{}),...(this.world.generated?.battlefield?{terrainProfile:this.world.generated.battlefield.profile,generatorVersion:this.world.generated.battlefield.generatorVersion}:{}),...(this.bootstrapVersion?{bootstrapVersion:this.bootstrapVersion}:{}),weatherVersion:1,productionVersion:1,supportVersion:1,rosterVersion:2,missiles:this.missiles,seed:this.seed,mapVersion:this.world.mapVersion,time:this.time,nextId:this.nextId,credits:this.credits,incomeClock:this.incomeClock,
       units:this.units,bases:this.bases,territories:this.territories,explored:this.explored.map(a=>Array.from(a)),memories:this.memories,aiClock:this.aiClock,ai:this.tactical.state,status:this.status,stats:this.stats,
       research:this.research,strategicMissiles:this.strategicMissiles,
       hadBuildings:this.hadBuildings});
@@ -3098,7 +3148,13 @@ export class Simulation {
     const researchFor=(u:{owner:Faction;kind?:UnitKind})=>
       researchModifiers(research[u.owner],u.kind??'infantry');
     const burst=(b:Burst|undefined,rounds:number)=>b===undefined||(b!==null&&Number.isInteger(b.target)&&Number.isInteger(b.remaining)&&b.remaining>0&&b.remaining<=rounds&&b.remaining+b.index===rounds&&Number.isInteger(b.index)&&b.index>=0&&b.index<4&&finite(b.at)&&b.at>=s.time-.11&&b.at<=s.time+.11);
-    if(!s||s.version!==2||((s.mapVersion??0)>=23&&(!isTerrainProfile(s.terrainProfile)||![1,2,3,4,5,6,7,8,9,10].includes(s.generatorVersion as number)))||((s.mapVersion??0)<23&&(s.terrainProfile!==undefined||s.generatorVersion!==undefined))||(s.bootstrapVersion!==undefined&&s.bootstrapVersion!==1)||(s.weatherVersion!==undefined&&s.weatherVersion!==1)||(s.productionVersion!==undefined&&s.productionVersion!==1)||(s.mapVersion!==undefined&&![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26].includes(s.mapVersion))||!TacticalAI.valid(s.ai,s.time,point,mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows)||!finite(s.seed)||!finite(s.time)||s.time<0||!finite(s.incomeClock)||s.incomeClock<0||s.incomeClock>=10||
+    if(!s||s.version!==2||(s.balancePreset!==undefined&&!balancePresetValid(s.balancePreset))||
+      (s.actionScanReadyAt!==undefined&&(s.balancePreset!=='action'||
+        !finite(s.actionScanReadyAt)||s.actionScanReadyAt<0||
+        s.actionScanReadyAt>s.time+ACTION_BALANCE.reconScanCooldown+1e-6))||
+      (s.actionScan!==undefined&&(s.balancePreset!=='action'||!s.actionScan||
+        !point(s.actionScan.point)||!finite(s.actionScan.until)||
+        s.actionScan.until<s.time||s.actionScan.until>s.time+ACTION_BALANCE.reconScanDuration+1e-6))||((s.mapVersion??0)>=23&&(!isTerrainProfile(s.terrainProfile)||![1,2,3,4,5,6,7,8,9,10].includes(s.generatorVersion as number)))||((s.mapVersion??0)<23&&(s.terrainProfile!==undefined||s.generatorVersion!==undefined))||(s.bootstrapVersion!==undefined&&s.bootstrapVersion!==1)||(s.weatherVersion!==undefined&&s.weatherVersion!==1)||(s.productionVersion!==undefined&&s.productionVersion!==1)||(s.mapVersion!==undefined&&![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26].includes(s.mapVersion))||!TacticalAI.valid(s.ai,s.time,point,mapLayout(s.mapVersion??0).columns*mapLayout(s.mapVersion??0).rows)||!finite(s.seed)||!finite(s.time)||s.time<0||!finite(s.incomeClock)||s.incomeClock<0||s.incomeClock>=10||
       (s.supplyCaches!==undefined&&(!Array.isArray(s.supplyCaches)||
         s.supplyCaches.length>16||s.supplyCaches.some(c=>!c||
          !Number.isSafeInteger(c.id)||c.id<0||!finite(c.remaining)||
@@ -3132,7 +3188,7 @@ export class Simulation {
           !['rover','tank','artillery'].includes(u.kind)))||
         (u.autoAirfieldRepair!==undefined&&typeof u.autoAirfieldRepair!=='boolean')||
         (u.airfieldService!==undefined&&(!['bomber','scout'].includes(u.kind)||!validAirfieldService(u.airfieldService,mapWorldSize(s.mapVersion??0))))||
-        (u.mgCooldown!==undefined&&(!finite(u.mgCooldown)||u.mgCooldown<0||u.mgCooldown>1))||!burst(u.burst,u.kind==='infantry'||u.kind==='heavy'||u.kind==='scout'||u.kind==='rover'||u.kind===undefined?3:1)||!point(u)||![0,1].includes(u.owner)||(u.kind!==undefined&&!Object.hasOwn(UNITS,u.kind))||(u.driveSpeed!==undefined&&(!finite(u.driveSpeed)||u.driveSpeed<0||u.driveSpeed>unitSpec(u).speed*researchFor(u).speed))||!validBomberOrbit(u.idleOrbit,u.kind??'infantry',mapWorldSize(s.mapVersion??0))||(u.bomberRun!==undefined&&((u.kind??'infantry')!=='bomber'||!u.bomberRun||!Number.isInteger(u.bomberRun.target)||!Number.isInteger(u.bomberRun.leg)||u.bomberRun.leg<0||u.bomberRun.leg>3||!Array.isArray(u.bomberRun.waypoints)||u.bomberRun.waypoints.length!==3||u.bomberRun.waypoints.some(p=>!point(p))))||(u.hullAngle!==undefined&&!finite(u.hullAngle))||(u.pursuitOrigin!==undefined&&u.pursuitOrigin!==null&&!point(u.pursuitOrigin))||!finite(u.hp)||u.hp<=0||u.hp>(UNITS[u.kind??'infantry']?.hp??0)*researchFor(u).hp+1e-5||!Array.isArray(u.orders)||u.orders.length>32||u.orders.some(o=>!point(o)||(o.guardOnArrival!==undefined&&(o.kind!=='move'||typeof o.guardOnArrival!=='boolean'))||(o.rear!==undefined&&(!finite(o.rear)||o.rear<0||o.rear>400))||(o.tactical!==undefined&&((o.tactical.goal!==undefined&&!point(o.tactical.goal))||!Number.isInteger(o.tactical.group)||!['safe','assault','defend'].includes(o.tactical.mode)))||(o.march!==undefined&&(!Array.isArray(o.march)||o.march.length>96||o.march.some(id=>!Number.isInteger(id))))||(o.approach!==undefined&&!point(o.approach))||(o.healOrigin!==undefined&&!point(o.healOrigin))||(o.formation!==undefined&&(!Array.isArray(o.formation.front)||o.formation.front.length>96||o.formation.front.some(id=>!Number.isInteger(id))||!point(o.formation.origin)||!point(o.formation.goal)||!finite(o.formation.heading?.x)||!finite(o.formation.heading?.y)||Math.hypot(o.formation.heading.x,o.formation.heading.y)>1.001||!finite(o.formation.lane)||!finite(o.formation.rear)))||!['move','attackMove','attack','heal','repair','build','board','garrison'].includes(o.kind)||(['heal','repair','build','board','garrison'].includes(o.kind)&&!Number.isInteger(o.target))))||
+        (u.mgCooldown!==undefined&&(!finite(u.mgCooldown)||u.mgCooldown<0||u.mgCooldown>1))||!burst(u.burst,u.kind==='infantry'||u.kind==='heavy'||u.kind==='scout'||u.kind==='rover'||u.kind===undefined?3:1)||!point(u)||![0,1].includes(u.owner)||(u.kind!==undefined&&!Object.hasOwn(UNITS,u.kind))||(u.driveSpeed!==undefined&&(!finite(u.driveSpeed)||u.driveSpeed<0||u.driveSpeed>unitSpec(u).speed*researchFor(u).speed*groundSpeedRate(s.balancePreset??'classic',unitSpec(u).flying)))||!validBomberOrbit(u.idleOrbit,u.kind??'infantry',mapWorldSize(s.mapVersion??0))||(u.bomberRun!==undefined&&((u.kind??'infantry')!=='bomber'||!u.bomberRun||!Number.isInteger(u.bomberRun.target)||!Number.isInteger(u.bomberRun.leg)||u.bomberRun.leg<0||u.bomberRun.leg>3||!Array.isArray(u.bomberRun.waypoints)||u.bomberRun.waypoints.length!==3||u.bomberRun.waypoints.some(p=>!point(p))))||(u.hullAngle!==undefined&&!finite(u.hullAngle))||(u.pursuitOrigin!==undefined&&u.pursuitOrigin!==null&&!point(u.pursuitOrigin))||!finite(u.hp)||u.hp<=0||u.hp>(UNITS[u.kind??'infantry']?.hp??0)*researchFor(u).hp+1e-5||!Array.isArray(u.orders)||u.orders.length>32||u.orders.some(o=>!point(o)||(o.guardOnArrival!==undefined&&(o.kind!=='move'||typeof o.guardOnArrival!=='boolean'))||(o.rear!==undefined&&(!finite(o.rear)||o.rear<0||o.rear>400))||(o.tactical!==undefined&&((o.tactical.goal!==undefined&&!point(o.tactical.goal))||!Number.isInteger(o.tactical.group)||!['safe','assault','defend'].includes(o.tactical.mode)))||(o.march!==undefined&&(!Array.isArray(o.march)||o.march.length>96||o.march.some(id=>!Number.isInteger(id))))||(o.approach!==undefined&&!point(o.approach))||(o.healOrigin!==undefined&&!point(o.healOrigin))||(o.formation!==undefined&&(!Array.isArray(o.formation.front)||o.formation.front.length>96||o.formation.front.some(id=>!Number.isInteger(id))||!point(o.formation.origin)||!point(o.formation.goal)||!finite(o.formation.heading?.x)||!finite(o.formation.heading?.y)||Math.hypot(o.formation.heading.x,o.formation.heading.y)>1.001||!finite(o.formation.lane)||!finite(o.formation.rear)))||!['move','attackMove','attack','heal','repair','build','board','garrison'].includes(o.kind)||(['heal','repair','build','board','garrison'].includes(o.kind)&&!Number.isInteger(o.target))))||
       s.bases.some(b=>(b.garrison!==undefined&&
           (b.kind!=='bunker'||!Array.isArray(b.garrison)||
            b.garrison.length>BUNKER_CAPACITY||
@@ -3152,6 +3208,9 @@ export class Simulation {
         !validBastionUpgradeState(t)||!finite(t.progress)||t.progress<0||t.progress>8))throw new Error('Dieser Spielstand ist beschädigt oder gehört zu einer anderen Version.');
     const game=new Simulation(s.seed,s.mapVersion??0,weatherEnabled,s.bootstrapVersion===1,s.terrainProfile,s.generatorVersion??1);
     game.time=s.time;
+    game.balancePreset=s.balancePreset??'classic';
+    game.actionScanReadyAt=s.actionScanReadyAt??0;
+    game.actionScan=s.actionScan?structuredClone(s.actionScan):null;
     game.research=structuredClone(research) as [ResearchState,ResearchState];
     game.stats=s.stats?structuredClone(s.stats):newMatchStatistics();
     // v1 match statistics predate the rocket specialist. Supply its zero count
