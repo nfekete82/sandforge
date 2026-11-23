@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {planMultiplayerSetup} from '../dist/src/reborn/multiplayer-setup.js';
 import {
  factionHostile,factionFriendly,sectorCaptureAllowed,
- enemyTargetAllowed,observedHostiles,publicTeamTerritoryCounts
+ enemyTargetAllowed,observedHostiles,publicTeamTerritoryCounts,
+ resolveTeamCapturePresence
 } from '../dist/src/reborn/multiplayer-faction-rules.js';
 import {
  perPlayerSlots,createFactionRuntimeSlots,spendFactionCredits,grantFactionIncome
@@ -12,6 +13,7 @@ import {
  eliminationOutcome,resolveTeamElimination,hasFactionAssets
 } from '../dist/src/reborn/match-outcome.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
+import {canCaptureSector,captureSeconds} from '../dist/src/reborn/territory-warfare.js';
 
 const ffa=(n=4)=>planMultiplayerSetup({
  version:24,seed:4102,playerCount:n
@@ -189,4 +191,56 @@ test('live 1v1 Simulation uses separate buffers and remains playable',()=>{
  assert.notEqual(game.memories[0],game.memories[1]);
  for(let i=0;i<20;i++)game.step(.05);
  assert.equal(game.status,'playing');
+});
+
+test('authoritative Bastion ring accepts allied soldiers, rejects hostile contests',()=>{
+ const setup=teams();
+ const teamOf=id=>setup.slots[id].team;
+ const fighter=(owner,id)=>({owner,hp:100,kind:'infantry',id});
+ const allies=[fighter(0,3),fighter(1,4)];
+ assert.deepEqual(resolveTeamCapturePresence(allies,teamOf),
+  {claimant:0,contested:false});
+ assert.deepEqual(resolveTeamCapturePresence([...allies].reverse(),teamOf),
+  {claimant:0,contested:false},'claimant must not depend on iteration order');
+ assert.deepEqual(resolveTeamCapturePresence([fighter(1,4)],teamOf),
+  {claimant:1,contested:false});
+ assert.deepEqual(resolveTeamCapturePresence([fighter(0,3),fighter(2,4)],teamOf),
+  {claimant:-1,contested:true});
+ assert.deepEqual(resolveTeamCapturePresence([fighter(0,3),fighter(1,4),fighter(3,5)],teamOf),
+  {claimant:-1,contested:true});
+ assert.deepEqual(resolveTeamCapturePresence([
+  {...fighter(3,5),hp:0},{...fighter(2,4),kind:'drone'},
+  {...fighter(1,6),carrier:44},fighter(0,3)],teamOf),
+  {claimant:0,contested:false});
+ assert.deepEqual(resolveTeamCapturePresence([],teamOf),
+  {claimant:-1,contested:false});
+ const legacy=id=>id;
+ assert.deepEqual(resolveTeamCapturePresence([fighter(0,3),fighter(1,4)],legacy),
+  {claimant:-1,contested:true},
+  'classic 1v1 must keep the same blue/red contest rule');
+});
+
+test('team-safe sector legality and generalized 4-way recapture duration',()=>{
+ const teams2=teams(),teamOf=id=>teams2.slots[id].team;
+ const neutral={id:0,owner:-1,point:{x:0,y:0},neighbors:[],income:15};
+ const allied={...neutral,owner:1};
+ const enemy={...neutral,owner:3};
+ assert.equal(canCaptureSector([],neutral,0,24,teamOf),true);
+ assert.equal(canCaptureSector([],allied,0,24,teamOf),false);
+ assert.equal(canCaptureSector([],enemy,0,24,teamOf),true);
+ assert.equal(canCaptureSector([],enemy,3,24,teamOf),false);
+ assert.equal(canCaptureSector([],enemy,5,24,teamOf),false);
+ assert.equal(canCaptureSector([],enemy,-1,24,teamOf),false);
+ // The 4-way fast recapture uses the ACTUAL territory owner and physical
+ // defense rather than arithmetic '1-attacker' that only works in 1v1.
+ assert.equal(captureSeconds({
+  version:24,territory:enemy,attacker:0,units:[],bases:[]
+ }),5);
+ assert.equal(captureSeconds({
+  version:24,territory:enemy,attacker:0,
+  units:[{owner:3,hp:100,kind:'infantry',x:40,y:0}],bases:[]
+ }),8);
+ assert.equal(captureSeconds({
+  version:24,territory:neutral,attacker:0,units:[],bases:[]
+ }),8);
 });
