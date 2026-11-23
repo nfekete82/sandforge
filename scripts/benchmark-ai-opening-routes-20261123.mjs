@@ -25,10 +25,13 @@ function paidBlueHQ(g){
       g.build(0,'headquarters',point,[worker.id]))return;
   }
 }
-for(const id of ids){
+for(const mapRef of ids){
+ const [id,customSeed]=mapRef.split('@');
  const map=globalThis.SandforgeDesertMaps.byId(id);
  if(!map)throw Error('Unknown map '+id);
- const g=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion);
+ const seed=customSeed===undefined?map.seed:Number(customSeed);
+ if(!Number.isSafeInteger(seed)||seed<0)throw Error('Bad custom seed '+mapRef);
+ const g=Simulation.campaign(seed,map.mapVersion,map.terrain,map.generatorVersion);
  g.tactical.mode='director';
  let paths=0,firstRedCapture=null,firstRedFight=null,firstRedOrder=null;
  const path=g.world.path.bind(g.world);
@@ -62,7 +65,7 @@ for(const id of ids){
   }
   previousHp=new Map(g.units.map(u=>[u.id,{owner:u.owner,hp:u.hp}]));
  }
- const result={map:id,seed:map.seed,seconds,
+ const result={map:id,seed,seconds,
   played:Number(g.time.toFixed(2)),status:g.status,
   redOwned:g.territories.filter(t=>t.owner===1).length,
   blueOwned:g.territories.filter(t=>t.owner===0).length,
