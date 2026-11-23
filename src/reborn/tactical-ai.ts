@@ -219,7 +219,8 @@ export class TacticalAI {
   contactFront:{checked:0,eligible:0,rerouted:0,noRoute:0,
    firstRerouteAt:null as number|null,
    recoveryChecked:0,recoveryEligible:0,recoveryRerouted:0,
-   recoveryNoRoute:0,firstRecoveryAt:null as number|null},
+   recoveryNoRoute:0,firstRecoveryAt:null as number|null,
+   recoveryBlocks:{} as Record<string,number>},
   blocks:{} as Record<string,number>
  };
  /** Explicitly opt-in ONLY for headless benchmark observation. No saves. */
@@ -1765,6 +1766,10 @@ export class TacticalAI {
      d.firstRecoveryAt??=g.time;
     }
     else if(reason==='recovery-no-route')d.recoveryNoRoute++;
+    else if(reason.startsWith('recovery-block:')){
+     const cause=reason.slice('recovery-block:'.length);
+     d.recoveryBlocks[cause]=(d.recoveryBlocks[cause]??0)+1;
+    }
    },
    experience,
    route:p=>{const route=this.route(origin,p);return route.length?this.sampleRoute(route,origin):undefined;},
