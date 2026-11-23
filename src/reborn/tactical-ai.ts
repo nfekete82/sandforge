@@ -37,7 +37,7 @@ import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
-import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,ACTION_BALANCE} from './action-balance.js';
+import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,ACTION_BALANCE} from './action-balance.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -2326,13 +2326,21 @@ export class TacticalAI {
   };
   // This point is inside the 95-unit capture ring but well outside the
   // 3D Bastion's solid collider; validate a REAL walkable path to it.
+  // A* is expensive on a 16-Bastion map: cache only inside this planning pulse.
+  // A new pulse rechecks live units, terrain and collider state.
+  const approachCache=new Map<string,Point|null>();
   const approach=(u:Unit,t:typeof targets[number]):Point|undefined=>{
+   const key=u.id+':'+t.id;
+   if(approachCache.has(key))return approachCache.get(key)??undefined;
    const heading=Math.atan2(u.y-t.point.y,u.x-t.point.x);
    for(const delta of [0,.55,-.55,1.1,-1.1,1.65,-1.65,2.2,-2.2,Math.PI]){
     const angle=heading+delta;
     const p={x:t.point.x+82*Math.cos(angle),y:t.point.y+82*Math.sin(angle)};
-    if(g.world.walkable(p,blockers,5)&&g.world.path(u,p,blockers,5).length)return p;
+    if(g.world.walkable(p,blockers,5)&&g.world.path(u,p,blockers,5).length){
+     approachCache.set(key,p);return p;
+    }
    }
+   approachCache.set(key,null);
   };
   s.openingContests=(s.openingContests??[]).filter(e=>
    ready.some(u=>u.id===e.unitId)&&targets.some(t=>t.id===e.sectorId)&&
@@ -2348,23 +2356,25 @@ export class TacticalAI {
     frontierBlue:t.neighbors.some(id=>g.territories[id]?.owner===0),
     counter
    });
+  // Front pivots must be feasible for the actual assignable soldiers, not
+  // just ready[0] and any other unit (which may have an uninterruptible order).
+  const assignable=ready.filter(u=>!u.orders.length||!u.orders[0].tactical);
   let focusEnemyFront=false;
-  if(actionOpening&&counter&&ready.length>=4){
+  if(actionOpening&&counter&&assignable.length>=2){
    const candidates=targets.filter(t=>!observedThreat(t))
-    .map(t=>({t,p:approach(ready[0],t)})).filter(v=>Boolean(v.p));
+    .map(t=>{
+     const pair=selectReachableOpeningSquad(assignable,2,u=>Boolean(approach(u,t)));
+     const lead=pair[0];
+     return lead?{t,lead,p:approach(lead,t)!}:null;
+    }).filter((v):v is {t:typeof targets[number];lead:Unit;p:Point}=>v!==null);
    const neutralScore=Math.min(Infinity,...candidates.filter(v=>v.t.owner===-1)
-    .map(v=>actionMerit(ready[0],v.t,v.p!)));
-   // On the 16-Bastion battlefield, adjacent enemy territory may be
-   // materially farther away than another uncontested neutral objective.
-   // Accept a modest strategic detour to establish a meaningful front;
-   // keep the narrower threshold on the smaller, faster combat maps.
+    .map(v=>actionMerit(v.lead,v.t,v.p)));
    const frontierBias=g.territories.length>=16?420:120;
    focusEnemyFront=candidates.some(v=>v.t.owner===0&&
-    actionMerit(ready[0],v.t,v.p!)<=neutralScore+frontierBias&&
-    ready.slice(1,5).some(u=>Boolean(approach(u,v.t))));
+    actionMerit(v.lead,v.t,v.p)<=neutralScore+frontierBias);
   }
-  // Reallocate an old neutral scout pair once to the attainable public
-  // front. Existing BLUE-directed orders are preserved for path continuity.
+  // Reallocate old neutral scouts only when a real, independently reachable
+  // two-fighter attack can replace them. Never churn routes on a failed pivot.
   if(focusEnemyFront&&!s.openingContests.some(e=>
     g.territories[e.sectorId]?.owner===0))s.openingContests=[];
   const reserved=new Set(s.openingContests.map(e=>e.unitId));
@@ -2375,34 +2385,42 @@ export class TacticalAI {
    const p=approach(u,t);
    if(p)g.command([u.id],{...p,kind:'attackMove'});
   }
-  const free=ready.filter(u=>!reserved.has(u.id)&&
-   (!u.orders.length||!u.orders[0].tactical));
-  // Need a real two-soldier counterattack. Ordinary expansion can send one
-  // scout first and a second independent scout when paid infantry exists.
+  const free=assignable.filter(u=>!reserved.has(u.id));
+  // A counterattack requires two fighters who can both reach the SAME goal.
+  // Selecting free[0]/free[1] first can silently discard an otherwise viable
+  // front whenever one of those soldiers is trapped behind a plateau.
   while(s.openingContests.length<maxAssigned&&free.length>=(counter?2:1)){
-   // Counter detachments must have TWO paid fighters, never silently exceed
-   // the four-slot state/save cap when an existing one-soldier probe remains.
    const count=counter?2:1;
    if(maxAssigned-s.openingContests.length<count)break;
-   const squad=free.splice(0,count);
    const goals=targets.filter(t=>!observedThreat(t)&&
      (!focusEnemyFront||t.owner===0)&&
      (counter||!s.openingContests!.some(e=>e.sectorId===t.id)))
-    .map(t=>({t,p:approach(squad[0],t)})).filter(x=>x.p)
+    .map(t=>{
+     const squad=actionOpening
+      ?selectReachableOpeningSquad(free,count,u=>Boolean(approach(u,t)))
+      :free.slice(0,count);
+     const p=squad.length===count?approach(squad[0],t):undefined;
+     return {t,p,squad};
+    }).filter(x=>Boolean(x.p)&&x.squad.length===count)
     .sort((a,b)=>{
      const merit=(v:typeof a)=>actionOpening
-      ?actionMerit(squad[0],v.t,v.p!)
-      :distance(squad[0],v.p!)-v.t.income*8-
+      ?actionMerit(v.squad[0],v.t,v.p!)
+      :distance(v.squad[0],v.p!)-v.t.income*8-
        (adaptiveLarge&&counter&&v.t.owner===0?700:0);
      return merit(a)-merit(b)||a.t.id-b.t.id;
     });
-   const best=goals.find(x=>squad.every(u=>approach(u,x.t)));
+   const best=goals.find(x=>x.squad.every(u=>Boolean(approach(u,x.t))));
    if(!best)break;
-   for(const u of squad){
+   let issued=0;
+   for(const u of best.squad){
     const point=approach(u,best.t)!;
-    if(g.command([u.id],{...point,kind:'attackMove'}))
+    if(g.command([u.id],{...point,kind:'attackMove'})){
      s.openingContests.push({unitId:u.id,sectorId:best.t.id,since:g.time});
+     free.splice(free.indexOf(u),1);
+     issued++;
+    }
    }
+   if(!issued)break; // Failed orders must never spin forever in the same pulse.
   }
   return new Set(s.openingContests.map(e=>e.unitId));
  }
