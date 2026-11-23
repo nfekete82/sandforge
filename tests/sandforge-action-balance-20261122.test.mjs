@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure,actionPublicFrontPressure}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure,actionPublicFrontPressure,actionTerritoryRecoveryPolicy}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -375,4 +375,30 @@ test('Pacing report separates true paid infantry fights from drone warning shots
  assert.match(s,/groundShotsByFactionDelta:/);
  assert.match(s,/firstFireEvents:/);
  assert.match(s,/sourceType:source&&'orders' in source\?'unit':'base'/);
+});
+
+test('Action recovers a PUBLIC territorial deficit without revealing unseen enemies',()=>{
+ const base={
+  preset:'action',mapVersion:24,time:360,ownSectors:2,enemySectors:6,
+  available:7,oldKind:'capture',oldNeutral:true,oldMissionSeconds:35,
+  oldCaptureOccupied:false,activeAssault:false,homeThreat:false
+ };
+ assert.equal(actionTerritoryRecoveryPolicy(base),true);
+ for(const override of [
+  {preset:'classic'},{mapVersion:11},{time:120},
+  {ownSectors:4,enemySectors:4},{ownSectors:4,enemySectors:5},
+  {enemySectors:2},{available:3},{oldKind:'structure'},
+  {oldNeutral:false},{oldMissionSeconds:12},{oldCaptureOccupied:true},
+  {activeAssault:true},{homeThreat:true}
+ ])assert.equal(actionTerritoryRecoveryPolicy({...base,...override}),false,
+  'protects legitimate attack or home guard: '+JSON.stringify(override));
+ const commander=readFileSync('src/reborn/campaign-commander.ts','utf8');
+ assert.match(commander,/actionTerritoryRecoveryPolicy\(/);
+ assert.match(commander,/knownThreat:t=>t\.owner!==0\|\|!actionFront\(t\)/);
+ assert.match(commander,/\.filter\(t=>t\.route\.risk<7&&t\.detour<2\.8\)/);
+ assert.match(commander,/context\.actionContactEvent\?\.\('recovery-rerouted'\)/);
+ assert.match(commander,/oldCaptureOccupied:context\.force\.some/);
+ const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(ai,/firstRecoveryAt\?\?=g\.time/);
+ assert.match(ai,/recoveryNoRoute/);
 });
