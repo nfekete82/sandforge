@@ -23,7 +23,7 @@ import {homeDefensePlan} from './home-defense-doctrine.js';
 import {hqLastStandDecision} from './ai-hq-last-stand.js';
 import {chooseSiegeShot,chooseRaidFront,allowSecondaryPressure,type SiegeShot,type RaidFront} from './ai25-doctrine.js';
 import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefenseMultiplier} from './ai32-doctrine.js';
-import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,openingScoutNeedsCaptureMove,type AI33Mode} from './ai33-map-doctrine.js';
+import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,openingScoutNeedsCaptureMove,openingCaptureRouteLength,openingCaptureRouteScore,type AI33Mode} from './ai33-map-doctrine.js';
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad,canyonPassWaypoint} from './ai36-terrain-routes.js';
@@ -2337,13 +2337,28 @@ export class TacticalAI {
    seen.some(u=>distance(u,t.point)<330);
   // This point is inside the 95-unit capture ring but well outside the
   // 3D Bastion's solid collider; validate a REAL walkable path to it.
-  const approach=(u:Unit,t:typeof targets[number]):Point|undefined=>{
+  // A target may look close in a straight line yet require a 2 km canyon
+  // detour. Reuse the very same complete A* route that proves this early
+  // capture is physically reachable, instead of ranking by Euclidean distance.
+  // Keep one memo entry per (paid unit, public Bastion) in this planning pulse:
+  // two-soldier counters used to repeat each expensive query several times.
+  const routedOpening=g.world.mapVersion>=24&&g.world.generatorVersion>=7;
+  const candidateCache=new Map<string,{point:Point;length:number}|null>();
+  const approach=(u:Unit,t:typeof targets[number]):{point:Point;length:number}|undefined=>{
+   const key=u.id+':'+t.id;
+   if(candidateCache.has(key))return candidateCache.get(key)??undefined;
    const heading=Math.atan2(u.y-t.point.y,u.x-t.point.x);
    for(const delta of [0,.55,-.55,1.1,-1.1,1.65,-1.65,2.2,-2.2,Math.PI]){
     const angle=heading+delta;
-    const p={x:t.point.x+82*Math.cos(angle),y:t.point.y+82*Math.sin(angle)};
-    if(g.world.walkable(p,blockers,5)&&g.world.path(u,p,blockers,5).length)return p;
+    const point={x:t.point.x+82*Math.cos(angle),y:t.point.y+82*Math.sin(angle)};
+    if(!g.world.walkable(point,blockers,5))continue;
+    const route=g.world.path(u,point,blockers,5);
+    if(!route.length)continue;
+    const length=openingCaptureRouteLength(u,point,route,g.world.cell);
+    if(!Number.isFinite(length))continue;
+    const resolved={point,length};candidateCache.set(key,resolved);return resolved;
    }
+   candidateCache.set(key,null);
   };
   s.openingContests=(s.openingContests??[]).filter(e=>
    ready.some(u=>u.id===e.unitId)&&targets.some(t=>t.id===e.sectorId)&&
@@ -2357,8 +2372,8 @@ export class TacticalAI {
     capturePresenceRadius:capturePresenceRadius(g.world.mapVersion),
     existingCaptureOrder:o?.kind==='attackMove'&&distance(o,t.point)<105
    }))continue;
-   const p=approach(u,t);
-   if(p)g.command([u.id],{...p,kind:'attackMove'});
+   const destination=approach(u,t);
+   if(destination)g.command([u.id],{...destination.point,kind:'attackMove'});
   }
   const free=ready.filter(u=>!reserved.has(u.id)&&
    (!u.orders.length||!u.orders[0].tactical));
@@ -2370,16 +2385,18 @@ export class TacticalAI {
      (counter||!s.openingContests!.some(e=>e.sectorId===t.id)))
     .map(t=>({t,p:approach(squad[0],t)})).filter(x=>x.p)
     .sort((a,b)=>{
-     const merit=(v:typeof a)=>
-      distance(squad[0],v.p!)-v.t.income*8-
-      (adaptiveLarge&&counter&&v.t.owner===0?700:0);
+     const merit=(v:typeof a)=>openingCaptureRouteScore({
+      distance:routedOpening?v.p!.length:distance(squad[0],v.p!.point),
+      income:v.t.income,enemyOwned:v.t.owner===0,
+      aggressiveRecapture:adaptiveLarge&&counter
+     });
      return merit(a)-merit(b)||a.t.id-b.t.id;
     });
    const best=goals.find(x=>squad.every(u=>approach(u,x.t)));
    if(!best)break;
    for(const u of squad){
-    const point=approach(u,best.t)!;
-    if(g.command([u.id],{...point,kind:'attackMove'}))
+    const destination=approach(u,best.t)!;
+    if(g.command([u.id],{...destination.point,kind:'attackMove'}))
      s.openingContests.push({unitId:u.id,sectorId:best.t.id,since:g.time});
    }
   }
