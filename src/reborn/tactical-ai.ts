@@ -23,7 +23,7 @@ import {homeDefensePlan} from './home-defense-doctrine.js';
 import {hqLastStandDecision} from './ai-hq-last-stand.js';
 import {chooseSiegeShot,chooseRaidFront,allowSecondaryPressure,type SiegeShot,type RaidFront} from './ai25-doctrine.js';
 import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefenseMultiplier} from './ai32-doctrine.js';
-import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,openingScoutNeedsCaptureMove,openingCaptureRouteLength,openingCaptureRouteScore,type AI33Mode} from './ai33-map-doctrine.js';
+import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,openingScoutNeedsCaptureMove,openingCaptureRouteLength,openingCaptureRouteScore,openingCaptureDecisionDistance,type AI33Mode} from './ai33-map-doctrine.js';
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad,canyonPassWaypoint} from './ai36-terrain-routes.js';
@@ -2386,7 +2386,10 @@ export class TacticalAI {
     .map(t=>({t,p:approach(squad[0],t)})).filter(x=>x.p)
     .sort((a,b)=>{
      const merit=(v:typeof a)=>openingCaptureRouteScore({
-      distance:routedOpening?v.p!.length:distance(squad[0],v.p!.point),
+      distance:routedOpening
+       ?openingCaptureDecisionDistance(distance(squad[0],v.p!.point),
+          v.p!.length,g.world.cell)
+       :distance(squad[0],v.p!.point),
       income:v.t.income,enemyOwned:v.t.owner===0,
       aggressiveRecapture:adaptiveLarge&&counter
      });
