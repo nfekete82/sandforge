@@ -396,7 +396,8 @@ export class World {
   // field for every A* query. Especially valuable with many moving tanks,
   // high terrain variation and 4× gameplay speed.
   private pathWorkspace?:{costs:Float64Array;prev:Int32Array;closed:Uint32Array;
-    walkable:Int8Array;seen:Uint32Array;walkEpoch:Uint32Array};
+    walkable:Int8Array;seen:Uint32Array;walkEpoch:Uint32Array;
+    heuristic:Float64Array;heuristicEpoch:Uint32Array};
   private pathEpoch=0;
   /** Static, per-vehicle physical pass viability. Calculated at most once
    * for each direction/footprint/slope; unlike runtime movement it ignores
@@ -484,10 +485,11 @@ export class World {
     if(s<0||goal<0)return [];
     const workspace=this.pathWorkspace??={costs:new Float64Array(n),prev:new Int32Array(n),
       closed:new Uint32Array(n),walkable:new Int8Array(n),
-      seen:new Uint32Array(n),walkEpoch:new Uint32Array(n)};
-    const {costs,prev,closed,walkable,seen,walkEpoch}=workspace;
+      seen:new Uint32Array(n),walkEpoch:new Uint32Array(n),
+      heuristic:new Float64Array(n),heuristicEpoch:new Uint32Array(n)};
+    const {costs,prev,closed,walkable,seen,walkEpoch,heuristic,heuristicEpoch}=workspace;
     let epoch=(this.pathEpoch+1)>>>0;
-    if(!epoch){seen.fill(0);closed.fill(0);walkEpoch.fill(0);epoch=1;}
+    if(!epoch){seen.fill(0);closed.fill(0);walkEpoch.fill(0);heuristicEpoch.fill(0);epoch=1;}
     this.pathEpoch=epoch;
     const cellCost=(i:number)=>seen[i]===epoch?costs[i]:Infinity;
     const setCost=(i:number,c:number)=>{seen[i]=epoch;costs[i]=c;};
@@ -502,7 +504,18 @@ export class World {
     // These parallel numeric heaps are LOCAL to the call: recursive pass
     // verification cannot corrupt another A* search's priority queue.
     const heapIndex:number[]=[],heapPriority:number[]=[];
-    const h=(i:number)=>Math.hypot(i%RULES.grid-goal%RULES.grid,Math.floor(i/RULES.grid)-Math.floor(goal/RULES.grid));
+    // Identical floating-point A* heuristic, memoized only WITHIN the
+    // current search epoch. A cell reinserted by multiple predecessors
+    // no longer recomputes hypot. A new target/search gets a new epoch;
+    // no route score or priority semantics can carry across searches.
+    const h=(i:number):number=>{
+      if(heuristicEpoch[i]!==epoch){
+        heuristicEpoch[i]=epoch;
+        heuristic[i]=Math.hypot(i%RULES.grid-goal%RULES.grid,
+          Math.floor(i/RULES.grid)-Math.floor(goal/RULES.grid));
+      }
+      return heuristic[i];
+    };
     const push=(i:number,f:number):void=>{
       let k=heapIndex.length;heapIndex.push(i);heapPriority.push(f);
       while(k>0){
