@@ -22,6 +22,55 @@ export function mesaLocation(p:Point,mesa:RaisedMesa){
  const lateral=Math.abs(dx*mesa.direction.y-dy*mesa.direction.x);
  return {radius,along,lateral,angle};
 }
+/** A physical, staged approach via a REAL authored vehicle ramp.
+ * A* otherwise returns a short partial route to the nearest cliff lip and
+ * tanks drive into that same inaccessible edge for the rest of the game.
+ *
+ * This is stateless: location determines the current ramp stage. Never invent
+ * an entrance, ignore cliff collision, or modify historical generator maps.
+ * The caller must verify full vehicle clearance and real terrain slope.
+ */
+export function raisedMesaRouteWaypoint(
+ from:Point,goal:Point,mesas:readonly RaisedMesa[],
+ valid:(p:Point)=>boolean
+):Point|undefined {
+ const d=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.y-b.y);
+ for(const mesa of mesas){
+  const startRadius=d(from,mesa.center),goalRadius=d(goal,mesa.center);
+  const onTop=startRadius<mesa.topRadius*.96;
+  const targetOnTop=goalRadius<mesa.topRadius*.96;
+  if(onTop&&targetOnTop)continue;
+  // Do not detour for a harmless remote mesa. The straight start-to-goal
+  // segment must touch the actual rim, or the vehicle must start inside.
+  const dx=goal.x-from.x,dy=goal.y-from.y,den=dx*dx+dy*dy;
+  const t=den>0?Math.max(0,Math.min(1,
+   ((mesa.center.x-from.x)*dx+(mesa.center.y-from.y)*dy)/den)):0;
+  const approach={x:from.x+dx*t,y:from.y+dy*t};
+  if(!onTop&&!targetOnTop&&d(approach,mesa.center)>mesa.footRadius-45)
+   continue;
+  const candidates=mesaRampDirections(mesa).map(direction=>{
+   // Both samples lie in the authored low-grade ramp corridor, rather than
+   // on a guessed radial shortcut or an impassable rock-cliff triangle.
+   const outer={x:mesa.center.x+direction.x*(mesa.rampEnd-140),
+    y:mesa.center.y+direction.y*(mesa.rampEnd-140)};
+   const inner={x:mesa.center.x+direction.x*mesa.topRadius*.75,
+    y:mesa.center.y+direction.y*mesa.topRadius*.75};
+   return {outer,inner};
+  }).filter(x=>valid(x.outer)&&valid(x.inner));
+  if(!candidates.length)continue;
+  // Approaching from the valley: pick a reachable nearby entrance. Once
+  // there, drive INSIDE the actual cut ramp before seeking the goal again.
+  // Driving off the summit: choose the exit nearest the destination.
+  candidates.sort((a,b)=>onTop?
+   d(a.outer,goal)-d(b.outer,goal)||d(a.inner,from)-d(b.inner,from):
+   d(a.outer,from)-d(b.outer,from)||d(a.inner,goal)-d(b.inner,goal));
+  const chosen=candidates[0];
+  if(onTop)return d(from,chosen.inner)>105?chosen.inner:chosen.outer;
+  return d(from,chosen.outer)>105?chosen.outer:chosen.inner;
+ }
+ return undefined;
+}
+
 /** Explicit multi-entry plateaus are opt-in for v10; old saves still
  * have the original single direction and regenerate byte-identically. */
 export function mesaRampDirections(mesa:RaisedMesa):readonly Point[]{
