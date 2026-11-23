@@ -1859,18 +1859,22 @@ export class TacticalAI {
    const obstacles=[...this.obstacles(),...g.bastionColliders()];
    const leaders=pool.slice().sort((a,b)=>distance(a,mission)-distance(b,mission)||a.id-b.id).slice(0,6);
    for(const leader of leaders){
-    if(distance(leader,s.rally)<330||
-       distance(leader,mission)+230>=distance(s.rally,mission))continue;
+    // 330m displacement plus 230m strictly closer excluded every tested
+    // front, including actual squads already ahead of their old rally.
+    // Two physically pathable soldiers and 80m genuine forward progress
+    // are enough for an unguarded neutral capture, never for a siege.
+    if(distance(leader,s.rally)<140||
+       distance(leader,mission)+80>=distance(s.rally,mission))continue;
     this.actionRallyDiagnostics.leadForward++;
     const cluster=pool.filter(u=>distance(u,leader)<=270);
-    if(cluster.length<3)continue;
+    if(cluster.length<2)continue;
     this.actionRallyDiagnostics.clusters++;
     const candidate=g.world.nearest(leader,obstacles,[],undefined,10);
     if(!candidate||distance(candidate,leader)>75||
        !g.world.walkable(candidate,obstacles,10)||this.danger(candidate)>2)continue;
     const reachableCluster=cluster.filter(u=>distance(u,candidate)<20||
      g.world.path(u,candidate,obstacles,5).length>0);
-    if(reachableCluster.length<3)continue;
+    if(reachableCluster.length<2)continue;
     this.actionRallyDiagnostics.clusterPaths++;
     // The Bastion's solid center is NOT a legitimate path target.
     // Validate the full physical route to a free point inside its ring.
