@@ -1836,7 +1836,7 @@ export class TacticalAI {
    const d=this.actionRallyDiagnostics;
    const reason=s.phase==='attack'||s.phase==='defend'?'active-'+s.phase:
     mission.kind!=='capture'?'mission-'+mission.kind:
-    mainFighters.length<3?'few-fighters':
+    mainFighters.length<2?'few-fighters':
     observedHomePressure?'home-threat':
     towers.length+visible.length>0?'observed-threat':
     recentLosses>0?'recent-loss':
