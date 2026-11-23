@@ -1,0 +1,32 @@
+✔ authored building facade gets subtle face shadow after existing camouflage, without replacing PBR maps (1.390666ms)
+✔ shading keeps a previously installed camouflage callback and skips translucent windows (0.2775ms)
+✔ render-only facade finish is applied to actual building GLBs and has zero gameplay state (0.683042ms)
+✔ visual heading takes the short arc across +/-PI and is frame-rate independent (0.685417ms)
+✔ terrain support follows both axes, caches parked actors and never writes simulation (0.879791ms)
+✔ lite mode never adds terrain queries; invalid displacement resets without NaNs (0.08625ms)
+✔ cannon recoil has a fast small kick and a slow exact return (0.060125ms)
+✔ smoke smoothly dissipates within its original footprint, flash has immediate onset (0.073875ms)
+✔ particle opacity is one bounded instanced attribute applied before alpha test (0.379417ms)
+✔ headquarters: full UV PBR and shader survive normal gameplay finish (0.626708ms)
+✔ headquarters: full UV PBR and shader survive moving ghost finish (0.135917ms)
+✔ barracks: full UV PBR and shader survive normal gameplay finish (0.112667ms)
+✔ barracks: full UV PBR and shader survive moving ghost finish (0.514917ms)
+✔ factory: full UV PBR and shader survive normal gameplay finish (0.072541ms)
+✔ factory: full UV PBR and shader survive moving ghost finish (0.067667ms)
+✔ airfield: full UV PBR and shader survive normal gameplay finish (0.068792ms)
+✔ airfield: full UV PBR and shader survive moving ghost finish (0.071417ms)
+✔ new visual modules ship and source GLB generation still targets dist only (0.163708ms)
+✔ light-only facade depth preserves custom PBR shader hooks and material sharing (0.958041ms)
+✔ legacy fallback surfaces have real mipmapped UV albedo, normal and roughness maps (16.355125ms)
+✔ vehicle support spreads convoy resampling and skips level service platforms (0.117666ms)
+✔ stationary Humvees never rotate tyres just because movement is ordered (0.555709ms)
+✔ vehicle wheel motion requires actual valid 20-Hz distance (0.056375ms)
+✔ factory shutter animation alone does not rotate any wheels (0.043833ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 105.975875

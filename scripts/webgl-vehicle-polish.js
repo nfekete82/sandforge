@@ -18,7 +18,7 @@ export function vehiclePose(entry,unit,{x,z,heightAt,time,dt,active,lite=false})
  let p=entry.vehiclePose;
  if(!p||!valid){
   p=entry.vehiclePose={yaw,aim:unit.angle,speed:0,pitch:0,roll:0,
-   terrainPitch:0,terrainRoll:0,sampleAt:-Infinity,sampleX:NaN,sampleZ:NaN,sampleYaw:NaN};
+   terrainPitch:0,terrainRoll:0,sampleAt:-Infinity,nextSampleAt:-Infinity,sampleX:NaN,sampleZ:NaN,sampleYaw:NaN};
  }
  if(!active||!(dt>0))return p;
  const step=Math.min(.08,dt),weight=1-Math.exp(-step*12);
@@ -29,15 +29,18 @@ export function vehiclePose(entry,unit,{x,z,heightAt,time,dt,active,lite=false})
  // Four support points, at most 10 Hz per visible moving actor. A parked
  // actor and lite mode require no extra terrain queries. Service platforms
  // remain level and use the existing service-ground transition.
+ const service=unit.factoryService||unit.airfieldService||entry.productionMotion;
  const moved=Math.hypot(x-p.sampleX,z-p.sampleZ);
- if(!lite&&time-p.sampleAt>=.10&&(!Number.isFinite(p.sampleX)||moved>2||Math.abs(angleDelta(p.sampleYaw,p.yaw))>.06)){
+ if(!lite&&!service&&time+1e-9>=p.nextSampleAt&&(!Number.isFinite(p.sampleX)||moved>2||Math.abs(angleDelta(p.sampleYaw,p.yaw))>.06)){
   const length=clamp((entry.modelFootprint??76)*.32,15,34),width=length*.62;
   const sx=Math.sin(p.yaw),cz=Math.cos(p.yaw);
   p.terrainPitch=clamp(-Math.atan2(heightAt(x+sx*length,z+cz*length)-heightAt(x-sx*length,z-cz*length),2*length),-.30,.30);
   p.terrainRoll=clamp(Math.atan2(heightAt(x+cz*width,z-sx*width)-heightAt(x-cz*width,z+sx*width),2*width),-.24,.24);
+  // Spread the first resample over two 20-Hz ticks instead of making an
+  // entire convoy evaluate its support points on the same simulation tick.
+  p.nextSampleAt=time+.10+(!Number.isFinite(p.sampleX)?((unit.id??0)&1)*.05:0);
   p.sampleAt=time;p.sampleX=x;p.sampleZ=z;p.sampleYaw=p.yaw;
  }
- const service=unit.factoryService||unit.airfieldService||entry.productionMotion;
  const ride=unit.kind==='tank'?.48:unit.kind==='artillery'?.75:1;
  const brake=clamp((oldSpeed-p.speed)*.0005,-.012,.012)*ride;
  const bank=clamp(angleDelta(oldYaw,p.yaw)*p.speed*.002,-.016,.016)*ride;

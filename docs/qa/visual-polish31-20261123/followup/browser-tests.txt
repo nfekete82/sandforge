@@ -1,0 +1,13 @@
+
+Running 2 tests using 1 worker
+
+(node:42895) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/2] tests/browser/webgl-combat-vfx.spec.mjs:5:1 › WebGL 3D combat smoke, fire, scorch, tank tracks and wrecks draw from gameplay events
+[2/2] tests/browser/webgl-visual-polish31.spec.mjs:3:1 › visual 3.1: slope support, mechanical recoil, pause and bounded particle fade in the real renderer
+tests/browser/webgl-visual-polish31.spec.mjs:3:1 › visual 3.1: slope support, mechanical recoil, pause and bounded particle fade in the real renderer
+VISUAL_POLISH31 {"onSlope":{"pitch":0.24045005102840325,"roll":0.01872432990196363},"change":0.04681433232707022,"aimCallsPerFrame":1,"reusableRange":true,"cachedInput":true,"noSimulationChange":true,"kick":0.09999999999999996,"body":true,"paused":true,"returned":0,"early":1,"late":0.13518434762954712,"count":1,"empty":0,"shockEarly":0.6334860324859619,"shockLate":0.23990003764629364,"shockOpacity":0.25,"glError":0}
+
+  2 passed (6.2s)

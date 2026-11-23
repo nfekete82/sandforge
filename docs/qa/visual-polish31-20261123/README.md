@@ -66,7 +66,10 @@ Keine neuen sichtbaren 3D-Assets oder Render-Passes. Bestehende unvollständige
 Altmaterialien außerhalb des eng begrenzten Fassadenpasses werden nicht als
 vollständig überarbeitet ausgegeben.
 
-## Identischer Browservergleich
+**Aktueller Nachtrag:** [Frame-Spikes, finale Optimierungen und aktuelle Tests](followup/README.md).
+Die folgenden Messungen und Bilder dokumentieren den ursprünglichen Commit `8512c9e8`.
+
+## Identischer Browservergleich (`8512c9e8`)
 
 Chrome headless, ANGLE Metal / **Apple M5 Max**, 1440 × 900, DPR 1,
 normaler RTS-Zoom **0,59**, identische Kamera und Tagesbeleuchtung,
@@ -126,7 +129,7 @@ Gebäude in allen möglichen Zuständen.
 - [Kurzer Mitschnitt des echten Gefechtsreplays](desert-strike-after-animation.webm)
 - [Messwerte mit zeitlichem Animationsverlauf und Simulationszuständen](measurements.json)
 
-## Technische Validierung
+## Technische Validierung (`8512c9e8`)
 
 - `npm run build`: TypeScript und kompletter WebGL-Build bestanden; Startup-
   Modulgraph geprüft. Keine versionierten GLB-Änderungen durch den Build.

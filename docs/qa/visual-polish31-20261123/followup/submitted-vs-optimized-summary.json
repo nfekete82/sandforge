@@ -1,0 +1,1367 @@
+{
+  "note": "RAF intervals reflect preceding-frame work; AI and vision timings are nested and must not be added to simulation. Heap changes do not prove GC causality.",
+  "groups": [
+    {
+      "map": "desert-strike",
+      "variant": "submitted",
+      "runs": 2,
+      "fpsMedian": 59.790575409132636,
+      "lowFpsMedian": 38.24540771800588,
+      "workMsMedian": 10.327943755369404,
+      "syncMsMedian": 0.25061509563130946,
+      "effectsMsMedian": 0.06792620363889135
+    },
+    {
+      "map": "desert-strike",
+      "variant": "optimized",
+      "runs": 2,
+      "fpsMedian": 59.7934029978377,
+      "lowFpsMedian": 38.010804008208794,
+      "workMsMedian": 10.205448161948125,
+      "syncMsMedian": 0.24068544242000747,
+      "effectsMsMedian": 0.0703866611675135
+    },
+    {
+      "map": "broken-empire",
+      "variant": "submitted",
+      "runs": 2,
+      "fpsMedian": 59.68521053830143,
+      "lowFpsMedian": 35.40919609205784,
+      "workMsMedian": 9.823374340949034,
+      "syncMsMedian": 0.23224951680389566,
+      "effectsMsMedian": 0.07398942694303651
+    },
+    {
+      "map": "broken-empire",
+      "variant": "optimized",
+      "runs": 2,
+      "fpsMedian": 59.686462517573844,
+      "lowFpsMedian": 35.207195993401356,
+      "workMsMedian": 9.74701229759176,
+      "syncMsMedian": 0.23365553778797543,
+      "effectsMsMedian": 0.07003518357637267
+    }
+  ],
+  "runs": [
+    {
+      "map": "desert-strike",
+      "variant": "submitted",
+      "trial": 0,
+      "frames": 569,
+      "fps": 59.79214610900315,
+      "lowFps": 37.831021574067364,
+      "intervals": {
+        "mean": 16.72460456891722,
+        "p95": 16.800000190734863,
+        "p99": 16.90000009536743,
+        "max": 55.299999713897705
+      },
+      "phases": {
+        "simulationMs": {
+          "mean": 0.20333918787683042,
+          "p95": 0.5999999046325684,
+          "p99": 1.3999996185302734,
+          "max": 42.799999713897705
+        },
+        "syncMs": {
+          "mean": 0.2516695736581705,
+          "p95": 0.5,
+          "p99": 0.6999998092651367,
+          "max": 1.9000000953674316
+        },
+        "effectsMs": {
+          "mean": 0.06432339177190315,
+          "p95": 0.19999980926513672,
+          "p99": 0.2999997138977051,
+          "max": 0.5
+        },
+        "emissionMs": {
+          "mean": 0.0012302298118443817,
+          "p95": 0,
+          "p99": 0.09999990463256836,
+          "max": 0.20000028610229492
+        },
+        "renderMs": {
+          "mean": 9.942882253750765,
+          "p95": 11.199999809265137,
+          "p99": 11.799999713897705,
+          "max": 12.5
+        },
+        "workMs": {
+          "mean": 10.466432336763674,
+          "p95": 11.800000190734863,
+          "p99": 12.799999713897705,
+          "max": 55
+        }
+      },
+      "over25ms": 1,
+      "longTasks": [
+        [
+          6882.900000095367,
+          55
+        ]
+      ],
+      "slowest": [
+        {
+          "frame": 181,
+          "clock": 3.049999999999997,
+          "intervalMs": 55.299999713897705,
+          "previousWork": {
+            "simulationMs": 42.799999713897705,
+            "syncMs": 1.9000000953674316,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 10.200000286102295,
+            "workMs": 55
+          },
+          "aiMs": 42.40000009536743,
+          "visionMs": 2.3000001907348633,
+          "heapDeltaMiB": 0,
+          "particles": 693
+        },
+        {
+          "frame": 188,
+          "clock": 3.149999999999997,
+          "intervalMs": 24.59999990463257,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.6999998092651367,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 12.099999904632568,
+            "workMs": 12.899999618530273
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 11.70144271850586,
+          "particles": 650
+        },
+        {
+          "frame": 184,
+          "clock": 3.099999999999997,
+          "intervalMs": 23.299999713897705,
+          "previousWork": {
+            "simulationMs": 1.3999996185302734,
+            "syncMs": 0.7000002861022949,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 9.800000190734863,
+            "workMs": 12
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 28.43128204345703,
+          "particles": 685
+        },
+        {
+          "frame": 183,
+          "clock": 3.049999999999997,
+          "intervalMs": 21.5,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.19999980926513672,
+            "effectsMs": 0.19999980926513672,
+            "emissionMs": 0,
+            "renderMs": 10.800000190734863,
+            "workMs": 11.199999809265137
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 675
+        },
+        {
+          "frame": 291,
+          "clock": 4.849999999999991,
+          "intervalMs": 17,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.5999999046325684,
+            "effectsMs": 0,
+            "emissionMs": 0,
+            "renderMs": 10.600000381469727,
+            "workMs": 11.200000286102295
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 380
+        },
+        {
+          "frame": 87,
+          "clock": 1.4500000000000006,
+          "intervalMs": 16.90000009536743,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.19999980926513672,
+            "effectsMs": 0.10000038146972656,
+            "emissionMs": 0,
+            "renderMs": 10.399999618530273,
+            "workMs": 10.699999809265137
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 390
+        }
+      ],
+      "drawCalls": 6102.244288224956,
+      "triangles": 1631648.0843585238
+    },
+    {
+      "map": "desert-strike",
+      "variant": "optimized",
+      "trial": 1,
+      "frames": 569,
+      "fps": 59.7971730334717,
+      "lowFps": 37.974683315091895,
+      "intervals": {
+        "mean": 16.723198594024606,
+        "p95": 17.5,
+        "p99": 17.700000286102295,
+        "max": 56
+      },
+      "phases": {
+        "simulationMs": {
+          "mean": 0.20351493714773383,
+          "p95": 0.5999999046325684,
+          "p99": 1.5,
+          "max": 42.5
+        },
+        "syncMs": {
+          "mean": 0.24165202108963094,
+          "p95": 0.5,
+          "p99": 0.6999998092651367,
+          "max": 2.200000286102295
+        },
+        "effectsMs": {
+          "mean": 0.076625678157974,
+          "p95": 0.20000028610229492,
+          "p99": 0.20000028610229492,
+          "max": 0.40000009536743164
+        },
+        "emissionMs": {
+          "mean": 0.0008787346221441124,
+          "p95": 0,
+          "p99": 0,
+          "max": 0.10000038146972656
+        },
+        "renderMs": {
+          "mean": 9.571880479688595,
+          "p95": 12.099999904632568,
+          "p99": 12.600000381469727,
+          "max": 13.400000095367432
+        },
+        "workMs": {
+          "mean": 10.096309320788391,
+          "p95": 12.5,
+          "p99": 13.5,
+          "max": 55.40000009536743
+        }
+      },
+      "over25ms": 1,
+      "longTasks": [
+        [
+          6655.299999713898,
+          55
+        ]
+      ],
+      "slowest": [
+        {
+          "frame": 181,
+          "clock": 3.049999999999997,
+          "intervalMs": 56,
+          "previousWork": {
+            "simulationMs": 42.5,
+            "syncMs": 2.200000286102295,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0.09999990463256836,
+            "renderMs": 10.5,
+            "workMs": 55.40000009536743
+          },
+          "aiMs": 42.09999990463257,
+          "visionMs": 2.4000000953674316,
+          "heapDeltaMiB": 0,
+          "particles": 693
+        },
+        {
+          "frame": 188,
+          "clock": 3.149999999999997,
+          "intervalMs": 23.800000190734863,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.20000028610229492,
+            "effectsMs": 0.19999980926513672,
+            "emissionMs": 0,
+            "renderMs": 10.900000095367432,
+            "workMs": 11.300000190734863
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": -19.712421417236328,
+          "particles": 650
+        },
+        {
+          "frame": 184,
+          "clock": 3.099999999999997,
+          "intervalMs": 23.5,
+          "previousWork": {
+            "simulationMs": 1.5,
+            "syncMs": 0.6999998092651367,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 9.600000381469727,
+            "workMs": 11.900000095367432
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 59.98469829559326,
+          "particles": 685
+        },
+        {
+          "frame": 183,
+          "clock": 3.049999999999997,
+          "intervalMs": 19.300000190734863,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.40000009536743164,
+            "effectsMs": 0,
+            "emissionMs": 0,
+            "renderMs": 9.900000095367432,
+            "workMs": 10.300000190734863
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 675
+        },
+        {
+          "frame": 444,
+          "clock": 7.399999999999982,
+          "intervalMs": 17.700000286102295,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.20000028610229492,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 9.299999713897705,
+            "workMs": 9.599999904632568
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 518
+        },
+        {
+          "frame": 501,
+          "clock": 8.349999999999984,
+          "intervalMs": 17.700000286102295,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.3000001907348633,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 8.5,
+            "workMs": 8.900000095367432
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 9.269596099853516,
+          "particles": 567
+        }
+      ],
+      "drawCalls": 6102.244288224956,
+      "triangles": 1631648.0843585238
+    },
+    {
+      "map": "desert-strike",
+      "variant": "optimized",
+      "trial": 2,
+      "frames": 569,
+      "fps": 59.789632962203704,
+      "lowFps": 38.04692470132569,
+      "intervals": {
+        "mean": 16.72530755678254,
+        "p95": 16.800000190734863,
+        "p99": 17.59999990463257,
+        "max": 56.19999980926514
+      },
+      "phases": {
+        "simulationMs": {
+          "mean": 0.20228467046271728,
+          "p95": 0.5999999046325684,
+          "p99": 1.5,
+          "max": 42.19999980926514
+        },
+        "syncMs": {
+          "mean": 0.239718863750384,
+          "p95": 0.5,
+          "p99": 0.6999998092651367,
+          "max": 2.200000286102295
+        },
+        "effectsMs": {
+          "mean": 0.06414764417705301,
+          "p95": 0.19999980926513672,
+          "p99": 0.20000028610229492,
+          "max": 0.40000009536743164
+        },
+        "emissionMs": {
+          "mean": 0.00035149351364698896,
+          "p95": 0,
+          "p99": 0,
+          "max": 0.09999990463256836
+        },
+        "renderMs": {
+          "mean": 9.805272381418828,
+          "p95": 10.900000095367432,
+          "p99": 11.299999713897705,
+          "max": 12.099999904632568
+        },
+        "workMs": {
+          "mean": 10.314587003107858,
+          "p95": 11.5,
+          "p99": 12.400000095367432,
+          "max": 55.69999980926514
+        }
+      },
+      "over25ms": 1,
+      "longTasks": [
+        [
+          6682.300000190735,
+          55
+        ]
+      ],
+      "slowest": [
+        {
+          "frame": 181,
+          "clock": 3.049999999999997,
+          "intervalMs": 56.19999980926514,
+          "previousWork": {
+            "simulationMs": 42.19999980926514,
+            "syncMs": 2.200000286102295,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 11.199999809265137,
+            "workMs": 55.69999980926514
+          },
+          "aiMs": 41.89999961853027,
+          "visionMs": 2.3000001907348633,
+          "heapDeltaMiB": 0,
+          "particles": 693
+        },
+        {
+          "frame": 184,
+          "clock": 3.099999999999997,
+          "intervalMs": 23.699999809265137,
+          "previousWork": {
+            "simulationMs": 1.3999996185302734,
+            "syncMs": 0.7000002861022949,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 10.400000095367432,
+            "workMs": 12.599999904632568
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 28.381546020507812,
+          "particles": 685
+        },
+        {
+          "frame": 188,
+          "clock": 3.149999999999997,
+          "intervalMs": 23.09999990463257,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.5999999046325684,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 11.5,
+            "workMs": 12.199999809265137
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 11.804500579833984,
+          "particles": 650
+        },
+        {
+          "frame": 183,
+          "clock": 3.049999999999997,
+          "intervalMs": 19.40000009536743,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.19999980926513672,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 10,
+            "workMs": 10.299999713897705
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 675
+        },
+        {
+          "frame": 598,
+          "clock": 10.000000000000007,
+          "intervalMs": 17.699999809265137,
+          "previousWork": {
+            "simulationMs": 0.6999998092651367,
+            "syncMs": 0.09999990463256836,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 8.5,
+            "workMs": 9.399999618530273
+          },
+          "aiMs": 0,
+          "visionMs": 0.3000001907348633,
+          "heapDeltaMiB": 0,
+          "particles": 452
+        },
+        {
+          "frame": 566,
+          "clock": 9.45,
+          "intervalMs": 17.59999990463257,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.3000001907348633,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 8.5,
+            "workMs": 8.900000095367432
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 386
+        }
+      ],
+      "drawCalls": 6102.244288224956,
+      "triangles": 1631648.0843585238
+    },
+    {
+      "map": "desert-strike",
+      "variant": "submitted",
+      "trial": 3,
+      "frames": 569,
+      "fps": 59.78900470926212,
+      "lowFps": 38.6597938619444,
+      "intervals": {
+        "mean": 16.725483303539363,
+        "p95": 16.800000190734863,
+        "p99": 16.90000009536743,
+        "max": 55.69999980926514
+      },
+      "phases": {
+        "simulationMs": {
+          "mean": 0.2080843595293578,
+          "p95": 0.6000003814697266,
+          "p99": 1.5,
+          "max": 43.299999713897705
+        },
+        "syncMs": {
+          "mean": 0.24956061760444842,
+          "p95": 0.5,
+          "p99": 0.7999997138977051,
+          "max": 2
+        },
+        "effectsMs": {
+          "mean": 0.07152901550587955,
+          "p95": 0.20000028610229492,
+          "p99": 0.3000001907348633,
+          "max": 0.40000009536743164
+        },
+        "emissionMs": {
+          "mean": 0.000351494351673629,
+          "p95": 0,
+          "p99": 0,
+          "max": 0.10000038146972656
+        },
+        "renderMs": {
+          "mean": 9.65623900090035,
+          "p95": 10.899999618530273,
+          "p99": 11.200000286102295,
+          "max": 11.900000095367432
+        },
+        "workMs": {
+          "mean": 10.189455173975135,
+          "p95": 11.400000095367432,
+          "p99": 12.100000381469727,
+          "max": 55.299999713897705
+        }
+      },
+      "over25ms": 1,
+      "longTasks": [
+        [
+          6709.60000038147,
+          55
+        ]
+      ],
+      "slowest": [
+        {
+          "frame": 181,
+          "clock": 3.049999999999997,
+          "intervalMs": 55.69999980926514,
+          "previousWork": {
+            "simulationMs": 43.299999713897705,
+            "syncMs": 2,
+            "effectsMs": 0.10000038146972656,
+            "emissionMs": 0,
+            "renderMs": 9.899999618530273,
+            "workMs": 55.299999713897705
+          },
+          "aiMs": 43,
+          "visionMs": 2.1999998092651367,
+          "heapDeltaMiB": 0,
+          "particles": 693
+        },
+        {
+          "frame": 184,
+          "clock": 3.099999999999997,
+          "intervalMs": 22.699999809265137,
+          "previousWork": {
+            "simulationMs": 1.3000001907348633,
+            "syncMs": 0.7999997138977051,
+            "effectsMs": 0,
+            "emissionMs": 0,
+            "renderMs": 9.5,
+            "workMs": 11.599999904632568
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 28.421733856201172,
+          "particles": 685
+        },
+        {
+          "frame": 188,
+          "clock": 3.149999999999997,
+          "intervalMs": 22.5,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.5999999046325684,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 10.900000095367432,
+            "workMs": 11.599999904632568
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 11.718746185302734,
+          "particles": 650
+        },
+        {
+          "frame": 183,
+          "clock": 3.049999999999997,
+          "intervalMs": 20.40000009536743,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.3000001907348633,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 9.699999809265137,
+            "workMs": 10.099999904632568
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 675
+        },
+        {
+          "frame": 50,
+          "clock": 0.8500000000000002,
+          "intervalMs": 17,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.2999997138977051,
+            "effectsMs": 0,
+            "emissionMs": 0,
+            "renderMs": 10.599999904632568,
+            "workMs": 10.899999618530273
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 559
+        },
+        {
+          "frame": 95,
+          "clock": 1.6000000000000008,
+          "intervalMs": 16.90000009536743,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.2999997138977051,
+            "effectsMs": 0.10000038146972656,
+            "emissionMs": 0,
+            "renderMs": 10.899999618530273,
+            "workMs": 11.299999713897705
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 401
+        }
+      ],
+      "drawCalls": 6102.244288224956,
+      "triangles": 1631648.0843585238
+    },
+    {
+      "map": "broken-empire",
+      "variant": "submitted",
+      "trial": 0,
+      "frames": 569,
+      "fps": 59.681767167088836,
+      "lowFps": 35.273368527597164,
+      "intervals": {
+        "mean": 16.755536028287114,
+        "p95": 16.800000190734863,
+        "p99": 17,
+        "max": 73
+      },
+      "phases": {
+        "simulationMs": {
+          "mean": 0.22811956439160713,
+          "p95": 0.5999999046325684,
+          "p99": 1.3000001907348633,
+          "max": 60.200000286102295
+        },
+        "syncMs": {
+          "mean": 0.2351493131506841,
+          "p95": 0.5,
+          "p99": 0.7000002861022949,
+          "max": 1.8999996185302734
+        },
+        "effectsMs": {
+          "mean": 0.07416517914703316,
+          "p95": 0.19999980926513672,
+          "p99": 0.2999997138977051,
+          "max": 0.40000009536743164
+        },
+        "emissionMs": {
+          "mean": 0.00035149351364698896,
+          "p95": 0,
+          "p99": 0,
+          "max": 0.09999990463256836
+        },
+        "renderMs": {
+          "mean": 9.127768056463902,
+          "p95": 10,
+          "p99": 10.400000095367432,
+          "max": 11
+        },
+        "workMs": {
+          "mean": 9.667311076749188,
+          "p95": 10.599999904632568,
+          "p99": 11.5,
+          "max": 72.5
+        }
+      },
+      "over25ms": 1,
+      "longTasks": [
+        [
+          6625.599999904633,
+          72
+        ]
+      ],
+      "slowest": [
+        {
+          "frame": 181,
+          "clock": 3.049999999999997,
+          "intervalMs": 73,
+          "previousWork": {
+            "simulationMs": 60.200000286102295,
+            "syncMs": 1.8999996185302734,
+            "effectsMs": 0.20000028610229492,
+            "emissionMs": 0,
+            "renderMs": 10.199999809265137,
+            "workMs": 72.5
+          },
+          "aiMs": 59.69999980926514,
+          "visionMs": 2.0999999046325684,
+          "heapDeltaMiB": 0,
+          "particles": 661
+        },
+        {
+          "frame": 184,
+          "clock": 3.099999999999997,
+          "intervalMs": 22,
+          "previousWork": {
+            "simulationMs": 0.5999999046325684,
+            "syncMs": 0.8000001907348633,
+            "effectsMs": 0,
+            "emissionMs": 0,
+            "renderMs": 9.799999713897705,
+            "workMs": 11.199999809265137
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 58.12476348876953,
+          "particles": 650
+        },
+        {
+          "frame": 188,
+          "clock": 3.149999999999997,
+          "intervalMs": 20.90000009536743,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.7000002861022949,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 10,
+            "workMs": 10.800000190734863
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 12.136703491210938,
+          "particles": 618
+        },
+        {
+          "frame": 183,
+          "clock": 3.049999999999997,
+          "intervalMs": 20,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.19999980926513672,
+            "effectsMs": 0.10000038146972656,
+            "emissionMs": 0,
+            "renderMs": 9.299999713897705,
+            "workMs": 9.599999904632568
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 645
+        },
+        {
+          "frame": 329,
+          "clock": 5.4999999999999885,
+          "intervalMs": 17.200000286102295,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.20000028610229492,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 9.5,
+            "workMs": 9.800000190734863
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": -18.020339965820312,
+          "particles": 545
+        },
+        {
+          "frame": 590,
+          "clock": 9.850000000000005,
+          "intervalMs": 17,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.20000028610229492,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 8.299999713897705,
+            "workMs": 8.599999904632568
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 549
+        }
+      ],
+      "drawCalls": 6383.912126537785,
+      "triangles": 4514404.057996485
+    },
+    {
+      "map": "broken-empire",
+      "variant": "optimized",
+      "trial": 1,
+      "frames": 569,
+      "fps": 59.687401657400606,
+      "lowFps": 34.44316890352064,
+      "intervals": {
+        "mean": 16.75395430579965,
+        "p95": 16.800000190734863,
+        "p99": 17.09999990463257,
+        "max": 72.7000002861023
+      },
+      "phases": {
+        "simulationMs": {
+          "mean": 0.2210895927174439,
+          "p95": 0.5999999046325684,
+          "p99": 1.0999999046325684,
+          "max": 58.40000009536743
+        },
+        "syncMs": {
+          "mean": 0.23251318805875593,
+          "p95": 0.5,
+          "p99": 0.6999998092651367,
+          "max": 2.0999999046325684
+        },
+        "effectsMs": {
+          "mean": 0.06994732653948041,
+          "p95": 0.20000028610229492,
+          "p99": 0.3000001907348633,
+          "max": 0.40000009536743164
+        },
+        "emissionMs": {
+          "mean": 0.0005272419465237636,
+          "p95": 0,
+          "p99": 0,
+          "max": 0.10000038146972656
+        },
+        "renderMs": {
+          "mean": 9.353427034689798,
+          "p95": 10.299999713897705,
+          "p99": 11,
+          "max": 11.5
+        },
+        "workMs": {
+          "mean": 9.87908610560144,
+          "p95": 10.899999618530273,
+          "p99": 11.600000381469727,
+          "max": 72.30000019073486
+        }
+      },
+      "over25ms": 1,
+      "longTasks": [
+        [
+          6488.39999961853,
+          72
+        ]
+      ],
+      "slowest": [
+        {
+          "frame": 181,
+          "clock": 3.049999999999997,
+          "intervalMs": 72.7000002861023,
+          "previousWork": {
+            "simulationMs": 58.40000009536743,
+            "syncMs": 2.0999999046325684,
+            "effectsMs": 0.20000028610229492,
+            "emissionMs": 0.09999990463256836,
+            "renderMs": 11.5,
+            "workMs": 72.30000019073486
+          },
+          "aiMs": 58.09999990463257,
+          "visionMs": 2.1000003814697266,
+          "heapDeltaMiB": 0,
+          "particles": 661
+        },
+        {
+          "frame": 188,
+          "clock": 3.149999999999997,
+          "intervalMs": 23.299999713897705,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.5,
+            "effectsMs": 0.19999980926513672,
+            "emissionMs": 0,
+            "renderMs": 11.300000190734863,
+            "workMs": 12
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 12.111133575439453,
+          "particles": 618
+        },
+        {
+          "frame": 184,
+          "clock": 3.099999999999997,
+          "intervalMs": 23,
+          "previousWork": {
+            "simulationMs": 0.7000002861022949,
+            "syncMs": 0.7999997138977051,
+            "effectsMs": 0.10000038146972656,
+            "emissionMs": 0,
+            "renderMs": 10.199999809265137,
+            "workMs": 11.800000190734863
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 58.109798431396484,
+          "particles": 650
+        },
+        {
+          "frame": 183,
+          "clock": 3.049999999999997,
+          "intervalMs": 20.899999618530273,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.2999997138977051,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 10.600000381469727,
+            "workMs": 11
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 645
+        },
+        {
+          "frame": 134,
+          "clock": 2.25,
+          "intervalMs": 17.199999809265137,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.19999980926513672,
+            "effectsMs": 0,
+            "emissionMs": 0,
+            "renderMs": 10,
+            "workMs": 10.199999809265137
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 420
+        },
+        {
+          "frame": 71,
+          "clock": 1.2000000000000004,
+          "intervalMs": 17.09999990463257,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.5,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 9.300000190734863,
+            "workMs": 10
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 496
+        }
+      ],
+      "drawCalls": 6383.912126537785,
+      "triangles": 4514404.057996485
+    },
+    {
+      "map": "broken-empire",
+      "variant": "optimized",
+      "trial": 2,
+      "frames": 569,
+      "fps": 59.68552337774708,
+      "lowFps": 35.97122308328207,
+      "intervals": {
+        "mean": 16.754481546070117,
+        "p95": 16.800000190734863,
+        "p99": 17.300000190734863,
+        "max": 72.69999980926514
+      },
+      "phases": {
+        "simulationMs": {
+          "mean": 0.22337432737300184,
+          "p95": 0.5999999046325684,
+          "p99": 1.0999999046325684,
+          "max": 59.69999980926514
+        },
+        "syncMs": {
+          "mean": 0.23479788751719496,
+          "p95": 0.5,
+          "p99": 0.5999999046325684,
+          "max": 2.0999999046325684
+        },
+        "effectsMs": {
+          "mean": 0.07012304061326495,
+          "p95": 0.20000028610229492,
+          "p99": 0.20000028610229492,
+          "max": 0.40000009536743164
+        },
+        "emissionMs": {
+          "mean": 0.0005272402704704835,
+          "p95": 0,
+          "p99": 0,
+          "max": 0.09999990463256836
+        },
+        "renderMs": {
+          "mean": 9.08365553669854,
+          "p95": 9.800000190734863,
+          "p99": 10.400000095367432,
+          "max": 11
+        },
+        "workMs": {
+          "mean": 9.614938489582082,
+          "p95": 10.5,
+          "p99": 11.300000190734863,
+          "max": 72.19999980926514
+        }
+      },
+      "over25ms": 1,
+      "longTasks": [
+        [
+          6551.800000190735,
+          72
+        ]
+      ],
+      "slowest": [
+        {
+          "frame": 181,
+          "clock": 3.049999999999997,
+          "intervalMs": 72.69999980926514,
+          "previousWork": {
+            "simulationMs": 59.69999980926514,
+            "syncMs": 2.0999999046325684,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 10.300000190734863,
+            "workMs": 72.19999980926514
+          },
+          "aiMs": 59.5,
+          "visionMs": 2,
+          "heapDeltaMiB": 0,
+          "particles": 661
+        },
+        {
+          "frame": 184,
+          "clock": 3.099999999999997,
+          "intervalMs": 22.09999990463257,
+          "previousWork": {
+            "simulationMs": 0.7000002861022949,
+            "syncMs": 0.5999999046325684,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 9.5,
+            "workMs": 10.900000095367432
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 58.10086441040039,
+          "particles": 650
+        },
+        {
+          "frame": 183,
+          "clock": 3.049999999999997,
+          "intervalMs": 18.699999809265137,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.19999980926513672,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 9.600000381469727,
+            "workMs": 9.900000095367432
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 645
+        },
+        {
+          "frame": 187,
+          "clock": 3.149999999999997,
+          "intervalMs": 18.699999809265137,
+          "previousWork": {
+            "simulationMs": 0.39999961853027344,
+            "syncMs": 0.3000001907348633,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 10.400000095367432,
+            "workMs": 11.199999809265137
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 631
+        },
+        {
+          "frame": 262,
+          "clock": 4.399999999999992,
+          "intervalMs": 17.300000190734863,
+          "previousWork": {
+            "simulationMs": 1.5,
+            "syncMs": 0.20000028610229492,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 9.400000095367432,
+            "workMs": 11.200000286102295
+          },
+          "aiMs": 0,
+          "visionMs": 1.0999999046325684,
+          "heapDeltaMiB": 0,
+          "particles": 627
+        },
+        {
+          "frame": 280,
+          "clock": 4.699999999999991,
+          "intervalMs": 17.300000190734863,
+          "previousWork": {
+            "simulationMs": 0.3000001907348633,
+            "syncMs": 0.19999980926513672,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 9.800000190734863,
+            "workMs": 10.400000095367432
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 467
+        }
+      ],
+      "drawCalls": 6383.912126537785,
+      "triangles": 4514404.057996485
+    },
+    {
+      "map": "broken-empire",
+      "variant": "submitted",
+      "trial": 3,
+      "frames": 569,
+      "fps": 59.688653909514024,
+      "lowFps": 35.54502365651851,
+      "intervals": {
+        "mean": 16.753602812286,
+        "p95": 16.800000190734863,
+        "p99": 16.90000009536743,
+        "max": 70.90000009536743
+      },
+      "phases": {
+        "simulationMs": {
+          "mean": 0.21915644124438347,
+          "p95": 0.5999999046325684,
+          "p99": 1.0999999046325684,
+          "max": 58.09999990463257
+        },
+        "syncMs": {
+          "mean": 0.2293497204571072,
+          "p95": 0.5,
+          "p99": 0.6999998092651367,
+          "max": 2
+        },
+        "effectsMs": {
+          "mean": 0.07381367473903984,
+          "p95": 0.19999980926513672,
+          "p99": 0.20000028610229492,
+          "max": 0.5
+        },
+        "emissionMs": {
+          "mean": 0.0012302272977644613,
+          "p95": 0,
+          "p99": 0.09999990463256836,
+          "max": 0.19999980926513672
+        },
+        "renderMs": {
+          "mean": 9.453251338382177,
+          "p95": 10.199999809265137,
+          "p99": 10.899999618530273,
+          "max": 11.099999904632568
+        },
+        "workMs": {
+          "mean": 9.97943760514888,
+          "p95": 10.900000095367432,
+          "p99": 12,
+          "max": 70.5
+        }
+      },
+      "over25ms": 1,
+      "longTasks": [
+        [
+          6570.099999904633,
+          70
+        ]
+      ],
+      "slowest": [
+        {
+          "frame": 181,
+          "clock": 3.049999999999997,
+          "intervalMs": 70.90000009536743,
+          "previousWork": {
+            "simulationMs": 58.09999990463257,
+            "syncMs": 2,
+            "effectsMs": 0.20000028610229492,
+            "emissionMs": 0.09999990463256836,
+            "renderMs": 10.099999904632568,
+            "workMs": 70.5
+          },
+          "aiMs": 57.799999713897705,
+          "visionMs": 2,
+          "heapDeltaMiB": 0,
+          "particles": 661
+        },
+        {
+          "frame": 184,
+          "clock": 3.099999999999997,
+          "intervalMs": 22.59999990463257,
+          "previousWork": {
+            "simulationMs": 0.6999998092651367,
+            "syncMs": 0.6999998092651367,
+            "effectsMs": 0.10000038146972656,
+            "emissionMs": 0,
+            "renderMs": 10,
+            "workMs": 11.5
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 26.491703033447266,
+          "particles": 650
+        },
+        {
+          "frame": 188,
+          "clock": 3.149999999999997,
+          "intervalMs": 21.5,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.20000028610229492,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 10.900000095367432,
+            "workMs": 11.300000190734863
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 12.138771057128906,
+          "particles": 618
+        },
+        {
+          "frame": 183,
+          "clock": 3.049999999999997,
+          "intervalMs": 19.90000009536743,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.5999999046325684,
+            "effectsMs": 0.09999990463256836,
+            "emissionMs": 0,
+            "renderMs": 10.400000095367432,
+            "workMs": 11.099999904632568
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 645
+        },
+        {
+          "frame": 575,
+          "clock": 9.600000000000001,
+          "intervalMs": 17,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.10000038146972656,
+            "effectsMs": 0,
+            "emissionMs": 0,
+            "renderMs": 10,
+            "workMs": 10.100000381469727
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 7.591743469238281,
+          "particles": 332
+        },
+        {
+          "frame": 155,
+          "clock": 2.5999999999999988,
+          "intervalMs": 16.90000009536743,
+          "previousWork": {
+            "simulationMs": 0,
+            "syncMs": 0.19999980926513672,
+            "effectsMs": 0.10000038146972656,
+            "emissionMs": 0,
+            "renderMs": 10.299999713897705,
+            "workMs": 10.599999904632568
+          },
+          "aiMs": 0,
+          "visionMs": 0,
+          "heapDeltaMiB": 0,
+          "particles": 343
+        }
+      ],
+      "drawCalls": 6383.912126537785,
+      "triangles": 4514404.057996485
+    }
+  ]
+}

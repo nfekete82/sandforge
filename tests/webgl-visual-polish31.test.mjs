@@ -114,3 +114,16 @@ test('legacy fallback surfaces have real mipmapped UV albedo, normal and roughne
  assert.ok(geometry.attributes.uv&&geometry.attributes.normal);
  geometry.dispose();mesh.material.dispose();
 });
+
+
+test('vehicle support spreads convoy resampling and skips level service platforms',()=>{
+ let calls=0;const heightAt=(x,z)=>{calls++;return x*.02+z*.03;};
+ const even={},odd={},a={...unit(),id:2},b={...unit(),id:3};
+ const sample=(entry,u,time,x=10)=>vehiclePose(entry,u,{x,z:10,time,dt:.05,active:true,heightAt});
+ sample(even,a,0);sample(odd,b,0);assert.equal(calls,8);
+ sample(even,a,.10,20);sample(odd,b,.10,20);assert.equal(calls,12);
+ sample(even,a,.15,30);sample(odd,b,.15,30);assert.equal(calls,16);
+ const docked={...unit(),id:4,factoryService:{baseId:10}};
+ sample({},docked,0);assert.equal(calls,16,'service platform needs no terrain support queries');
+ sample({productionMotion:{moving:true}},unit(),0);assert.equal(calls,16,'rollout stays level');
+});

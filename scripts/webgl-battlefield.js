@@ -1278,12 +1278,14 @@ export class SandforgeBattlefield {
     visualGround+unitRenderAltitude(u.kind,u.flightHeight??1)+flightLane));
    const hullAngle=['tank','artillery'].includes(u.kind)&&Number.isFinite(u.hullAngle)?u.hullAngle:u.angle;
    if(GROUND_VEHICLES.has(u.kind)&&(u.owner===0||this.game.canSee(0,u))){
-    const pose=vehiclePose(entry,u,{x,z,heightAt:this.heightAt,
-     time:this.game.time,dt,active,lite:this.lite});
+    const input=entry.vehiclePoseInput??={heightAt:this.heightAt,lite:this.lite};
+    input.x=x;input.z=z;input.time=this.game.time;input.dt=dt;input.active=active;
+    const pose=vehiclePose(entry,u,input);
     entry.node.rotation.set(pose.pitch,pose.yaw,pose.roll,'YXZ');
     entry.node.position.y+=pose.heave??0;
    }else entry.node.rotation.y=unitVisualYaw(u.kind,hullAngle);
-   if(u.kind==='tank'||u.kind==='artillery')this.orientTankRig(entry,u);
+   // Aim once, after AnimationMixer/presentation below; its clips can
+   // overwrite these same transforms, making a pre-mixer aim redundant.
    entry.node.visible=u.owner===0||this.game.canSee(0,u);
   }
   for(const [id,e] of this.units)if(!aliveUnits.has(id)){

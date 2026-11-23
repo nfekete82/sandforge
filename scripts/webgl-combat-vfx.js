@@ -177,7 +177,7 @@ function makePool(scene,mode,max,opacity,biome='desert'){
  mesh.raycast=()=>{};
  scene.add(mesh);
  const fadeAttribute=installParticleFade(mesh.geometry,mesh.material,max);
- return {mesh,opacity:fadeAttribute,particles:[],max,mode,
+ return {mesh,opacity:fadeAttribute,opacityRange:{start:0,count:0},particles:[],max,mode,
   dissipates:mode==='smoke'||mode==='rocketSmoke'||mode==='dust'};
 }
 /** Four shaped steel stabilizers baked into ONE triangular-prism geometry.
@@ -287,7 +287,7 @@ export class SandforgeCombatEffects {
   // Actual 3D torus shockwaves complement the existing GPU smoke and debris.
   this.shockwave=new THREE.InstancedMesh(
    new THREE.TorusGeometry(1,.075,6,42),
-   new THREE.MeshBasicMaterial({color:'#f7ddb1',transparent:true,opacity:.63,
+   new THREE.MeshBasicMaterial({color:'#bfa47d',transparent:true,opacity:.25,
     depthWrite:false,depthTest:true,side:THREE.DoubleSide}),
    lowQuality?16:48
   );
@@ -296,6 +296,11 @@ export class SandforgeCombatEffects {
   this.shockwave.frustumCulled=false;this.shockwave.count=0;
   this.shockwave.renderOrder=12;this.shockwave.name='3d-explosion-shockwaves';
   this.shockwave.userData={visualOnly:true,nonPlayable:true};
+  // Reuse the existing pressure-wave geometry; a faint sand-coloured
+  // pulse dissipates instead of drawing a persistent bright white hoop.
+  this.shockOpacity=installParticleFade(this.shockwave.geometry,
+   this.shockwave.material,this.shockwave.instanceMatrix.count);
+  this.shockOpacityRange={start:0,count:0};
   scene.add(this.shockwave);this.shocks=[];
   // Fixed pool: no light allocation during battle, no shadow-map costs.
   // Keep both light objects in the scene to avoid shader recompilation.
@@ -1135,10 +1140,17 @@ export class SandforgeCombatEffects {
     shock.z-this.world.size*.5);
    dummy.rotation.set(0,0,0);
    dummy.scale.setScalar(radius);
-   dummy.updateMatrix();this.shockwave.setMatrixAt(shockIndex++,dummy.matrix);
+   dummy.updateMatrix();this.shockwave.setMatrixAt(shockIndex,dummy.matrix);
+   this.shockOpacity.setX(shockIndex++,(1-progress)**2);
   }
   this.shockwave.count=shockIndex;
-  if(shockIndex)this.shockwave.instanceMatrix.needsUpdate=true;
+  if(shockIndex){
+   this.shockwave.instanceMatrix.needsUpdate=true;
+   this.shockOpacityRange.count=shockIndex;
+   this.shockOpacity.clearUpdateRanges();
+   this.shockOpacity.updateRanges.push(this.shockOpacityRange);
+   this.shockOpacity.needsUpdate=true;
+  }
   for(const pool of this.pools){
    let k=0;
    const particles=pool.particles;
@@ -1176,7 +1188,9 @@ export class SandforgeCombatEffects {
    // Avoid uploading a large instance matrix when nothing is left to draw.
    if(k){
     pool.mesh.instanceMatrix.needsUpdate=true;
-    pool.opacity.clearUpdateRanges();pool.opacity.addUpdateRange(0,k);
+    pool.opacityRange.count=k;
+    pool.opacity.clearUpdateRanges();
+    pool.opacity.updateRanges.push(pool.opacityRange);
     pool.opacity.needsUpdate=true;
    }
   }

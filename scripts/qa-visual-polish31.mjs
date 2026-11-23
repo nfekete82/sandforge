@@ -1,4 +1,4 @@
-/** Deterministic A/B: origin/main's four renderer modules, same built GLBs,
+/** Deterministic A/B: origin/main's five renderer modules, same built GLBs,
  * maps, camera, simulation ticks and GPU. Does not alter repository assets.
  * Run after npm run build with a local server at POLISH31_URL.
  */
@@ -12,21 +12,29 @@ const base=process.env.POLISH31_URL??'http://127.0.0.1:8113';
 const ref=process.env.POLISH31_BASE_REF??'origin/main';
 const modules=['webgl-battlefield','webgl-actor-presentation','webgl-building-pbr','webgl-building-shading','webgl-combat-vfx'];
 const original=new Map(modules.map(name=>[name+'.js',execFileSync('git',['show',ref+':scripts/'+name+'.js'],{encoding:'utf8'})]));
+const frames=Number(process.env.POLISH31_FRAMES??300);
+assert.ok(Number.isInteger(frames)&&frames>=60&&frames%3===0,'Use at least 60 frames, divisible by three');
+const profile=process.env.POLISH31_PROFILE==='1';
+const variants=(process.env.POLISH31_VARIANTS??'before,after').split(',');
+assert.ok(variants.every(v=>['before','submitted','after'].includes(v)),'Unknown comparison variant');
+const submitted=variants.includes('submitted')?new Map(
+ [...modules,'webgl-vehicle-polish','webgl-particle-finish'].map(name=>
+  [name+'.js',execFileSync('git',['show','8512c9e8:scripts/'+name+'.js'],{encoding:'utf8'})])):null;
 const browser=await chromium.launch({channel:'chrome',headless:true});
 const reports=[],errors=[];
 const maps=[['desert-strike',9999,8,'oasis'],['broken-empire',2026,12,'rocky'],['burning-horizon',1907,16,'dunes']];
-const frames=Number(process.env.POLISH31_FRAMES??240);
 try{
  for(const [map,seed,bastions,terrain] of maps){
   if(process.env.POLISH31_MAP&&process.env.POLISH31_MAP!==map)continue;
-  for(const variant of ['before','after']){
+  if(process.env.POLISH31_MAPS&&!process.env.POLISH31_MAPS.split(',').includes(map))continue;
+  for(const [trial,variant] of variants.entries()){
    if(process.env.POLISH31_VARIANT&&process.env.POLISH31_VARIANT!==variant)continue;
    const page=await browser.newPage({viewport:{width:1440,height:900},deviceScaleFactor:1,
     ...(process.env.POLISH31_VIDEO==='1'?{recordVideo:{dir:out+'/video',size:{width:1440,height:900}}}:{})});
    page.on('pageerror',e=>errors.push({map,variant,message:e.message}));
    page.on('console',m=>{if(m.type()==='error'&&/WebGL|shader|VALIDATE_STATUS/.test(m.text()))errors.push({map,variant,message:m.text()});});
-   if(variant==='before')await page.route('**/webgl-*.js',route=>{
-    const body=original.get(new URL(route.request().url()).pathname.slice(1));
+   if(variant==='before'||variant==='submitted')await page.route('**/webgl-*.js',route=>{
+    const body=(variant==='submitted'?submitted:original).get(new URL(route.request().url()).pathname.slice(1));
     return body?route.fulfill({contentType:'text/javascript',body}):route.continue();
    });
    await page.goto(base+`/webgl-preview.html?play=1&map=${map}&seed=${seed}&bastions=${bastions}&terrain=${terrain}&biome=desert&landscape=network&pause=1&perf=1&adaptive=0&post=${process.env.POLISH31_POST??0}`,{waitUntil:'domcontentloaded'});
@@ -73,35 +81,55 @@ try{
     a.renderer.info.reset();a.visualPost.render(a.scene,a.camera);
    });
    await page.screenshot({path:`${out}/${map}-${variant}-rts.png`});
-   const metrics=await page.evaluate(async({frames})=>{
+   const metrics=await page.evaluate(async({frames,profile})=>{
     const a=window.__sandforgeWebGL,g=a.game,b=a.battlefield;
     const ids=globalThis.__polish31Actors;
     const movers=g.units.filter(u=>ids.includes(u.id)).slice(0,6);
     for(const u of movers)g.command([u.id],{kind:'move',x:u.x+210,y:u.y+80});
     const initialDetails=ids.filter(id=>b.units.get(id)?.detail).length;
     const stats=[],poses=[],shotsBefore=b.presentation.stats.shots;
+    const raw=profile?new Float64Array(frames*16):null,longTasks=[];
+    const observer=profile?new PerformanceObserver(list=>{for(const e of list.getEntries())longTasks.push([e.startTime,e.duration]);}):null;
+    observer?.observe({entryTypes:['longtask']});
     const render=()=>{a.renderer.info.reset();a.visualPost.render(a.scene,a.camera);};
     // Warm all visible PBR/particle shader variants before recording costs.
     const centre=movers[0];a.effects.blastAt(centre.x+170,centre.y+70,true);
     for(let i=0;i<45;i++){a.effects.update(1/60,true);render();await new Promise(r=>requestAnimationFrame(r));}
     const samples=[];let last=performance.now();
+    let lastAi=g.aiPlanCompletedAt,lastVision=g.visionCompletedAt;
     for(let i=0;i<frames;i++){
      await new Promise(r=>requestAnimationFrame(r));
      const now=performance.now();samples.push(now-last);last=now;
+     if(profile){g.resetSquadProfile?.();g.world.resetPathProfile?.();}
      const start=performance.now();
      if(i%3===0){g.beginRenderFrame();try{g.step(.05);}finally{g.endRenderFrame();}}
      const simEnd=performance.now();
-     b.sync(false,1/60,true,(i%3)/3);a.effects.update(1/60,true,(i%3)/60);
+     b.sync(false,1/60,true,(i%3)/3);const syncEnd=performance.now();
+     a.effects.update(1/60,true,(i%3)/60);const fxEnd=performance.now();
      if(i%60===0)for(let j=0;j<3;j++)a.effects.blastAt(centre.x+120+j*90,centre.y+170,true);
      const synced=performance.now();render();const end=performance.now();
+     if(raw){const k=i*16;
+      raw[k]=now;raw[k+1]=samples.at(-1);raw[k+2]=simEnd-start;raw[k+3]=syncEnd-simEnd;
+      raw[k+4]=fxEnd-syncEnd;raw[k+5]=synced-fxEnd;raw[k+6]=end-synced;
+      raw[k+7]=performance.memory?.usedJSHeapSize??0;let particles=0;for(const pool of a.effects.pools)particles+=pool.particles.length;raw[k+8]=particles;
+      raw[k+9]=a.renderer.info.render.calls;raw[k+10]=a.renderer.info.render.triangles;raw[k+11]=end-now;raw[k+12]=g.time;
+      raw[k+13]=g.aiPlanCompletedAt!==lastAi?(g.aiPlanDurationMs??0):0;
+      raw[k+14]=g.visionCompletedAt!==lastVision?(g.visionDurationMs??0):0;
+      raw[k+15]=g.world.pathCostMs??0;
+      lastAi=g.aiPlanCompletedAt;lastVision=g.visionCompletedAt;
+     }
      if(i>30)stats.push({work:end-start,simulation:simEnd-start,presentation:synced-simEnd,render:end-synced,calls:a.renderer.info.render.calls,triangles:a.renderer.info.render.triangles});
      if(i%6===0){const u=movers[0],e=b.units.get(u.id);poses.push({frame:i,x:u.x,y:u.y,hull:u.hullAngle,renderYaw:e.node.rotation.y,pitch:e.node.rotation.x,barrel:e.tankRig?.gun?.position.toArray(),shots:b.presentation.stats.shots});}
     }
     const mean=v=>v.reduce((a,b)=>a+b,0)/v.length;
     const sorted=samples.slice(31).sort((a,b)=>a-b);
     const metric=key=>mean(stats.map(x=>x[key]));
+    observer?.disconnect();
     const geometry=a.renderer.info.memory.geometries,textures=a.renderer.info.memory.textures;
-    return {fps:1000/mean(sorted),lowFps:1000/mean(sorted.slice(-Math.ceil(sorted.length*.01))),
+    return {
+     ...(raw?{profile:{columns:['startedAt','intervalMs','simulationMs','syncMs','effectsMs','emissionMs','renderMs','heapBytes','particles','calls','triangles','workMs','clock','aiMs','visionMs','pathMs'],
+      frames:Array.from({length:frames},(_,i)=>Array.from(raw.subarray(i*16,(i+1)*16))),longTasks}}:{}),
+     fps:1000/mean(sorted),lowFps:1000/mean(sorted.slice(-Math.ceil(sorted.length*.01))),
      frameP95:sorted[Math.ceil(sorted.length*.95)-1],workMs:metric('work'),simulationMs:metric('simulation'),presentationMs:metric('presentation'),renderMs:metric('render'),
      drawCalls:metric('calls'),triangles:metric('triangles'),geometries:geometry,textures,
      heapMB:performance.memory?.usedJSHeapSize/1048576,initialDetails,shots:b.presentation.stats.shots-shotsBefore,
@@ -109,23 +137,24 @@ try{
      actualDetails:ids.filter(id=>b.units.get(id)?.detail).length,
      particleCap:a.effects.pools.map(p=>({mode:p.mode,max:p.max,count:p.mesh.count})),
      post:a.visualPost.snapshot(),glError:a.renderer.getContext().getError()};
-   },{frames});
+   },{frames,profile});
    await page.screenshot({path:`${out}/${map}-${variant}-combat.png`});
-   reports.push({map,variant,scene,metrics});
+   reports.push({map,variant,trial,scene,metrics});
    writeFileSync(out+'/report.json',JSON.stringify({baseRef:ref,reports,errors},null,2)+'\n');
-   console.log(JSON.stringify({map,variant,...Object.fromEntries(Object.entries(metrics).filter(([k])=>!['poses','simulation','particleCap'].includes(k)))}));
+   console.log(JSON.stringify({map,variant,...Object.fromEntries(Object.entries(metrics).filter(([k])=>!['poses','simulation','particleCap','profile'].includes(k)))}));
    const video=page.video();await page.close();
    if(video)renameSync(await video.path(),`${out}/${map}-${variant}-animation.webm`);
   }
  }
  for(const map of maps.map(m=>m[0])){
-  const before=reports.find(r=>r.map===map&&r.variant==='before'),after=reports.find(r=>r.map===map&&r.variant==='after');
-  if(!before||!after)continue;
-  assert.deepEqual(before.scene,after.scene,'same map, camera and GPU');
-  assert.deepEqual(before.metrics.simulation,after.metrics.simulation,'presentation cannot change simulation');
-  assert.ok(after.metrics.initialDetails===12,'all real vehicle GLBs loaded');
-  assert.equal(after.metrics.glError,0);
-  assert.ok(after.metrics.shots>0,'real combat animation verified');
+  const peers=reports.filter(r=>r.map===map),reference=peers[0];
+  for(const peer of peers){
+   assert.deepEqual(reference.scene,peer.scene,'same map, camera and GPU');
+   assert.deepEqual(reference.metrics.simulation,peer.metrics.simulation,'presentation cannot change simulation');
+   assert.equal(peer.metrics.initialDetails,12,'all real vehicle GLBs loaded');
+   assert.equal(peer.metrics.glError,0);
+   assert.ok(peer.metrics.shots>0,'real combat animation verified');
+  }
  }
  assert.deepEqual(errors,[]);
 }finally{
