@@ -21,6 +21,7 @@ export const WEAPON_SOUNDS:Record<Weapon,{duration:number;level:number;high:numb
  rocket:{duration:.45,level:.205,high:115,low:1550,bass:58},
  machinegun:{duration:.085,level:.155,high:740,low:6300,bass:112},
  cannon:{duration:.27,level:.21,high:260,low:2500,bass:49},
+ flame:{duration:.14,level:.095,high:340,low:2100,bass:95},
  bomb:{duration:.42,level:.21,high:145,low:1300,bass:46},
 };
 /** Pure visibility-aware levels: distant or unexplored enemy movement never leaks information. */
@@ -61,7 +62,7 @@ export class Soundscape {
       this.effects.gain.setTargetAtTime(this.effectsVolume*(active?.55:1),this.context.currentTime,.045);
     this.music?.setDucking(Boolean(active));
   });
-  readonly played={shots:0,steps:0,commands:0,captures:0,production:0,losses:0,rifle:0,heavy:0,pistol:0,turret:0,cannon:0,rocket:0,machinegun:0,bomb:0,impacts:0,explosions:0};
+  readonly played={shots:0,steps:0,commands:0,captures:0,production:0,losses:0,rifle:0,heavy:0,pistol:0,turret:0,cannon:0,rocket:0,machinegun:0,bomb:0,flame:0,impacts:0,explosions:0};
   readonly voiceLimit=20;peakVoices=0;droppedVoices=0;
   private voices=new Map<AudioScheduledSourceNode,{stop:()=>void;gameplay:boolean}>();
   get activeVoices():number{return this.voices.size;}

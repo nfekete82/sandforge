@@ -261,6 +261,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   supply:0, // Retired compatibility kind; never recruit.
   drone:0, // Player reconnaissance option, never part of the AI combat army.
   rover:complete('factory')?35+(g.explored[1].reduce((n,v)=>n+v,0)/g.explored[1].length<.4?6:0)-count('rover')*17:0,
+  flamer:0, // Playtest-only unit; existing AI production remains unchanged.
   tank:complete('factory')?44+known*4+armor*6
    +(director&&income>=65?24:0)-count('tank')*(director?12:16):0,
   artillery:complete('factory')&&(known||fighters.length>=5)?32+known*14

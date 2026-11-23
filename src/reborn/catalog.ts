@@ -62,11 +62,11 @@ export const weaponDamage=(u:{kind?:UnitKind},target:{kind?:UnitKind|BuildingKin
  const base=unitSpec(u).damage,building='queue' in target;
  const kind=u.kind??'infantry';
  if(kind==='flamer'){
-  if(building)return base*.40;
+  if(building)return base*((target.kind==='wall'||target.kind==='wallGate') ? .32 : .40);
   const enemy=unitSpec(target as {kind?:UnitKind});
   return base*(enemy.flying?0:enemy.group==='Fahrzeuge'?.18:1);
  }
- if(building&&(target.kind==='wall'||target.kind==='wallGate'))return base*(kind==='rocket'?1.35:kind==='artillery'?1.25:kind==='tank'?1:kind==='flamer'?.32:kind==='heavy'?.22:kind==='rover'?.16:.10);
+ if(building&&(target.kind==='wall'||target.kind==='wallGate'))return base*(kind==='rocket'?1.35:kind==='artillery'?1.25:kind==='tank'?1:kind==='heavy'?.22:kind==='rover'?.16:.10);
  if(!building){
   const defender=unitSpec(target as {kind?:UnitKind});
   if(defender.flying&&kind in SMALL_ARMS_VS_AIR)
