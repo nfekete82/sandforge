@@ -65,7 +65,7 @@ export function shouldTintFactionSurface(kind,type,materialName='',meshName='',m
  }
  if(priority.test(name))return true;
  return type==='building'||['infantry','medic','engineer','heavy',
-  'scout','bomber','tank','rover','artillery'].includes(kind);
+  'scout','bomber','tank','flamer','rover','artillery'].includes(kind);
 }
 
 /** Only once per actor/material. A captured base can change owner without
