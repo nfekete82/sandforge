@@ -63,6 +63,23 @@ export function urgentlyNeedsInfantryScreen(x:{
  return x.infantry<4&&x.fighters<10;
 }
 
+/** A paid, sighting-driven anti-infantry vehicle, never an invisible-enemy
+ * counter or an early replacement for a tank, siege weapon or anti-air.
+ * A single 500-credit flamer is sufficient to screen a visible infantry
+ * cluster; queued flamers count towards the quota in produceCombinedArmy.
+ * No extra AI state or omniscient enemy information is introduced.
+ */
+export function observedInfantryFlamerQuota(x:{
+ factoryReady:boolean;observedInfantry:number;observedArmor:number;
+ observedAir:number;ownTanks:number;fighters:number;income:number;
+ time:number;underAttack:boolean;finishing:boolean;
+}):number{
+ if(!x.factoryReady||x.observedInfantry<3||x.observedArmor>0||
+   x.observedAir>0||x.ownTanks<1||x.fighters<6||x.income<25||
+   x.time<85||x.underAttack||x.finishing)return 0;
+ return 1;
+}
+
 /** Purchase priorities are persistent composition deficits, not affordable-unit scores.
  * Counts include paid queues, so one factory never reserves money for a unit it
  * has already ordered. Every purchase still goes through Simulation.recruit. */
@@ -72,7 +89,7 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   c.own.reduce((n,b)=>n+b.queueTypes.filter(k=>k===kind).length,0);
  const available=(kind:UnitKind)=>c.own.some(b=>b.buildRemaining<=0&&b.queue.length<2&&UNITS[kind].producers.includes(b.kind));
  const counts=()=>Object.fromEntries((Object.keys(UNITS) as UnitKind[]).map(k=>[k,count(k)])) as Record<UnitKind,number>;
- const ground=()=>count('rover')+count('tank')+count('artillery');
+ const ground=()=>count('rover')+count('tank')+count('flamer')+count('artillery');
  // Unarmed recon drones must not consume AA budgets or suspend a bomber plan.
  const seen=c.seen.filter(u=>u.kind!=='drone');
  const enemyAir=seen.find(u=>UNITS[u.kind].flying);
@@ -105,6 +122,12 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   finishing:c.finishing
  });
  const bomberQuota=Math.max(antiArmorQuota,supportQuota);
+ const flamerQuota=observedInfantryFlamerQuota({
+  factoryReady:available('flamer'),observedInfantry:observed.infantry,
+  observedArmor:observed.armor,observedAir:observed.air,
+  ownTanks:count('tank'),fighters,income:c.income,time:g.time,
+  underAttack:c.underAttack,finishing:c.finishing
+ });
  const armyStage=g.world.mapVersion>=23&&!c.finishing?bastionSurplusArmyStage({
   time:g.time,income:c.income,
   ownedBastions:g.territories.filter(t=>t.owner===1).length,
@@ -157,6 +180,9 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
      artillery:count('artillery'),rovers:count('rover'),tanks:count('tank'),
      fighters,income:c.income,underAttack:c.underAttack,
      visibleEnemyAir:observed.air>0,time:g.time}))return 'artillery';
+  // A single anti-infantry flamethrower follows the paid armor and siege
+  // priorities; it is not a replacement for missile AA or normal tanks.
+  if(count('flamer')<flamerQuota)return 'flamer';
   if(c.finishing&&!c.underAttack){
    // A small screen can protect the siege weapon; indefinitely replacing
    // fallen infantry cannot. Keep an affordable heavy escort too.
@@ -204,7 +230,7 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   engineer:c.defenseNeedsWorker||c.own.length>=4&&(s.recovering?.length??0)>0?2:1,
   supply:0,
   rover:armyStage===2?5:armyStage===1?4:2,
-  flamer:0, // No AI flamer purchases until gameplay balance is confirmed.
+  flamer:flamerQuota, // Only one paid flamer against actually observed infantry.
   tank:armyStage===2?9:armyStage===1?7:
    c.income>=65||observed.armor>=3?6:4,
   artillery:armyStage===2?6:armyStage===1?4:
