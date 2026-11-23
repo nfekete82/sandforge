@@ -1,0 +1,31 @@
+name: Sandforge · Native desert ridge shading without polygon carpet
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/webgl-preview.js
+      - scripts/webgl-desert-art.js
+      - tests/sandforge-desert-native-ridge-shading-20261123.test.mjs
+      - .github/workflows/sandforge-native-desert-ridge-shading-20261123.yml
+permissions:
+  contents: read
+jobs:
+  ridge-native-sand:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Full build and module graph syntax
+        run: npm run build
+      - name: Native PBR ridge, map navigation and cliff regressions
+        run: |
+          node --test \
+            tests/sandforge-desert-native-ridge-shading-20261123.test.mjs \
+            tests/sandforge-desert-strike-natural-cliffs-20261122.test.mjs
