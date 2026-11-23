@@ -4,14 +4,14 @@
  */
 export const WRECK_LIFETIME_SECONDS=28;
 export const WRECK_LIFETIMES=Object.freeze({
- supply:18,rover:21,scout:27,artillery:32,tank:35,bomber:35
+ supply:18,rover:21,scout:27,artillery:32,tank:35,flamer:32,bomber:35
 });
 export const WRECK_CAP=24;
 export const WRECK_CAP_LITE=12;
 export const CRASH_LIFETIME_SECONDS=2.1;
 export const CRASH_CAP=6;
 export const isWreckableUnit=kind=>
- ['tank','rover','supply','artillery','scout','bomber'].includes(kind);
+ ['tank','rover','supply','artillery','flamer','scout','bomber'].includes(kind);
 export const isAircraftWreck=kind=>kind==='scout'||kind==='bomber';
 export const wreckDurationFor=kind=>
  WRECK_LIFETIMES[kind]??WRECK_LIFETIME_SECONDS;
