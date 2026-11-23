@@ -34,7 +34,7 @@ import {SandforgeConstructionRecovery} from '/webgl-construction-recovery.js';
 import {SandforgeGroundTracks} from '/webgl-ground-tracks.js';
 import {Soundscape} from '/src/reborn/audio.js';
 import {fineSandPattern} from '/src/reborn/fine-sand.js';
-import {cinematicSandSample,addDesertWashStones} from '/webgl-desert-art.js';
+import {cinematicSandSample,desertRidgeGroundShade,addDesertWashStones} from '/webgl-desert-art.js';
 import {DESERT_SCENIC_STYLE as desertStyle} from '/webgl-desert-style.js';
 import {installDesertSandPBR,SANDFORGE_SAND_PBR} from '/webgl-sand-pbr.js';
 import {desertEcoregion} from '/webgl-desert-ecoregions.js';
@@ -119,6 +119,12 @@ game.infantryVisionBonus=1.15; // modest +15% infantry sight in 3D only
 game.highGroundEnabled=true; // tactical +20% outgoing / -10% incoming only in 3D
 game.updateVision();
 const world=game.world,terrain=world.generated,size=world.size,half=size/2;
+// Physical ridges already exist in World. A second opaque sandstone ribbon
+// looked like a low-poly sheet draped across the sand (jagged polygon edges).
+// Modern deserts tint their existing ground PBR instead; no extra ridge mesh.
+// Preserve legacy, snow and jungle terrain presentation unchanged.
+const nativeDesertRidgeShade=biome==='desert'&&world.mapVersion>=19&&
+ terrain.battlefield?.generatorVersion>=3;
 // A URL label alone never defines the real generated map. Validate the
 // authoritative terrain kind, generator, biome, profile, size and seed.
 const selectedDesertMap=globalThis.SandforgeDesertMaps?.byId(query.get('map'));
@@ -491,6 +497,11 @@ function buildTerrain(){
    // full old orange/gold vertex palette into the real photo texture.
    if(biome==='desert'&&terrain.battlefield&&!desertRegion)
     vertexColor.lerp(new THREE.Color(desertStyle.authoredSandVertex),desertStyle.authoredSandVertexBlend);
+   // Softly darken steep/elevated real terrain. Preserve the very same
+   // wind ripples, photo-albedo and normal maps on both sides of the ridge;
+   // never cover them with a second faceted brown surface.
+   if(nativeDesertRidgeShade)
+    vertexColor.multiplyScalar(desertRidgeGroundShade(slope,h));
    colors[n]=vertexColor.r;colors[n+1]=vertexColor.g;colors[n+2]=vertexColor.b;
    // A 512px photographic sand tile stretched over 2.2km loses all
    // fine detail. Repeat it at a realistic RTS surface scale instead.
@@ -1130,9 +1141,12 @@ function resize(){
 }
 new ResizeObserver(resize).observe(stage);resize();
 const chunks=buildTerrain();
-// One-time geometry; roads and physical cliffs are never updated per frame.
+// One-time geometry. Modern desert ridges use the native heightfield PBR
+// with darkened vertex shading; no detached, jagged sandstone overlay mesh.
+// World physical ridges, ramps and navigation are kept as generated.
 const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
- createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],ridges:terrain.ridges,
+ createLandscapeMeshes({scene,size,heightAt,roads:terrain.roads??[],
+  ridges:nativeDesertRidgeShade?[]:terrain.ridges,
   plateaus:terrain.plateaus??[],biome,
   seed,bastions:game.territories.map(t=>t.point),
   lowQuality:query.get('lite')==='1',mapId:desertRegion?.id??null,
@@ -1140,9 +1154,11 @@ const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
   // on its face looked like separate floating rocks; desert cliffs now have
   // one continuous geological surface instead of duplicated outcrops.
   showOutcrops:biome!=='desert'}):[];
-// Thin PBR cliff facing follows the physical heightfield, with the real
-// sloping entrances left clear. Summit and ramp remain ordinary ground.
-const raisedMesaMeshes=terrain.battlefield?.generatorVersion>=7
+// The old overlapping raised-mesa facades were another angular brown
+// sheet over the same physical terrain (visible especially at ramp edges).
+// Modern desert mesas use the same native sand/heightfield shade as ridges.
+// Keep the authored facade for legacy or non-desert maps only.
+const raisedMesaMeshes=terrain.battlefield?.generatorVersion>=7&&!nativeDesertRidgeShade
  ?createPlayableMesaCliffs({scene,size,heightAt,plateaus:terrain.plateaus??[],
     lowQuality:query.get('lite')==='1',mapId:desertRegion?.id??null}):[];
 const cliffMeshes=landscapeMeshes.filter(mesh=>mesh.userData?.erodedRidge);
