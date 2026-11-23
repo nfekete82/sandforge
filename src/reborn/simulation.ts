@@ -2837,8 +2837,18 @@ export class Simulation {
           const faction=separation[a.owner];
           const colliders=unitSpec(a).group==='Fahrzeuge'?faction.vehicle:
            unitSpec(a).flying?faction.buildings:faction.infantry;
-          if(unitSpec(a).flying||
-           this.world.walkable(p,colliders,Math.max(0,unitSpec(a).radius-10))){
+          // Separation is a REAL movement, not an exemption from terrain
+          // physics. Previously the comfort push tested the cliff cell but
+          // ignored the wheels/tracks on its steep shoulder. Two neighbors
+          // could push an otherwise legal tank INTO an un-driveable lip.
+          const spec=unitSpec(a);
+          const grade=spec.group==='Fahrzeuge'&&!spec.flying&&
+           this.world.mapVersion>=23
+            ?a.kind==='tank'?.215:a.kind==='artillery'?.185:.195
+            :Infinity;
+          if(spec.flying||
+           (this.world.walkable(p,colliders,Math.max(0,spec.radius-10))&&
+            this.world.groundVehicleStepSafe(a,p,grade,spec.radius))){
             a.x=p.x;a.y=p.y;
           }
         }
