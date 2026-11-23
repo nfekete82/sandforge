@@ -1,0 +1,52 @@
+name: Sandforge AI · Measured planning spikes A/B
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/reborn/tactical-ai.ts
+      - src/reborn/ai33-map-doctrine.ts
+      - scripts/benchmark-ai-plan-spikes-20261123.mjs
+      - scripts/compare-ai-plan-spikes-20261123.mjs
+      - .github/workflows/sandforge-ai-plan-spikes-20261123.yml
+permissions:
+  contents: read
+jobs:
+  planning-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      AI_SPIKE_SECONDS: '7.1'
+      AI_SPIKE_REPS: '3'
+      AI_SPIKE_MAPS: desert-strike,broken-empire,burning-horizon
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Candidate 20Hz first two macro ticks
+        run: node scripts/benchmark-ai-plan-spikes-20261123.mjs | tee candidate.log
+      - name: Identical main baseline
+        run: |
+          git worktree add --detach ../ai-spike-baseline "${{ github.event.pull_request.base.sha }}"
+          cp scripts/benchmark-ai-plan-spikes-20261123.mjs ../ai-spike-baseline/scripts/
+          cd ../ai-spike-baseline
+          npm ci --no-audit --no-fund
+          npm run build
+          node scripts/benchmark-ai-plan-spikes-20261123.mjs | tee ../sandforge/baseline.log
+      - name: Diff same states and count real AI path work
+        run: node scripts/compare-ai-plan-spikes-20261123.mjs baseline.log candidate.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai-planning-spikes-${{ github.run_id }}
+          path: |
+            baseline.log
+            candidate.log
+          retention-days: 14
+          if-no-files-found: warn
