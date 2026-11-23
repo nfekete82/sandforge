@@ -145,7 +145,7 @@ Der bereits freigegebene A*-Performance-Fix aus #485 ist über #486 in diesen **
 
 **Unterschied der zwei Prüfarten:**
 
-- **GitHub Actions / Linux-Chromium mit Software-Rendering:** Auf 800 × 500 beziehungsweise 960 × 600 und ohne künstliche RAF-Wartezeit; 600 explizite Simulations-/Rendering-Frames (Canary: 60) sowie GLB-/Shader-/Save-Parität. Der QA-Report kennzeichnet diese Läufe als `softwareRendererBench` und unterdrückt FPS und 1%-Low-Werte. Er darf **nicht** als Aussage zur Apple-M5-Max-GPU verwendet werden.
+- **GitHub Actions / Linux-Chromium mit Software-Rendering:** Auf 800 × 500 beziehungsweise 960 × 600 und ohne künstliche RAF-Wartezeit; 600 explizit gerenderte Frames mit 200 echten 50-ms-Simulationsticks (Canary: 60 Render-Frames mit 20 Simulationsticks) sowie GLB-/Shader-/Save-Parität. Der QA-Report kennzeichnet diese Läufe als `softwareRendererBench` und unterdrückt FPS und 1%-Low-Werte. Er darf **nicht** als Aussage zur Apple-M5-Max-GPU verwendet werden.
 - **Lokaler echter Mac-GPU-Vergleich:** 1440 × 900, DPR 1 und natürliche `requestAnimationFrame`-Taktung (`POLISH31_SOFTWARE_QA=0`). Nur daraus werden FPS/1%-Lows mit derselben Szene, Kamera und identischen Eingabedaten berichtet. Diese Messung muss nach der Synchronisierung erneut ausgeführt werden; ältere Zahlen sind historische Angaben.
 
 Wiederholbare GPU-Abnahme auf dem Mac mit dem bereits ausgecheckten Grafik-Branch:
