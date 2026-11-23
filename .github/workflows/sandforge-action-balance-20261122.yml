@@ -114,10 +114,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {map: desert-strike, seed: 4101, opponent: rush}
-          - {map: broken-empire, seed: 4102, opponent: contest}
-          - {map: burning-horizon, seed: 4103, opponent: rush}
-          - {map: last-stronghold, seed: 4104, opponent: contest}
+          - {map: desert-strike, seed: 4101, opponent: rush, seconds: 120}
+          - {map: broken-empire, seed: 4102, opponent: contest, seconds: 120}
+          - {map: burning-horizon, seed: 4103, opponent: rush, seconds: 120}
+          - {map: last-stronghold, seed: 4104, opponent: contest, seconds: 120}
+          # User-run batch revealed a territorial regression at this orientation.
+          - {map: desert-strike, seed: 4102, opponent: rush, seconds: 180}
+          # User-run batch revealed no real ground combat within 180s.
+          - {map: burning-horizon, seed: 4102, opponent: contest, seconds: 180}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -133,13 +137,13 @@ jobs:
         run: npm run build
       - name: Paid armies on an UNSEEN procedural seed and start corner
         env:
-          ACTION_BENCHMARK_SECONDS: '120'
+          ACTION_BENCHMARK_SECONDS: "${{ matrix.seconds }}"
           ACTION_BENCHMARK_MAPS: "${{ matrix.map }}"
           ACTION_BENCHMARK_SEEDS: "${{ matrix.seed }}"
           ACTION_BENCHMARK_OPPONENT: "${{ matrix.opponent }}"
         run: node scripts/benchmark-sandforge-action-20261122.mjs reports/universal-ai-${{ matrix.map }}-${{ matrix.seed }}.json
       - name: Verify batch evaluator and end-of-game summary on a smoke match
-        if: matrix.map == 'desert-strike'
+        if: matrix.map == 'desert-strike' && matrix.seed == 4101
         env:
           UNIVERSAL_AI_SECONDS: '60'
           UNIVERSAL_AI_MAPS: desert-strike
