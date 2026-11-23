@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -182,4 +182,32 @@ test('Broken Empire plateau HQ builders work from the true collision-safe edge i
   assert.equal(g.hasHeadquarters(0),true,'no free instant HQ or bypassed build rules');
   assert.equal(g.credits[0]>=0,true);
  }
+});
+
+test('Action early skirmish uses observed fighters and public frontlines, not unseen HQ or neutral land grabs',()=>{
+ const input={preset:'action',mapVersion:26,time:85,available:6,
+  blue:2,red:8,frontierEnemy:1,observedHomeThreat:false};
+ assert.deepEqual(actionBastionProbePolicy(input),{slots:3,counter:true},
+  'RED must contest adjacent public BLUE holdings even while ahead');
+ assert.deepEqual(actionBastionProbePolicy({...input,available:9}),
+  {slots:4,counter:true},'large paid army may open a second skirmish group');
+ assert.deepEqual(actionBastionProbePolicy({...input,frontierEnemy:0}),
+  {slots:3,counter:false},'no omniscient fog contacts');
+ assert.equal(actionBastionProbePolicy({...input,preset:'classic'}).slots,0);
+ assert.equal(actionBastionProbePolicy({...input,observedHomeThreat:true}).slots,0);
+ const observed={preset:'action',counter:true,available:6,visibleEnemies:2,
+  knownHq:false,knownTurret:false};
+ assert.equal(actionContestedBastionSafe(observed),true);
+ assert.equal(actionContestedBastionSafe({...observed,visibleEnemies:3}),false);
+ assert.equal(actionContestedBastionSafe({...observed,knownTurret:true}),false);
+ assert.equal(actionContestedBastionSafe({...observed,knownHq:true}),false);
+ assert.equal(actionContestedBastionSafe({...observed,counter:false}),false);
+ assert.equal(actionContestedBastionSafe({...observed,preset:'classic'}),false);
+ assert.equal(actionContestedBastionSafe({...observed,visibleEnemies:0,preset:'classic'}),true);
+ const tactical=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(tactical,/ready\.slice\(0,4\)\.some\(u=>Boolean\(approach\(u,t\)\)\)/,
+  'only a path-validated BLUE frontage can replace an active neutral scout');
+ assert.match(tactical,/if\(contact\)s\.openingContests=\[\]/);
+ assert.match(tactical,/if\(maxAssigned-s\.openingContests\.length<count\)break/,
+  'never push a new two-fighter mission past the save cap');
 });
