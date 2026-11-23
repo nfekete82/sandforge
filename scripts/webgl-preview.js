@@ -21,6 +21,9 @@ import {BIOME_STYLES,normalizeBiome,createBiomeGroundTexture,addBiomeVegetation}
 import {SandforgeCombatEffects} from '/webgl-combat-vfx.js';
 import {SandforgeStrategicEffects} from '/webgl-strategic-effects.js';
 import {SandforgePerformanceWatch} from '/webgl-perf-watch.js';
+import {AdaptiveVisualQuality} from '/webgl-adaptive-quality.js';
+import {SmartDecorationLOD} from '/webgl-smart-lod.js';
+import {SandforgeVisualPost} from '/webgl-visual-post.js';
 import {SandforgeAtmosphere3D} from '/webgl-atmosphere-3d.js';
 import {DESERT_GOLDEN_HOUR,desertGoldenHourEnabled} from '/webgl-golden-hour.js';
 import {addVisualPerimeter} from '/webgl-perimeter.js';
@@ -157,7 +160,14 @@ renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=biome==='desert'?(spacious?.96:1.00):biomeStyle.exposure;
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.65));
+const basePixelRatio=Math.min(devicePixelRatio||1,1.65);
+renderer.setPixelRatio(basePixelRatio);
+// Accumulate scene, light mask, fullscreen output and construction overlay
+// together, so ?perf=1 reports the WHOLE frame instead of the last pass.
+renderer.info.autoReset=false;
+const decorationLOD=new SmartDecorationLOD({enabled:query.get('lod')!=='0'});
+// Full post is opt-in until its measured large-army GPU cost is lower.
+const visualPost=new SandforgeVisualPost(renderer,{enabled:query.get('post')==='1'&&query.get('lite')!=='1'});
 stage.append(renderer.domElement);
 const scene=new THREE.Scene();
 // The playable desert still ends at a BLACK void beyond the map. Golden
@@ -637,6 +647,7 @@ function instancedStone(){
  for(let i=0;i<groups.length;i++){
   groups[i].count=counts[i];groups[i].instanceMatrix.needsUpdate=true;
   groups[i].castShadow=false;groups[i].receiveShadow=true;scene.add(groups[i]);
+  decorationLOD.register(groups[i]);
  }
  contacts.count=contactCount;contacts.instanceMatrix.needsUpdate=true;
  contacts.userData={nonPlayable:true,groundContact:true};contacts.renderOrder=3;
@@ -1139,6 +1150,7 @@ const authenticDesertLoad=desertRegion?loadAuthenticDesertScenery({
  waterLayout:plannedDesertWater,lowQuality:query.get('lite')==='1'
 }).then(a=>{
  authenticDesertArt=a;
+ for(const mesh of a.meshes)if(mesh.userData.model==='sandstone')decorationLOD.register(mesh);
  // Deliberately no instance-stacked PBR boulders on the main cliff mesh.
  // Genuine free-standing rocks still come from the ecoregion planner.
  return a;
@@ -1149,6 +1161,7 @@ const authenticDesertLoad=desertRegion?loadAuthenticDesertScenery({
 // One visual-only instanced draw call; no gameplay pathing or collision edits.
 const washStones=spacious&&biome==='desert'?addDesertWashStones({scene,world,size,seed,heightAt,
  sites:terrain.sites,lowQuality:query.get('lite')==='1'}):null;
+if(washStones)decorationLOD.register(washStones);
 // Oases are initialized before v3 village placement, so decorative houses
 // are positioned around the actual oasis pool rather than random empty sand.
 const battlefield=new SandforgeBattlefield({
@@ -1276,6 +1289,9 @@ const villageArt=spacious&&biome==='desert'?createDesertVillages({
  oases:oases.layout,
  loadModel:async url=>{await ruinStrataLoad;return tryModel(url);},
  weatherModel:weatherRuinMeshes
+}).then(art=>{
+ for(const mesh of art.meshes)decorationLOD.register(mesh);
+ return art;
 }).catch(error=>{console.warn('Oasis adobe hamlet unavailable:',error);return null;}):null;
 const oasisFocus=oases.layout.find(o=>o.type===query.get('oasis'));
 if(oasisFocus){
@@ -1284,6 +1300,7 @@ if(oasisFocus){
  camera.zoom=1.55;camera.updateProjectionMatrix();controls.update();
 }
 window.addEventListener('pagehide',event=>{if(!event.persisted){
+ decorationLOD.dispose();visualPost.dispose();
  lakeVegetation?.dispose();burnedSedans?.dispose();
  canyonOutcrops?.dispose();authenticDesertArt?.dispose();
  groundBlending?.dispose();desertWater?.dispose();oases.dispose();battlefield.productionGates.dispose();battlefield.airfieldLaunch.dispose();
@@ -1381,6 +1398,9 @@ soundButton.onclick=async()=>{
 };
 
 const performanceWatch=new SandforgePerformanceWatch({game,renderer,effects,groundTracks,battlefield});
+const adaptiveVisualQuality=new AdaptiveVisualQuality({
+ renderer,effects,post:visualPost,lod:decorationLOD,basePixelRatio,enabled:query.get('adaptive')!=='0'
+});
 // The 3D preview reuses the authoritative, player-only classic attack alerts.
 let lastAttackSequence=game.attackAlerts.sequence;
 let lastAttackBannerUntil=-Infinity;
@@ -1406,7 +1426,10 @@ let lastFrame=performance.now(),frames=0,lastOutcome=game.status;
 const reusableShadowShift=new THREE.Vector3();
 function animate(now){
  performanceWatch.begin(now);
- const dt=Math.min(.08,(now-lastFrame)/1000);lastFrame=now;
+ const frameMs=now-lastFrame;
+ const dt=Math.min(.08,frameMs/1000);lastFrame=now;
+ // Never affect 20-Hz gameplay: this changes only render resolution and VFX.
+ adaptiveVisualQuality.observe(frameMs,now,{running,visible:!document.hidden});
  const beforeSteps=performanceWatch.enabled?performance.now():0;
  let visualDt=0;
  if(running){
@@ -1470,7 +1493,9 @@ function animate(now){
  desertArt.update(now*.001,game.weather.intensity);
  if(performanceWatch.enabled)performanceWatch.auxiliary(performance.now()-beforeAux);
  const beforeRender=performanceWatch.enabled?performance.now():0;
- renderer.render(scene,camera);
+ decorationLOD.update(camera,stage.clientHeight,now);
+ renderer.info.reset();
+ visualPost.render(scene,camera);
  if(battlefield.buildPreview?.visible){
   // A second render pass guarantees the translucent construction silhouette
   // is always visible even behind rocks, soldiers, the black fog or buildings.
@@ -1502,6 +1527,8 @@ window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,ba
  burnedSedans,
  get burnedSedanCount(){return burnedSedans?.placements.length??0;},
  performance:performanceWatch,
+ visualQuality:adaptiveVisualQuality,
+ visualPost,decorationLOD,
  // Console diagnostic: compare FPS/draw calls with site props on/off live.
  setSiteDecorEnabled:enabled=>battlefield.setSiteDecorEnabled(enabled),
  setStormPreview,

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {BLOOM_LAYER} from './webgl-visual-post.js';
 
 // Bright electrical status directly on the 3D Bastion, not a territory HUD.
 // Owner values are Simulation-owned: 0 blue, 1 red, otherwise neutral white.
@@ -26,6 +27,7 @@ export function attachBastionBeacon(node,owner){
  });
  const ring=new THREE.Mesh(new THREE.TorusGeometry(34,1.15,5,48),material);
  ring.name='SF_Bastion_Emissive_Armour_Belt';
+ ring.layers.enable(BLOOM_LAYER);
  ring.rotation.x=-Math.PI/2;ring.position.y=28;
  ring.castShadow=false;ring.receiveShadow=false;ring.raycast=()=>{};
  status.add(ring);
@@ -35,6 +37,7 @@ export function attachBastionBeacon(node,owner){
    [0,-31,0],[0,31,0]]){
   const strip=new THREE.Mesh(stripGeometry,material);
   strip.name='SF_Bastion_Emissive_Status_Strip';
+  strip.layers.enable(BLOOM_LAYER);
   strip.position.set(x,34,z);strip.rotation.y=rotation;
   strip.castShadow=false;strip.receiveShadow=false;strip.raycast=()=>{};
   status.add(strip);
