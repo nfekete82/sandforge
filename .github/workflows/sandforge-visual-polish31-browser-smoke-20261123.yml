@@ -1,68 +1,69 @@
-name: Sandforge · Visual Polish 3.1 browser harness smoke
+name: Sandforge · Visual Polish 3.1 actual Chromium smoke
 on:
   pull_request:
     branches: [main]
     paths:
-      - scripts/qa-visual-polish31.mjs
+      - scripts/build.mjs
       - scripts/webgl-actor-presentation.js
       - scripts/webgl-battlefield.js
+      - scripts/webgl-building-pbr.js
+      - scripts/webgl-building-shading.js
       - scripts/webgl-combat-vfx.js
+      - scripts/webgl-vehicle-polish.js
+      - scripts/webgl-particle-finish.js
+      - tests/browser/webgl-visual-polish31.spec.mjs
       - .github/workflows/sandforge-visual-polish31-browser-smoke-20261123.yml
 permissions:
   contents: read
 jobs:
-  smoke:
-    name: Same-scene 60-frame before/after · Chromium WebGL
+  real-webgl:
+    name: Live rendering · slope, recoil, facade PBR, smoke and pause
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 18
     env:
-      POLISH31_FRAMES: '60'
-      POLISH31_VARIANTS: before,after
-      POLISH31_PROFILE: '1'
-      POLISH31_VIEWPORT: 800x500
-      POLISH31_SOFTWARE_QA: '1'
-      POLISH31_MAP: desert-strike
-      POLISH31_CHANNEL: chromium
-      POLISH31_BASE_REF: ${{ github.event.pull_request.base.sha }}
-      POLISH31_URL: http://127.0.0.1:8132
-      POLISH31_OUTPUT: artifacts/visual31/smoke
+      CI: 'true'
+      SANDFORGE_BASE_URL: http://127.0.0.1:8132
+      SANDFORGE_BROWSER_CHANNEL: chromium
       LIBGL_ALWAYS_SOFTWARE: '1'
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-      - run: |
+      - name: Install pinned game and software-GPU browser
+        run: |
           npm ci --no-audit --no-fund
           npm ci --prefix tests/browser --no-audit --no-fund
           cd tests/browser && npx playwright install --with-deps chromium
-      - run: |
-          npm run build
-          node --check scripts/qa-visual-polish31.mjs
-          node --check scripts/compare-visual-polish31-acceptance.mjs
-      - name: Launch game and verify before/after with real loaded GLBs
+      - name: Build real game
+        run: npm run build
+      - name: Live WebGL2 vehicle/VFX regression, without synthetic performance claims
         run: |
           set -euo pipefail
           PORT=8132 HOST=127.0.0.1 node scripts/serve.mjs >/tmp/sandforge-polish31-smoke.log 2>&1 &
-          PID=$!
-          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          SF_PID=$!
+          trap 'kill "$SF_PID" 2>/dev/null || true' EXIT
           READY=0
-          for i in $(seq 1 90); do
+          for i in $(seq 1 100); do
             if curl -fsS http://127.0.0.1:8132/healthz >/dev/null 2>&1; then READY=1; break; fi
             sleep .5
           done
-          if [ "$READY" -ne 1 ]; then cat /tmp/sandforge-polish31-smoke.log; exit 1; fi
-          node scripts/qa-visual-polish31.mjs
-          node scripts/report-visual-polish31-spikes.mjs \
-            artifacts/visual31/smoke/report.json artifacts/visual31/smoke/summary.json
-      - if: always()
+          if [ "$READY" != 1 ]; then cat /tmp/sandforge-polish31-smoke.log; exit 1; fi
+          tests/browser/node_modules/.bin/playwright test \
+            --config=tests/browser/playwright.config.mjs \
+            tests/browser/webgl-visual-polish31.spec.mjs \
+            tests/browser/webgl-combat-vfx.spec.mjs \
+            --workers=1 --reporter=line
+      - name: Preserve actual Chromium screenshots and failure traces
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: visual31-browser-smoke-${{ github.run_id }}
-          path: artifacts/visual31/smoke/
+          name: visual31-real-webgl-smoke-${{ github.run_id }}
+          path: |
+            tests/browser/artifacts/runs/
+            tests/browser/artifacts/screenshots/
           retention-days: 14
           if-no-files-found: warn
