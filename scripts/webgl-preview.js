@@ -120,7 +120,7 @@ const world=game.world,terrain=world.generated,size=world.size,half=size/2;
 // looked like a low-poly sheet draped across the sand (jagged polygon edges).
 // Modern deserts tint their existing ground PBR instead; no extra ridge mesh.
 // Preserve legacy, snow and jungle terrain presentation unchanged.
-const nativeDesertRidgeShade=biome==='desert'&&spacious&&
+const nativeDesertRidgeShade=biome==='desert'&&world.mapVersion>=19&&
  terrain.battlefield?.generatorVersion>=3;
 // A URL label alone never defines the real generated map. Validate the
 // authoritative terrain kind, generator, biome, profile, size and seed.
