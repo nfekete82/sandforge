@@ -63,7 +63,18 @@ const biomeStyle=BIOME_STYLES[biome];
 // Keep pre-generator seeded bookmarks on their historical v19–22 maps.
 // The new-game menu always supplies terrain=random (or a chosen profile).
 const procedural=query.has('terrain')||query.has('play')||!query.has('seed');
-const sizes=query.get('legacy')==='1'?{4:15,8:16,12:17,16:18}:procedural?{4:23,8:24,12:25,16:26}:{4:19,8:20,12:21,16:22};
+// Odd-Bastion variants preserve the selected style/seed. Original-size mode
+// reuses that map's DIMENSIONS; the real sectors and clearings are regenerated.
+const sourcePreset=globalThis.SandforgeDesertMaps?.byId(query.get('sourceMap'));
+const originalSizeClasses={8:30,12:33,16:36};
+const sourceMapValid=!!sourcePreset&&query.get('seed')===String(sourcePreset.seed)&&
+ query.get('terrain')===sourcePreset.terrain&&biome===sourcePreset.biome;
+const oddSizeBase=query.get('mapSize')==='original'&&sourceMapValid
+ ?originalSizeClasses[sourcePreset.bastions]??27:27;
+const oddSizes={3:oddSizeBase,5:oddSizeBase+1,7:oddSizeBase+2};
+const sizes=query.get('legacy')==='1'?{4:15,8:16,12:17,16:18}:
+ procedural?{...oddSizes,4:23,8:24,12:25,16:26}:
+ {...oddSizes,4:19,8:20,12:21,16:22};
 const bastions=Object.hasOwn(sizes,query.get('bastions'))?Number(query.get('bastions')):8;
 const inputSeed=query.get('seed');
 const seed=inputSeed!==null&&inputSeed.trim()!==''&&Number.isSafeInteger(Number(inputSeed))&&Number(inputSeed)>=0&&Number(inputSeed)<=4294967295
@@ -86,7 +97,9 @@ const selectedGenerator=requestedMap&&requestedMap.seed===seed&&
  requestedMap.bastions===bastions&&requestedMap.mapVersion===sizes[bastions]&&
  requestedMap.terrain===profile&&requestedMap.biome===biome&&
  query.get('landscape')==='network'?requestedMap.generatorVersion:null;
-const generatorVersion=procedural?(selectedGenerator??(query.get('landscape')==='classic'?2:
+const generatorVersion=procedural?(selectedGenerator??
+ (sourceMapValid&&[3,5,7].includes(bastions)?sourcePreset.generatorVersion:
+ query.get('landscape')==='classic'?2:
  query.get('landscape')==='network-v3'?3:4)):2;
 const game=session??Simulation.campaign(seed,sizes[bastions],profile,generatorVersion);
 // A new campaign can choose Action; resumed saves always keep their preset.
@@ -134,7 +147,9 @@ const desertMap=globalThis.SandforgeDesertMaps?.matches(selectedDesertMap,{
  terrain:terrain.battlefield?.profile,biome,kind:terrain.landscapeKind,
  bastions:game.territories.length
 })?selectedDesertMap:null;
-const desertRegion=desertMap?desertEcoregion(desertMap.id):null;
+const sourceMapId=sourceMapValid&&[3,5,7].includes(game.territories.length)
+ ?sourcePreset.id:desertMap?.id??null;
+const desertRegion=sourceMapId?desertEcoregion(sourceMapId):null;
 const gradingHomes=terrain.battlefield?.generatorVersion>=2
  ?campaignLayout(world.mapVersion,seed).headquarters.map(i=>battlefieldStart(terrain.sites[i],size))
  :[];
@@ -1567,6 +1582,7 @@ window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,ba
  get groundBlending(){return groundBlending;},
  get groundBlendReady(){return groundBlendReady;},
  desertMapId:desertMap?.id??null,
+ sourceMapId,
  desertRegion:desertRegion?.key??null,
  get authenticDesertArt(){return authenticDesertArt;},
  get canyonOutcrops(){return canyonOutcrops;},
