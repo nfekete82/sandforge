@@ -99,3 +99,17 @@ export function actionOpeningHandoffSize(x:{
   x.slots<1||x.free<1)return 0;
  return x.counter&&x.slots>=2&&x.free>=2?2:1;
 }
+
+/** Safe Action-only forward staging, never a shortcut around siege,
+ * retreat, observed enemies, or player-specific Classic behavior. */
+export function actionForwardRallyPolicy(x:{
+ preset:BalancePreset;mapVersion:number;generatorVersion:number;
+ time:number;missionKind:string;targetOwner:-1|0|1;
+ phase:'gather'|'regroup'|'attack'|'defend';available:number;
+ observedHomePressure:boolean;knownThreats:number;
+}):boolean{
+ return x.preset==='action'&&x.mapVersion>=23&&x.generatorVersion>=7&&
+  x.time>=50&&x.time<=240&&x.missionKind==='capture'&&
+  x.targetOwner===-1&&x.phase!=='attack'&&x.phase!=='defend'&&
+  x.available>=3&&!x.observedHomePressure&&x.knownThreats===0;
+}
