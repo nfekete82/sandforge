@@ -38,7 +38,10 @@ for(const [version,count,seed,terrain] of [
   for(let i=0;i<80;i++)g.step(.05);
   const re=Simulation.load(g.save());
   assert.equal(re.territories.length,count);
-  assert.deepEqual(re.territories,g.territories,'odd Bastion income and state survives save/load');
+  // Save migration normalizes absent tier-1 markers to upgradeLevel:1.
+  const canonical=ts=>ts.map(t=>({...t,upgradeLevel:t.upgradeLevel??1}));
+  assert.deepEqual(canonical(re.territories),canonical(g.territories),
+   'odd Bastion income and state survives save/load');
   assert.equal(re.world.size,g.world.size);
  });
 }
