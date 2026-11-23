@@ -21,7 +21,8 @@
  // (existing QA/deep links). Stay on the active entry during navigation.
  const gameRoute=()=>location.pathname==='/'||location.pathname==='/index.html'
   ?'/':'/webgl-preview.html';
- const modes={15:4,16:8,17:12,18:16,19:4,20:8,21:12,22:16,23:4,24:8,25:12,26:16};
+ const modes={15:4,16:8,17:12,18:16,19:4,20:8,21:12,22:16,23:4,24:8,25:12,26:16,
+  27:3,28:5,29:7,30:3,31:5,32:7,33:3,34:5,35:7,36:3,37:5,38:7};
  const menu=$('main-dialog'),newDialog=$('sf3d-new-dialog');
  const optionsDialog=$('sf3d-options-dialog'),pauseDialog=$('sf3d-pause-dialog');
  const status=$('sf3d-menu-status');
@@ -76,7 +77,8 @@
  let pauseCheatProgress=0;
  let suppressSpaceRelease=false;
  const saved=readSave();
- const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert',landscape='network',mapId=null,balancePreset='classic'}={})=>{
+ const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert',
+  landscape='network',mapId=null,balancePreset='classic',mapSizeMode='auto'}={})=>{
   const params=new URLSearchParams({bastions:String(count),seed:String(seed>>>0),play:'1'});
   // Keep local A/B policy selection while navigating from the main menu.
   if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
@@ -86,6 +88,12 @@
   if(query.get('ai36')==='off'||query.get('ai36')==='coordinated')
    params.set('ai36',query.get('ai36'));
   if(balancePreset==='action')params.set('balance','action');
+  // For NEW 3/5/7 games retain the selected environmental style/seed.
+  // "Original size" preserves physical dimensions, not the old Bastion sites.
+  if([3,5,7].includes(count)&&mapId){
+   params.set('sourceMap',mapId);
+   if(mapSizeMode==='original')params.set('mapSize','original');
+  }
   if(resume)params.set('resume','1');
   if(legacy)params.set('legacy','1');
   const options=readOptions();
@@ -230,8 +238,14 @@
   if(!map){
    $('sf3d-new-status').textContent='Bitte eine der vier Wüstenkarten auswählen.';return;
   }
-  play(map.bastions,map.seed,{terrain:map.terrain,biome:'desert',
-   landscape:'network',mapId:map.id,balancePreset:$('sf3d-balance-preset').value});
+  const count=Number($('sf3d-bastion-count').value);
+  if(![3,5,7].includes(count)){
+   $('sf3d-new-status').textContent='Bitte 3, 5 oder 7 Bastionen auswählen.';return;
+  }
+  play(count,map.seed,{terrain:map.terrain,biome:'desert',
+   landscape:'network',mapId:map.id,
+   mapSizeMode:$('sf3d-map-size-mode').value,
+   balancePreset:$('sf3d-balance-preset').value});
  });
  $('sf3d-pause-resume').addEventListener('click',resumeGame);
  $('sf3d-pause-save').addEventListener('click',()=>{
@@ -241,7 +255,7 @@
    localStorage.setItem(savedBiomeKey,JSON.stringify({
     seed:game.game.seed,mapVersion:game.world.mapVersion,
     biome:validBiome(window.__sandforgeWebGL?.biome),
-    mapId:window.__sandforgeWebGL?.desertMapId??null
+    mapId:window.__sandforgeWebGL?.sourceMapId??window.__sandforgeWebGL?.desertMapId??null
    }));
   }catch(error){console.warn('Biom-Einstellung konnte nicht gespeichert werden:',error);}
   $('sf3d-pause-status').textContent=saved
