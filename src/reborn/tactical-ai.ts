@@ -9,6 +9,7 @@ import {battleDirectorPulse,validBattleDirector,type BattleDirectorState,type Ba
 import {selectiveRaidAllowed} from './selective-raids.js';
 import {planCombatDuties} from './squad-duty-arbiter.js';
 import {newCampaign,campaignPhase,refreshIntelligence,chooseMission,reconGoal,validCampaign,knownBuildings,type CampaignState} from './campaign-commander.js';
+import {bastionReconRequired,bastionReconVantage,BASTION_RECON_AIR_SCOUT_GRACE} from './ai-bastion-recon.js';
 import {segmentDistance} from './world-generation.js';
 import {newBattle,assessBattle,fightingPower,hasDecisiveLocalAdvantage,shouldCommitFirefight,fightInsteadOfFleeing,retreatCorridorSafe,recordFailure,retryFront,validBattle,type BattleState} from './battle-response.js';
 import {newAdaptive,updateAdaptive,validAdaptive,type AdaptiveState} from './adaptive-strategy.js';
@@ -859,6 +860,16 @@ export class TacticalAI {
       distance(home,mission)>650&&!g.canSee(1,mission)){
     const forward=droneFrontierPoint(home,mission,g.world.size);
     if(!g.canSee(1,forward)&&this.danger(forward)<5)goal=forward;
+   }
+   // Public Bastion coordinates are known, NOT the defenses. A paid
+   // aircraft checks an unexplored enemy-held capture circle before the
+   // main force commits; only the aircraft's actual sight reveals threats.
+   if(!goal&&g.world.mapVersion>=23&&mission?.kind==='capture'&&
+      g.territories[mission.sector]?.owner===0&&
+      !g.hasExplored(1,mission)&&!g.canSee(1,mission)){
+    const lookout=droneFrontierPoint(home,mission,g.world.size,
+     Math.min(440,unitSpec(u).sight*.52));
+    if(this.danger(lookout)<5)goal=lookout;
    }
    goal??=reconGoal(g,c,u,p=>this.danger(p));
    if(goal&&(!u.orders.length||distance(u.orders.at(-1)!,goal)>60))
@@ -2003,8 +2014,9 @@ export class TacticalAI {
     if(post)visionPosts.set(rocket.id,post);
    }
   }
-  const stageForSiege=()=>{
-   this.issue([...selected.filter(u=>!safeBattery.has(u.id)&&!visionPosts.has(u.id)),...medics],s.rally!,'safe');
+  const stageForSiege=(reconScoutId?:number)=>{
+   this.issue([...selected.filter(u=>u.id!==reconScoutId&&
+    !safeBattery.has(u.id)&&!visionPosts.has(u.id)),...medics],s.rally!,'safe');
    for(const u of selected.filter(u=>safeBattery.has(u.id)))this.issue([u],intel!,'assault',intel!.id);
    for(const u of selected.filter(u=>visionPosts.has(u.id))){
     const post=visionPosts.get(u.id)!;
@@ -2089,6 +2101,48 @@ export class TacticalAI {
     campaignPhase(c,'buildup',g.time);if(!continuing)this.setPhase('gather');
     stageForSiege();return;
    }
+  }
+  // A *new* large capture attack must not treat an unexplored enemy
+  // Bastion as an empty site. The map position/ownership remains public.
+  // Neutral early captures, known sites, ongoing firefights and legacy
+  // doctrines are deliberately unaffected. Scout units have already been
+  // dispatched by campaignRecon above; if no aircraft reaches the site
+  // promptly, use ONE paid ground unit with an actual safe A* route.
+  if(bastionReconRequired({
+   mapVersion:g.world.mapVersion,kind:mission.kind,
+   owner:g.territories[mission.sector].owner,
+   visible:g.canSee(1,mission),explored:g.hasExplored(1,mission),
+   continuing,time:g.time,missionSince:mission.since
+  })){
+   const aircraft=army.some(u=>u.hp>0&&!u.carrier&&
+    (u.kind==='scout'||u.kind==='drone')&&
+    !u.airfieldService&&!u.returnToHangar);
+   let scout:Unit|undefined;
+   if(!aircraft||g.time-mission.since>=BASTION_RECON_AIR_SCOUT_GRACE){
+    scout=selected.filter(u=>!unitSpec(u).flying&&u.hp>=unitSpec(u).hp*.55)
+     .sort((a,b)=>
+      (a.kind==='rover'?0:a.kind==='infantry'?1:a.kind==='heavy'?2:3)-
+      (b.kind==='rover'?0:b.kind==='infantry'?1:b.kind==='heavy'?2:3)||
+      a.id-b.id)[0];
+   }
+   let post:Point|undefined;
+   if(scout){
+    const blockers=this.obstacles();
+    post=bastionReconVantage({
+     from:scout,target:mission,sight:unitSpec(scout).sight,
+     walkable:p=>g.world.walkable(p,blockers,5),
+     reachable:p=>g.world.path(scout!,p,blockers,5).length>0,
+     danger:p=>this.danger(p)
+    });
+   }
+   // Don't pull a healthy assault screen into a known turret zone merely
+   // because the Bastion itself has never been explored.
+   if(post&&scout&&(!scout.orders.length||
+     distance(scout.orders[0],post)>65))
+    this.issue([scout],post,'assault',undefined,false,false);
+   campaignPhase(c,'buildup',g.time);
+   this.setPhase('gather');stageForSiege(post?scout?.id:undefined);
+   return;
   }
   if(!continuing){
    const ready=selected.filter(u=>distance(u,s.rally!)<330),power=ready.reduce((n,u)=>n+combatStrength(u),0);
@@ -2299,7 +2353,11 @@ export class TacticalAI {
    ?mapBastionContestOpening(g.world.mapVersion,g.time,blue,red,ready.length)
    :null;
   const counter=large?.counter??(blue>=3&&red<=1&&g.time>=30&&ready.length>=5);
-  const targets=g.territories.filter(t=>t.owner===-1||counter&&t.owner===0);
+  // Neutral Bastions can be rushed using their public coordinates.
+  // An enemy-controlled Bastion needs at least one real earlier sensor
+  // visit before a two-soldier "safe counter" is assigned.
+  const targets=g.territories.filter(t=>t.owner===-1||
+   counter&&t.owner===0&&g.hasExplored(1,t.point));
   const maxAssigned=large?.slots??(counter?2:ready.length>=3?2:ready.length?1:0);
   if(!targets.length||!maxAssigned){s.openingContests=[];return new Set();}
   const blockers=[...this.obstacles(),...g.bastionColliders()];
