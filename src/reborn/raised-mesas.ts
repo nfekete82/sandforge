@@ -60,7 +60,7 @@ export function raisedMesaRouteWaypoint(
    if(Math.abs(perp.y)>=Math.abs(perp.x)?perp.y<0:perp.x<0)
     perp={x:-perp.x,y:-perp.y};
    const lateralOffset=Math.max(-2,Math.min(2,lane))*
-    Math.min(75,mesa.rampWidth*.16);
+    Math.min(55,mesa.rampWidth*.13);
    const offset={x:perp.x*lateralOffset,y:perp.y*lateralOffset};
    const outer={x:mesa.center.x+direction.x*(mesa.rampEnd-140)+offset.x,
     y:mesa.center.y+direction.y*(mesa.rampEnd-140)+offset.y};
