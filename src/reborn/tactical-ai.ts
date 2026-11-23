@@ -2337,16 +2337,31 @@ export class TacticalAI {
   s.openingContests=(s.openingContests??[]).filter(e=>
    ready.some(u=>u.id===e.unitId)&&targets.some(t=>t.id===e.sectorId)&&
    !observedThreat(g.territories[e.sectorId])).slice(0,maxAssigned);
-  // If a reachable, publicly Blue-held front opens up, reassign neutral
-  // scouts to fight there instead of keeping both early slots occupied by
-  // distant, unopposed land-grabs. Only do this ONCE per new front; the next
-  // pulse retains the already-issued attackMove order for continuity.
-  if(actionOpening&&counter&&!s.openingContests.some(e=>
-    g.territories[e.sectorId]?.owner===0)){
-   const contact=targets.some(t=>t.owner===0&&!observedThreat(t)&&
-    ready.slice(0,4).some(u=>Boolean(approach(u,t))));
-   if(contact)s.openingContests=[];
+  // Choose combat over neutral expansion only when a genuine TWO-unit
+  // path-validated push is competitive with the nearest neutral Bastion.
+  // Otherwise clearing neutral orders every planning pulse makes troops
+  // repeatedly restart A* routes (especially on 16-Bastion maps).
+  const actionMerit=(u:Unit,t:typeof targets[number],p:Point)=>
+   actionBastionGoalScore({
+    pathDistance:distance(u,p),income:t.income,owner:t.owner,
+    frontierRed:t.neighbors.some(id=>g.territories[id]?.owner===1),
+    frontierBlue:t.neighbors.some(id=>g.territories[id]?.owner===0),
+    counter
+   });
+  let focusEnemyFront=false;
+  if(actionOpening&&counter&&ready.length>=4){
+   const candidates=targets.filter(t=>!observedThreat(t))
+    .map(t=>({t,p:approach(ready[0],t)})).filter(v=>Boolean(v.p));
+   const neutralScore=Math.min(Infinity,...candidates.filter(v=>v.t.owner===-1)
+    .map(v=>actionMerit(ready[0],v.t,v.p!)));
+   focusEnemyFront=candidates.some(v=>v.t.owner===0&&
+    actionMerit(ready[0],v.t,v.p!)<=neutralScore+120&&
+    ready.slice(1,5).some(u=>Boolean(approach(u,v.t))));
   }
+  // Reallocate an old neutral scout pair once to the attainable public
+  // front. Existing BLUE-directed orders are preserved for path continuity.
+  if(focusEnemyFront&&!s.openingContests.some(e=>
+    g.territories[e.sectorId]?.owner===0))s.openingContests=[];
   const reserved=new Set(s.openingContests.map(e=>e.unitId));
   // Keep assigned soldiers moving; do not reset their A* order every pulse.
   for(const e of s.openingContests){
@@ -2366,17 +2381,12 @@ export class TacticalAI {
    if(maxAssigned-s.openingContests.length<count)break;
    const squad=free.splice(0,count);
    const goals=targets.filter(t=>!observedThreat(t)&&
+     (!focusEnemyFront||t.owner===0)&&
      (counter||!s.openingContests!.some(e=>e.sectorId===t.id)))
     .map(t=>({t,p:approach(squad[0],t)})).filter(x=>x.p)
     .sort((a,b)=>{
      const merit=(v:typeof a)=>actionOpening
-      ?actionBastionGoalScore({
-        pathDistance:distance(squad[0],v.p!),income:v.t.income,
-        owner:v.t.owner,
-        frontierRed:v.t.neighbors.some(id=>g.territories[id]?.owner===1),
-        frontierBlue:v.t.neighbors.some(id=>g.territories[id]?.owner===0),
-        counter
-       })
+      ?actionMerit(squad[0],v.t,v.p!)
       :distance(squad[0],v.p!)-v.t.income*8-
        (adaptiveLarge&&counter&&v.t.owner===0?700:0);
      return merit(a)-merit(b)||a.t.id-b.t.id;
