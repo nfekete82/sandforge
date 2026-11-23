@@ -165,3 +165,20 @@ export function actionPublicFrontPressure(x:{
   x.oldKind==='capture'&&x.oldNeutral&&x.oldMissionSeconds>=12&&
   !x.oldCaptureOccupied&&!x.activeAssault&&!x.homeThreat;
 }
+
+/** Universal Action response to a PUBLIC Bastion deficit. It does not
+ * invent enemy sightings, expose hidden buildings or strip home defenders.
+ * Only a real, fully pathable frontline may replace a long neutral march.
+ * Classic and ongoing visible firefights are never interrupted. */
+export function actionTerritoryRecoveryPolicy(x:{
+ preset:BalancePreset;mapVersion:number;time:number;
+ ownSectors:number;enemySectors:number;available:number;
+ oldKind:string|null;oldNeutral:boolean;oldMissionSeconds:number;
+ oldCaptureOccupied:boolean;activeAssault:boolean;homeThreat:boolean;
+}):boolean{
+ return x.preset==='action'&&x.mapVersion>=23&&x.time>=160&&
+  x.enemySectors>=3&&x.enemySectors-x.ownSectors>=2&&
+  x.available>=4&&x.oldKind==='capture'&&x.oldNeutral&&
+  x.oldMissionSeconds>=25&&!x.oldCaptureOccupied&&
+  !x.activeAssault&&!x.homeThreat;
+}
