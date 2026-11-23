@@ -216,7 +216,8 @@ export class TacticalAI {
   clusters:0,clusterPaths:0,ringPaths:0,applied:0,
   homeGuardCapPulses:0,homeGuardSlotPulsesFreed:0,
   homeReserveBlocks:{} as Record<string,number>,
-  contactFront:{checked:0,eligible:0,rerouted:0,noRoute:0},
+  contactFront:{checked:0,eligible:0,rerouted:0,noRoute:0,
+   firstRerouteAt:null as number|null},
   blocks:{} as Record<string,number>
  };
  /** Explicitly opt-in ONLY for headless benchmark observation. No saves. */
@@ -1750,7 +1751,10 @@ export class TacticalAI {
     const d=this.actionRallyDiagnostics.contactFront;
     if(reason==='checked')d.checked++;
     else if(reason==='eligible')d.eligible++;
-    else if(reason==='rerouted')d.rerouted++;
+    else if(reason==='rerouted'){
+     d.rerouted++;
+     d.firstRerouteAt??=g.time;
+    }
     else if(reason==='no-route')d.noRoute++;
    },
    experience,

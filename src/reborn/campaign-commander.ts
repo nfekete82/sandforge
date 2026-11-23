@@ -95,7 +95,10 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
     homeThreat:!!context?.homeThreat
    })&&context?.actionContact&&!actionFront(g.territories[old.sector])){
    context.actionContactEvent?.('eligible');
-   const candidates=g.territories.filter(actionFront)
+   // When BLUE owns only its first public sector, pressure the adjacent
+   // NEUTRAL meeting ground, never the BLUE home Bastion/HQ itself.
+   const candidates=g.territories.filter(t=>actionFront(t)&&
+     (blueOwned>=2||t.owner===-1))
     .sort((a,b)=>distance(origin,a.point)-distance(origin,b.point)||a.id-b.id)
     .slice(0,9).map(t=>({t,route:context.route(t.point)}))
     .filter((v):v is {t:typeof g.territories[number];route:{length:number;risk:number}}=>

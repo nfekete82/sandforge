@@ -310,6 +310,15 @@ for(const map of maps){
  report.pairs.push({map:map.id,firstExchangeDelta:
   b.firstExchange===null||a.firstExchange===null?null:
   Number((b.firstExchange-a.firstExchange).toFixed(2)),
+  // "firstExchange" remains backward-compatible but also includes
+  // drone and structure fire. Judge military contact with the NEW field.
+  firstGroundExchangeDelta:
+   b.firstGroundUnitExchange===null||a.firstGroundUnitExchange===null?null:
+   Number((b.firstGroundUnitExchange-a.firstGroundUnitExchange).toFixed(2)),
+  groundShotsByFactionDelta:[
+   b.groundShotsByFaction[0]-a.groundShotsByFaction[0],
+   b.groundShotsByFaction[1]-a.groundShotsByFaction[1]
+  ],
   combatSecondsDelta:Number((b.engagementSeconds-a.engagementSeconds).toFixed(1)),
   redCaptureEventsDelta:b.redCaptureEvents-a.redCaptureEvents,
   redCaptureControlSecondsDelta:Number((b.redCaptureSeconds-a.redCaptureSeconds).toFixed(1)),

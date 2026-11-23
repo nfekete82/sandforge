@@ -10,6 +10,7 @@ on:
       - feat/ai-action-rally-diagnostics-20261123
       - feat/ai-action-small-forward-squads-20261123
       - feat/ai-action-contact-diagnostics-20261123
+      - feat/ai-action-public-front-pressure-20261123
   workflow_dispatch:
 permissions:
   contents: read
