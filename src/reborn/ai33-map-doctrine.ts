@@ -63,6 +63,35 @@ export function mapFrontierPosts(mapVersion:number,guards:number,frontiers:numbe
  return Math.min(ready>=6?2:ready>=4?1:0,sites);
 }
 
+/** Distance along a real completed path, not a misleading straight line.
+ * A* may stop on a grid-cell centre. Endpoints more than 1.5 cells from
+ * the chosen capture-ring point do NOT count as physically reachable.
+ * This is terrain-only public information; no fogged enemy information. */
+export function openingCaptureRouteLength(
+ start:{x:number;y:number},goal:{x:number;y:number},
+ route:readonly {x:number;y:number}[],cell:number
+):number{
+ if(!route.length||!Number.isFinite(cell)||cell<=0)return Infinity;
+ const d=(a:{x:number;y:number},b:{x:number;y:number})=>
+  Math.hypot(a.x-b.x,a.y-b.y);
+ if(d(route[route.length-1],goal)>Math.max(35,cell*1.5))return Infinity;
+ let len=0,from=start;
+ for(const to of route){
+  if(![to.x,to.y].every(Number.isFinite))return Infinity;
+  len+=d(from,to);from=to;
+ }
+ return len;
+}
+
+/** Preserve original paid target-income/recapture priorities but use the
+ * length of an actually reachable route on modern cliff maps. */
+export function openingCaptureRouteScore(x:{
+ distance:number;income:number;enemyOwned:boolean;aggressiveRecapture:boolean;
+}):number{
+ return x.distance-x.income*8-
+  (x.aggressiveRecapture&&x.enemyOwned?700:0);
+}
+
 /** An opening scout that is ALREADY physically inside an uncontested
  * neutral Bastion's capture ring must not be ordered to march to its own
  * feet every 3s. Keep the original active-order guard, and allow genuine
