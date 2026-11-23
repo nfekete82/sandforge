@@ -122,6 +122,7 @@ cpSync('scripts/webgl-aircraft-effects.js','dist/webgl-aircraft-effects.js');
 // Keep the optional battle profiler deployable; an unresolved static import
 // prevents the entire WebGL preview from booting, even when perf=0.
 cpSync('scripts/webgl-perf-watch.js','dist/webgl-perf-watch.js');
+cpSync('scripts/webgl-adaptive-quality.js','dist/webgl-adaptive-quality.js');
 cpSync('scripts/webgl-classic-hud.js','dist/webgl-classic-hud.js');
 cpSync('scripts/webgl-bastion-upgrade-ui.js','dist/webgl-bastion-upgrade-ui.js');
 cpSync('scripts/webgl-global-catalog.js','dist/webgl-global-catalog.js');
