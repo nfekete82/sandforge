@@ -6,7 +6,7 @@ import { TERRAIN_BLOCKED, TERRAIN_CLIFFS } from './terrain-art.js';
 import { generateMap, polygonContains, segmentDistance, type GeneratedMap } from './world-generation.js';
 import { navigationLine } from './navigation-line.js';
 import {canyonCliffBlocked,canyonRuinBlocked} from './canyon-front.js';
-import {raisedMesaCliffBlocked} from './raised-mesas.js';
+import {raisedMesaCliffBlocked,raisedMesaRouteWaypoint} from './raised-mesas.js';
 import {canyonPassWaypoint} from './ai36-terrain-routes.js';
 
 export interface Territory {
@@ -464,7 +464,18 @@ export class World {
          // and for vehicles already stranded on an unsafe slope.
          ?(near,far)=>this.physicalPassAvailable(near,far,clearance,maxSlope):undefined)
       :undefined);
-    const routingTarget=pass??target;
+    // Unlike canyon ridges, raised mesas have their own authored ramp
+    // directions. Route toward an actual tank-grade entrance, not the cliff
+    // edge reached by bounded partial A* on large 3D maps. No change to
+    // older maps/replays; passenger and infantry pathing are unaffected.
+    const mesaWaypoint=allowPartial&&!air&&this.mapVersion>=23&&
+     this.generatorVersion>=10&&Number.isFinite(maxSlope)&&
+     this.generated?.plateaus?.length
+      ?raisedMesaRouteWaypoint(start,target,this.generated.plateaus,
+       p=>this.walkable(p,obstacles,clearance)&&
+        this.groundVehicleSlopeSafe(p,maxSlope,clearance+10))
+      :undefined;
+    const routingTarget=pass??mesaWaypoint??target;
     const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(routingTarget,obstacles,[],start,clearance,maxSlope);
     if(!end)return [];
     const cost=(a:Point,b:Point)=>{const d=Math.hypot(b.x-a.x,b.y-a.y),steps=Math.max(1,Math.ceil(d/(this.cell*.6)));let sum=0;for(let i=0;i<=steps;i++)sum+=risk?.[this.index({x:a.x+(b.x-a.x)*i/steps,y:a.y+(b.y-a.y)*i/steps})]??0;return d/this.cell*(1+sum/(steps+1));};
