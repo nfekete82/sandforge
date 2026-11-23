@@ -342,7 +342,7 @@ test('Action only redirects a neutral mission to a PUBLIC BLUE-facing front',()=
  assert.match(commander,/t\.owner===-1&&t\.neighbors\.some\(id=>g\.territories\[id\]\?\.owner===0\)/);
  assert.match(commander,/!buildings\.some\(b=>b\.kind==='headquarters'/);
  assert.match(commander,/g\.canSee\(1,u\)/);
- assert.match(commander,/meet\.route|meet\.t\.point/);
+ assert.match(commander,/meet\.sector\.point/);
  assert.match(commander,/rankPublicFronts\(/);
  assert.match(commander,/knownThreat:t=>!actionFront\(t\)/);
 });
