@@ -5,6 +5,9 @@ import {Simulation} from '../dist/src/reborn/simulation.js';
 function tankTrafficFixture(){
  const g=new Simulation(2074,23);
  g.units=[];g.bases=[];g.world.blocked.fill(0);g.world.opaque.fill(0);
+ const battlefield=g.world.generated?.battlefield;
+ assert.ok(battlefield,'modern battlefield terrain is initialized');
+ battlefield.heights.fill(0); // Isolate traffic logic from unrelated steep terrain.
  g.hadBuildings=[false,false];g.aiClock=1e8;g.tactical.plan=()=>{};
  g.status='playing';g.paused=false;g.time=10;
  g.spawn(1,{x:g.world.size-180,y:g.world.size-190},'infantry');
@@ -49,4 +52,16 @@ test('a new player order resets old stall history instead of triggering an old d
  assert.equal(progress.since,g.time);
  assert.equal(progress.retryAt,-1);
  assert.equal(rear.path.length,1,'new order must not receive old recovery detour');
+});
+
+test('small A* waypoint drift cannot fake physical tank progress',()=>{
+ const {g,rear}=tankTrafficFixture();
+ const order=rear.orders[0];
+ g.vehicleProgress.set(rear,{
+  x:rear.x,y:rear.y,since:g.time-2,retryAt:-1,
+  nextX:1488,nextY:1000,bestDistance:530,order
+ });
+ g.move(rear,order,.05);
+ assert.equal(g.vehicleProgress.get(rear).since,g.time-2,
+  'only real movement, not a slightly shorter waypoint, resets stall age');
 });

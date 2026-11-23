@@ -2216,7 +2216,8 @@ export class Simulation {
        this.vehicleProgress.set(u,{x:u.x,y:u.y,since:this.time,retryAt:-1,
         nextX:next.x,nextY:next.y,bestDistance:waypointDistance,
         order:u.orders[0]});
-      else if(state.bestDistance-waypointDistance>=10){
+      // A shorter replanned waypoint is not physical forward progress.
+      else if(distance(u,state)>=8&&state.bestDistance-waypointDistance>=10){
        state.x=u.x;state.y=u.y;state.since=this.time;
        state.bestDistance=waypointDistance;
       }
