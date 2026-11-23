@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure,actionPublicFrontPressure,actionTerritoryRecoveryPolicy}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure,actionPublicFrontPressure,actionTerritoryRecoveryPolicy,actionReleaseTemporaryRecaptureHold}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -401,4 +401,21 @@ test('Action recovers a PUBLIC territorial deficit without revealing unseen enem
  const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
  assert.match(ai,/firstRecoveryAt\?\?=g\.time/);
  assert.match(ai,/recoveryNoRoute/);
+});
+
+test('Action 15s recapture guard orders expire without abandoning a visible defense',()=>{
+ const base={preset:'action',temporaryGuard:true,hasOrders:false,
+  siteOwned:true,securedSeconds:15,observedThreat:false};
+ assert.equal(actionReleaseTemporaryRecaptureHold(base),true);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,securedSeconds:14.9}),false);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,observedThreat:true}),false);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,siteOwned:false}),true);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,siteOwned:false,observedThreat:true}),true);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,preset:'classic'}),false);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,temporaryGuard:false}),false);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,hasOrders:true}),false);
+ const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(ai,/actionReleaseTemporaryRecaptureHold\(/);
+ assert.match(ai,/observedThreat=site\.capturing===0\|\|visible\.some/);
+ assert.match(ai,/g\.stop\(\[u\.id\]\);/);
 });
