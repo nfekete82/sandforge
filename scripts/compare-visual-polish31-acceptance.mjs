@@ -34,19 +34,26 @@ for(const map of maps){
   assert.equal(run.metrics.triangles,controls.metrics.triangles,
    map+' changed triangles');
  }
+ const software=!!controls.softwareQA;
+ assert.ok(group.every(r=>!!r.softwareQA===software),'mixed RAF and software cadence');
+ assert.ok(group.every(r=>r.screenWidth===controls.screenWidth&&r.screenHeight===controls.screenHeight),
+  'mixed viewport sizes');
  const stats=(variants,key)=>median(variants.map(r=>r.metrics[key]));
- const fpsA=stats(before,'fps'),fpsB=stats(after,'fps'),
-  lowA=stats(before,'lowFps'),lowB=stats(after,'lowFps'),
+ const fpsA=software?null:stats(before,'fps'),fpsB=software?null:stats(after,'fps'),
+  lowA=software?null:stats(before,'lowFps'),lowB=software?null:stats(after,'lowFps'),
   workA=stats(before,'workMs'),workB=stats(after,'workMs');
  const meanChangePct=100*(workB/workA-1);
  const row={map,stress:!!controls.stress,totalVehicles:controls.actorCount+controls.enemyCount,
+  viewport:controls.screenWidth+'x'+controls.screenHeight,
+  softwareRendererBench:software,
   repeatedPairs:Math.min(before.length,after.length),
   measurementConfidence:controls.stress?'single-pair descriptive stress':'two-pair descriptive visual',
   fpsMain:fpsA,fpsVisual:fpsB,low1PercentMain:lowA,low1PercentVisual:lowB,
   workMsMain:workA,workMsVisual:workB,workChangePct:meanChangePct,
-  lowChangePct:100*(lowB/lowA-1),
+  lowChangePct:software?null:100*(lowB/lowA-1),
   draws:controls.metrics.drawCalls,triangles:controls.metrics.triangles,
-  status:meanChangePct>5?'review-performance':'within-5-percent-mean-budget'};
+  status:software?'software-render-work-descriptive-not-GPU-approval':
+   meanChangePct>5?'review-performance':'within-5-percent-mean-budget'};
  summary.push(row);
  console.log('VISUAL_POLISH31_AB '+JSON.stringify(row));
 }
