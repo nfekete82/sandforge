@@ -111,5 +111,7 @@ export function actionForwardRallyPolicy(x:{
  return x.preset==='action'&&x.mapVersion>=23&&x.generatorVersion>=7&&
   x.time>=50&&x.time<=240&&x.missionKind==='capture'&&
   x.targetOwner===-1&&x.phase!=='attack'&&x.phase!=='defend'&&
-  x.available>=3&&!x.observedHomePressure&&x.knownThreats===0;
+  // A pair of paid soldiers already on a safe front is enough for a
+  // neutral capture; known BLUE-owned or threatened targets remain barred.
+  x.available>=2&&!x.observedHomePressure&&x.knownThreats===0;
 }
