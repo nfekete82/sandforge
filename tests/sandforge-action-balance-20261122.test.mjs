@@ -343,3 +343,14 @@ test('Action only redirects a neutral mission to a PUBLIC BLUE-facing front',()=
  assert.match(commander,/meet\.route|meet\.t\.point/);
  assert.match(commander,/v\.route\.length<4700&&v\.route\.risk<8/);
 });
+
+test('Real contact protects firefights, not an ordinary attack-move march',()=>{
+ const source=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(source,/activeAssault:s\.phase==='attack'&&g\.units\.some\(enemy=>/);
+ assert.match(source,/g\.canSee\(1,enemy\)/);
+ assert.match(source,/s\.group\.includes\(u\.id\)/);
+ const plan=readFileSync('src/reborn/campaign-commander.ts','utf8');
+ assert.match(plan,/oldCaptureOccupied:context\?\.force\.some/);
+ assert.match(plan,/actionContactEvent\?\.\('rerouted'\)/);
+ assert.match(plan,/actionContactEvent\?\.\('no-route'\)/);
+});
