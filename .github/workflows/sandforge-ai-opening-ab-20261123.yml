@@ -1,0 +1,41 @@
+name: Sandforge AI · Paired Real Opening Routes
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/reborn/ai33-map-doctrine.ts
+      - src/reborn/tactical-ai.ts
+      - scripts/benchmark-ai-opening-routes-20261123.mjs
+      - scripts/compare-ai-opening-routes-20261123.mjs
+      - .github/workflows/sandforge-ai-opening-ab-20261123.yml
+permissions:
+  contents: read
+jobs:
+  paired-opening:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      OPENING_SECONDS: '180'
+      OPENING_MAPS: desert-strike,broken-empire,desert-strike@4102,broken-empire@4102,burning-horizon@4102,last-stronghold,plateau-crossroads
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Candidate live games
+        run: node scripts/benchmark-ai-opening-routes-20261123.mjs | tee candidate-opening.log
+      - name: Exact main baseline live games
+        run: |
+          git worktree add --detach ../opening-baseline "${{ github.event.pull_request.base.sha }}"
+          cp scripts/benchmark-ai-opening-routes-20261123.mjs ../opening-baseline/scripts/
+          cd ../opening-baseline
+          npm ci --no-audit --no-fund
+          npm run build
+          node scripts/benchmark-ai-opening-routes-20261123.mjs | tee ../sandforge/baseline-opening.log
+      - name: Same seeds, side-by-side capture and first-contact results
+        run: node scripts/compare-ai-opening-routes-20261123.mjs baseline-opening.log candidate-opening.log
