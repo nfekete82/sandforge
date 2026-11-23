@@ -208,3 +208,16 @@ export function actionReleaseTemporaryRecaptureHold(x:{
  return x.preset==='action'&&x.temporaryGuard&&!x.hasOrders&&
   (!x.siteOwned||x.securedSeconds>=15&&!x.observedThreat);
 }
+
+/** Match the already-legal Classic HQ-less opening: ONE existing paid
+ * infantry unit may capture an unguarded neutral Bastion while engineers
+ * build the first HQ. This is not a free unit and NEVER sends a two-man
+ * counterattack or a raid toward the enemy home before our HQ exists. */
+export function actionBootstrapScoutPlan(x:{
+ preset:BalancePreset;mapVersion:number;needsHeadquarters:boolean;
+ time:number;available:number;observedHomeThreat:boolean;
+}):{slots:0|1;counter:false}{
+ return {slots:x.preset==='action'&&x.mapVersion>=23&&
+  x.needsHeadquarters&&x.time>=0&&x.time<=120&&x.available>=1&&
+  !x.observedHomeThreat?1:0,counter:false};
+}

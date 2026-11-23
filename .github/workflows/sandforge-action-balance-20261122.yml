@@ -12,6 +12,7 @@ on:
       - feat/ai-action-contact-diagnostics-20261123
       - feat/ai-action-early-neutral-meeting-front-20261123
       - feat/ai-universal-public-map-intelligence-20261123
+      - feat/ai-action-territory-deficit-recovery-20261123
       - feat/ai-action-public-front-pressure-20261123
   workflow_dispatch:
 permissions:

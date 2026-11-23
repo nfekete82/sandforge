@@ -37,7 +37,7 @@ import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
-import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionReleaseTemporaryRecaptureHold,ACTION_BALANCE} from './action-balance.js';
+import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionReleaseTemporaryRecaptureHold,actionBootstrapScoutPlan,ACTION_BALANCE} from './action-balance.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -2433,8 +2433,7 @@ export class TacticalAI {
    adaptiveLarge?(g.world.mapVersion===24?210:255):145;
   if(this.mode!=='director'||g.world.mapVersion<23||
      !(g.territories.length===4||adaptiveLarge||actionOpening)||
-     g.time>openingLimit||g.status!=='playing'||
-     actionOpening&&g.needsHeadquarters(1)){
+     g.time>openingLimit||g.status!=='playing'){
     s.openingContests=[];return new Set();
   }
   const seen=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&g.canSee(1,u));
@@ -2451,15 +2450,33 @@ export class TacticalAI {
   const large=adaptiveLarge
    ?mapBastionContestOpening(g.world.mapVersion,g.time,blue,red,ready.length)
    :null;
-  const action=actionOpening?actionBastionProbePolicy({
-   preset:g.balancePreset,mapVersion:g.world.mapVersion,time:g.time,
-   available:ready.length,blue,red,
-   // Bastion ownership and neighbor graph are public; no hidden HQ discovery.
-   frontierEnemy:g.territories.filter(t=>t.owner===0&&
-     t.neighbors.some(id=>g.territories[id]?.owner===1)).length,
-   observedHomeThreat:seen.some(u=>
-    g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<550))
-  }):null;
+  // The old Action gate did not issue a SINGLE capture order until HQ
+  // completion and two eligible soldiers, while Classic sent its existing
+  // first infantry immediately. On unknown seeds this conceded 2 Bastions
+  // before the first combat and later lost the game 2:6.
+  // During bootstrap, send at most one REAL soldier to a NEUTRAL Bastion;
+  // engineers keep constructing the HQ, and any OBSERVED attack on our
+  // physical starting region cancels this optional capture.
+  const needsHQ=g.needsHeadquarters(1);
+  const start=g.startRegions[1]?.center;
+  const startThreat=!!start&&seen.some(u=>distance(u,start)<560);
+  const observedBaseThreat=seen.some(u=>
+   g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<550));
+  const action=actionOpening
+   ?needsHQ?actionBootstrapScoutPlan({
+     preset:g.balancePreset,mapVersion:g.world.mapVersion,
+     needsHeadquarters:true,time:g.time,available:ready.length,
+     observedHomeThreat:startThreat||observedBaseThreat
+    })
+    :actionBastionProbePolicy({
+     preset:g.balancePreset,mapVersion:g.world.mapVersion,time:g.time,
+     available:ready.length,blue,red,
+     // Bastion ownership and neighbor graph are public, not enemy position.
+     frontierEnemy:g.territories.filter(t=>t.owner===0&&
+       t.neighbors.some(id=>g.territories[id]?.owner===1)).length,
+     observedHomeThreat:observedBaseThreat
+    })
+   :null;
   const counter=action?.counter??large?.counter??(blue>=3&&red<=1&&g.time>=30&&ready.length>=5);
   const targets=g.territories.filter(t=>t.owner===-1||counter&&t.owner===0);
   const maxAssigned=action?.slots??large?.slots??(counter?2:ready.length>=3?2:ready.length?1:0);
