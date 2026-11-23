@@ -38,10 +38,10 @@ function radialTexture({inner='#ffffff',outer='#ffffff',mode='smoke',biome='dese
   g.addColorStop(1,'rgba(155,165,159,0)');
  }else if(mode==='smoke'){
   // Charcoal combustion smoke, not the former flat white circles.
-  g.addColorStop(0,'rgba(30,33,32,.82)');
-  g.addColorStop(.29,'rgba(56,57,53,.79)');
-  g.addColorStop(.56,'rgba(83,78,69,.45)');
-  g.addColorStop(.82,'rgba(119,104,87,.16)');
+  g.addColorStop(0,'rgba(22,25,25,.92)');
+  g.addColorStop(.29,'rgba(40,43,42,.83)');
+  g.addColorStop(.56,'rgba(76,73,65,.57)');
+  g.addColorStop(.82,'rgba(119,104,87,.20)');
   g.addColorStop(1,'rgba(141,119,95,0)');
  }else if(mode==='flame'){
   g.addColorStop(0,'rgba(255,255,242,1)');
@@ -147,9 +147,10 @@ function radialTexture({inner='#ffffff',outer='#ffffff',mode='smoke',biome='dese
   const pixels=ctx.getImageData(0,0,128,128);
   for(let y=0;y<128;y++)for(let x=0;x<128;x++){
    const dx=x-64,dy=y-64,theta=Math.atan2(dy,dx),radius=Math.hypot(dx,dy);
-   const edge=50+7*Math.sin(theta*7+.9)+4*Math.sin(theta*13-1.7);
-   const wisps=.87+.11*Math.sin(x*.24+y*.31)+.08*Math.cos(x*.39-y*.17);
-   const shape=Math.max(0,Math.min(1,(edge-radius)/10));
+   const edge=47+9*Math.sin(theta*5+.9)+6*Math.sin(theta*11-1.7)+
+    3*Math.sin(theta*19+.33);
+   const wisps=.73+.20*Math.sin(x*.22+y*.34)+.16*Math.cos(x*.43-y*.26);
+   const shape=Math.max(0,Math.min(1,(edge-radius)/13));
    pixels.data[(y*128+x)*4+3]=Math.round(
     pixels.data[(y*128+x)*4+3]*shape*Math.max(.45,wisps));
   }
@@ -220,7 +221,7 @@ function clearInstances(pool){
 export class SandforgeCombatEffects {
  constructor({scene,camera,game,world,heightAt,pos,battlefield=null,lowQuality=false,biome='desert',vehicleDust=true}){
   Object.assign(this,{scene,camera,game,world,heightAt,pos,battlefield,lowQuality,biome,vehicleDust});
-  this.smoke=makePool(scene,'smoke',lowQuality?70:260,.68);
+  this.smoke=makePool(scene,'smoke',lowQuality?70:260,.82);
   // Separate bounded off-white jet plume; wreck smoke remains dark and never
   // consumes the artillery trail budget. One instanced draw call.
   this.rocketSmoke=makePool(scene,'rocketSmoke',lowQuality?48:160,.68);
@@ -282,7 +283,7 @@ export class SandforgeCombatEffects {
   // Actual 3D torus shockwaves complement the existing GPU smoke and debris.
   this.shockwave=new THREE.InstancedMesh(
    new THREE.TorusGeometry(1,.075,6,42),
-   new THREE.MeshBasicMaterial({color:'#f7ddb1',transparent:true,opacity:.63,
+   new THREE.MeshBasicMaterial({color:'#ae865c',transparent:true,opacity:.30,
     depthWrite:false,depthTest:true,side:THREE.DoubleSide}),
    lowQuality?16:48
   );
@@ -529,38 +530,38 @@ export class SandforgeCombatEffects {
   // visual-only and disappears; it cannot grow per simulated minute.
   // Cache the impact's ground height: the shockwave must not re-sample
   // procedural terrain every animation frame during a bomber carpet strike.
-  this.shocks.push({x,z,y:impactGround+3,life:.49,ttl:.49,max:(strong?110:59)*impactScale});
+  this.shocks.push({x,z,y:impactGround+3,life:.32,ttl:.32,max:(strong?108:55)*impactScale});
   if(this.shocks.length>this.shockwave.instanceMatrix.count)this.shocks.shift();
   this.placeScorch(x,z,size);
   // First 120 ms: bright ignition front. Subsequent frames are dust,
   // airborne fragments and rolling dark combustion smoke.
   this.particle(this.flash,x,z,impactGround+(strong?31:21)*impactScale,
-   (strong?96:58)*impactScale,weaponKind==='bomb'?.15:.12,0,0,0);
+   (strong?77:45)*impactScale,weaponKind==='bomb'?.12:.09,0,0,0);
   const light=weaponKind==='scoutRocket';
   const fires=light?3:strong?(weaponKind==='bomb'?14:11):6,
-   smokes=light?5:strong?(weaponKind==='bomb'?19:16):9,
-   dust=light?5:strong?(weaponKind==='bomb'?19:15):8;
+   smokes=light?5:strong?(weaponKind==='bomb'?16:14):8,
+   dust=light?6:strong?(weaponKind==='bomb'?18:14):9;
   for(let i=0;i<fires;i++){
    const a=this.rand()*Math.PI*2,r=Math.sqrt(this.rand())*(strong?25:13);
    const fx=x+Math.cos(a)*r,fz=z+Math.sin(a)*r;
    this.particle(this.flames,fx,fz,impactGround+5,
-    12+this.rand()*22,.19+this.rand()*.38,
+    14+this.rand()*25,.14+this.rand()*.29,
     Math.cos(a)*(8+this.rand()*16),Math.sin(a)*(8+this.rand()*16),
-    26+this.rand()*35);
+    31+this.rand()*42);
   }
   for(let i=0;i<smokes;i++){
-   const a=this.rand()*Math.PI*2,r=this.rand()*(strong?27:15);
+   const a=this.rand()*Math.PI*2,r=Math.sqrt(this.rand())*(strong?22:12);
    const fx=x+Math.cos(a)*r,fz=z+Math.sin(a)*r;
-   this.particle(this.smoke,fx,fz,impactGround+14,
-    14+this.rand()*28,1.45+this.rand()*2.15,
+   this.particle(this.smoke,fx,fz,impactGround+9+this.rand()*19,
+    22+this.rand()*30,(strong?2.5:1.6)+this.rand()*1.6,
     Math.cos(a)*(5+this.rand()*18),Math.sin(a)*(5+this.rand()*18),
-    21+this.rand()*33);
+    24+this.rand()*39);
   }
   for(let i=0;i<dust;i++){
    const a=i*Math.PI*2/dust+(this.rand()-.5)*.25;
    const speed=strong?90:55,fx=x+Math.cos(a)*6,fz=z+Math.sin(a)*6;
    this.particle(this.dust,fx,fz,impactGround+5,
-    10+this.rand()*23,.48+this.rand()*.55,
+    19+this.rand()*28,.55+this.rand()*.57,
     Math.cos(a)*(speed+this.rand()*35),
     Math.sin(a)*(speed+this.rand()*35),4+this.rand()*9);
   }
@@ -572,8 +573,8 @@ export class SandforgeCombatEffects {
     Math.cos(a)*speed,Math.sin(a)*speed,32+this.rand()*95);
   }
   // Sparse lingering smoke columns, not a continuous wall of flame sprites.
-  this.emitters.push({x,z,life:strong?4.1:2.0,
-   frequency:strong?.37:.5,clock:0});
+  this.emitters.push({x,z,life:strong?4.8:2.2,
+   frequency:strong?.34:.50,clock:0});
   if(this.emitters.length>16)this.emitters.shift();
  }
  placeScorch(x,z,size){
@@ -1053,7 +1054,7 @@ export class SandforgeCombatEffects {
    while(emitter.clock>=emitter.frequency&&emitter.life>0){
     emitter.clock-=emitter.frequency;
     const x=emitter.x+(this.rand()-.5)*28,z=emitter.z+(this.rand()-.5)*28;
-    this.particle(this.smoke,x,z,this.heightAt(x,z)+18,28+this.rand()*30,2+this.rand()*2,
+    this.particle(this.smoke,x,z,this.heightAt(x,z)+16,30+this.rand()*36,2.7+this.rand()*1.8,
       (this.rand()-.5)*14,(this.rand()-.5)*14,26+this.rand()*36);
     if(this.rand()>.90)this.particle(this.flames,x,z,this.heightAt(x,z)+7,9+this.rand()*12,.2+this.rand()*.28,0,0,15);
    }
@@ -1100,12 +1101,15 @@ export class SandforgeCombatEffects {
      p.z+=Math.cos(age*1.7+p.angle*13)*dt*4;
     }
     const progress=clamp(p.life/p.ttl,0,1);
-    const scale=p.size*(.65+(1-progress)*1.25)*Math.min(1,progress*4);
+    const age=1-progress;
+    const growth=pool.mode==='smoke'?(.65+age*1.70):
+     pool.mode==='dust'?(.70+age*1.55):(.65+age*1.25);
+    const scale=p.size*growth*Math.min(1,progress*5);
     dummy.position.set(p.x-this.world.size*.5,p.y,p.z-this.world.size*.5);
     dummy.quaternion.copy(this.camera.quaternion);
     const width=scale*(pool.mode==='spark'?.45:
-     pool.mode==='smoke'||pool.mode==='rocketSmoke'?1.13:1);
-    const height=scale*(pool.mode==='dust'?.57:pool.mode==='flame'?1.27:pool.mode==='debris'?.66:1);
+     pool.mode==='smoke'?1.28:pool.mode==='rocketSmoke'?1.13:1);
+    const height=scale*(pool.mode==='smoke'?1.11:pool.mode==='dust'?.44:pool.mode==='flame'?1.27:pool.mode==='debris'?.66:1);
     dummy.scale.set(width,height,1);dummy.updateMatrix();
     pool.mesh.setMatrixAt(k,dummy.matrix);
     particles[k++]=p;
