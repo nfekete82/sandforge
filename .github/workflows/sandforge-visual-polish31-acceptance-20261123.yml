@@ -45,6 +45,8 @@ jobs:
       POLISH31_FRAMES: '600'
       POLISH31_VARIANTS: ${{ matrix.variants }}
       POLISH31_PROFILE: '1'
+      POLISH31_VIEWPORT: 960x600
+      POLISH31_SOFTWARE_QA: '1'
       POLISH31_VARIANT_TIMEOUT_MS: '720000'
       POLISH31_MAPS: ${{ matrix.maps }}
       POLISH31_STRESS: ${{ matrix.stress }}
