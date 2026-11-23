@@ -1,0 +1,69 @@
+name: Sandforge AI · Measured planning spikes A/B
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/reborn/tactical-ai.ts
+      - src/reborn/world.ts
+      - tests/sandforge-ai-heap-priority-stability-20261123.test.mjs
+      - src/reborn/ai33-map-doctrine.ts
+      - scripts/benchmark-ai-plan-spikes-20261123.mjs
+      - scripts/compare-ai-plan-spikes-20261123.mjs
+      - .github/workflows/sandforge-ai-plan-spikes-20261123.yml
+permissions:
+  contents: read
+jobs:
+  planning-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      AI_SPIKE_SECONDS: '7.1'
+      AI_SPIKE_REPS: '3'
+      AI_SPIKE_MAPS: desert-strike,broken-empire,burning-horizon
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Pathfinding, live tank and AI route regressions
+        run: |
+          node --test \
+            tests/sandforge-ai-heap-priority-stability-20261123.test.mjs \
+            tests/sandforge-real-mesa-tank-routing-20261123.test.mjs \
+            tests/sandforge-tank-repath-stall-20261123.test.mjs \
+            tests/sandforge-ai-opening-route-ranking-20261123.test.mjs \
+            tests/sandforge-ai36-terrain-routes-20261119.test.mjs
+      - name: Candidate 20Hz first two macro ticks
+        run: node scripts/benchmark-ai-plan-spikes-20261123.mjs | tee candidate.log
+      - name: Candidate 150-second actual battle and production regression
+        run: AI_SPIKE_SECONDS=150 AI_SPIKE_REPS=1 node scripts/benchmark-ai-plan-spikes-20261123.mjs | tee candidate-long.log
+      - name: Identical main baseline
+        run: |
+          git worktree add --detach ../ai-spike-baseline "${{ github.event.pull_request.base.sha }}"
+          cp scripts/benchmark-ai-plan-spikes-20261123.mjs ../ai-spike-baseline/scripts/
+          cd ../ai-spike-baseline
+          npm ci --no-audit --no-fund
+          npm run build
+          node scripts/benchmark-ai-plan-spikes-20261123.mjs | tee ../sandforge/baseline.log
+          AI_SPIKE_SECONDS=150 AI_SPIKE_REPS=1 node scripts/benchmark-ai-plan-spikes-20261123.mjs | tee ../sandforge/baseline-long.log
+      - name: Diff short and 150-second states, AI orders and actual path work
+        run: |
+          node scripts/compare-ai-plan-spikes-20261123.mjs baseline.log candidate.log
+          node scripts/compare-ai-plan-spikes-20261123.mjs baseline-long.log candidate-long.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-ai-planning-spikes-${{ github.run_id }}
+          path: |
+            baseline.log
+            candidate.log
+            baseline-long.log
+            candidate-long.log
+          retention-days: 14
+          if-no-files-found: warn
