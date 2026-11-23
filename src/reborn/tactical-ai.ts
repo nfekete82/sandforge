@@ -1842,7 +1842,7 @@ export class TacticalAI {
     mission.kind!=='capture'?'mission-'+mission.kind:
     g.territories[mission.sector].owner!==-1?'owned-target':
     s.phase==='attack'||s.phase==='defend'?'phase-'+s.phase:
-    mainFighters.filter(u=>!guards.has(u.id)).length<3?'few-reserves':
+    mainFighters.filter(u=>!guards.has(u.id)).length<2?'few-reserves':
     observedHomePressure?'home-threat':towers.length+visible.length>0?'visible-threat':
     !s.rally?'no-rally':
     mission.since===this.actionForwardRallyMissionSince?'already-staged':
