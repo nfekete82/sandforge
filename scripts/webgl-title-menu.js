@@ -120,8 +120,10 @@
   const biome=visual?.seed===data.seed&&visual?.mapVersion===data.mapVersion
    ?validBiome(visual.biome):'desert';
   const map=desertMaps?.byId(visual?.mapId);
+  const oddMap=data.mapVersion>=27&&data.mapVersion<=38;
   const mapId=map&&visual?.seed===data.seed&&
-   map.mapVersion===data.mapVersion&&map.generatorVersion===data.generatorVersion&&
+   (oddMap||map.mapVersion===data.mapVersion)&&
+   map.generatorVersion===data.generatorVersion&&
    map.terrain===data.terrainProfile&&map.biome===biome?map.id:null;
   play(bastions,data.seed,{resume:true,legacy:data.mapVersion<=18,biome,mapId,
    balancePreset:data.balancePreset==='action'?'action':'classic'});
