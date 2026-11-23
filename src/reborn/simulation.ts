@@ -804,7 +804,7 @@ export class Simulation {
   /** Short-lived drive watchdog. New saves and the fixed-step logic are unchanged. */
   private readonly vehicleProgress=new WeakMap<Unit,{
     x:number;y:number;since:number;retryAt:number;
-    nextX:number;nextY:number;bestDistance:number;
+    nextX:number;nextY:number;bestDistance:number;order?:Order;
   }>();
   private readonly ai38VehicleEscapes=new WeakMap<Unit,{
     targetX:number;targetY:number;lastX:number;lastY:number;
@@ -2201,10 +2201,23 @@ export class Simulation {
       // A vehicle pushed sideways in a crowded column can move 8 units
       // without getting ANY closer to its waypoint. That must not reset the
       // watchdog forever. Track forward progress, not raw displacement.
-      if(!state||Math.hypot(state.nextX-next.x,state.nextY-next.y)>24)
+      const waypointChanged=state&&
+       Math.hypot(state.nextX-next.x,state.nextY-next.y)>24;
+      // An A* replan may change intermediate waypoints repeatedly while a
+      // tank is still stuck at exactly the same physical position. Keep the
+      // stall timer until the unit actually moves or receives a fresh order.
+      // Update the reference first so the stall test also runs THIS tick.
+      if(waypointChanged&&distance(u,state)<32){
+       state.nextX=next.x;state.nextY=next.y;
+       state.bestDistance=waypointDistance;
+      }
+      if(!state||(state.order&&state.order!==u.orders[0])||
+         (waypointChanged&&distance(u,state)>=32))
        this.vehicleProgress.set(u,{x:u.x,y:u.y,since:this.time,retryAt:-1,
-        nextX:next.x,nextY:next.y,bestDistance:waypointDistance});
-      else if(state.bestDistance-waypointDistance>=10){
+        nextX:next.x,nextY:next.y,bestDistance:waypointDistance,
+        order:u.orders[0]});
+      // A shorter replanned waypoint is not physical forward progress.
+      else if(distance(u,state)>=8&&state.bestDistance-waypointDistance>=10){
        state.x=u.x;state.y=u.y;state.since=this.time;
        state.bestDistance=waypointDistance;
       }
