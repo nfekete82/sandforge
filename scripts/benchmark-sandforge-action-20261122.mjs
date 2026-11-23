@@ -93,6 +93,7 @@ function run(map,preset){
   redIdleUnassignedSeconds:0,redIdleByKind:{},
   redIdleActualGuardSeconds:0,redIdleStaleHoldSeconds:0,
   redUnitSnapshots:[],
+  territoryTimeline:[],territoryEvents:[],
   redPhaseSeconds:{gather:0,attack:0,regroup:0,defend:0},
   capturedScoutHandoffsEligible:0,capturedScoutHandoffsCompleted:0,
   capturedScoutHandoffSeconds:0,capturedScoutHandoffsLost:0,
@@ -244,9 +245,25 @@ function run(map,preset){
   }
   if([1200,1800,2100,2400,3000,3600].includes(i+1))
    metrics.contactSnapshots.push(nearContacts());
+  if((i+1)%1200===0){
+   const mission=g.tactical.state.commander?.mission;
+   metrics.territoryTimeline.push({
+    at:metrics.seconds,owners:g.territories.map(t=>t.owner),
+    red:g.territories.filter(t=>t.owner===1).length,
+    blue:g.territories.filter(t=>t.owner===0).length,
+    redCombat:red.length,blueCombat:blue.length,
+    held:red.filter(u=>u.hold).length,
+    homeGuards:g.tactical.actionGuardIds.size,
+    mission:mission?{kind:mission.kind,sector:mission.sector,
+     targetOwner:g.territories[mission.sector]?.owner,
+     age:Number((g.time-mission.since).toFixed(1))}:null
+   });
+  }
   for(let t=0;t<g.territories.length;t++){
    const now=g.territories[t].owner;
    if(now!==before[t]){
+    metrics.territoryEvents.push({at:metrics.seconds,
+     sector:t,from:before[t],to:now});
     if(now===1){
      metrics.redCaptureEvents++;metrics.firstRedCapture??=metrics.seconds;
      for(const e of beforeContests.filter(e=>e.sectorId===t)){

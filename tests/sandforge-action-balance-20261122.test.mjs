@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure,actionPublicFrontPressure}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure,actionPublicFrontPressure,actionTerritoryRecoveryPolicy,actionTerritoryRecoveryBlock,actionReleaseTemporaryRecaptureHold}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -375,4 +375,65 @@ test('Pacing report separates true paid infantry fights from drone warning shots
  assert.match(s,/groundShotsByFactionDelta:/);
  assert.match(s,/firstFireEvents:/);
  assert.match(s,/sourceType:source&&'orders' in source\?'unit':'base'/);
+});
+
+test('Action recovers a PUBLIC territorial deficit without revealing unseen enemies',()=>{
+ const base={
+  preset:'action',mapVersion:24,time:360,ownSectors:2,enemySectors:6,
+  available:7,oldKind:'capture',oldNeutral:true,oldMissionSeconds:35,
+  oldCaptureOccupied:false,activeAssault:false,homeThreat:false
+ };
+ assert.equal(actionTerritoryRecoveryPolicy(base),true);
+ for(const override of [
+  {preset:'classic'},{mapVersion:11},{time:120},
+  {ownSectors:4,enemySectors:4},{ownSectors:4,enemySectors:5},
+  {enemySectors:2},{available:3},{oldKind:'structure'},
+  {oldNeutral:false},{oldMissionSeconds:12},{oldCaptureOccupied:true},
+  {activeAssault:true},{homeThreat:true}
+ ])assert.equal(actionTerritoryRecoveryPolicy({...base,...override}),false,
+  'protects legitimate attack or home guard: '+JSON.stringify(override));
+ const commander=readFileSync('src/reborn/campaign-commander.ts','utf8');
+ assert.match(commander,/actionTerritoryRecoveryPolicy\(/);
+ assert.match(commander,/knownThreat:t=>t\.owner!==0\|\|!actionFront\(t\)/);
+ assert.match(commander,/\.filter\(t=>t\.route\.risk<7&&t\.detour<2\.8\)/);
+ assert.match(commander,/context\.actionContactEvent\?\.\('recovery-rerouted'\)/);
+ assert.match(commander,/oldCaptureOccupied:context\.force\.some/);
+ const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(ai,/firstRecoveryAt\?\?=g\.time/);
+ assert.match(ai,/recoveryNoRoute/);
+});
+
+test('Action 15s recapture guard orders expire without abandoning a visible defense',()=>{
+ const base={preset:'action',temporaryGuard:true,hasOrders:false,
+  siteOwned:true,securedSeconds:15,observedThreat:false};
+ assert.equal(actionReleaseTemporaryRecaptureHold(base),true);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,securedSeconds:14.9}),false);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,observedThreat:true}),false);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,siteOwned:false}),true);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,siteOwned:false,observedThreat:true}),true);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,preset:'classic'}),false);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,temporaryGuard:false}),false);
+ assert.equal(actionReleaseTemporaryRecaptureHold({...base,hasOrders:true}),false);
+ const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(ai,/actionReleaseTemporaryRecaptureHold\(/);
+ assert.match(ai,/observedThreat=site\.capturing===0\|\|visible\.some/);
+ assert.match(ai,/g\.stop\(\[u\.id\]\);/);
+});
+
+test('Recovery rejection reasons separate stale BLUE mission from valid defense',()=>{
+ const x={preset:'action',mapVersion:24,time:360,ownSectors:2,
+  enemySectors:6,available:7,oldKind:'capture',oldNeutral:true,
+  oldMissionSeconds:35,oldCaptureOccupied:false,
+  activeAssault:false,homeThreat:false};
+ assert.equal(actionTerritoryRecoveryBlock(x),null);
+ assert.equal(actionTerritoryRecoveryBlock({...x,oldNeutral:false}),'existing-blue-target');
+ assert.equal(actionTerritoryRecoveryBlock({...x,activeAssault:true}),'visible-fight');
+ assert.equal(actionTerritoryRecoveryBlock({...x,available:2}),'few-fighters');
+ assert.equal(actionTerritoryRecoveryBlock({...x,homeThreat:true}),'home-threat');
+ assert.equal(actionTerritoryRecoveryBlock({...x,enemySectors:2}),'few-blue');
+ const plan=readFileSync('src/reborn/campaign-commander.ts','utf8');
+ assert.match(plan,/context\.actionContactEvent\?\.\('recovery-block:'\+recoveryBlock\)/);
+ const trace=readFileSync('scripts/benchmark-sandforge-action-20261122.mjs','utf8');
+ assert.match(trace,/territoryTimeline\.push\(/);
+ assert.match(trace,/territoryEvents\.push\(/);
 });

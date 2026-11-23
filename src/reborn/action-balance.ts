@@ -165,3 +165,46 @@ export function actionPublicFrontPressure(x:{
   x.oldKind==='capture'&&x.oldNeutral&&x.oldMissionSeconds>=12&&
   !x.oldCaptureOccupied&&!x.activeAssault&&!x.homeThreat;
 }
+
+/** Universal Action response to a PUBLIC Bastion deficit. It does not
+ * invent enemy sightings, expose hidden buildings or strip home defenders.
+ * Only a real, fully pathable frontline may replace a long neutral march.
+ * Classic and ongoing visible firefights are never interrupted. */
+export interface ActionTerritoryRecoveryInputs {
+ preset:BalancePreset;mapVersion:number;time:number;
+ ownSectors:number;enemySectors:number;available:number;
+ oldKind:string|null;oldNeutral:boolean;oldMissionSeconds:number;
+ oldCaptureOccupied:boolean;activeAssault:boolean;homeThreat:boolean;
+}
+/** Ordered rejection reasons, counted only in opt-in headless diagnostics.
+ * This observes public state supplied by the caller, never unseen enemies. */
+export function actionTerritoryRecoveryBlock(x:ActionTerritoryRecoveryInputs):string|null{
+ if(x.preset!=='action')return 'classic';
+ if(x.mapVersion<23)return 'old-map';
+ if(x.time<160)return 'early';
+ if(x.enemySectors<3)return 'few-blue';
+ if(x.enemySectors-x.ownSectors<2)return 'no-deficit';
+ if(x.available<4)return 'few-fighters';
+ if(x.oldKind!=='capture')return 'other-mission';
+ if(!x.oldNeutral)return 'existing-blue-target';
+ if(x.oldMissionSeconds<25)return 'fresh-mission';
+ if(x.oldCaptureOccupied)return 'occupied-capture';
+ if(x.activeAssault)return 'visible-fight';
+ if(x.homeThreat)return 'home-threat';
+ return null;
+}
+export function actionTerritoryRecoveryPolicy(x:ActionTerritoryRecoveryInputs):boolean{
+ return actionTerritoryRecoveryBlock(x)===null;
+}
+
+/** The 15s guard-on-capture is temporary. Once the point is secure, the
+ * same real paid soldiers should rejoin planning; an observed raid keeps
+ * them on the capture ring until it passes. Lost sites may be recaptured
+ * with the same squad instead of leaving it permanently on hold. */
+export function actionReleaseTemporaryRecaptureHold(x:{
+ preset:BalancePreset;temporaryGuard:boolean;hasOrders:boolean;
+ siteOwned:boolean;securedSeconds:number;observedThreat:boolean;
+}):boolean{
+ return x.preset==='action'&&x.temporaryGuard&&!x.hasOrders&&
+  (!x.siteOwned||x.securedSeconds>=15&&!x.observedThreat);
+}
