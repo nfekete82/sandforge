@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {openingCaptureRouteLength,openingCaptureRouteScore}
+import {openingCaptureRouteLength,openingCaptureRouteScore,openingCaptureDecisionDistance}
  from '../dist/src/reborn/ai33-map-doctrine.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 
@@ -17,6 +17,13 @@ test('an apparently close cliff Bastion loses to a genuinely short open route',(
   distance,income:15,enemyOwned:false,aggressiveRecapture:false
  });
  assert.ok(score(open)<score(cliff));
+ assert.ok(score(openingCaptureDecisionDistance(100,cliff,50))>
+  score(openingCaptureDecisionDistance(300,open,50)),
+  'extreme cliff detour must still override misleading short air distance');
+ assert.equal(openingCaptureDecisionDistance(200,350,50),200,
+  'ordinary small route bends must not change Bastion priorities');
+ assert.equal(openingCaptureDecisionDistance(300,720,50),520,
+  'longer-than-four-cell detours carry only their meaningful excess');
  assert.ok(score(Math.hypot(100,0))<score(300),
   'old Euclidean scoring would pick the wrong distant mountain route');
 });
