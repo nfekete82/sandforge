@@ -47,7 +47,10 @@ export function validateBattlefield(world:World):BattlefieldValidation{
  if(connectedCells!==freeCells)errors.push('isolated-ground');
  if(tankReachableSites!==g.sites.length)errors.push('tank-clearance');
  if(buildAreaSamples.some(n=>n<65)||Math.abs(buildAreaSamples[0]-buildAreaSamples[1])>8)errors.push('start-building-area');
- if(expansionDirections.some(n=>n<2))errors.push('expansion-directions');
+ // A 3/5/7 objective line intentionally has one real neutral frontier at
+ // each symmetric endpoint. Multi-row legacy maps still require two.
+ if(expansionDirections.some(n=>n<(world.mapVersion>=27?1:2)))
+  errors.push('expansion-directions');
  if(g.battlefield?.generatorVersion===3){
   // A connected battlefield is not sufficient if the player cannot expand.
   // Check actual 100-unit construction footprints; trim candidate circles
