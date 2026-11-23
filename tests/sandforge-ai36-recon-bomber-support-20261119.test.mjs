@@ -136,6 +136,7 @@ test('recon drone is included in campaign frontier scouting, not as a combatant'
  assert.equal(drone.orders[0].kind,'move');
  const src=readFileSync('src/reborn/tactical-ai.ts','utf8');
  assert.match(src,/this\.ai36Enabled&&u\.kind==='drone'/);
- assert.match(src,/this\.supportBombers\(army,home\)/);
+ assert.match(src,/this\.supportBombers\(army\.filter\(u=>u\.kind!=='bomber'\|\|!defense\.has\(u\.id\)\),home\)/,
+  'local-defense bombers must not be pulled into unrelated air support');
  assert.doesNotMatch(src,/g\.memories\[0\].*supportBombers/);
 });
