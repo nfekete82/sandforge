@@ -2843,7 +2843,7 @@ export class Simulation {
           // could push an otherwise legal tank INTO an un-driveable lip.
           const spec=unitSpec(a);
           const grade=spec.group==='Fahrzeuge'&&!spec.flying&&
-           this.world.mapVersion>=23
+           this.world.mapVersion>=23&&this.world.generatorVersion>=7
             ?a.kind==='tank'?.215:a.kind==='artillery'?.185:.195
             :Infinity;
           if(spec.flying||
