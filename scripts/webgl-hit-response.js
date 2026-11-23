@@ -34,7 +34,7 @@ export function impactHeight(shot){
 /** Ailing ground vehicles emit subtle smoke from their engines, only if
  * visible, at most one puff / 0.5 seconds per nearby vehicle. */
 export function damagedVehicleIntensity(unit,maxHp){
- if(!unit||!['tank','rover','artillery'].includes(unit.kind)||!(maxHp>0)||unit.hp<=0)return 0;
+ if(!unit||!['tank','flamer','rover','artillery'].includes(unit.kind)||!(maxHp>0)||unit.hp<=0)return 0;
  const health=unit.hp/maxHp;
  if(health>.51)return 0;
  return clamp((.51-health)/.40,0,1);
