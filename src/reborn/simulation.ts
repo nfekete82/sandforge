@@ -2206,15 +2206,16 @@ export class Simulation {
       // An A* replan may change intermediate waypoints repeatedly while a
       // tank is still stuck at exactly the same physical position. Keep the
       // stall timer until the unit actually moves or receives a fresh order.
+      // Update the reference first so the stall test also runs THIS tick.
+      if(waypointChanged&&distance(u,state)<32){
+       state.nextX=next.x;state.nextY=next.y;
+       state.bestDistance=waypointDistance;
+      }
       if(!state||(state.order&&state.order!==u.orders[0])||
          (waypointChanged&&distance(u,state)>=32))
        this.vehicleProgress.set(u,{x:u.x,y:u.y,since:this.time,retryAt:-1,
         nextX:next.x,nextY:next.y,bestDistance:waypointDistance,
         order:u.orders[0]});
-      else if(waypointChanged){
-       state.nextX=next.x;state.nextY=next.y;
-       state.bestDistance=waypointDistance;
-      }
       else if(state.bestDistance-waypointDistance>=10){
        state.x=u.x;state.y=u.y;state.since=this.time;
        state.bestDistance=waypointDistance;
