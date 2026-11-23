@@ -73,7 +73,7 @@ a:hover{text-decoration:underline}
  <div class="brand"><div class="small">SANDFORGE / THREE.JS PREVIEW</div><h1>BASTION WARS <span style="color:var(--gold)">3D</span></h1>
  <p>Vier einzigartige Wüsten · echtes PBR-3D</p></div>
  <div class="panel" role="group" aria-label="3D-Kartensteuerung">
-  <label for="bastions">Bastionen<select id="bastions"><option value="8" selected>8</option><option value="12">12</option><option value="16">16</option></select></label>
+  <label for="bastions">Bastionen<select id="bastions"><option value="3">3</option><option value="5" selected>5</option><option value="7">7</option><option value="4">4 (Altkarte)</option><option value="8">8 (Altkarte)</option><option value="12">12 (Altkarte)</option><option value="16">16 (Altkarte)</option></select></label>
   <label for="seed">Karten-Seed<input id="seed" inputmode="numeric" type="number" min="0" max="4294967295" value="2026"></label>
   <button id="load" title="Neue 3D-Karte laden">Karte laden</button>
   <a href="/classic.html" style="padding:10px 6px;font-size:12px">Klassische Version</a>
@@ -118,17 +118,31 @@ a:hover{text-decoration:underline}
 </dialog>
 <dialog id="sf3d-new-dialog" aria-label="Neue 3D-Kampagne">
  <small>SANDFORGE / NEUE KAMPAGNE</small><h1>Schlachtfeld wählen</h1>
- <p>Vier klassische Wüstenkarten mit der bisherigen Sandgrafik. Jede Karte bleibt bei einem Neustart exakt gleich.</p>
+ <p>Sechs Wüstenstile · echte 3D-Karten mit 3, 5 oder 7 Bastionen. Zentrum: +50 % Einkommen gegenüber einer normalen neutralen Bastion.</p>
  <label class="sf3d-field" for="sf3d-desert-map">Wüsten-Schlachtfeld
   <select id="sf3d-desert-map">
-   <option value="desert-strike" selected>DESERT STRIKE · 8 Bastionen</option>
-   <option value="broken-empire">BROKEN EMPIRE · 12 Bastionen</option>
-   <option value="burning-horizon">BURNING HORIZON · 16 Bastionen</option>
-   <option value="last-stronghold">LAST STRONGHOLD · 16 Bastionen</option>
-   <option value="plateau-crossroads">PLATEAU CROSSROADS · 16 Bastionen</option>
-   <option value="mesa-highlands">MESA HIGHLANDS · 16 Bastionen</option>
+   <option value="desert-strike" selected>DESERT STRIKE · Oase</option>
+   <option value="broken-empire">BROKEN EMPIRE · Felswüste</option>
+   <option value="burning-horizon">BURNING HORIZON · Dünen</option>
+   <option value="last-stronghold">LAST STRONGHOLD · Badlands</option>
+   <option value="plateau-crossroads">PLATEAU CROSSROADS · Plateaus</option>
+   <option value="mesa-highlands">MESA HIGHLANDS · Hochland</option>
   </select>
  </label>
+ <label class="sf3d-field" for="sf3d-bastion-count">Bastionen
+  <select id="sf3d-bastion-count" aria-label="Bastionen pro Partie">
+   <option value="3">3 – Schnellgefecht</option>
+   <option value="5" selected>5 – Standard (empfohlen)</option>
+   <option value="7">7 – Großes Gefecht</option>
+  </select>
+ </label>
+ <label class="sf3d-field" for="sf3d-map-size-mode">Kartengröße
+  <select id="sf3d-map-size-mode" aria-label="Kartengröße">
+   <option value="auto" selected>Automatisch anpassen</option>
+   <option value="original">Gewählte Kartengröße beibehalten</option>
+  </select>
+ </label>
+ <p class="note">Bei neuer Bastionenzahl wird das Gelände im gewählten Wüstenstil neu erzeugt. „Beibehalten“ erhält die ursprüngliche Kartengröße, nicht die alte Anordnung der Bastionen.</p>
  <label class="sf3d-field" for="sf3d-balance-preset">Spielmodus
   <select id="sf3d-balance-preset" aria-label="Spielbalance">
    <option value="action" selected>Action · schnellere Gefechte und Produktion</option>

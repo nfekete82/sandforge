@@ -10,10 +10,10 @@ export const RULES = {
   turret: { range:600, sight:750, turnSpeed:Math.PI, damage:24, cooldown:.8 },
   aiInterval: 3, aiOpeningDelay: 25,
 } as const;
-export type MapVersion=0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26;
+export type MapVersion=0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38;
 export type CampaignSize='small'|'medium'|'large'|'extraLarge';
 export const CAMPAIGN_SIZES:Record<CampaignSize,MapVersion>={small:15,medium:16,large:17,extraLarge:18};
-export const mapWorldSize=(version:MapVersion):number=>version===15?4160:version===16?4600:version===17?4960:version===18?5260:(version===19||version===23)?6240:(version===20||version===24)?6900:(version===21||version===25)?7440:(version===22||version===26)?7890:version===11?3564:version===12?3920:version===13?4277:version===14?4470:version===7?3240:version===8?3564:version===9?3888:version===10?4064:version===3?3000:version===4?3300:version===5?3600:RULES.worldSize;
+export const mapWorldSize=(version:MapVersion):number=>version===27?4900:version===28?6200:version===29?7600:[30,31,32].includes(version)?6900:[33,34,35].includes(version)?7440:[36,37,38].includes(version)?7890:version===15?4160:version===16?4600:version===17?4960:version===18?5260:(version===19||version===23)?6240:(version===20||version===24)?6900:(version===21||version===25)?7440:(version===22||version===26)?7890:version===11?3564:version===12?3920:version===13?4277:version===14?4470:version===7?3240:version===8?3564:version===9?3888:version===10?4064:version===3?3000:version===4?3300:version===5?3600:RULES.worldSize;
 const legacyLayout={columns:6,rows:5,headquarters:[19,5],starts:[[18,19,25],[4,5,11]],spacing:440,incomes:RULES.territoryIncome} as const;
 /** Geometry and starting rules are versioned independently of the save envelope. */
 export const MAP_LAYOUTS={0:legacyLayout,1:legacyLayout,2:{columns:4,rows:4,headquarters:[12,3],starts:[[12,13],[2,3]],spacing:650,incomes:[10,15,30]},3:{columns:2,rows:2,headquarters:[2,1],starts:[[2],[1]],spacing:570,incomes:[15,25,35]},4:{columns:4,rows:2,headquarters:[4,3],starts:[[4],[3]],spacing:550,incomes:[15,25,35]},5:{columns:4,rows:3,headquarters:[8,3],starts:[[8],[3]],spacing:590,incomes:[15,25,35]},6:{columns:4,rows:4,headquarters:[12,3],starts:[[12],[3]],spacing:590,incomes:[15,25,35]},7:{columns:2,rows:2,headquarters:[2,1],starts:[[2],[1]],spacing:616,incomes:[15,25,35]},8:{columns:4,rows:2,headquarters:[4,3],starts:[[4],[3]],spacing:594,incomes:[15,25,35]},9:{columns:4,rows:3,headquarters:[8,3],starts:[[8],[3]],spacing:637,incomes:[15,25,35]},10:{columns:4,rows:4,headquarters:[12,3],starts:[[12],[3]],spacing:637,incomes:[15,25,35]},11:{columns:2,rows:2,headquarters:[2,1],starts:[[2],[1]],spacing:678,incomes:[15,25,35]},12:{columns:4,rows:2,headquarters:[4,3],starts:[[4],[3]],spacing:654,incomes:[15,25,35]},13:{columns:4,rows:3,headquarters:[8,3],starts:[[8],[3]],spacing:701,incomes:[15,25,35]},14:{columns:4,rows:4,headquarters:[12,3],starts:[[12],[3]],spacing:701,incomes:[15,25,35]},15:{columns:2,rows:2,headquarters:[2,1],starts:[[2],[1]],spacing:715,incomes:[15,25,35]},16:{columns:4,rows:2,headquarters:[4,3],starts:[[4],[3]],spacing:740,incomes:[15,25,35]},17:{columns:4,rows:3,headquarters:[8,3],starts:[[8],[3]],spacing:800,incomes:[15,25,35]},18:{columns:4,rows:4,headquarters:[12,3],starts:[[12],[3]],spacing:830,incomes:[15,25,35]},
@@ -27,7 +27,26 @@ export const MAP_LAYOUTS={0:legacyLayout,1:legacyLayout,2:{columns:4,rows:4,head
 23:{columns:2,rows:2,headquarters:[2,1],starts:[[2],[1]],spacing:1073,incomes:[15,25,35]},
 24:{columns:4,rows:2,headquarters:[4,3],starts:[[4],[3]],spacing:1110,incomes:[15,25,35]},
 25:{columns:4,rows:3,headquarters:[8,3],starts:[[8],[3]],spacing:1200,incomes:[15,25,35]},
-26:{columns:4,rows:4,headquarters:[12,3],starts:[[12],[3]],spacing:1245,incomes:[15,25,35]}} as const;
+26:{columns:4,rows:4,headquarters:[12,3],starts:[[12],[3]],spacing:1245,incomes:[15,25,35]},
+// Action battlefields: exactly 3/5/7 real capturable Bastions with a
+// single central objective, symmetric spawn positions and legacy-free IDs.
+// 1-row strategic sectors may have 2D winding roads/terrain; both factions
+// begin at opposite ends. All versions <=26 are byte-for-byte unchanged.
+27:{columns:3,rows:1,headquarters:[0,2],starts:[[0],[2]],spacing:850,incomes:[15,25,35]},
+28:{columns:5,rows:1,headquarters:[0,4],starts:[[0],[4]],spacing:850,incomes:[15,25,35]},
+29:{columns:7,rows:1,headquarters:[0,6],starts:[[0],[6]],spacing:850,incomes:[15,25,35]},
+// Keep the selected original map DIMENSIONS while regenerating an odd-sector
+// geometry. 30..32: original 8-site size; 33..35: 12-site size;
+// 36..38: original 16-site size. The old terrain itself stays untouched.
+30:{columns:3,rows:1,headquarters:[0,2],starts:[[0],[2]],spacing:850,incomes:[15,25,35]},
+31:{columns:5,rows:1,headquarters:[0,4],starts:[[0],[4]],spacing:850,incomes:[15,25,35]},
+32:{columns:7,rows:1,headquarters:[0,6],starts:[[0],[6]],spacing:850,incomes:[15,25,35]},
+33:{columns:3,rows:1,headquarters:[0,2],starts:[[0],[2]],spacing:850,incomes:[15,25,35]},
+34:{columns:5,rows:1,headquarters:[0,4],starts:[[0],[4]],spacing:850,incomes:[15,25,35]},
+35:{columns:7,rows:1,headquarters:[0,6],starts:[[0],[6]],spacing:850,incomes:[15,25,35]},
+36:{columns:3,rows:1,headquarters:[0,2],starts:[[0],[2]],spacing:850,incomes:[15,25,35]},
+37:{columns:5,rows:1,headquarters:[0,4],starts:[[0],[4]],spacing:850,incomes:[15,25,35]},
+38:{columns:7,rows:1,headquarters:[0,6],starts:[[0],[6]],spacing:850,incomes:[15,25,35]}} as const;
 export const mapLayout=(version:MapVersion)=>MAP_LAYOUTS[version];
 /** A seeded diagonal corner assignment, shared by generation, spawning and victory checks. */
 export function campaignLayout(version:MapVersion,seed:number){

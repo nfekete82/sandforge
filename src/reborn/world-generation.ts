@@ -42,7 +42,20 @@ export function generateMap(seed:number,version:Exclude<MapVersion,0>=MAP_VERSIO
   // Stratified rejection sampling avoids clumps and preserves adjacent capture sectors.
   // Reserve all sector centres first so a later sector always has a legal fallback.
   const sites=Array.from({length:count},(_,i)=>({x:(i%cols+.5)*w,y:(Math.floor(i/cols)+.5)*h}));
-  for(let i=0;i<(version>=2?count/2:count);i++)for(let attempt=0;attempt<80;attempt++){
+  if(version>=27){
+    // Odd-Bastion battlefields must be symmetrical with an EXACT center.
+    // Use wider 2D flank positions in the real physical map (not overlays),
+    // within their original strategic sectors. Old seeds are untouched.
+    const inset=Math.max(1050,size*.145),span=size-2*inset,mid=(count-1)/2;
+    const flank=Math.min(670,size*.115);
+    for(let i=0;i<count;i++){
+      const x=inset+span*i/(count-1);
+      const y=size*.5+(i===0||i===count-1||i===mid?0:
+        i<mid?(i%2?-flank:flank):
+        ((count-1-i)%2?flank:-flank));
+      sites[i]={x,y};
+    }
+  }else for(let i=0;i<(version>=2?count/2:count);i++)for(let attempt=0;attempt<80;attempt++){
     const p={x:(i%cols+.5+(rand()-.5)*(version>=2?(modern&&generatorVersion>=4?.72:.46):.56))*w,y:(Math.floor(i/cols)+.5+(rand()-.5)*(version>=2?.46:.54))*h};
     if(p.x<270||p.x>size-270||p.y<270||p.y>size-270)continue;
     if(version>=2){
@@ -61,7 +74,13 @@ export function generateMap(seed:number,version:Exclude<MapVersion,0>=MAP_VERSIO
   // New canyon-only geometry. Previous map versions keep identical world tiles.
   const canyon:{ridges:CanyonRidge[];ruins:CanyonRuin[]}=!modern&&version>=15?generateCanyonFeatures(seed,size,cols,rows,sites,corridors):{ridges:[],ruins:[]};
   const homes=layout.headquarters.map(id=>battlefieldStart(sites[id],size));
-  const landscape=modern&&generatorVersion>=3?generateLandscapeNetwork(seed,size,sites,cols,rows,candidate,homes,generatorVersion):null;
+  // The long established authored mesa graph assumes >=2 rows. Compact odd
+  // maps instead use its real pass-aware v4 network in a centered two-lane
+  // footprint, preserving all 10th-generation terrain height/road rules.
+  // This avoids negative mesa-site indexes without weakening navigation.
+  const landscape=modern&&generatorVersion>=3
+   ?generateLandscapeNetwork(seed,size,sites,cols,version>=27?2:rows,
+      candidate,homes,version>=27?4:generatorVersion):null;
   if(landscape)canyon.ridges=landscape.ridges;
   const plateaus=generatorVersion>=7?(landscape?.plateaus??[]):[];
   if(modern){

@@ -628,8 +628,18 @@ export class World {
       // New campaign economy: the HQ's own bastion earns 50; its directly
       // adjacent, capturable neighbors earn 25. Earlier save generations stay unchanged.
       // Faction-independent geometry keeps both teams' starting economies equal.
-      const income=this.mapVersion>=11?(homeBastion?50:nextToHome?25:layout.incomes[value]):layout.incomes[value];
-      return {id,name:this.mapVersion===2?campaignNames[id]:this.mapVersion>=3?`Sektor ${id+1}`:names[id],polygon:[vertices[y][x],vertices[y][x+1],vertices[y+1][x+1],vertices[y+1][x]],
+      // 3/5/7 maps deliberately share ~90 neutral credits per 10 seconds,
+      // rather than inflating the entire economy as the sector count rises.
+      // The center earns precisely 1.5x an ordinary neutral flank; the two
+      // equally placed homes start with the familiar 50-credit income.
+      const oddActionMap=this.mapVersion>=27;
+      const normalNeutral=oddActionMap?90/(cols-1.5):0;
+      const income=oddActionMap
+       ?homeBastion?50:id===(cols-1)/2?normalNeutral*1.5:normalNeutral
+       :this.mapVersion>=11?(homeBastion?50:nextToHome?25:layout.incomes[value]):layout.incomes[value];
+      const name=this.mapVersion>=27&&id===(cols-1)/2?'Zentralbastion':
+       this.mapVersion===2?campaignNames[id]:this.mapVersion>=3?`Sektor ${id+1}`:names[id];
+      return {id,name,polygon:[vertices[y][x],vertices[y][x+1],vertices[y+1][x+1],vertices[y+1][x]],
         point,neighbors:[x>0?id-1:-1,x<cols-1?id+1:-1,y>0?id-cols:-1,y<rows-1?id+cols:-1].filter(i=>i>=0),
         owner:layout.starts[0].some(i=>i===id)?0:layout.starts[1].some(i=>i===id)?1:-1,capturing:-1,progress:0,income,value};
     });
