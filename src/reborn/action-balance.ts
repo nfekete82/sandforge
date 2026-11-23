@@ -148,5 +148,5 @@ export function actionEarlyArmyBeforeInfrastructure(x:{
  underAttack:boolean;observedSiege:boolean;
 }):boolean{
  return x.preset==='action'&&x.time>=12&&x.time<=150&&
-  x.barracksReady&&x.fighters<5&&!x.underAttack&&!x.observedSiege;
+  x.barracksReady&&x.fighters<6&&!x.underAttack&&!x.observedSiege;
 }
