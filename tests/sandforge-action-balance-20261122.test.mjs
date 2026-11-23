@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -307,4 +307,19 @@ test('Action keeps a real HQ guard while freeing surplus opening reserves',()=>{
  assert.match(ai,/const actionReserve=actionHomeReservePolicy/);
  assert.match(ai,/\.slice\(0,actionReserve\)\.map\(u=>u\.id\)/);
  assert.match(ai,/homeGuardCapPulses\+\+/);
+});
+
+test('Action pays for an early six-fighter infantry wave before optional tech',()=>{
+ const x={preset:'action',time:80,barracksReady:true,fighters:4,
+  underAttack:false,observedSiege:false};
+ assert.equal(actionEarlyArmyBeforeInfrastructure(x),true);
+ assert.equal(actionEarlyArmyBeforeInfrastructure({...x,fighters:5}),true);
+ for(const v of [{preset:'classic'},{fighters:6},{time:200},
+  {time:5},{barracksReady:false},{underAttack:true},{observedSiege:true}])
+  assert.equal(actionEarlyArmyBeforeInfrastructure({...x,...v}),false,
+   'genuine urgent tech/legacy/play state must win: '+JSON.stringify(v));
+ const source=readFileSync('src/reborn/army-economy.ts','utf8');
+ assert.match(source,/const actionInfantryFirst=actionEarlyArmyBeforeInfrastructure/);
+ assert.match(source,/!actionInfantryFirst&&\s*\(generators===0/);
+ assert.match(source,/!has\('factory'\)&&!actionInfantryFirst/);
 });
