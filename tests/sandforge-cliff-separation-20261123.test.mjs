@@ -18,6 +18,9 @@ function edgeCollision(version=10){
  const x=startCliff-Math.min(spec.radius,26)*.72-3;
  const head=g.spawn(0,{x,y:1100},'tank');
  const rear=g.spawn(0,{x:x-(spec.radius*2+4),y:1100},'tank');
+ // Retain a real opposing faction so the normal victory state does not
+ // terminate the simulated 20-Hz physics after the first tick.
+ g.spawn(1,{x:500,y:600},'infantry');
  return {g,head,rear,startCliff};
 }
 
