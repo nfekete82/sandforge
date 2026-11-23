@@ -66,6 +66,8 @@ function run(map,preset){
   redIdleCapturedBastionSeconds:0,redIdleOpeningSeconds:0,
   redIdleCampaignSeconds:0,redIdleRecoveringSeconds:0,
   redIdleUnassignedSeconds:0,redIdleByKind:{},
+  redIdleActualGuardSeconds:0,redIdleStaleHoldSeconds:0,
+  redUnitSnapshots:[],
   redPhaseSeconds:{gather:0,attack:0,regroup:0,defend:0},
   capturedScoutHandoffsEligible:0,capturedScoutHandoffsCompleted:0,
   capturedScoutHandoffSeconds:0,capturedScoutHandoffsLost:0,
@@ -110,6 +112,9 @@ function run(map,preset){
   const recovery=new Set(g.tactical.state.recovering??[]);
   for(const u of idle){
    if(u.hold)metrics.redIdleHeldSeconds+=dt;
+   if(g.tactical.actionGuardIds.has(u.id))metrics.redIdleActualGuardSeconds+=dt;
+   if(u.hold&&!g.tactical.actionGuardIds.has(u.id))
+    metrics.redIdleStaleHoldSeconds+=dt;
    if(redHQ&&length(u,redHQ)<550)metrics.redIdleHomeSeconds+=dt;
    if(g.territories.some(t=>t.owner===1&&length(u,t.point)<150))
     metrics.redIdleCapturedBastionSeconds+=dt;
@@ -119,6 +124,23 @@ function run(map,preset){
    if(!opening.has(u.id)&&!campaign.has(u.id)&&!recovery.has(u.id))
     metrics.redIdleUnassignedSeconds+=dt;
    metrics.redIdleByKind[u.kind]=(metrics.redIdleByKind[u.kind]??0)+dt;
+  }
+  if([1200,2400,3600].includes(Math.round(g.time*20))){
+   const mission=g.tactical.state.commander?.mission;
+   metrics.redUnitSnapshots.push({
+    at:metrics.seconds,red:red.length,
+    guardCount:g.tactical.actionGuardIds.size,
+    idle:idle.length,idleHeld:idle.filter(u=>u.hold).length,
+    idleActualGuards:idle.filter(u=>g.tactical.actionGuardIds.has(u.id)).length,
+    idleStaleHeld:idle.filter(u=>u.hold&&!g.tactical.actionGuardIds.has(u.id)).length,
+    idleNearHQ:idle.filter(u=>redHQ&&length(u,redHQ)<550).length,
+    opening:(g.tactical.state.openingContests??[]).length,
+    recovery:(g.tactical.state.recovering??[]).length,
+    campaign:g.tactical.state.group.length,
+    phase:g.tactical.state.phase,
+    mission:mission?{kind:mission.kind,sector:mission.sector,
+     targetOwner:g.territories[mission.sector]?.owner}:null
+   });
   }
   // Every damage-dealing event is counted once, even if the visual tracer
   // persists over several frames. No fabricated "first fight" timestamp.
@@ -195,7 +217,8 @@ function run(map,preset){
  for(const k of ['redIdleHeldSeconds','redIdleHomeSeconds',
   'redIdleCapturedBastionSeconds','redIdleOpeningSeconds',
   'redIdleCampaignSeconds','redIdleRecoveringSeconds',
-  'redIdleUnassignedSeconds'])
+  'redIdleUnassignedSeconds','redIdleActualGuardSeconds',
+  'redIdleStaleHoldSeconds'])
   metrics[k]=Number(metrics[k].toFixed(1));
  metrics.redIdleByKind=Object.fromEntries(Object.entries(metrics.redIdleByKind)
   .map(([kind,seconds])=>[kind,Number(seconds.toFixed(1))]));
