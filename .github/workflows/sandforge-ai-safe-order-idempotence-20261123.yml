@@ -1,0 +1,24 @@
+name: Sandforge AI · Preserve Independent Safe Orders
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/reborn/tactical-ai.ts
+      - tests/sandforge-ai-safe-order-idempotence-20261123.test.mjs
+      - .github/workflows/sandforge-ai-safe-order-idempotence-20261123.yml
+permissions:
+  contents: read
+jobs:
+  safe-order-idempotence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: node --test tests/sandforge-ai-safe-order-idempotence-20261123.test.mjs tests/sandforge-ai-sticky-guard-roster-20261123.test.mjs tests/reborn-ai-director.test.mjs
