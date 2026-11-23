@@ -1735,7 +1735,10 @@ export class TacticalAI {
    breakthrough,
    force:fighters,losses:s.losses,fronts:s.battle?.fronts??[],
    intelligent:this.missionPlannerMode==='legacy'?false:this.doctrineMode==='intelligent',
-   bastionControl:this.ai35Enabled,experience,
+   bastionControl:this.ai35Enabled,
+   actionContact:g.balancePreset==='action'&&g.world.mapVersion>=23,
+   activeAssault:s.phase==='attack',homeThreat:hqAssaultSituation.homeThreat,
+   experience,
    route:p=>{const route=this.route(origin,p);return route.length?this.sampleRoute(route,origin):undefined;},
    routeFallback});
   if(!mission){
