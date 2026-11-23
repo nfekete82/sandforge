@@ -1,0 +1,25 @@
+name: Sandforge future 3-4 Player Match Setup
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  setup-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build TypeScript and existing WebGL modules
+        run: npm run build
+      - name: Verify all legacy seeded 1v1 setups and 3-4 player corner/teams
+        run: node --test tests/sandforge-multiplayer-match-setup-20261123.test.mjs
