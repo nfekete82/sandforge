@@ -7,6 +7,7 @@ import {selectObservedCounterTarget} from './ai-counter-doctrine.js';
 import {assaultDecision,abortAssault} from './ai-director.js';
 import {battleDirectorPulse,validBattleDirector,type BattleDirectorState,type BattleDirectorOrder} from './battle-director.js';
 import {selectiveRaidAllowed} from './selective-raids.js';
+import {planCombatDuties} from './squad-duty-arbiter.js';
 import {newCampaign,campaignPhase,refreshIntelligence,chooseMission,reconGoal,validCampaign,knownBuildings,type CampaignState} from './campaign-commander.js';
 import {segmentDistance} from './world-generation.js';
 import {newBattle,assessBattle,fightingPower,hasDecisiveLocalAdvantage,shouldCommitFirefight,fightInsteadOfFleeing,retreatCorridorSafe,recordFailure,retryFront,validBattle,type BattleState} from './battle-response.js';
@@ -2289,6 +2290,10 @@ export class TacticalAI {
    ['infantry','heavy','rover'].includes(u.kind)&&u.hp>=unitSpec(u).hp*.65&&
    u.defendUntil<=g.time&&!(s.recovering??[]).includes(u.id)&&
    !s.battle?.withdrawals.some(w=>w.unit===u.id&&w.until>g.time)&&
+   // Local defense has already taken ownership of these genuine soldiers.
+   // An opening scout must not reissue its old capture order next pulse.
+   !s.battle?.squads.some(q=>q.role==='defense'&&q.ids.includes(u.id))&&
+   !u.orders.some(o=>['garrison','board','build','repair'].includes(o.kind))&&
    !s.group.includes(u.id)).sort((a,b)=>a.id-b.id);
   const blue=g.territories.filter(t=>t.owner===0).length;
   const red=g.territories.filter(t=>t.owner===1).length;
@@ -2557,17 +2562,33 @@ export class TacticalAI {
     ||ownedBastions.some(t=>distance(u,t.point)<260)));
   if(g.world.mapVersion>=3&&this.mode==='director'){
    const defense=this.localDefense(fighters,medics,intruders,home);
-   // Earlier paid raids follow the shorter home-defense buildup.
-   // Preserve an uncontested initial setup and never strip emergency
-   // defenders; expansionRaid independently checks actual safe sectors.
+   // Defence issues orders AFTER the old opening manager. Reconcile their
+   // claim immediately: otherwise the scout retains a stale opening task
+   // and takes the defender back on the next planning pulse.
+   const frontline=planCombatDuties(fighters.map(u=>u.id),{
+    defense,opening:earlyContesters,recapture:new Set(),raid:new Set()
+   });
+   if(frontline.conflicts.some(v=>v.displaced==='opening')){
+    const seized=new Set(frontline.conflicts
+     .filter(v=>v.displaced==='opening').map(v=>v.id));
+    s.openingContests=(s.openingContests??[]).filter(e=>!seized.has(e.unitId));
+   }
+   // Smaller controllers only receive soldiers left unclaimed by urgent
+   // defence and legitimate opening captures. No second order owner.
    const recapture=this.coordinatedRecapture(fighters.filter(u=>
-    !defense.has(u.id)&&!earlyContesters.has(u.id)),home);
+    frontline.campaign.has(u.id)),home);
    const raiders=g.world.mapVersion>=19&&g.time<125&&
     !this.battleDirective?.allowEarlyRaid
     ?new Set<number>():this.expansionRaid(fighters.filter(u=>
-     !defense.has(u.id)&&!earlyContesters.has(u.id)&&!recapture.has(u.id)),home);
-   const main=fighters.filter(u=>!defense.has(u.id)&&!raiders.has(u.id)&&
-    !earlyContesters.has(u.id)&&!recapture.has(u.id));
+     frontline.campaign.has(u.id)&&!recapture.has(u.id)),home);
+   const duties=planCombatDuties(fighters.map(u=>u.id),{
+    defense,opening:frontline.opening,recapture,raid:raiders
+   });
+   // Some previously committed campaign units may be legitimately
+   // preempted by local defense. Only true campaign members may remain
+   // on its persistent roster, otherwise future orders can collide.
+   s.group=s.group.filter(id=>duties.campaign.has(id));
+   const main=fighters.filter(u=>duties.campaign.has(u.id));
    if(main.length)this.campaign(army,main,medics.filter(u=>!defense.has(u.id)),home);
    this.dispatchObservedSpecialists(army);
    this.supportBombers(army,home);
