@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import '../scripts/webgl-desert-maps.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {UNITS} from '../dist/src/reborn/catalog.js';
+import {ridgeHeightAtX} from '../dist/src/reborn/ai36-terrain-routes.js';
 
 const maps=globalThis.SandforgeDesertMaps.maps.filter(m=>m.generatorVersion>=10);
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -18,8 +19,31 @@ test('all current plateau maps offer legal tank and rover ramp approaches',()=>{
   assert.equal(world.validation?.tankReachableSites,map.bastions,
    map.id+' has tank-inaccessible Bastion sites');
   const mesas=(world.generated.plateaus??[]).filter(m=>m.ramps?.length);
-  if(map.id==='desert-strike'||map.id==='plateau-crossroads')
-   assert.ok(mesas.length,map.id+' lost required authored plateau ramps');
+  if(map.id==='desert-strike')
+   assert.ok(mesas.length,map.id+' lost its required central four-ramp mesa');
+  // Plateau Crossroads is built from three canyon ridges, NOT RaisedMesa.
+  // Verify its actual four authored ridgeline passes rather than querying
+  // an unrelated optional world.generated.plateaus array.
+  if(map.id==='plateau-crossroads'){
+   const passes=(world.generated.ridges??[]).flatMap(ridge=>
+    ridge.ramps.map(pass=>({ridge,pass})));
+   assert.equal(passes.length,4,'Plateau Crossroads lost one of four real passes');
+   for(const {ridge,pass} of passes)for(const kind of ['tank','rover']){
+    const vehicle=UNITS[kind],radius=Math.max(0,vehicle.radius-10);
+    const slope=kind==='tank'?.215:.195;
+    const crossing={x:pass.x,y:ridgeHeightAtX(ridge,pass.x)};
+    assert.ok(world.walkable(crossing,[],radius),
+     map.id+' '+kind+' cliff pass blocked');
+    assert.ok(world.groundVehicleSlopeSafe(crossing,slope,radius+10),
+     map.id+' '+kind+' cliff pass too steep');
+    const offset=ridge.width*1.3+260;
+    const from={x:crossing.x,y:crossing.y-offset};
+    const to={x:crossing.x,y:crossing.y+offset};
+    const route=world.path(from,to,[],radius,undefined,false,false,false,slope);
+    assert.ok(route.length&&dist(route.at(-1),to)<world.cell*1.4,
+     map.id+' '+kind+' cannot cross a real ridge pass');
+   }
+  }
   for(const mesa of mesas.slice(0,3)){
    for(const direction of mesa.ramps.slice(0,4)){
     const point=r=>({x:mesa.center.x+direction.x*r,y:mesa.center.y+direction.y*r});
