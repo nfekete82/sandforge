@@ -8,7 +8,7 @@ import type {Loss} from './tactical-ai.js';
 import {replanAfterLoss} from './ai25-doctrine.js';
 import {publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {ai43KeepKnownHqMission} from './ai43-hq-breakthrough.js';
-import {actionPublicFrontPressure,actionTerritoryRecoveryPolicy} from './action-balance.js';
+import {actionPublicFrontPressure,actionTerritoryRecoveryPolicy,actionTerritoryRecoveryBlock} from './action-balance.js';
 import {rankPublicFronts,type PublicSector} from './map-intelligence.js';
 
 export type CampaignPhase='opening'|'expansion'|'buildup'|'offensive'|'siege'|'endgame'|'emergencyDefense';
@@ -90,7 +90,7 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  // pin the entire army while BLUE controls a decisive majority.
  if(old&&context?.actionContact){
   context.actionContactEvent?.('recovery-checked');
-  if(actionTerritoryRecoveryPolicy({
+  const recoveryInputs={
    preset:g.balancePreset,mapVersion:g.world.mapVersion,time:g.time,
    ownSectors:redOwned,enemySectors:blueOwned,available:actionFighters,
    oldKind:old.kind,oldNeutral:g.territories[old.sector]?.owner===-1,
@@ -98,7 +98,10 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
    oldCaptureOccupied:context.force.some(u=>u.hp>0&&!u.carrier&&
     distance(u,old)<175),
    activeAssault:!!context.activeAssault,homeThreat:!!context.homeThreat
-  })){
+  };
+  const recoveryBlock=actionTerritoryRecoveryBlock(recoveryInputs);
+  if(recoveryBlock)context.actionContactEvent?.('recovery-block:'+recoveryBlock);
+  if(actionTerritoryRecoveryPolicy(recoveryInputs)){
    context.actionContactEvent?.('recovery-eligible');
    const fronts=rankPublicFronts({
     sectors:g.territories,origin,worldSize:g.world.size,blueOwned,
