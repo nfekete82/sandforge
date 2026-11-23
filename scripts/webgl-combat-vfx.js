@@ -226,7 +226,7 @@ export class SandforgeCombatEffects {
   // consumes the artillery trail budget. One instanced draw call.
   this.rocketSmoke=makePool(scene,'rocketSmoke',lowQuality?48:160,.68);
   this.flash=makePool(scene,'flash',lowQuality?16:48,.86);
-  this.flames=makePool(scene,'flame',lowQuality?28:120,.94);
+  this.flames=makePool(scene,'flame',lowQuality?48:210,.94);
   this.dust=makePool(scene,'dust',lowQuality?40:170,.50,biome);
   this.trailDust=makePool(scene,'dust',lowQuality?VEHICLE_DUST_CAP_LITE:VEHICLE_DUST_CAP,.27,biome);
   this.trailDust.mesh.name='visual-moving-vehicle-dust';
@@ -483,24 +483,40 @@ export class SandforgeCombatEffects {
    12,.30,(this.rand()-.5)*15,(this.rand()-.5)*15,8);
   this.stats.muzzlePuffs++;
  }
- /** Pooled near-field flame plume; gameplay damage is resolved by Simulation. */
+ /** Long, tapered flamethrower plume, strictly visual: the 20-Hz
+  * Simulation owns range, damage and target checks. All sprites are pooled.
+  * Avoid new lights, tracers, meshes and uncapped environmental emitters.
+  */
  flameStreamAt(shot){
   const from=shot.groundFrom??shot.from,to=shot.groundTo??shot.to;
   if(!from||!to||!this.game.canSee(0,from))return;
-  const dx=to.x-from.x,dz=to.y-from.y;
-  const d=Math.max(1,Math.hypot(dx,dz)),limit=Math.min(160,d);
-  const sx=dx/d,sz=dz/d,start=this.heightAt(from.x,from.y);
-  // No projectile meshes, dynamic lights or persistent emitters.
-  for(let i=0;i<8;i++){
-   const t=(i+.35)/8,travel=15+(limit-15)*t;
-   const spread=3+t*10,side=(this.rand()-.5)*spread;
-   const px=from.x+sx*travel-sz*side,pz=from.y+sz*travel+sx*side;
-   this.particle(this.flames,px,pz,start+22+t*4,
-    9+t*12,.15+this.rand()*.18,sx*(25+this.rand()*25),
-    sz*(25+this.rand()*25),8+this.rand()*15);
+  const dx=to.x-from.x,dz=to.y-from.y,d=Math.hypot(dx,dz);
+  if(d<1)return;
+  const sx=dx/d,sz=dz/d,limit=Math.min(UNITS.flamer.range,d);
+  const lip=Math.min(53,Math.max(13,limit*.29));
+  const groundStart=this.heightAt(from.x,from.y),groundEnd=this.heightAt(to.x,to.y);
+  // Use a coherent bright flame heart and gradually broader orange tongues.
+  // The cone begins at the front nozzle, not inside the tank's body.
+  for(let i=0;i<16;i++){
+   const t=(i+.45)/16,travel=lip+(limit-lip)*t;
+   const side=(this.rand()-.5)*(2+t*17);
+   const x=from.x+sx*travel-sz*side,z=from.y+sz*travel+sx*side;
+   const y=groundStart+(groundEnd-groundStart)*t+20+Math.sin(Math.PI*t)*10;
+   this.particle(this.flames,x,z,y,7+t*17,
+    .16+this.rand()*.16,sx*(38+this.rand()*22),
+    sz*(38+this.rand()*22),3+this.rand()*17);
+   if(i%4===1)this.particle(this.flash,x,z,y+2,4+t*6,
+    .09+this.rand()*.08,sx*22,sz*22,5);
   }
-  if(shot.hit)this.particle(this.smoke,to.x,to.y,
-   this.heightAt(to.x,to.y)+14,8,.42,0,0,18);
+  if(shot.hit){
+   for(let i=0;i<3;i++){
+    const a=this.rand()*Math.PI*2;
+    this.particle(this.flames,to.x+Math.cos(a)*7,to.y+Math.sin(a)*7,
+     groundEnd+10,11+this.rand()*9,.19+this.rand()*.14,0,0,21);
+   }
+   if(this.rand()<.55)this.particle(this.smoke,to.x,to.y,
+    groundEnd+18,10,.43,0,0,15);
+  }
  }
  impactAt(shot){
   const p=shot.groundTo??shot.to;
