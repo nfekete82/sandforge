@@ -9,6 +9,7 @@ import {replanAfterLoss} from './ai25-doctrine.js';
 import {publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {ai43KeepKnownHqMission} from './ai43-hq-breakthrough.js';
 import {actionPublicFrontPressure} from './action-balance.js';
+import {rankPublicFronts} from './map-intelligence.js';
 
 export type CampaignPhase='opening'|'expansion'|'buildup'|'offensive'|'siege'|'endgame'|'emergencyDefense';
 export interface WarMission extends Point {kind:'capture'|'structure'|'hunt';sector:number;objective:number|null;since:number;progressAt:number;distance:number;hp:number}
@@ -95,22 +96,20 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
     homeThreat:!!context?.homeThreat
    })&&context?.actionContact&&!actionFront(g.territories[old.sector])){
    context.actionContactEvent?.('eligible');
-   // When BLUE owns only its first public sector, pressure the adjacent
-   // NEUTRAL meeting ground, never the BLUE home Bastion/HQ itself.
-   const candidates=g.territories.filter(t=>actionFront(t)&&
-     (blueOwned>=2||t.owner===-1))
-    .sort((a,b)=>distance(origin,a.point)-distance(origin,b.point)||a.id-b.id)
-    .slice(0,9).map(t=>({t,route:context.route(t.point)}))
-    .filter((v):v is {t:typeof g.territories[number];route:{length:number;risk:number}}=>
-      !!v.route&&v.route.length<4700&&v.route.risk<8)
-    .sort((a,b)=>(a.route.length-(a.t.owner===0?400:150))-
-     (b.route.length-(b.t.owner===0?400:150))||a.t.id-b.t.id);
+   // General-purpose map understanding: use public adjacency (which
+   // Bastions meet the BLUE front) AND the actual physical route. No
+   // special-case map name, fixed seed, start corner or hidden opponent.
+   const candidates=rankPublicFronts({
+    sectors:g.territories,origin,worldSize:g.world.size,blueOwned,
+    route:context.route,
+    knownThreat:t=>!actionFront(t),maxPaths:Math.min(16,g.territories.length)
+   });
    const meet=candidates[0];
    if(meet){
     context.actionContactEvent?.('rerouted');
-    return s.mission={kind:'capture',...meet.t.point,sector:meet.t.id,
-     objective:null,hp:0,since:g.time,progressAt:g.time,
-     distance:distance(origin,meet.t.point)};
+    return s.mission={kind:'capture',...meet.sector.point,
+     sector:meet.sector.id,objective:null,hp:0,since:g.time,
+     progressAt:g.time,distance:distance(origin,meet.sector.point)};
    }
    context.actionContactEvent?.('no-route');
  }
