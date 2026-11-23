@@ -253,7 +253,8 @@ function run(map,preset){
   }
  }
  metrics.actionRallyDiagnostics={...g.tactical.actionRallyDiagnostics,
-  blocks:{...g.tactical.actionRallyDiagnostics.blocks}};
+  blocks:{...g.tactical.actionRallyDiagnostics.blocks},
+  contactFront:{...g.tactical.actionRallyDiagnostics.contactFront}};
  metrics.capturedScoutHandoffsPending=pendingHandoffs.size;
  metrics.capturedScoutHandoffSeconds=Number(metrics.capturedScoutHandoffSeconds.toFixed(2));
  metrics.capturedScoutHandoffMean=metrics.capturedScoutHandoffsCompleted?
