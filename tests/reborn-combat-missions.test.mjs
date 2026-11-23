@@ -9,7 +9,16 @@ function arena(){
  g.units=[];g.memories=[[],[]];
  for(const t of g.territories)t.owner=-1;
  const hq=g.bases.find(b=>b.owner===0&&b.kind==='headquarters');
- Object.assign(hq,{x:2700,y:2000});g.bases=[hq];
+ const ownHQ=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
+ assert.ok(hq&&ownHQ);
+ Object.assign(hq,{x:2700,y:2000});
+ // This fixture originally deleted the RED headquarters, immediately
+ // triggering the modern building-elimination loss on the first simulation
+ // tick. Combatants could not move, pursue or heal while the match was over.
+ // Keep a REAL RED headquarters on the opposite edge; it is neither a
+ // target nor a source of hidden BLUE information.
+ Object.assign(ownHQ,{x:400,y:400});
+ g.bases=[hq,ownHQ];
  return {g,hq};
 }
 const advance=(g,seconds)=>{for(let i=0;i<seconds/.05;i++)g.step(.05);};
@@ -63,8 +72,16 @@ test('combat missions: remembered building attack survives fog, approaches and f
 test('combat missions: hidden building destruction cannot change remembered attack orders or health knowledge',()=>{
  const a=rememberedTarget(),b=rememberedTarget();
  b.hq.hp=0;
- // Preserve a real blue unit so hidden destruction cannot end the game.
- a.g.spawn(0,{x:2900,y:2900},'engineer');b.g.spawn(0,{x:2900,y:2900},'engineer');
+ // Losing the last BUILDING ends a modern RTS match even if infantry
+ // survives. Keep a genuine hidden BLUE generator in each identical arena,
+ // so only the invisible HQ state differs and the match remains active.
+ for(const scene of [a,b]){
+  const old=scene.hq;
+  scene.g.bases.push({...old,id:90001,kind:'generator',hp:500,
+   x:scene.g.world.size-170,y:scene.g.world.size-160,
+   territory:-1});
+  scene.g.spawn(0,{x:2900,y:2900},'engineer');
+ }
  advance(a.g,2);advance(b.g,2);
  assert.deepEqual(b.artillery.orders,a.artillery.orders);
  assert.equal(b.artillery.x,a.artillery.x);assert.equal(b.artillery.y,a.artillery.y);
