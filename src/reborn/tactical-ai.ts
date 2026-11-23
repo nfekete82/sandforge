@@ -37,7 +37,7 @@ import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
-import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,ACTION_BALANCE} from './action-balance.js';
+import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,ACTION_BALANCE} from './action-balance.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -205,6 +205,9 @@ export class TacticalAI {
  private ai40RallyRetryAt=0;
  /** Only one verified recovery per actual military objective. */
  private ai40RecoveredMissionSince=-1;
+ /** Prevent replanning the same safe Action-only forward rally every pulse. */
+ private actionForwardRallyMissionSince=-1;
+ private actionForwardRallyRetryAt=0;
  /** Explicitly opt-in ONLY for headless benchmark observation. No saves. */
  rallyGateTraceEnabled=false;
  rallyGateTrace:Array<{
@@ -1813,6 +1816,49 @@ export class TacticalAI {
    .slice(0,reserve).map(u=>u.id));
   if(policy&&s.phase!=='attack')s.group=s.group.filter(id=>!guards.has(id));
   if(policy)this.stationHomeGuards(mainFighters.filter(u=>guards.has(u.id)),home);
+  // Action early-game pressure: rally at a REAL paid troop cluster instead
+  // of recalling fighters across a distant plateau to the nearest owned
+  // Bastion. Only neutral capture missions; never bypass known defenders.
+  // Existing sieges, emergency HQ defense and Classic rally remain intact.
+  if(actionForwardRallyPolicy({
+    preset:g.balancePreset,mapVersion:g.world.mapVersion,
+    generatorVersion:g.world.generatorVersion,time:g.time,
+    missionKind:mission.kind,targetOwner:g.territories[mission.sector].owner,
+    phase:s.phase,available:mainFighters.filter(u=>!guards.has(u.id)).length,
+    observedHomePressure,knownThreats:towers.length+visible.length
+   })&&s.rally&&mission.since!==this.actionForwardRallyMissionSince&&
+      g.time>=this.actionForwardRallyRetryAt){
+   this.actionForwardRallyRetryAt=g.time+18; // bounded A* budget
+   const pool=mainFighters.filter(u=>!guards.has(u.id)&&
+    !unitSpec(u).flying&&!u.hold&&u.hp>=unitSpec(u).hp*.55);
+   const obstacles=[...this.obstacles(),...g.bastionColliders()];
+   const leaders=pool.slice().sort((a,b)=>distance(a,mission)-distance(b,mission)||a.id-b.id).slice(0,6);
+   for(const leader of leaders){
+    if(distance(leader,s.rally)<330||
+       distance(leader,mission)+230>=distance(s.rally,mission))continue;
+    const cluster=pool.filter(u=>distance(u,leader)<=270);
+    if(cluster.length<3)continue;
+    const candidate=g.world.nearest(leader,obstacles,[],undefined,10);
+    if(!candidate||distance(candidate,leader)>75||
+       !g.world.walkable(candidate,obstacles,10)||this.danger(candidate)>2)continue;
+    const reachableCluster=cluster.filter(u=>distance(u,candidate)<20||
+     g.world.path(u,candidate,obstacles,5).length>0);
+    if(reachableCluster.length<3)continue;
+    // The Bastion's solid center is NOT a legitimate path target.
+    // Validate the full physical route to a free point inside its ring.
+    const toward=Math.atan2(candidate.y-mission.y,candidate.x-mission.x);
+    const ring=[0,.6,-.6,1.2,-1.2,1.8,-1.8,Math.PI].some(offset=>{
+     const at={x:mission.x+82*Math.cos(toward+offset),
+      y:mission.y+82*Math.sin(toward+offset)};
+     return g.world.walkable(at,obstacles,5)&&
+      g.world.path(candidate,at,obstacles,5).length>0;
+    });
+    if(!ring)continue;
+    s.rally=candidate;
+    this.actionForwardRallyMissionSince=mission.since;
+    break;
+   }
+  }
   // Read-only, benchmark-opt-in gate trace of REAL planner inputs.
   // No changes to AI orders, campaign state, fog, credits or saves.
   if(this.rallyGateTraceEnabled&&g.time>=180&&g.time-this.lastRallyGateTraceAt>=12){
