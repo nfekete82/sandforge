@@ -62,17 +62,23 @@ function run(map,preset){
   firstRedCapture:null,firstBlueCapture:null,
   redArmyPeak:0,blueArmyPeak:0,
   redIdleUnitSeconds:0,redCombatUnitSeconds:0,
+  capturedScoutHandoffsEligible:0,capturedScoutHandoffsCompleted:0,
+  capturedScoutHandoffSeconds:0,capturedScoutHandoffsLost:0,
   redAttackPhaseSeconds:0,redProduced:0,blueProduced:0,
   redOwnedBastions:0,blueOwnedBastions:0,firstBlueAttack:null,
   outcome:'time-limit'};
  const before=g.territories.map(t=>t.owner);
  const countedShots=new WeakSet();
+ const pendingHandoffs=new Map();
  const dt=.05,steps=Math.round(SECONDS/dt);
  for(let i=0;i<steps&&g.status==='playing';i++){
   if(i%60===0){
    if(paidBlueHeadquarters(g))metrics.firstBlueHQOrder??=Number(g.time.toFixed(2));
    blueBastionRush(g);
   }
+  const beforeContests=(g.tactical.state.openingContests??[]).map(e=>({
+   unitId:e.unitId,sectorId:e.sectorId
+  }));
   g.step(dt);
   metrics.seconds=Number(g.time.toFixed(2));
   if(g.tactical.state.phase==='attack')metrics.firstRedAttackPhase??=metrics.seconds;
@@ -108,13 +114,37 @@ function run(map,preset){
   for(let t=0;t<g.territories.length;t++){
    const now=g.territories[t].owner;
    if(now!==before[t]){
-    if(now===1){metrics.redCaptureEvents++;metrics.firstRedCapture??=metrics.seconds;}
+    if(now===1){
+     metrics.redCaptureEvents++;metrics.firstRedCapture??=metrics.seconds;
+     for(const e of beforeContests.filter(e=>e.sectorId===t)){
+      if(pendingHandoffs.has(e.unitId))continue;
+      const soldier=g.units.find(u=>u.id===e.unitId&&u.owner===1&&u.hp>0);
+      if(!soldier)continue;
+      metrics.capturedScoutHandoffsEligible++;
+      pendingHandoffs.set(e.unitId,{at:g.time,sectorId:t});
+     }
+    }
     if(now===0){metrics.blueCaptureEvents++;metrics.firstBlueCapture??=metrics.seconds;}
     before[t]=now;
    }
    if(now===1)metrics.redCaptureSeconds+=dt;
   }
+  for(const [id,entry] of pendingHandoffs){
+   const soldier=g.units.find(u=>u.id===id&&u.hp>0&&!u.carrier);
+   if(!soldier){metrics.capturedScoutHandoffsLost++;pendingHandoffs.delete(id);continue;}
+   const newMission=(g.tactical.state.openingContests??[])
+    .find(e=>e.unitId===id&&e.sectorId!==entry.sectorId);
+   if(newMission&&soldier.orders[0]?.kind==='attackMove'){
+    metrics.capturedScoutHandoffsCompleted++;
+    metrics.capturedScoutHandoffSeconds+=g.time-entry.at;
+    pendingHandoffs.delete(id);
+   }
+  }
  }
+ metrics.capturedScoutHandoffsPending=pendingHandoffs.size;
+ metrics.capturedScoutHandoffSeconds=Number(metrics.capturedScoutHandoffSeconds.toFixed(2));
+ metrics.capturedScoutHandoffMean=metrics.capturedScoutHandoffsCompleted?
+  Number((metrics.capturedScoutHandoffSeconds/metrics.capturedScoutHandoffsCompleted).toFixed(2)):null;
  metrics.status=g.status;
  const blueHQ=g.bases.find(b=>b.owner===0&&b.kind==='headquarters'&&b.hp>0);
  const blueBarracks=g.bases.find(b=>b.owner===0&&b.kind==='barracks'&&b.hp>0);
@@ -162,6 +192,8 @@ for(const map of maps){
   redIdleFractionDelta:a.redIdleFraction===null||b.redIdleFraction===null?null:
    Number((b.redIdleFraction-a.redIdleFraction).toFixed(3)),
   redProducedDelta:b.redProduced-a.redProduced,
+  capturedScoutHandoffsDelta:b.capturedScoutHandoffsCompleted-a.capturedScoutHandoffsCompleted,
+  capturedScoutPendingDelta:b.capturedScoutHandoffsPending-a.capturedScoutHandoffsPending,
   classicOutcome:a.outcome,actionOutcome:b.outcome});
  save();
 }
