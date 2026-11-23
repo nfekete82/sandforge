@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - src/reborn/tactical-ai.ts
+      - src/reborn/world.ts
+      - tests/sandforge-ai-heap-priority-stability-20261123.test.mjs
       - src/reborn/ai33-map-doctrine.ts
       - scripts/benchmark-ai-plan-spikes-20261123.mjs
       - scripts/compare-ai-plan-spikes-20261123.mjs
@@ -29,6 +31,14 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run build
+      - name: Pathfinding, live tank and AI route regressions
+        run: |
+          node --test \
+            tests/sandforge-ai-heap-priority-stability-20261123.test.mjs \
+            tests/sandforge-real-mesa-tank-routing-20261123.test.mjs \
+            tests/sandforge-tank-repath-stall-20261123.test.mjs \
+            tests/sandforge-ai-opening-route-ranking-20261123.test.mjs \
+            tests/sandforge-ai36-terrain-routes-20261119.test.mjs
       - name: Candidate 20Hz first two macro ticks
         run: node scripts/benchmark-ai-plan-spikes-20261123.mjs | tee candidate.log
       - name: Identical main baseline
