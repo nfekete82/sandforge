@@ -90,6 +90,7 @@ export function polishFlameTank(model){
     parts.add(mesh);
     return mesh;
   };
+  const links=[];
   const belt=(side)=>{
     const z=-side*1.17,front=-2.42,h=.49,r=.43;
     // Both belt loops extend ahead of the front glacis rather than ending
@@ -106,10 +107,7 @@ export function polishFlameTank(model){
       const length=Math.hypot(nx-x,ny-y);
       if(length<.002)continue;
       const angle=Math.atan2(ny-y,nx-x),cx=(x+nx)/2,cy=(y+ny)/2;
-      add(new THREE.BoxGeometry(length*1.04,.14,.39),'rubber',cx,cy,z,
-        'Flamer_Front_TrackLink_'+side+'_'+i,angle);
-      add(new THREE.BoxGeometry(length*.77,.037,.412),'steel',cx,cy,z,
-        'Flamer_Front_Tread_'+side+'_'+i,angle);
+      links.push({x:cx,y:cy,z,length,angle});
     }
     const wheel=add(new THREE.CylinderGeometry(.43,.43,.29,24),'rubber',
       front,h,z,'Flamer_FrontSprocket_'+side);
@@ -124,6 +122,25 @@ export function polishFlameTank(model){
       -2.13,1.015,z-side*.07,'Flamer_FrontMudguard_'+side,-.055);
   };
   belt(-1);belt(1);
+  // Only two GPU draw calls for all tread links on both front tracks.
+  const dummy=new THREE.Object3D();
+  for(const [name,mat,height,depth,ratio] of [
+    ['Rubber','rubber',.14,.39,1.04],['Tread','steel',.037,.412,.77]]){
+    const mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,height,depth),
+      get(mat),links.length);
+    mesh.name='Flamer_FrontTrack_Instanced_'+name;
+    mesh.castShadow=true;mesh.receiveShadow=true;
+    for(let i=0;i<links.length;i++){
+      const link=links[i];
+      dummy.position.set(link.x,link.y,link.z);
+      dummy.rotation.set(0,0,link.angle);
+      dummy.scale.set(link.length*ratio,1,1);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i,dummy.matrix);
+    }
+    mesh.instanceMatrix.needsUpdate=true;
+    parts.add(mesh);
+  }
   for(const side of [-1,1]){
     const z=-side*.23;
     const cylinder=(x,length,radius,material,name,segments=20)=>{
