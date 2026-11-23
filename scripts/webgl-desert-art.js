@@ -43,6 +43,18 @@ export function cinematicSandSample({x,z,size,seed,profile='mixed',slope=0,heigh
  return {dune,shade,rock,strata,wadi:clamp(sediment),wind};
 }
 
+/** Darker natural sandstone with the ORIGINAL sand PBR on the ORIGINAL
+ * authoritative heightfield. Never a raised, opaque rock carpet. Slopes are
+ * darker than the sheltered plateau tops, with soft continuous boundaries.
+ * Read once when baking ground vertex colors (not on every render frame).
+ * Navigation, physics, height, LOS, fog and saved maps are untouched.
+ */
+export function desertRidgeGroundShade(slope=0,height=0){
+ const incline=smooth(((Number.isFinite(slope)?slope:0)-.08)/.25);
+ const elevated=smooth(((Number.isFinite(height)?height:0)-15)/135);
+ return 1-.24*Math.max(incline,elevated*.70);
+}
+
 /** Low, embedded stony debris along a visually dried riverbed.
  * One instanced mesh, one draw call, deterministic and click-through.
  * Entirely INSIDE the playable field and off tactical/starting pads.
