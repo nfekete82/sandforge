@@ -83,29 +83,6 @@ export function openingCaptureRouteLength(
  return len;
 }
 
-/** At early Bastion openings tiny geometric bends should not alter the
- * already proven neutral-vs-front ranking. A REAL cliff detour spanning
- * several navigation cells must influence the goal, however.
- * Always require a complete physical route before evaluating this penalty.
- * This is topology-only, not hidden enemy information or a map-name rule. */
-export function openingCaptureDecisionDistance(
- directDistance:number,routedDistance:number,cell:number
-):number{
- if(![directDistance,routedDistance,cell].every(Number.isFinite)||
-   directDistance<0||routedDistance<0||cell<=0)return Infinity;
- const allowance=Math.max(200,cell*4);
- return directDistance+Math.max(0,routedDistance-directDistance-allowance);
-}
-
-/** Preserve original paid target-income/recapture priorities but use the
- * length of an actually reachable route on modern cliff maps. */
-export function openingCaptureRouteScore(x:{
- distance:number;income:number;enemyOwned:boolean;aggressiveRecapture:boolean;
-}):number{
- return x.distance-x.income*8-
-  (x.aggressiveRecapture&&x.enemyOwned?700:0);
-}
-
 /** An opening scout that is ALREADY physically inside an uncontested
  * neutral Bastion's capture ring must not be ordered to march to its own
  * feet every 3s. Keep the original active-order guard, and allow genuine
