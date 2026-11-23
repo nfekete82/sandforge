@@ -100,6 +100,23 @@ if(query.get('ai35')==='off'||query.get('ai35')==='control')
  game.tactical.ai35Mode=query.get('ai35');
 if(query.get('ai36')==='off'||query.get('ai36')==='coordinated')
  game.tactical.ai36Mode=query.get('ai36');
+// Local opt-in playtest: immediately spawn the new vehicle and a soft target
+// near the blue starting sector. Normal matches, AI tests and saves are unchanged.
+if(query.get('flameTest')==='1'&&!session){
+ const pioneer=game.units.find(u=>u.owner===0&&u.kind==='engineer');
+ if(pioneer){
+  const safe=(x,y)=>game.world.nearest({x,y},game.obstacles());
+  const tankSite=safe(pioneer.x+64,pioneer.y+38);
+  const targetSite=safe(pioneer.x+257,pioneer.y+36); // >160 M from tank: tests new 245-M flame reach
+  if(tankSite&&targetSite){
+   const testTank=game.spawn(0,tankSite,'flamer');
+   testTank.hold=true;
+   const target=game.spawn(1,targetSite,'heavy'); // survives long enough to inspect the flame jet
+   target.hold=true;target.cooldown=1e8;
+   console.info('Flammenpanzer-Test aktiviert:',{unit:testTank.id,target:target.id});
+  }
+ }
+}
 // The WebGL renderer stages a single authoritative factory actor while its
 // real 3D gate is opening. Classic, tests and old saves keep normal rules.
 game.stageWebGLProduction=true;

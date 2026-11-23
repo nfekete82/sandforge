@@ -78,6 +78,7 @@ cpSync('scripts/webgl-battlefield.js','dist/webgl-battlefield.js');
 cpSync('scripts/webgl-shadow-budget.js','dist/webgl-shadow-budget.js');
 cpSync('scripts/webgl-scout-rocket-pods.js','dist/webgl-scout-rocket-pods.js');
 cpSync('scripts/webgl-recon-drone.js','dist/webgl-recon-drone.js');
+cpSync('scripts/webgl-flame-tank-polish.js','dist/webgl-flame-tank-polish.js');
 cpSync('scripts/webgl-builder-input.js','dist/webgl-builder-input.js');
 cpSync('scripts/webgl-wall-drag.js','dist/webgl-wall-drag.js');
 cpSync('scripts/webgl-strategic-buildings.js','dist/webgl-strategic-buildings.js');
@@ -114,6 +115,7 @@ cpSync('scripts/webgl-landscape-network.js','dist/webgl-landscape-network.js');
 cpSync('scripts/webgl-raised-mesa-cliffs.js','dist/webgl-raised-mesa-cliffs.js');
 cpSync('scripts/webgl-atmosphere-3d.js','dist/webgl-atmosphere-3d.js');
 cpSync('scripts/webgl-combat-vfx.js','dist/webgl-combat-vfx.js');
+cpSync('scripts/webgl-flame-jet.js','dist/webgl-flame-jet.js');
 cpSync('scripts/webgl-tank-muzzle-origin.js','dist/webgl-tank-muzzle-origin.js');
 cpSync('scripts/webgl-ordnance-profile.js','dist/webgl-ordnance-profile.js');
 cpSync('scripts/webgl-hit-response.js','dist/webgl-hit-response.js');
@@ -194,6 +196,11 @@ if(process.env.SANDFORGE_MODULE_AUDIT==='1'){
 // npm run build must never modify committed GLB files in src/.
 const shippedBuildingDir='dist/src/assets/reborn/buildings-3d';
 cpSync('src/assets', 'dist/src/assets', {recursive:true});
+// Both combat factions receive a reproducible PBR flame-tank GLB even on
+// fresh Git checkouts, CI and production machines without the local asset ZIP.
+// Authored src/assets variants, if present, take precedence.
+execFileSync(process.execPath,['scripts/generate-flame-tank-pbr.mjs',
+ 'dist/src/assets/reborn/animation'],{stdio:'inherit'});
 // Prefer original fully authored, animated HQ/Barracks PBR worktrees from
 // 20 Nov midday. Their private source GLBs are not necessarily on GitHub;
 // preserve the tracked pre-Meshy fallbacks if no local PBR source is mounted.

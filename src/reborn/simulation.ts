@@ -52,7 +52,7 @@ import {UPGRADES,UPGRADE_KINDS,newResearchState,canResearchUpgrade,researchModif
 
 export interface Formation {front:number[];fallback?:number[];heading:Point;origin:Point;goal:Point;lane:number;rear:number}
 export interface Order extends Point { kind:'move'|'attackMove'|'attack'|'heal'|'repair'|'build'|'board'|'garrison'; target?:number; approach?:Point; healOrigin?:Point; formation?:Formation; march?:number[]; rear?:number; tactical?:TacticalOrder; guardOnArrival?:boolean }
-export type Weapon='rifle'|'heavy'|'pistol'|'turret'|'cannon'|'rocket'|'machinegun'|'bomb';
+export type Weapon='rifle'|'heavy'|'pistol'|'turret'|'cannon'|'rocket'|'machinegun'|'bomb'|'flame';
 export interface Burst {target:number;remaining:number;at:number;index:number}
 export interface WorkEffect {kind:'heal'|'repair'|'build'|'board';target:number;source:number;sources:number[];at:number;amount:number}
 export const HEAL_RADIUS=70;
@@ -1640,8 +1640,10 @@ export class Simulation {
     // Misses must not damage/suppress or create AI hit reactions. Emit one
     // ordinary Shot so the existing pooled sand dents, dust and tracers play.
     const unitShooter='orders' in source;
-    if(this.stageWebGLProduction&&(unitShooter||weapon==='turret')){
-      // A turret's four alternating-barrel burst needs independent rolls even
+    if(weapon!=='flame'&&this.stageWebGLProduction&&(unitShooter||weapon==='turret')){
+      // Flammenwerfer hits are guaranteed after target/range/LoS checks; only
+     // discrete gunfire and turret bursts use the deterministic miss roll.
+     // A turret's four alternating-barrel burst needs independent rolls even
       // when several bullets are simulated in one fixed 20 Hz tick. Offset
       // its ordinal from unit ballistics without mutable/random state.
       const ordinal=(source.burst?.index??0)+(weapon==='machinegun'?71:
@@ -2728,7 +2730,7 @@ export class Simulation {
         if(u.kind==='tank'&&'orders' in enemy&&unitSpec(enemy).group==='Infanterie')delete u.burst;
         else{
           const rounds=u.kind==='infantry'||u.kind==='heavy'||u.kind==='scout'||u.kind==='rover'?3:1;
-          const weapon:Weapon=u.kind==='infantry'||u.kind==='scout'||u.kind==='rover'?'rifle':u.kind==='heavy'?'heavy':u.kind==='medic'||u.kind==='engineer'?'pistol':'cannon';
+          const weapon:Weapon=u.kind==='infantry'||u.kind==='scout'||u.kind==='rover'?'rifle':u.kind==='heavy'?'heavy':u.kind==='medic'||u.kind==='engineer'?'pistol':u.kind==='flamer'?'flame':'cannon';
           if(u.burst?.target!==enemy.id)delete u.burst;
           if(!u.burst&&u.cooldown<=1e-8){u.cooldown=spec.cooldown/getVeterancyModifiers(u).fireRate;u.burst={target:enemy.id,remaining:rounds,at:this.time,index:0};}
           while(u.burst&&u.burst.at<=this.time+1e-8&&enemy.hp>0){

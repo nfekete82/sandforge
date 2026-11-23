@@ -83,11 +83,14 @@ npm run dev
 | Schwere Infanterie | 250 | 420 LP, stark gegen Infanterie; weniger Schaden gegen Panzerung |
 | Humvee | 350 | Schnelle Aufklärung und Flanken |
 | Kampfpanzer | 550 | Gepanzerte Frontunterstützung |
+| Flammenpanzer | 500 | Gezielt treffsicherer Flammenstrahl gegen Infanterie (245 M); schwach gegen Fahrzeuge und Mauern |
 | Raketenwerfer | 600 | Schwerer 6×6-Lkw mit sechs Werferrohren, fliegenden Raketen und Flächenschaden |
 | Transporthelikopter | 600 | Aufklärung, zehn Passagiere und defensive Maschinengewehre |
 | Bomber | 1000 | Schwere Feuerkraft gegen Bodenziele |
 
 Der Transporthelikopter nutzt zwei eigene PBR-GLBs mit unabhängig animierten Haupt- und Heckrotoren. Reproduzierbarer Modell-/Sprite-Build: `npm run assets:transport`. Alte Kampfhelikopter und ihre bezahlten Aufträge werden beim Laden verlustfrei in Transporthelikopter migriert. [Modell, Migration und Prüfnachweise](docs/qa/transport-helicopter-20261028/README.md).
+
+Der Flammenpanzer wird in der Fahrzeugfabrik produziert. Beide fraktionsspezifischen, texturierten 3D-Modelle werden bei `npm run build` reproduzierbar aus `scripts/generate-flame-tank-pbr.mjs` erzeugt; lokal vorhandene, optimierte GLBs haben Vorrang. Der Feuerstrahl ist ein durchgängiger WebGL-Effekt, verbrennt Infanterie in wenigen Treffern und besitzt keinen schwebenden Mündungsblitz.
 
 Der Raketenwerfer nutzt zwei eigene PBR-GLBs nach der HIMARS-Referenz mit Rad-, Drehkranz- und Hydraulikanimationen. Er trägt die Oliv-/Braun-/Sand-Tarnung des Panzers mit 2K-Lackdetails, Schmutzspuren und Abnutzung. `npm run assets:rocket-launcher` erzeugt Modelle und getrennte Spielsprite-Layer reproduzierbar. [Modell und Prüfnachweise](docs/qa/rocket-launcher-20261028/README.md).
 

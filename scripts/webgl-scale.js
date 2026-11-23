@@ -7,7 +7,7 @@
  */
 export const MODEL_HEIGHTS=Object.freeze({
  infantry:61,medic:61,engineer:61,heavy:65,rocket:61,
- rover:42,supply:49,tank:46,artillery:51,scout:48,bomber:51,drone:12,
+ rover:42,supply:49,tank:46,flamer:48,artillery:51,scout:48,bomber:51,drone:12,
  headquarters:158,barracks:119,factory:125,airfield:137,generator:79,turret:95
 });
 export const DIMENSIONS_VERSION=3;
@@ -91,7 +91,8 @@ export function visualUnitScale(kind){
  if(kind==='rover')return 1.04;
  if(kind==='supply')return 1.34;
  if(kind==='artillery')return 1.42; // +7.6% for the 6x6 rocket launcher, render-only
- if(kind==='tank')return 1.16; // matches the 8% tighter factory door without touching tank collision
+ if(kind==='tank')return 1.16;
+ if(kind==='flamer')return 1.10; // matches the 8% tighter factory door without touching tank collision
  if(kind==='scout')return 1.34;
  if(kind==='bomber')return 1.03;
  // R-01 reconnaissance drone: 18% less visual footprint, unchanged sight/range.

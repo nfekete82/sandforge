@@ -203,12 +203,13 @@ test('unit types are split into independent factory and aircraft menus',()=>{
  const units=Object.keys(UNITS);
  const ground=units.filter(u=>UNITS[u].producers.includes('factory'));
  const airborne=units.filter(u=>UNITS[u].producers.includes('airfield'));
- assert.deepEqual(ground,['rover','tank','artillery']);
+ assert.deepEqual(ground,['rover','tank','flamer','artillery']);
  assert.equal(UNITS.supply.group,'Fahrzeuge');
  assert.deepEqual(UNITS.supply.producers,[]);
  assert.deepEqual(airborne,['scout','bomber']);
  for(const u of airborne)assert.ok(!ground.includes(u));
  const {g,add}=setup();add('factory');add('airfield');
  assert.equal(g.producer(0,'rover')?.kind,'factory');
+ assert.equal(g.producer(0,'flamer')?.kind,'factory');
  assert.equal(g.producer(0,'scout')?.kind,'airfield');
 });

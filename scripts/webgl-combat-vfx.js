@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {BLOOM_LAYER} from '/webgl-visual-post.js';
+import {SandforgeFlameJet} from '/webgl-flame-jet.js';
 import {tankCannonMuzzleWorld} from '/webgl-tank-muzzle-origin.js';
 import {UNITS} from '/src/reborn/catalog.js';
 import {hitResponseFor,impactHeight,damagedVehicleIntensity} from '/webgl-hit-response.js';
@@ -10,8 +11,8 @@ import {guidedRocketAimY,aircraftAimOffsetY,adoptAircraftForCrash,disposeAircraf
 import {vehicleDustEligible,vehicleDustTail,VEHICLE_DUST_CAP,VEHICLE_DUST_CAP_LITE} from '/webgl-vehicle-dust.js';
 import {ORDNANCE_TRAIL_SEGMENTS,ORDNANCE_VISUALS,ordnanceVisualKind,ordnanceVisualProfile,appendOrdnanceTrail} from '/webgl-ordnance-profile.js';
 
-const vehicleKinds=new Set(['tank','rover','supply','artillery']);
-const trackedKinds=new Set(['tank','artillery']);
+const vehicleKinds=new Set(['tank','flamer','rover','supply','artillery']);
+const trackedKinds=new Set(['tank','flamer','artillery']);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -226,7 +227,10 @@ export class SandforgeCombatEffects {
   // consumes the artillery trail budget. One instanced draw call.
   this.rocketSmoke=makePool(scene,'rocketSmoke',lowQuality?48:160,.68);
   this.flash=makePool(scene,'flash',lowQuality?16:48,.86);
-  this.flames=makePool(scene,'flame',lowQuality?28:120,.94);
+  this.flames=makePool(scene,'flame',lowQuality?48:210,.94);
+  this.flameJet=new SandforgeFlameJet(scene,lowQuality);
+  this.flameJet.outer.layers.enable(BLOOM_LAYER);
+  this.flameJet.inner.layers.enable(BLOOM_LAYER);
   this.dust=makePool(scene,'dust',lowQuality?40:170,.50,biome);
   this.trailDust=makePool(scene,'dust',lowQuality?VEHICLE_DUST_CAP_LITE:VEHICLE_DUST_CAP,.27,biome);
   this.trailDust.mesh.name='visual-moving-vehicle-dust';
@@ -483,6 +487,39 @@ export class SandforgeCombatEffects {
    12,.30,(this.rand()-.5)*15,(this.rand()-.5)*15,8);
   this.stats.muzzlePuffs++;
  }
+ /** Continuous two-layer, camera-facing fire jet, and local ignition
+  * around an actual hit target (never detached ground-fire dots).
+  * All hit chance, DPS and visibility live in Simulation, not the shader.
+  */
+ flameStreamAt(shot){
+  const from=shot.groundFrom??shot.from,to=shot.groundTo??shot.to;
+  if(!from||!to||!shot.hit||!this.game.canSee(0,from))return;
+  const fromHeight=this.heightAt(from.x,from.y);
+  const toHeight=this.heightAt(to.x,to.y);
+  this.flameJet.add(from,to,fromHeight,toHeight,this.world.size);
+  // The jet itself provides the ignition light: no round muzzle flash
+  // above the tank (formerly looked like a bright sun).
+  // Infantry visibly catches fire at the exact hit location. The flames are
+  // brief and capped; there are no immortal burning ground decals.
+  if(shot.targetClass==='infantry'){
+   for(let i=0;i<8;i++){
+    const a=this.rand()*Math.PI*2,r=this.rand()*9;
+    const px=to.x+Math.cos(a)*r,pz=to.y+Math.sin(a)*r;
+    this.particle(this.flames,px,pz,toHeight+7+this.rand()*17,
+     9+this.rand()*12,.21+this.rand()*.19,
+     (this.rand()-.5)*9,(this.rand()-.5)*9,24+this.rand()*33);
+   }
+   this.particle(this.smoke,to.x,to.y,toHeight+20,12,.42,
+    (this.rand()-.5)*7,(this.rand()-.5)*7,22);
+  }else{
+   // A tighter contact flare against metal/concrete, without an artillery
+   // explosion or aircraft-sized ball of fire.
+   for(let i=0;i<3;i++)
+    this.particle(this.flames,to.x+(this.rand()-.5)*12,
+     to.y+(this.rand()-.5)*12,toHeight+19,10,.17,0,0,12);
+  }
+ }
+
  impactAt(shot){
   const p=shot.groundTo??shot.to;
   if(!this.game.canSee(0,{x:p.x,y:p.y}))return;
@@ -1015,6 +1052,7 @@ export class SandforgeCombatEffects {
   for(const shot of this.game.shots){
    if(this.seenShots.has(shot))continue;
    this.seenShots.add(shot);
+   if(shot.weapon==='flame'){this.flameStreamAt(shot);continue;}
    this.muzzleAt(shot);
    if(shot.miss){
     this.sandMissAt(shot);
@@ -1084,6 +1122,7 @@ export class SandforgeCombatEffects {
   this.updateFallingBombs(active,subTick);
   if(!active)return;
   this.frame++;
+  this.flameJet.update(dt,this.camera);
   this.updateBlastGlow(dt);
   this.updateAircraftCrashes(dt);
   this.wreckSync+=dt;

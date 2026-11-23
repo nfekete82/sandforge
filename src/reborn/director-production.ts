@@ -204,6 +204,7 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   engineer:c.defenseNeedsWorker||c.own.length>=4&&(s.recovering?.length??0)>0?2:1,
   supply:0,
   rover:armyStage===2?5:armyStage===1?4:2,
+  flamer:0, // No AI flamer purchases until gameplay balance is confirmed.
   tank:armyStage===2?9:armyStage===1?7:
    c.income>=65||observed.armor>=3?6:4,
   artillery:armyStage===2?6:armyStage===1?4:

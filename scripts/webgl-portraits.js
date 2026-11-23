@@ -8,6 +8,7 @@ import {decorateHumanInfantryRole,HUMAN_INFANTRY_ROLES} from './webgl-human-infa
 import {polishMedicModel} from './webgl-medic-polish.js';
 import {equipEngineerTools,updateEngineerTools} from './webgl-engineer-tools.js';
 import {createReconDrone} from './webgl-recon-drone.js';
+import {polishFlameTank} from './webgl-flame-tank-polish.js';
 import {createResearchArtwork,RESEARCH_ARTWORK_KINDS} from './webgl-research-artworks.js';
 import {tintFactionMaterials} from './webgl-faction-accents.js';
 import {finishBarracksSides,finishBarracksDesertPalette} from './webgl-barracks-shell.js';
@@ -444,7 +445,37 @@ async function renderHumanInfantryIcon(kind,renderer){
  finally{for(const skeleton of skeletons)skeleton.dispose();}
 }
 
+const flameTankIconFallback=()=> 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(
+ '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 132">'+
+ '<rect width="192" height="132" fill="#262b27"/><path d="M18 90L40 62H151L176 89L170 109H24Z" fill="#bba17c"/>'+
+ '<path d="M25 100H169" stroke="#333733" stroke-width="16" stroke-linecap="round"/>'+
+ '<path d="M40 93H155" stroke="#777a6c" stroke-width="6" stroke-dasharray="12 8"/>'+
+ '<path d="M51 60L66 37H125L147 60Z" fill="#77795a"/>'+
+ '<rect x="67" y="21" width="59" height="23" rx="9" fill="#505641"/>'+
+ '<path d="M80 57L58 22M112 57L128 22" stroke="#444b42" stroke-width="5"/>'+
+ '<path d="M81 60L81 24" stroke="#aeb0a2" stroke-width="8"/>'+
+ '<path d="M113 60L113 24" stroke="#aeb0a2" stroke-width="8"/>'+
+ '<path d="M76 24L86 16L97 27L107 7L119 28L115 40H76Z" fill="#f17b24"/>'+
+ '<path d="M80 26L89 22L97 34L106 21L112 34H81Z" fill="#ffcb61"/>'+
+ '<path d="M30 78H164" stroke="#3575c2" stroke-width="5"/>'+
+ '</svg>');
 export function unitIcon(kind,renderer){
+ if(kind==='flamer'){
+  if(!renderer)return Promise.resolve(flameTankIconFallback());
+  if(!iconCache.has(kind))iconCache.set(kind,(async()=>{
+   const data=await new GLTFLoader().loadAsync('/src/assets/reborn/animation/flamer-0.glb');
+   const model=cloneSkeleton(data.scene);
+   polishFlameTank(model);
+   model.rotation.y+=Math.PI/2; // same orientation as the actual unit
+   isolatePortraitMeshes(model);
+   return renderModelPortrait(model,renderer,{width:192,height:132});
+  })().catch(error=>{
+   console.warn('Flammenpanzer 3D-HUD-Porträt nicht verfügbar:',error);
+   iconCache.delete(kind);return flameTankIconFallback();
+  }));
+  return iconCache.get(kind);
+ }
+
  if(kind==='drone'){
   // Exactly the same procedural 3D R-01 mesh as the battle renderer:
   // the old four-dot SVG was a placeholder and hid the camera/body details.
