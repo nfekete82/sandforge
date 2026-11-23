@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 
 /** A* heap ties are semantically significant because waypoint choices
@@ -31,7 +32,7 @@ test('new heap keeps identical A* output across repeated seeded low-risk, risk a
  }
 });
 test('heap algorithm no longer allocates {i,f} per A* OPEN insert',()=>{
- const source=await import('node:fs').then(fs=>fs.readFileSync('src/reborn/world.ts','utf8'));
+ const source=readFileSync('src/reborn/world.ts','utf8');
  assert.match(source,/const heapIndex:number\[\]=\[\],heapPriority:number\[\]=\[\]/);
  assert.doesNotMatch(source,/push\(\{i:j,f:g\+h\(j\)\}\)/);
 });
