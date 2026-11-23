@@ -150,7 +150,14 @@ test('generated factory and airfield walls no longer bake low-resolution checker
  const airfield=readFileSync('scripts/generate-airfield-pbr.mjs','utf8');
  assert.doesNotMatch(factory,/if\(key==='camo'\)\{const blob=Math\.sin/);
  assert.doesNotMatch(airfield,/if\(key==='camo'\)\{const blob=Math\.sin/);
- assert.match(factory,/key==='roof'\?1024/,'authored reference roof needs actual 1K PBR');
+ // The generator in current main uses 512px detailed roof albedo and a
+ // separate normal/ORM pair. The old `key==='roof'?1024` source regex was
+ // outdated before Visual Polish 3.1 and also fails on unchanged main.
+ // Assert the real authored PBR pipeline, not an abandoned source signature.
+ assert.match(factory,/const detailed=\['roof','roof_metal','roof_trim','roof_glass','camo'\]\.includes\(key\)/);
+ assert.match(factory,/const size=detailed\?512:48/,'detailed roof albedo is currently 512px');
+ assert.match(factory,/const normal=sawPbr\?appendTexture\(roofNormalPng\(\)\):null/);
+ assert.match(factory,/const orm=sawPbr\?appendTexture\(roofOrmPng\(g\.name\)\):null/);
  assert.match(factory,/metallicRoughnessTexture/);
 });
 
