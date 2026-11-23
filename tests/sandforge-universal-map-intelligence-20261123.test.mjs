@@ -26,7 +26,7 @@ test('Topological frontier comes ONLY from public Bastion graph',()=>{
 });
 
 test('Real routes beat straight-line shortcuts through cliffs',()=>{
- const paths=new Map([[110,{length:1000,risk:0}],
+ const paths=new Map([[110,{length:370,risk:0}],
   [210,{length:290,risk:1}],[350,{length:500,risk:0}]]);
  const run=(blueOwned=1,knownThreat=()=>false)=>
   rankPublicFronts({sectors,origin,worldSize:1500,blueOwned,
