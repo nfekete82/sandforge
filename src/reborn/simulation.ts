@@ -2069,6 +2069,13 @@ export class Simulation {
     const slopeLimit=vehicle&&this.world.mapVersion>=23
       ?u.kind==='tank'?.215:u.kind==='artillery'?.185:.195
       :Infinity;
+    // A narrow single-file stream of all vehicles at the exact ramp
+    // centre created a genuine 28-second plateau traffic jam. Assign five
+    // deterministic lanes inside the EXISTING physical ramp footprint.
+    // Formation slots keep their order, individual AI units use stable ids.
+    const marchIndex=u.orders[0]?.march?.indexOf(u.id)??-1;
+    const mesaLane=vehicle&&this.world.generatorVersion>=10
+     ?((marchIndex>=0?marchIndex:u.id)%5)-2:0;
     // Support units are controlled by their explicit work order; protect them
     // from the separate battlefield-movement watchdog.
     if(ground&&u.kind!=='engineer'&&u.kind!=='medic'&&
@@ -2112,12 +2119,12 @@ export class Simulation {
       const baseObstacles=tactical?this.tactical.navigationObstacles():buildings;
       const routeObstacles=ground?[...baseObstacles,...visualBuildings,...decor,...towers]:baseObstacles;
       const risk=this.tactical.costs(u);
-      u.path=spec.flying&&!risk?[target]:this.world.path(u,target,routeObstacles,clearance,risk,spec.flying,u.exactPath,true,slopeLimit);
+      u.path=spec.flying&&!risk?[target]:this.world.path(u,target,routeObstacles,clearance,risk,spec.flying,u.exactPath,true,slopeLimit,mesaLane);
       // A coarse cliff route may graze blocked terrain. Retry with exact
       // cell traversal immediately, even for infantry with zero extra clearance.
       if(!u.path.length&&!spec.flying&&this.world.mapVersion>=3&&!u.exactPath){
         u.exactPath=true;
-        u.path=this.world.path(u,target,routeObstacles,clearance,risk,false,true,true,slopeLimit);
+        u.path=this.world.path(u,target,routeObstacles,clearance,risk,false,true,true,slopeLimit,mesaLane);
       }
       if(ground&&!u.path.length){
         // LAST RESORT: only after normal and exact visual-clearance routes have
