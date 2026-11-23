@@ -1584,7 +1584,8 @@ export class TacticalAI {
   if(party.length!==2)return new Set();
   const anchor={x:(party[0].x+party[1].x)/2,y:(party[0].y+party[1].y)/2};
   const frontier=g.territories.filter(t=>t.owner!==1&&t.id!==main.sector
-    &&(t.neighbors.some(id=>g.territories[id].owner===1)
+    &&(g.world.mapVersion<27||g.hasExplored(1,t.point))&&
+    (t.neighbors.some(id=>g.territories[id].owner===1)
       ||comeback&&canCaptureSector(g.territories,t,1,g.world.mapVersion)));
   const fronts:RaidFront[]=[];
   for(const t of frontier){
@@ -2339,7 +2340,12 @@ export class TacticalAI {
     g.bases.some(b=>b.owner===1&&b.hp>0&&distance(u,b)<550))
   }):null;
   const counter=action?.counter??large?.counter??(blue>=3&&red<=1&&g.time>=30&&ready.length>=5);
-  const targets=g.territories.filter(t=>t.owner===-1||counter&&t.owner===0);
+  // Odd Bastion locations start behind Fog of War for BOTH factions.
+  // In those new matches only an actually explored site can become an
+  // early capture target. No omniscient initial central-Bastion order.
+  const targets=g.territories.filter(t=>
+   (t.owner===-1||counter&&t.owner===0)&&
+   (g.world.mapVersion<27||g.hasExplored(1,t.point)));
   const maxAssigned=action?.slots??large?.slots??(counter?2:ready.length>=3?2:ready.length?1:0);
   if(!targets.length||!maxAssigned){s.openingContests=[];return new Set();}
   const blockers=[...this.obstacles(),...g.bastionColliders()];
