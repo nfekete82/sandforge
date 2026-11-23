@@ -680,10 +680,25 @@ export class TacticalAI {
  }
  private issue(units:Unit[],point:Point,mode:TacticalOrder['mode'],target?:number,append=false,coordinated=mode!=='safe'||this.state.phase==='attack'):boolean{
   if(!units.length)return false;
-   const g=this.g,s=this.state,ids=units.map(u=>u.id),armor=units.filter(u=>u.kind==='tank'||u.kind==='rover');
-   const front=(armor.length?armor:units.filter(frontRole)).sort((a,b)=>
-     (b.kind==='tank'?5:b.kind==='rover'?4:b.kind==='heavy'?3:1)-(a.kind==='tank'?5:a.kind==='rover'?4:a.kind==='heavy'?3:1)||a.id-b.id);
+  const g=this.g,s=this.state;
   const campaign=g.world.mapVersion>=3&&this.mode==='director';
+  const alreadyOrdered=(u:Unit):boolean=>{
+   const o=u.orders[0];
+   return o?.tactical?.group===s.groupId&&o.tactical.mode===mode&&
+    o.target===target&&
+    (campaign?(target!==undefined||distance(o.tactical.goal??o,point)<45):distance(o,point)<45)&&
+    (coordinated||!o.march);
+  };
+  // Independent safe/retreat orders are NOT a synchronized battle formation:
+  // adding one replacement must never reset a moving soldier's A* path.
+  // Coordinated assaults, targeted attacks and append-queue orders keep the
+  // original all-members semantics and their physical formation metadata.
+  const independentSafe=!append&&!coordinated&&mode==='safe'&&target===undefined;
+  const selected=independentSafe?units.filter(u=>!alreadyOrdered(u)):units;
+  if(!selected.length)return false;
+  const ids=selected.map(u=>u.id),armor=selected.filter(u=>u.kind==='tank'||u.kind==='rover');
+  const front=(armor.length?armor:selected.filter(frontRole)).sort((a,b)=>
+     (b.kind==='tank'?5:b.kind==='rover'?4:b.kind==='heavy'?3:1)-(a.kind==='tank'?5:a.kind==='rover'?4:a.kind==='heavy'?3:1)||a.id-b.id);
   // March only the real, ground front together. Medics, artillery and
   // depleted retreating units keep their independent escort/work orders.
   const modernMarch=coordinatedFrontMarch({
@@ -691,10 +706,10 @@ export class TacticalAI {
    assault:mode==='assault',
    frontCount:front.length,allGround:front.every(v=>!unitSpec(v).flying)
   });
-  const same=!append&&units.every(u=>{const o=u.orders[0];return o?.tactical?.group===s.groupId&&o.tactical.mode===mode&&o.target===target&&(campaign?(target!==undefined||distance(o.tactical.goal??o,point)<45):distance(o,point)<45)&&(coordinated||!o.march);});if(same)return false;
+  if(!append&&selected.every(alreadyOrdered))return false;
   if(!g.command(ids,{x:point.x,y:point.y,kind:target!==undefined?'attack':mode==='safe'?'move':'attackMove',...(target===undefined?{}:{target})},append))return false;
   const origin=front.length?front.reduce((p,u)=>({x:p.x+u.x/front.length,y:p.y+u.y/front.length}),{x:0,y:0}):point,dist=distance(origin,point)||1,h={x:(point.x-origin.x)/dist,y:(point.y-origin.y)/dist};
-  for(const u of units){const o=append?u.orders.at(-1):u.orders[0];if(!o)continue;o.tactical={group:s.groupId,mode,...(campaign?{goal:{x:point.x,y:point.y}}:{})};if(combat(u)){
+  for(const u of selected){const o=append?u.orders.at(-1):u.orders[0];if(!o)continue;o.tactical={group:s.groupId,mode,...(campaign?{goal:{x:point.x,y:point.y}}:{})};if(combat(u)){
     if(coordinated&&front.length&&
       (g.world.mapVersion<=2||this.mode==='baseline'||mode!=='assault'||modernMarch)&&
       front.includes(u))
@@ -718,7 +733,7 @@ export class TacticalAI {
     // line*, not just the armored vanguard chosen for collision-safe leading.
     // Modern campaign escort behavior is intentionally unchanged.
     if(g.world.mapVersion<=2&&u.kind==='medic'&&mode==='assault')
-     o.formation.front=units.filter(combat).map(v=>v.id);
+     o.formation.front=selected.filter(combat).map(v=>v.id);
     else o.formation.front=front.map(v=>v.id);
     // The standard 86/122-unit second rank leaves legacy mixed assaults
     // hundreds of units behind the tank after several seconds. Keep the
