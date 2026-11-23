@@ -138,6 +138,15 @@ jobs:
           ACTION_BENCHMARK_SEEDS: "${{ matrix.seed }}"
           ACTION_BENCHMARK_OPPONENT: "${{ matrix.opponent }}"
         run: node scripts/benchmark-sandforge-action-20261122.mjs reports/universal-ai-${{ matrix.map }}-${{ matrix.seed }}.json
+      - name: Verify batch evaluator and end-of-game summary on a smoke match
+        if: matrix.map == 'desert-strike'
+        env:
+          UNIVERSAL_AI_SECONDS: '60'
+          UNIVERSAL_AI_MAPS: desert-strike
+          UNIVERSAL_AI_SEEDS: '4101'
+          UNIVERSAL_AI_OPPONENTS: contest
+          UNIVERSAL_AI_REPORT: reports/universal-ai-batch-smoke.json
+        run: node scripts/benchmark-sandforge-ai-generalization-20261123.mjs
       - name: Upload real seeded-map results
         if: always()
         uses: actions/upload-artifact@v4
