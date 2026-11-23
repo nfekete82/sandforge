@@ -1,0 +1,31 @@
+name: Sandforge · 3/5/7 real Bastion battlefields
+on:
+  pull_request:
+    branches:
+      - feat/action-preset-mainline-20261123
+      - main
+    paths:
+      - src/reborn/config.ts
+      - src/reborn/world-generation.ts
+      - src/reborn/world.ts
+      - src/reborn/simulation.ts
+      - tests/sandforge-odd-bastion-layout-20261123.test.mjs
+      - .github/workflows/sandforge-odd-bastions-20261123.yml
+permissions:
+  contents: read
+jobs:
+  odd-maps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Odd-map generation and legacy smoke
+        run: node --test tests/sandforge-odd-bastion-layout-20261123.test.mjs
