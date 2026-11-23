@@ -329,8 +329,10 @@ test('Action only redirects a neutral mission to a PUBLIC BLUE-facing front',()=
   oldKind:'capture',oldNeutral:true,oldMissionSeconds:25,
   oldCaptureOccupied:false,activeAssault:false,homeThreat:false};
  assert.equal(actionPublicFrontPressure(base),true);
+ assert.equal(actionPublicFrontPressure({...base,blueOwned:1,time:60,
+  oldMissionSeconds:13}),true,'known first BLUE sector permits neutral meeting ground');
  for(const override of [
-  {preset:'classic'},{time:45},{time:250},{blueOwned:1},
+  {preset:'classic'},{time:45},{time:250},{blueOwned:0},
   {available:2},{oldKind:'structure'},{oldNeutral:false},
   {oldMissionSeconds:5},{oldCaptureOccupied:true},
   {activeAssault:true},{homeThreat:true}
@@ -353,4 +355,13 @@ test('Real contact protects firefights, not an ordinary attack-move march',()=>{
  assert.match(plan,/oldCaptureOccupied:context\?\.force\.some/);
  assert.match(plan,/actionContactEvent\?\.\('rerouted'\)/);
  assert.match(plan,/actionContactEvent\?\.\('no-route'\)/);
+});
+
+test('Early public pressure never raids the only BLUE-held home sector',()=>{
+ const s=readFileSync('src/reborn/campaign-commander.ts','utf8');
+ assert.match(s,/blueOwned>=2\|\|t\.owner===-1/);
+ assert.match(s,/!buildings\.some\(b=>b\.kind==='headquarters'/);
+ assert.match(s,/v\.route\.length<4700&&v\.route\.risk<8/);
+ const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(ai,/firstRerouteAt\?\?=g\.time/);
 });
