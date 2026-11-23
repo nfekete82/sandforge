@@ -35,6 +35,7 @@ import {SCOUT_ROCKETS} from '/src/reborn/scout-rockets.js';
 import {disposeOwnedMeshes,disposeTaggedMaterials} from '/webgl-resource-lifecycle.js';
 import {detachMeshyBunkerSkin} from '/webgl-fortified-bunker.js';
 import {limitModelShadowCasters} from '/webgl-shadow-budget.js';
+import {markTechnicalGlow,BLOOM_LAYER} from '/webgl-visual-post.js';
 import {attachScoutRocketPods,detachScoutRocketPods} from '/webgl-scout-rocket-pods.js';
 import {releaseBastionRevision} from '/webgl-bastion-lifecycle.js';
 import {removeBastionFrontShield} from '/webgl-bastion-visual.js';
@@ -638,6 +639,7 @@ export class SandforgeBattlefield {
     // bolts, rivets and vents keep their complete PBR visual render.
     // Reduces shadow draw calls without disabling sun or unit shadows.
     limitModelShadowCasters(model,type==='unit'?14:22);
+    if(type==='building')markTechnicalGlow(model);
     entry.visualBaseY=model.position.y;entry.visualBaseZ=model.position.z;
     if(type==='building'){
      this.attachBuildingMotion(entry,data);
@@ -1528,6 +1530,7 @@ export class SandforgeBattlefield {
    if(!hasMeshySkin)this.lightBuildingMeshes(detail);
    unifyModelFactionFlags(detail,owner);
    limitModelShadowCasters(detail,18);
+   markTechnicalGlow(detail);
    // Release per-bastion materials, clips and fallback rotors after each
    // ownership change. GLB source geometries/textures remain cached.
    releaseBastionRevision(entry);
@@ -1587,11 +1590,21 @@ export class SandforgeBattlefield {
    fragmentShader:'uniform sampler2D fogTex;uniform float mapSize;uniform float fogStep;varying vec2 fogUv;void main(){vec2 uv=clamp(fogUv,vec2(0.001),vec2(0.999));float a=texture2D(fogTex,uv).a;vec2 d=vec2(fogStep*1.6,0.0);float n=max(max(texture2D(fogTex,clamp(uv+d,vec2(0.001),vec2(0.999))).a,texture2D(fogTex,clamp(uv-d,vec2(0.001),vec2(0.999))).a),max(texture2D(fogTex,clamp(uv+d.yx,vec2(0.001),vec2(0.999))).a,texture2D(fogTex,clamp(uv-d.yx,vec2(0.001),vec2(0.999))).a));a=max(a,n*0.44);vec2 beyond=max(max(-fogUv,fogUv-1.0),vec2(0.0));float edge=max(beyond.x,beyond.y);a=max(a,smoothstep(0.0,420.0/mapSize,edge));gl_FragColor=vec4(0.018,0.023,0.026,a);}',
    transparent:true,depthTest:false,depthWrite:false,side:THREE.DoubleSide
   });
+  // The SAME authoritative fog alpha must also conceal the light mask.
+  // Black RGB in that pass prevents fog itself from emitting bloom.
+  mat.uniforms.bloomMask={value:0};
+  mat.fragmentShader='uniform float bloomMask;'+mat.fragmentShader.replace(
+   'gl_FragColor=vec4(0.018,0.023,0.026,a);',
+   'gl_FragColor=vec4(mix(vec3(0.018,0.023,0.026),vec3(0.0),bloomMask),a);');
   // Decorative, non-playable perimeter is always visible. Fog remains
   // fully opaque in undiscovered playable cells and cannot leak enemy data.
   this.fogNodes=this.groundMeshes.map(mesh=>{
    const layer=new THREE.Mesh(mesh.geometry,mat);layer.frustumCulled=false;
    layer.renderOrder=990;layer.userData={fogOverlay:true,visualOnly:true};
+   layer.layers.enable(BLOOM_LAYER);
+   layer.onBeforeRender=(_renderer,_scene,camera)=>{
+    mat.uniforms.bloomMask.value=camera.layers.mask===(1<<BLOOM_LAYER)?1:0;
+   };
    this.scene.add(layer);return layer;
   });
  }

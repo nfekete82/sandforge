@@ -190,7 +190,7 @@ export async function createDesertVillages({
     source:modelUrls[type],revision:oasisStyle?OASIS_HAMLET_REVISION:DESERT_VILLAGE_ART_REVISION
    };
    mesh.castShadow=false;mesh.receiveShadow=true;
-   mesh.raycast=()=>{};mesh.frustumCulled=false;
+   mesh.raycast=()=>{};mesh.frustumCulled=true;
    mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
    for(let j=0;j<entries.length;j++){
     const house=entries[j],base=pos(house.x,house.y,heightAt(house.x,house.y)-1.3);

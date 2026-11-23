@@ -1,0 +1,171 @@
+{
+  "baselineRevision": "85f46f68720d711a75cb556593434b5597e15bd3",
+  "viewport": [
+    1280,
+    800
+  ],
+  "deviceScaleFactor": 1,
+  "samplesPerVariant": 300,
+  "warmupMs": 4000,
+  "simulation": "paused; 4 original + 36 public spawn() actors; no AI or combat benchmark",
+  "sceneSHA256": "bee5619d4a97b8b93c5013d0bc898c7a7bc1d1f1247bbedfdceca09655abe8fd",
+  "camera": {
+    "position": [
+      -1055.4182150191627,
+      1152.0000000000005,
+      4229.902891466393
+    ],
+    "target": [
+      -2255.4182150191627,
+      42,
+      2589.9028914663936
+    ],
+    "zoom": 0.59
+  },
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M5 Max, Unspecified Version)",
+  "map": "desert-strike",
+  "seed": 9999,
+  "postprocessing": "full effect mode forced; adaptive disabled in both runs",
+  "variants": [
+    {
+      "variant": "main",
+      "metrics": {
+        "frames": 300,
+        "fps": 60.00240009600385,
+        "lowFps": 59.52380952380566,
+        "frameP95": 16.799999999999272,
+        "drawCalls": 9866,
+        "triangles": 3020936,
+        "geometryCount": 1142,
+        "textureCount": 224,
+        "post": null,
+        "lod": null
+      }
+    },
+    {
+      "variant": "visual3",
+      "metrics": {
+        "frames": 300,
+        "fps": 41.764697693196524,
+        "lowFps": 22.505626406601465,
+        "frameP95": 33.400000000000546,
+        "drawCalls": 9870,
+        "triangles": 3116728,
+        "geometryCount": 1127,
+        "textureCount": 227,
+        "post": {
+          "enabled": true,
+          "active": true,
+          "level": 0,
+          "failed": false,
+          "width": 1280,
+          "height": 800
+        },
+        "lod": {
+          "enabled": true,
+          "batches": 0,
+          "levels": [],
+          "sourceTriangles": 0,
+          "activeTriangles": 0
+        }
+      },
+      "smoke": {
+        "before": {
+          "geometries": 1127,
+          "textures": 227
+        },
+        "after": {
+          "geometries": 1127,
+          "textures": 227
+        },
+        "selectedBefore": 1,
+        "selectedWithoutPost": 1,
+        "explosionLightVisible": true,
+        "clock": 1.2500000000000004,
+        "post": {
+          "enabled": true,
+          "active": true,
+          "level": 0,
+          "failed": false,
+          "width": 1280,
+          "height": 800
+        }
+      }
+    }
+  ],
+  "errors": [],
+  "lodSmoke": {
+    "report": {
+      "states": [
+        {
+          "zoom": 0.46,
+          "enabled": true,
+          "batches": 1,
+          "levels": [
+            1
+          ],
+          "sourceTriangles": 1083355,
+          "activeTriangles": 512470
+        },
+        {
+          "zoom": 0.59,
+          "enabled": true,
+          "batches": 1,
+          "levels": [
+            1
+          ],
+          "sourceTriangles": 1083355,
+          "activeTriangles": 512470
+        },
+        {
+          "zoom": 1.5,
+          "enabled": true,
+          "batches": 1,
+          "levels": [
+            0
+          ],
+          "sourceTriangles": 1083355,
+          "activeTriangles": 1083355
+        },
+        {
+          "zoom": 3.5,
+          "enabled": true,
+          "batches": 1,
+          "levels": [
+            0
+          ],
+          "sourceTriangles": 1083355,
+          "activeTriangles": 1083355
+        },
+        {
+          "zoom": 0.59,
+          "enabled": true,
+          "batches": 1,
+          "levels": [
+            1
+          ],
+          "sourceTriangles": 1083355,
+          "activeTriangles": 512470
+        }
+      ],
+      "materialPreserved": true,
+      "instancesPreserved": true,
+      "collisionPreserved": true,
+      "post": {
+        "enabled": true,
+        "active": true,
+        "level": 0,
+        "failed": false,
+        "width": 1280,
+        "height": 800
+      },
+      "camera": [
+        3573.1394980987534,
+        1197.7721116222683,
+        642.499121204018
+      ],
+      "failures": []
+    },
+    "errors": []
+  }
+}

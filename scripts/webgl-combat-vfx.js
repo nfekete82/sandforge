@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {BLOOM_LAYER} from '/webgl-visual-post.js';
 import {tankCannonMuzzleWorld} from '/webgl-tank-muzzle-origin.js';
 import {UNITS} from '/src/reborn/catalog.js';
 import {hitResponseFor,impactHeight,damagedVehicleIntensity} from '/webgl-hit-response.js';
@@ -233,6 +234,7 @@ export class SandforgeCombatEffects {
   this.sparks=makePool(scene,'spark',lowQuality?90:300,.96);
   this.debris=makePool(scene,'debris',lowQuality?42:120,.84);
   this.pools=[this.smoke,this.rocketSmoke,this.flash,this.flames,this.dust,this.trailDust,this.sparks,this.debris];
+  for(const pool of [this.flash,this.flames,this.sparks])pool.mesh.layers.enable(BLOOM_LAYER);
   for(const pool of this.pools)clearInstances(pool);
   this.scorch=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),materialFor('scorch',.93),lowQuality?70:210);
   this.scorch.geometry.rotateX(-Math.PI*.5);
@@ -292,6 +294,19 @@ export class SandforgeCombatEffects {
   this.shockwave.renderOrder=12;this.shockwave.name='3d-explosion-shockwaves';
   this.shockwave.userData={visualOnly:true,nonPlayable:true};
   scene.add(this.shockwave);this.shocks=[];
+  // Fixed pool: no light allocation during battle, no shadow-map costs.
+  // Keep both light objects in the scene to avoid shader recompilation.
+  // Lite mode uses no dynamic explosion light.
+  this.visualQualityLevel=0;this.optionalParticleCounter=0;
+  this.blastLights=lowQuality?[]:Array.from({length:2},()=>{
+   const light=new THREE.PointLight(0xffb56d,0,290,2);
+   light.castShadow=false;light.position.set(0,-10000,0);
+   light.userData={visualOnly:true,nonPlayable:true,transientBlastLight:true};
+   scene.add(light);
+   return {light,life:0,ttl:.26,peak:0};
+  });
+  this.blastLightCursor=0;
+  this.blastView=new THREE.Vector3();
   // Real rockets, not instant rifle/MG tracers: each flying missile gets a
   // visible metal body, tapered warhead and luminous exhaust in world space.
   // Bounded instancing keeps draw calls fixed during mass artillery fire.
@@ -368,6 +383,8 @@ export class SandforgeCombatEffects {
   this.rocketStreaks.count=0;
   this.rocketStreaks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(this.rocketStreaks);
+  this.rocketExhaust.layers.enable(BLOOM_LAYER);
+  this.rocketStreaks.layers.enable(BLOOM_LAYER);
   // A recognizable bomb silhouette: ogive nose and cross-shaped tail fins.
   // Each is a capped GPU instance pool, tied to the authoritative bomb.
   const bombMetal=new THREE.MeshStandardMaterial({
@@ -399,12 +416,48 @@ export class SandforgeCombatEffects {
   this.activeParticles=0;
   for(const u of game.units)if(u.hp>0&&!u.carrier)this.lastUnits.set(u.id,{x:u.x,y:u.y,kind:u.kind,owner:u.owner,angle:u.angle,flightHeight:u.flightHeight??1});
  }
+ setVisualQuality(level=0){
+  this.visualQualityLevel=clamp(Math.round(Number(level)||0),0,2);
+ }
+ blastGlowAt(x,z,ground,strong){
+  if(!this.blastLights.length)return;
+  const half=this.world.size*.5;
+  const worldX=x-half,worldZ=z-half;
+  // Only nearby, already-visible blasts may illuminate their surroundings.
+  // The RTS camera is orthographic; its dolly distance is not visibility.
+  this.blastView.set(worldX,ground,worldZ).project(this.camera);
+  if(Math.abs(this.blastView.x)>1.15||Math.abs(this.blastView.y)>1.15||
+   Math.abs(this.blastView.z)>1)return;
+  const item=this.blastLights[this.blastLightCursor++%this.blastLights.length];
+  item.ttl=item.life=strong?.28:.18;
+  item.peak=strong?18000:9000;
+  item.light.position.set(worldX,ground+(strong?31:19),worldZ);
+  item.light.intensity=item.peak;
+ }
+ updateBlastGlow(dt){
+  for(const item of this.blastLights){
+   if(item.life<=0)continue;
+   item.life=Math.max(0,item.life-dt);
+   const remaining=item.life/item.ttl;
+   item.light.intensity=item.peak*remaining*remaining;
+  }
+ }
  rand(){
   let n=this.seed=(this.seed+0x6d2b79f5)>>>0;
   n=Math.imul(n^(n>>>15),n|1);n^=n+Math.imul(n^(n>>>7),n|61);
   return ((n^(n>>>14))>>>0)/4294967296;
  }
  particle(pool,x,z,y,size,life,vx=0,vz=0,vy=0){
+  // Preserve crucial flashes, sparks and flames. Reduce only decorative
+  // smoke, dust and chips during sustained GPU pressure.
+  if(this.visualQualityLevel&&(
+   pool===this.smoke||pool===this.rocketSmoke||pool===this.dust||
+   pool===this.trailDust||pool===this.debris)){
+   this.optionalParticleCounter=(this.optionalParticleCounter+1)&7;
+   if(this.visualQualityLevel===2
+     ?this.optionalParticleCounter%2===0
+     :this.optionalParticleCounter%4===0)return;
+  }
   if(pool.particles.length>=pool.max)pool.particles.shift();
   pool.particles.push({x,z,y,size,life,ttl:life,vx,vz,vy,
    floor:pool.mode==='debris'?y-7:undefined,angle:(this.rand()-.5)*.45});
@@ -532,6 +585,7 @@ export class SandforgeCombatEffects {
   this.shocks.push({x,z,y:impactGround+3,life:.49,ttl:.49,max:(strong?110:59)*impactScale});
   if(this.shocks.length>this.shockwave.instanceMatrix.count)this.shocks.shift();
   this.placeScorch(x,z,size);
+  this.blastGlowAt(x,z,impactGround,strong);
   // First 120 ms: bright ignition front. Subsequent frames are dust,
   // airborne fragments and rolling dark combustion smoke.
   this.particle(this.flash,x,z,impactGround+(strong?31:21)*impactScale,
@@ -1022,6 +1076,7 @@ export class SandforgeCombatEffects {
   this.updateFallingBombs(active,subTick);
   if(!active)return;
   this.frame++;
+  this.updateBlastGlow(dt);
   this.updateAircraftCrashes(dt);
   this.wreckSync+=dt;
   this.wreckSmokeClock+=dt;
