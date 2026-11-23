@@ -195,7 +195,9 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
  const ceiling=(kind:UnitKind):number=>({
   // Once the factory operates, invest in a mixed army, not 12 riflemen.
   // When it is unavailable, the barracks retains a larger defensive cap.
-  infantry:available('tank')?(c.underAttack?8:6):9,
+  infantry:g.world.mapVersion>=23
+   ?available('tank')?(c.underAttack?8:6):9
+   :12, // preserve historical director / legacy-map economy
   heavy:armyStage===2?8:armyStage===1?7:c.income>=65?6:5,
   rocket:rocketQuota,
   medic:Math.min(3,Math.ceil((count('infantry')+count('heavy'))/5)),
