@@ -1,0 +1,25 @@
+name: Sandforge AI · Real-Route Opening Captures
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/reborn/ai33-map-doctrine.ts
+      - src/reborn/tactical-ai.ts
+      - tests/sandforge-ai-opening-route-ranking-20261123.test.mjs
+      - .github/workflows/sandforge-ai-opening-route-ranking-20261123.yml
+permissions:
+  contents: read
+jobs:
+  opening-routes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: node --test tests/sandforge-ai-opening-route-ranking-20261123.test.mjs tests/sandforge-ai33-map-adaptive-20261118.test.mjs tests/sandforge-ai-capture-order-idempotence-20261123.test.mjs tests/sandforge-ai34-bastion-control-20261118.test.mjs
