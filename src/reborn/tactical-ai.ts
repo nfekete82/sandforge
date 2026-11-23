@@ -23,7 +23,7 @@ import {homeDefensePlan} from './home-defense-doctrine.js';
 import {hqLastStandDecision} from './ai-hq-last-stand.js';
 import {chooseSiegeShot,chooseRaidFront,allowSecondaryPressure,type SiegeShot,type RaidFront} from './ai25-doctrine.js';
 import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefenseMultiplier} from './ai32-doctrine.js';
-import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,openingScoutNeedsCaptureMove,openingCaptureRouteLength,openingCaptureRouteScore,openingCaptureDecisionDistance,type AI33Mode} from './ai33-map-doctrine.js';
+import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,openingScoutNeedsCaptureMove,openingCaptureRouteLength,type AI33Mode} from './ai33-map-doctrine.js';
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad,canyonPassWaypoint} from './ai36-terrain-routes.js';
@@ -2342,7 +2342,7 @@ export class TacticalAI {
   // capture is physically reachable, instead of ranking by Euclidean distance.
   // Keep one memo entry per (paid unit, public Bastion) in this planning pulse:
   // two-soldier counters used to repeat each expensive query several times.
-  const routedOpening=g.world.mapVersion>=24&&g.world.generatorVersion>=7;
+  const physicalRoverOpening=g.world.mapVersion>=24&&g.world.generatorVersion>=7;
   const candidateCache=new Map<string,{point:Point;length:number}|null>();
   const approach=(u:Unit,t:typeof targets[number]):{point:Point;length:number}|undefined=>{
    const key=u.id+':'+t.id;
@@ -2352,7 +2352,13 @@ export class TacticalAI {
     const angle=heading+delta;
     const point={x:t.point.x+82*Math.cos(angle),y:t.point.y+82*Math.sin(angle)};
     if(!g.world.walkable(point,blockers,5))continue;
-    const route=g.world.path(u,point,blockers,5);
+    // Rover scouts need the same real track-grade limit as their normal
+    // movement. A path across a cliff lip is not a legal capture approach
+    // just because it was found by the default infantry A*.
+    const maxSlope=physicalRoverOpening&&u.kind==='rover'?.195:Infinity;
+    if(maxSlope!==Infinity&&
+       !g.world.groundVehicleSlopeSafe(point,maxSlope,unitSpec(u).radius))continue;
+    const route=g.world.path(u,point,blockers,5,undefined,false,false,false,maxSlope);
     if(!route.length)continue;
     const length=openingCaptureRouteLength(u,point,route,g.world.cell);
     if(!Number.isFinite(length))continue;
@@ -2385,14 +2391,13 @@ export class TacticalAI {
      (counter||!s.openingContests!.some(e=>e.sectorId===t.id)))
     .map(t=>({t,p:approach(squad[0],t)})).filter(x=>x.p)
     .sort((a,b)=>{
-     const merit=(v:typeof a)=>openingCaptureRouteScore({
-      distance:routedOpening
-       ?openingCaptureDecisionDistance(distance(squad[0],v.p!.point),
-          v.p!.length,g.world.cell)
-       :distance(squad[0],v.p!.point),
-      income:v.t.income,enemyOwned:v.t.owner===0,
-      aggressiveRecapture:adaptiveLarge&&counter
-     });
+     // Keep the battle-tested public-front / income priorities. The first
+    // iteration scored A* route length here: it gained captures in two
+    // canyon seeds but LOST control on Burning Horizon and Plateau Crossroads.
+    // The seven-scenario paired A/B therefore rejected that gameplay change.
+    const merit=(v:typeof a)=>
+     distance(squad[0],v.p!.point)-v.t.income*8-
+     (adaptiveLarge&&counter&&v.t.owner===0?700:0);
      return merit(a)-merit(b)||a.t.id-b.t.id;
     });
    const best=goals.find(x=>squad.every(u=>approach(u,x.t)));
