@@ -10,8 +10,8 @@ import {guidedRocketAimY,aircraftAimOffsetY,adoptAircraftForCrash,disposeAircraf
 import {vehicleDustEligible,vehicleDustTail,VEHICLE_DUST_CAP,VEHICLE_DUST_CAP_LITE} from '/webgl-vehicle-dust.js';
 import {ORDNANCE_TRAIL_SEGMENTS,ORDNANCE_VISUALS,ordnanceVisualKind,ordnanceVisualProfile,appendOrdnanceTrail} from '/webgl-ordnance-profile.js';
 
-const vehicleKinds=new Set(['tank','rover','supply','artillery']);
-const trackedKinds=new Set(['tank','artillery']);
+const vehicleKinds=new Set(['tank','flamer','rover','supply','artillery']);
+const trackedKinds=new Set(['tank','flamer','artillery']);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
@@ -482,6 +482,25 @@ export class SandforgeCombatEffects {
   if(heavy)this.particle(this.dust,p.x,p.y,this.heightAt(p.x,p.y)+5,
    12,.30,(this.rand()-.5)*15,(this.rand()-.5)*15,8);
   this.stats.muzzlePuffs++;
+ }
+ /** Pooled near-field flame plume; gameplay damage is resolved by Simulation. */
+ flameStreamAt(shot){
+  const from=shot.groundFrom??shot.from,to=shot.groundTo??shot.to;
+  if(!from||!to||!this.game.canSee(0,from))return;
+  const dx=to.x-from.x,dz=to.y-from.y;
+  const d=Math.max(1,Math.hypot(dx,dz)),limit=Math.min(160,d);
+  const sx=dx/d,sz=dz/d,start=this.heightAt(from.x,from.y);
+  // No projectile meshes, dynamic lights or persistent emitters.
+  for(let i=0;i<8;i++){
+   const t=(i+.35)/8,travel=15+(limit-15)*t;
+   const spread=3+t*10,side=(this.rand()-.5)*spread;
+   const px=from.x+sx*travel-sz*side,pz=from.y+sz*travel+sx*side;
+   this.particle(this.flames,px,pz,start+22+t*4,
+    9+t*12,.15+this.rand()*.18,sx*(25+this.rand()*25),
+    sz*(25+this.rand()*25),8+this.rand()*15);
+  }
+  if(shot.hit)this.particle(this.smoke,to.x,to.y,
+   this.heightAt(to.x,to.y)+14,8,.42,0,0,18);
  }
  impactAt(shot){
   const p=shot.groundTo??shot.to;
@@ -1015,6 +1034,7 @@ export class SandforgeCombatEffects {
   for(const shot of this.game.shots){
    if(this.seenShots.has(shot))continue;
    this.seenShots.add(shot);
+   if(shot.weapon==='flame'){this.flameStreamAt(shot);continue;}
    this.muzzleAt(shot);
    if(shot.miss){
     this.sandMissAt(shot);
