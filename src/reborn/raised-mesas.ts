@@ -40,35 +40,55 @@ export function raisedMesaRouteWaypoint(
   const onTop=startRadius<mesa.topRadius*.96;
   const targetOnTop=goalRadius<mesa.topRadius*.96;
   if(onTop&&targetOnTop)continue;
-  // Do not detour for a harmless remote mesa. The straight start-to-goal
-  // segment must touch the actual rim, or the vehicle must start inside.
+  // Do not alter unrelated routes that skirt a mesa on driveable sand.
   const dx=goal.x-from.x,dy=goal.y-from.y,den=dx*dx+dy*dy;
   const t=den>0?Math.max(0,Math.min(1,
    ((mesa.center.x-from.x)*dx+(mesa.center.y-from.y)*dy)/den)):0;
   const approach={x:from.x+dx*t,y:from.y+dy*t};
   if(!onTop&&!targetOnTop&&d(approach,mesa.center)>mesa.footRadius-45)
    continue;
+  // A tank advancing UP a ramp may be 300m from the initial outer marker.
+  // The old radius-105 switch sent it BACK to that marker on the next A*
+  // partial-route replan: outer -> inner -> outer -> ... at the cliff edge.
+  // Classify occupancy of the actual authored corridor from physical
+  // coordinates, never from the last path's ephemeral endpoint.
   const candidates=mesaRampDirections(mesa).map(direction=>{
-   // Both samples lie in the authored low-grade ramp corridor, rather than
-   // on a guessed radial shortcut or an impassable rock-cliff triangle.
    const outer={x:mesa.center.x+direction.x*(mesa.rampEnd-140),
     y:mesa.center.y+direction.y*(mesa.rampEnd-140)};
    const inner={x:mesa.center.x+direction.x*mesa.topRadius*.75,
     y:mesa.center.y+direction.y*mesa.topRadius*.75};
-   return {outer,inner};
+   const x=from.x-mesa.center.x,y=from.y-mesa.center.y;
+   const along=x*direction.x+y*direction.y;
+   const lateral=Math.abs(x*direction.y-y*direction.x);
+   const inside=along>=mesa.topRadius*.73&&along<=mesa.rampEnd+70&&
+    lateral<=mesa.rampWidth*.42;
+   return {outer,inner,inside};
   }).filter(x=>valid(x.outer)&&valid(x.inner));
   if(!candidates.length)continue;
-  // Approaching from the valley: pick a reachable nearby entrance. Once
-  // there, drive INSIDE the actual cut ramp before seeking the goal again.
-  // Driving off the summit: choose the exit nearest the destination.
-  candidates.sort((a,b)=>onTop?
-   d(a.outer,goal)-d(b.outer,goal)||d(a.inner,from)-d(b.inner,from):
-   d(a.outer,from)-d(b.outer,from)||d(a.inner,goal)-d(b.inner,goal));
+  // On the destination side of the rim, we are DESCENDING, not beginning
+  // another ascent. Distinguish entrance and exit by current physical side,
+  // so a mixed convoy does not bounce between the two ramp markers.
+  const goalVector={x:goal.x-mesa.center.x,y:goal.y-mesa.center.y};
+  const towardGoal=(from.x-mesa.center.x)*goalVector.x+
+   (from.y-mesa.center.y)*goalVector.y>0;
+  const leaving=!targetOnTop&&(onTop||
+   startRadius<=mesa.footRadius+85&&towardGoal);
+  candidates.sort((a,b)=>
+   (a.inside===b.inside?0:a.inside?-1:1)||
+   (leaving?d(a.outer,goal)-d(b.outer,goal):
+    d(a.outer,from)-d(b.outer,from))||
+   d(a.inner,goal)-d(b.inner,goal));
   const chosen=candidates[0];
-  if(onTop)return d(from,chosen.inner)>105?chosen.inner:chosen.outer;
-  return d(from,chosen.outer)>105?chosen.outer:chosen.inner;
+  if(leaving){
+   // Stay with the same real exit corridor after crossing the summit.
+   return chosen.inside&&startRadius>=mesa.topRadius*.82
+    ?chosen.outer
+    :d(from,chosen.inner)>105?chosen.inner:chosen.outer;
+  }
+  // Once inside the entering corridor, NEVER reverse to the outer marker
+  // just because the next A* segment ended or was budget-limited.
+  return chosen.inside||d(from,chosen.outer)<=105?chosen.inner:chosen.outer;
  }
- return undefined;
 }
 
 /** Explicit multi-entry plateaus are opt-in for v10; old saves still
