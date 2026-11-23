@@ -1124,9 +1124,11 @@ const landscapeMeshes=terrain.battlefield?.generatorVersion>=3?
   // on its face looked like separate floating rocks; desert cliffs now have
   // one continuous geological surface instead of duplicated outcrops.
   showOutcrops:biome!=='desert'}):[];
-// Thin PBR cliff facing follows the physical heightfield, with the real
-// sloping entrances left clear. Summit and ramp remain ordinary ground.
-const raisedMesaMeshes=terrain.battlefield?.generatorVersion>=7
+// The old overlapping raised-mesa facades were another angular brown
+// sheet over the same physical terrain (visible especially at ramp edges).
+// Modern desert mesas use the same native sand/heightfield shade as ridges.
+// Keep the authored facade for legacy or non-desert maps only.
+const raisedMesaMeshes=terrain.battlefield?.generatorVersion>=7&&!nativeDesertRidgeShade
  ?createPlayableMesaCliffs({scene,size,heightAt,plateaus:terrain.plateaus??[],
     lowQuality:query.get('lite')==='1',mapId:desertRegion?.id??null}):[];
 const cliffMeshes=landscapeMeshes.filter(mesh=>mesh.userData?.erodedRidge);
