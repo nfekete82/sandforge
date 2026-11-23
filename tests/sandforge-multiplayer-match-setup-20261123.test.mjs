@@ -51,8 +51,11 @@ test('2v2 groups human with one allied bot and two independent hostile bots',()=
   const coords=sector=>({x:sector%columns,y:Math.floor(sector/columns)});
   const [human,ally,enemyA,enemyB]=s.slots.map(p=>coords(p.startSector));
   const near=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
-  assert.ok(near(human,ally)<near(human,enemyB));
-  assert.ok(near(enemyA,enemyB)<near(enemyA,human));
+  assert.equal(human.x,ally.x,'teammates share the same western/eastern side');
+  assert.equal(enemyA.x,enemyB.x,'opponent bots share the other side');
+  assert.notEqual(human.x,enemyA.x,'teams start on opposite map edges');
+  assert.ok(near(human,ally)<=near(human,enemyB));
+  assert.ok(near(enemyA,enemyB)<=near(enemyA,human));
  }
 });
 test('small and old maps reject 3 and 4 players instead of unsafe overlapping bases',()=>{
