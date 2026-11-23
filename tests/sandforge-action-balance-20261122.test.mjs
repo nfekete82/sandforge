@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -261,14 +261,65 @@ test('Action forward rally is restricted to real safe neutral captures',()=>{
  assert.equal(actionForwardRallyPolicy({...base,targetOwner:0}),false);
  assert.equal(actionForwardRallyPolicy({...base,phase:'attack'}),false);
  assert.equal(actionForwardRallyPolicy({...base,phase:'defend'}),false);
- assert.equal(actionForwardRallyPolicy({...base,available:2}),false);
+ assert.equal(actionForwardRallyPolicy({...base,available:2}),true);
+ assert.equal(actionForwardRallyPolicy({...base,available:1}),false);
  assert.equal(actionForwardRallyPolicy({...base,observedHomePressure:true}),false);
  assert.equal(actionForwardRallyPolicy({...base,knownThreats:1}),false);
  assert.equal(actionForwardRallyPolicy({...base,mapVersion:11}),false);
  const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
  assert.match(ai,/mission\.since!==this\.actionForwardRallyMissionSince/);
  assert.match(ai,/this\.actionForwardRallyRetryAt=g\.time\+18/);
- assert.match(ai,/reachableCluster\.length<3/);
+ assert.match(ai,/reachableCluster\.length<2/);
+ assert.match(ai,/distance\(leader,s\.rally\)<140/);
+ assert.match(ai,/distance\(leader,mission\)\+80>=distance\(s\.rally,mission\)/);
  assert.match(ai,/g\.world\.path\(candidate,at,obstacles,5\)\.length>0/);
  assert.match(ai,/g\.world\.walkable\(candidate,obstacles,10\)/);
+});
+
+test('Action keeps a real HQ guard while freeing surplus opening reserves',()=>{
+ const base={preset:'action',mapVersion:26,time:110,phase:'gather',
+  missionKind:'capture',defendedTarget:false,fighters:10,
+  normalReserve:4,homeMinimum:2,observedHomePressure:false,
+  knownThreats:0,recentLosses:0,recentFailures:0};
+ assert.equal(actionHomeReservePolicy(base),2);
+ assert.equal(actionHomeReservePolicy({...base,defendedTarget:true}),3);
+ assert.equal(actionHomeReservePolicy({...base,normalReserve:2}),2);
+ assert.equal(actionHomeReservePolicy({...base,fighters:4,normalReserve:2,homeMinimum:0}),1);
+ for(const testInput of [
+  {preset:'classic'},{missionKind:'structure'},{phase:'attack'},
+  {phase:'defend'},{observedHomePressure:true},{knownThreats:1},
+  {recentLosses:1},{recentFailures:1},{time:20},{time:300},
+  {mapVersion:11}
+ ])assert.equal(actionHomeReservePolicy({...base,...testInput}),4,
+  'guard quota must be preserved under '+JSON.stringify(testInput));
+ assert.equal(actionHomeReservePolicy({...base,fighters:2}),2,
+  'normal guard count remains physically capped by existing paid fighters');
+ assert.equal(actionHomeReservePolicy({...base,fighters:2,
+  normalReserve:2,homeMinimum:0}),1,
+  'when only two genuine free fighters remain, one can scout a safe neutral Bastion while one guards home');
+ assert.equal(actionHomeReservePolicy({...base,fighters:2,
+  normalReserve:2,homeMinimum:0,observedHomePressure:true}),2,
+  'an observed headquarters threat immediately restores both defenders');
+ assert.equal(actionHomeReservePolicy({...base,fighters:2,
+  normalReserve:2,homeMinimum:0,defendedTarget:true}),2,
+  'do not strip a second guard for an enemy-held or fortified Bastion');
+ const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(ai,/const actionReserve=actionHomeReservePolicy/);
+ assert.match(ai,/\.slice\(0,actionReserve\)\.map\(u=>u\.id\)/);
+ assert.match(ai,/homeGuardCapPulses\+\+/);
+});
+
+test('Action pays for an early six-fighter infantry wave before optional tech',()=>{
+ const x={preset:'action',time:80,barracksReady:true,fighters:4,
+  underAttack:false,observedSiege:false};
+ assert.equal(actionEarlyArmyBeforeInfrastructure(x),true);
+ assert.equal(actionEarlyArmyBeforeInfrastructure({...x,fighters:5}),true);
+ for(const v of [{preset:'classic'},{fighters:6},{time:200},
+  {time:5},{barracksReady:false},{underAttack:true},{observedSiege:true}])
+  assert.equal(actionEarlyArmyBeforeInfrastructure({...x,...v}),false,
+   'genuine urgent tech/legacy/play state must win: '+JSON.stringify(v));
+ const source=readFileSync('src/reborn/army-economy.ts','utf8');
+ assert.match(source,/const actionInfantryFirst=actionEarlyArmyBeforeInfrastructure/);
+ assert.match(source,/!actionInfantryFirst&&\s*\(generators===0/);
+ assert.match(source,/!has\('factory'\)&&!actionInfantryFirst/);
 });

@@ -111,5 +111,42 @@ export function actionForwardRallyPolicy(x:{
  return x.preset==='action'&&x.mapVersion>=23&&x.generatorVersion>=7&&
   x.time>=50&&x.time<=240&&x.missionKind==='capture'&&
   x.targetOwner===-1&&x.phase!=='attack'&&x.phase!=='defend'&&
-  x.available>=3&&!x.observedHomePressure&&x.knownThreats===0;
+  // A pair of paid soldiers already on a safe front is enough for a
+  // neutral capture; known BLUE-owned or threatened targets remain barred.
+  x.available>=2&&!x.observedHomePressure&&x.knownThreats===0;
+}
+
+/** Action-only early economy-to-front transition: retain the same paid
+ * guard minimum, but do not leave all other fighters on stationary posts
+ * while a real capture mission awaits. Pressure, losses and observed guns
+ * immediately restore the unchanged conservative reserve quota. */
+export function actionHomeReservePolicy(x:{
+ preset:BalancePreset;mapVersion:number;time:number;
+ phase:'gather'|'regroup'|'attack'|'defend';missionKind:string;
+ defendedTarget:boolean;fighters:number;normalReserve:number;
+ homeMinimum:number;observedHomePressure:boolean;knownThreats:number;
+ recentLosses:number;recentFailures:number;
+}):number{
+ const normal=Math.max(0,Math.min(x.fighters,Math.floor(x.normalReserve)));
+ if(x.preset!=='action'||x.mapVersion<23||x.time<45||x.time>240||
+  x.phase==='attack'||x.phase==='defend'||
+  x.missionKind!=='capture'||x.fighters<2||
+  x.observedHomePressure||x.knownThreats>0||
+  x.recentLosses>0||x.recentFailures>0)return normal;
+ // A publicly BLUE-owned Bastion is treated as contested even with no
+ // visible defenders: keep one additional genuine home guard.
+ const minimum=Math.max(1,Math.floor(x.homeMinimum));
+ const cap=minimum+(x.defendedTarget?1:0);
+ return Math.min(normal,cap);
+}
+
+/** Optional infrastructure must not starve the FIRST paid Action infantry
+ * wave. A real siege discovery or visible base attack immediately cancels
+ * this temporary economic preference. Classic and later tech unchanged. */
+export function actionEarlyArmyBeforeInfrastructure(x:{
+ preset:BalancePreset;time:number;barracksReady:boolean;fighters:number;
+ underAttack:boolean;observedSiege:boolean;
+}):boolean{
+ return x.preset==='action'&&x.time>=12&&x.time<=150&&
+  x.barracksReady&&x.fighters<6&&!x.underAttack&&!x.observedSiege;
 }

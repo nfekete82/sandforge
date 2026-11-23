@@ -37,7 +37,7 @@ import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
-import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,ACTION_BALANCE} from './action-balance.js';
+import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,ACTION_BALANCE} from './action-balance.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -208,10 +208,14 @@ export class TacticalAI {
  /** Prevent replanning the same safe Action-only forward rally every pulse. */
  private actionForwardRallyMissionSince=-1;
  private actionForwardRallyRetryAt=0;
+ /** Current *real* home-guard IDs; runtime observer, never save state. */
+ readonly actionGuardIds=new Set<number>();
  /** Runtime-only counters used by paired AI benchmarks, never serialized. */
  readonly actionRallyDiagnostics={
   inspected:0,policyEligible:0,attempts:0,leadForward:0,
   clusters:0,clusterPaths:0,ringPaths:0,applied:0,
+  homeGuardCapPulses:0,homeGuardSlotPulsesFreed:0,
+  homeReserveBlocks:{} as Record<string,number>,
   blocks:{} as Record<string,number>
  };
  /** Explicitly opt-in ONLY for headless benchmark observation. No saves. */
@@ -1816,10 +1820,42 @@ export class TacticalAI {
   const homeGuardPriority=(u:Unit)=>u.kind==='infantry'?0:
    u.kind==='heavy'?1:u.kind==='rover'?2:u.kind==='tank'?3:
    u.kind==='artillery'?4:2;
+  // When an unthreatened Action opening has too many paid garrison guards
+  // and too few attackers, release only SURPLUS stationary slots. Existing
+  // nearby-visible threat response and the minimum genuine HQ screen remain.
+  const actionReserve=actionHomeReservePolicy({
+   preset:g.balancePreset,mapVersion:g.world.mapVersion,time:g.time,
+   phase:s.phase,missionKind:mission.kind,defendedTarget:defended,
+   fighters:mainFighters.length,normalReserve:reserve,
+   homeMinimum:homeGarrisonSize(mainFighters.length,
+    c.enemyHQEliminatedAt!==undefined),
+   observedHomePressure,knownThreats:towers.length+visible.length,
+   recentLosses,recentFailures:recentFailures.length
+  });
+  if(g.balancePreset==='action'&&g.time>=45&&g.time<=240){
+   const d=this.actionRallyDiagnostics;
+   const reason=s.phase==='attack'||s.phase==='defend'?'active-'+s.phase:
+    mission.kind!=='capture'?'mission-'+mission.kind:
+    mainFighters.length<2?'few-fighters':
+    observedHomePressure?'home-threat':
+    towers.length+visible.length>0?'observed-threat':
+    recentLosses>0?'recent-loss':
+    recentFailures.length>0?'recent-failure':
+    actionReserve<reserve?'released':'already-minimum';
+   d.homeReserveBlocks[reason]=(d.homeReserveBlocks[reason]??0)+1;
+   if(actionReserve<reserve){
+    d.homeGuardCapPulses++;
+    d.homeGuardSlotPulsesFreed+=reserve-actionReserve;
+   }
+  }
   const guards=new Set(mainFighters.filter(u=>s.phase!=='attack'||!s.group.includes(u.id))
    .sort((a,b)=>homeGuardPriority(a)-homeGuardPriority(b)||
     distance(a,home)-distance(b,home)||a.id-b.id)
-   .slice(0,reserve).map(u=>u.id));
+   .slice(0,actionReserve).map(u=>u.id));
+  if(g.balancePreset==='action'){
+   this.actionGuardIds.clear();
+   for(const id of guards)this.actionGuardIds.add(id);
+  }
   if(policy&&s.phase!=='attack')s.group=s.group.filter(id=>!guards.has(id));
   if(policy)this.stationHomeGuards(mainFighters.filter(u=>guards.has(u.id)),home);
   // Action early-game pressure: rally at a REAL paid troop cluster instead
@@ -1842,7 +1878,7 @@ export class TacticalAI {
     mission.kind!=='capture'?'mission-'+mission.kind:
     g.territories[mission.sector].owner!==-1?'owned-target':
     s.phase==='attack'||s.phase==='defend'?'phase-'+s.phase:
-    mainFighters.filter(u=>!guards.has(u.id)).length<3?'few-reserves':
+    mainFighters.filter(u=>!guards.has(u.id)).length<2?'few-reserves':
     observedHomePressure?'home-threat':towers.length+visible.length>0?'visible-threat':
     !s.rally?'no-rally':
     mission.since===this.actionForwardRallyMissionSince?'already-staged':
@@ -1859,18 +1895,22 @@ export class TacticalAI {
    const obstacles=[...this.obstacles(),...g.bastionColliders()];
    const leaders=pool.slice().sort((a,b)=>distance(a,mission)-distance(b,mission)||a.id-b.id).slice(0,6);
    for(const leader of leaders){
-    if(distance(leader,s.rally)<330||
-       distance(leader,mission)+230>=distance(s.rally,mission))continue;
+    // 330m displacement plus 230m strictly closer excluded every tested
+    // front, including actual squads already ahead of their old rally.
+    // Two physically pathable soldiers and 80m genuine forward progress
+    // are enough for an unguarded neutral capture, never for a siege.
+    if(distance(leader,s.rally)<140||
+       distance(leader,mission)+80>=distance(s.rally,mission))continue;
     this.actionRallyDiagnostics.leadForward++;
     const cluster=pool.filter(u=>distance(u,leader)<=270);
-    if(cluster.length<3)continue;
+    if(cluster.length<2)continue;
     this.actionRallyDiagnostics.clusters++;
     const candidate=g.world.nearest(leader,obstacles,[],undefined,10);
     if(!candidate||distance(candidate,leader)>75||
        !g.world.walkable(candidate,obstacles,10)||this.danger(candidate)>2)continue;
     const reachableCluster=cluster.filter(u=>distance(u,candidate)<20||
      g.world.path(u,candidate,obstacles,5).length>0);
-    if(reachableCluster.length<3)continue;
+    if(reachableCluster.length<2)continue;
     this.actionRallyDiagnostics.clusterPaths++;
     // The Bastion's solid center is NOT a legitimate path target.
     // Validate the full physical route to a free point inside its ring.

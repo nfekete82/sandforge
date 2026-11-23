@@ -1,5 +1,6 @@
 import {UNITS,BUILDINGS,MAX_GENERATORS_PER_FACTION,unitSpec,canAttack,type UnitKind,type BuildingKind} from './catalog.js';
 import {distance,type Point} from './config.js';
+import {actionEarlyArmyBeforeInfrastructure} from './action-balance.js';
 import {produceCombinedArmy,bastionSurplusArmyStage} from './director-production.js';
 import {rocketInfantryQuota,bomberAntiArmorQuota} from './ai-counter-doctrine.js';
 import {ai36AirDoctrineEnabled,shouldBuyReconDrone,bomberSupportQuota} from './ai36-air-support.js';
@@ -112,7 +113,16 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  const openingBarracks=director&&!has('barracks')&&(
   (g.world.mapVersion===11&&g.tactical.earlyEconomyMode==='barracks-first')||
   g.world.mapVersion>=23);
- const wantCore=director&&!openingBarracks&&(generators===0||siegeReserve===0)&&generatorBuildPriority({
+ // Action's faster infantry queue is wasted when a generator/factory build
+ // immediately sequesters the cash needed for the first real attack group.
+ // On quiet starts, pay for six real fighters before OPTIONAL infrastructure.
+ // Known siege objectives or an observed home attack keep their normal tech.
+ const actionInfantryFirst=actionEarlyArmyBeforeInfrastructure({
+  preset:g.balancePreset,time:g.time,barracksReady:complete('barracks'),
+  fighters:fighters.length,underAttack,observedSiege
+ });
+ const wantCore=director&&!openingBarracks&&!actionInfantryFirst&&
+  (generators===0||siegeReserve===0)&&generatorBuildPriority({
   existing:generators,fighters:fighters.length,credits:g.credits[1],
   barracksReady:complete('barracks'),underAttack,finishing
  });
@@ -122,7 +132,8 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   // already available and enough credits remain for ongoing recruitment.
   if(wantCore)goal='generator';
   else if(!has('barracks'))goal='barracks';
-  else if(!has('factory')&&fighters.length>=3&&(income>=20||known>0||g.time>=55))goal='factory';
+  else if(!has('factory')&&!actionInfantryFirst&&
+    fighters.length>=3&&(income>=20||known>0||g.time>=55))goal='factory';
   else if(!has('airfield')&&has('factory')&&fighters.length>=4&&(income>=35||g.time>=110||seen.some(u=>unitSpec(u).flying))&&(!director||(complete('factory')&&count('tank')+count('rover')+count('artillery')>=3&&income>=35)))goal='airfield';
   else if(!has('barracks')&&fighters.length>=3)goal='barracks';
  }
