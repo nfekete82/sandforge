@@ -51,6 +51,18 @@ export function ai38CommittedProductionReserve(input:{
    ?Math.max(x.infrastructureReserve,x.reserve-x.siegeReserve):x.reserve;
 }
 
+/** The barracks may buy an emergency frontline, but not monopolize income
+ * after the factory becomes operational. Counts include paid queues.
+ * No enemy information, wall-clock state or new save fields are required. */
+export function urgentlyNeedsInfantryScreen(x:{
+ time:number;fighters:number;infantry:number;factoryReady:boolean;
+ contested:boolean;underAttack:boolean;finishing:boolean;
+}):boolean{
+ if(x.time<100||!x.contested||x.underAttack||x.finishing)return false;
+ if(!x.factoryReady)return x.fighters<10;
+ return x.infantry<4&&x.fighters<10;
+}
+
 /** Purchase priorities are persistent composition deficits, not affordable-unit scores.
  * Counts include paid queues, so one factory never reserves money for a unit it
  * has already ordered. Every purchase still goes through Simulation.recruit. */
@@ -181,7 +193,12 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
  // before the global army cap. Keep anti-air and airstrike quotas driven
  // by OBSERVED enemies, rather than manufacturing invisible-threat counters.
  const ceiling=(kind:UnitKind):number=>({
-  infantry:12,heavy:armyStage===2?8:armyStage===1?7:c.income>=65?6:5,
+  // Once the factory operates, invest in a mixed army, not 12 riflemen.
+  // When it is unavailable, the barracks retains a larger defensive cap.
+  infantry:g.world.mapVersion>=23
+   ?available('tank')?(c.underAttack?8:6):9
+   :12, // preserve historical director / legacy-map economy
+  heavy:armyStage===2?8:armyStage===1?7:c.income>=65?6:5,
   rocket:rocketQuota,
   medic:Math.min(3,Math.ceil((count('infantry')+count('heavy'))/5)),
   engineer:c.defenseNeedsWorker||c.own.length>=4&&(s.recovering?.length??0)>0?2:1,
@@ -223,13 +240,18 @@ export function produceCombinedArmy(g:Simulation,s:TacticalState,c:ProductionCon
   return result.filter(k=>n[k]<ceiling(k));
  };
  const producers=c.own.filter(b=>b.buildRemaining<=0&&b.queue.length<2);
- // A long-running offensive with fewer than fourteen living fighters needs
- // paid infantry NOW, not an idle barracks while one factory saves for an
- // aircraft or a second heavy vehicle. Barracks take a limited first turn;
- // observed AA and anti-armor counter quotas are still handled in ranks().
- const offensiveShortfall=g.world.mapVersion>=23&&g.time>=100&&!c.finishing&&
-  !c.underAttack&&fighters<14&&
-  g.territories.some(t=>t.owner!==1)&&available('infantry');
+ // Preserve an actual initial rifle screen without starving an operating
+ // factory of its first tanks. The old "<14 fighters" rule put barracks
+ // ahead of factories in nearly every macro pulse and bought cheap soldiers
+ // while the heavy-vehicle goal was waiting for real credits.
+ const offensiveShortfall=g.world.mapVersion>=23&&
+  urgentlyNeedsInfantryScreen({
+   time:g.time,fighters,
+   infantry:count('infantry')+count('heavy'),
+   factoryReady:available('tank'),
+   contested:g.territories.some(t=>t.owner!==1),
+   underAttack:c.underAttack,finishing:c.finishing
+  })&&available('infantry');
  const initial=planned();
  const priority=(b:Base)=>offensiveShortfall&&b.kind==='barracks'?-2:
   (initial&&UNITS[initial].producers.includes(b.kind)?-1:
