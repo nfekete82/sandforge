@@ -289,9 +289,11 @@ test('Action keeps a real HQ guard while freeing surplus opening reserves',()=>{
   {preset:'classic'},{missionKind:'structure'},{phase:'attack'},
   {phase:'defend'},{observedHomePressure:true},{knownThreats:1},
   {recentLosses:1},{recentFailures:1},{time:20},{time:300},
-  {mapVersion:11},{fighters:2}
+  {mapVersion:11}
  ])assert.equal(actionHomeReservePolicy({...base,...testInput}),4,
   'guard quota must be preserved under '+JSON.stringify(testInput));
+ assert.equal(actionHomeReservePolicy({...base,fighters:2}),2,
+  'a two-fighter army never fabricates or releases nonexistent guards');
  const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
  assert.match(ai,/const actionReserve=actionHomeReservePolicy/);
  assert.match(ai,/\.slice\(0,actionReserve\)\.map\(u=>u\.id\)/);
