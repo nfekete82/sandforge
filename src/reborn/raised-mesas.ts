@@ -73,8 +73,12 @@ export function raisedMesaRouteWaypoint(
    (from.y-mesa.center.y)*goalVector.y>0;
   const leaving=!targetOnTop&&(onTop||
    startRadius<=mesa.footRadius+85&&towardGoal);
+  // Inbound: preserve the current ramp. On the summit, however, the
+  // incoming ramp is on the WRONG side of an across-mesa destination.
+  // Outbound: switch to the target-side exit once, then keep that corridor.
+  const stayInCurrentRamp=!leaving||towardGoal;
   candidates.sort((a,b)=>
-   (a.inside===b.inside?0:a.inside?-1:1)||
+   (stayInCurrentRamp?(a.inside===b.inside?0:a.inside?-1:1):0)||
    (leaving?d(a.outer,goal)-d(b.outer,goal):
     d(a.outer,from)-d(b.outer,from))||
    d(a.inner,goal)-d(b.inner,goal));
