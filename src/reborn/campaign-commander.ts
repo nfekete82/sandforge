@@ -9,7 +9,7 @@ import {replanAfterLoss} from './ai25-doctrine.js';
 import {publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {ai43KeepKnownHqMission} from './ai43-hq-breakthrough.js';
 import {actionPublicFrontPressure} from './action-balance.js';
-import {rankPublicFronts} from './map-intelligence.js';
+import {rankPublicFronts,type PublicSector} from './map-intelligence.js';
 
 export type CampaignPhase='opening'|'expansion'|'buildup'|'offensive'|'siege'|'endgame'|'emergencyDefense';
 export interface WarMission extends Point {kind:'capture'|'structure'|'hunt';sector:number;objective:number|null;since:number;progressAt:number;distance:number;hp:number}
@@ -73,7 +73,7 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  // Action-only contact lane: sectors are PUBLIC owner colors, not hidden
  // enemy unit coordinates. Scout memory may exclude known HQ/turrets;
  // unobserved forces are never inspected for this decision.
- const actionFront=(t:typeof g.territories[number])=>
+ const actionFront=(t:PublicSector)=>
   t.owner!==1&&(
    t.owner===0&&t.neighbors.some(id=>g.territories[id]?.owner===1)||
    t.owner===-1&&t.neighbors.some(id=>g.territories[id]?.owner===0)
