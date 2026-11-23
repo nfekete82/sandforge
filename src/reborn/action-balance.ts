@@ -40,8 +40,12 @@ export const actionBastionProbePolicy=(x:{
  const threatenedFrontier=(x.frontierEnemy??0)>0;
  const counter=x.time>=50&&x.available>=4&&(
    x.blue-x.red>=2&&x.blue>=3||
-   threatenedFrontier&&x.blue>x.red);
- return {slots:x.available>=4?2:1,counter};
+   // Challenge a publicly owned Bastion next to our territory even when
+   // RED is ahead. Otherwise large maps become parallel neutral land-grabs.
+   threatenedFrontier&&x.blue>0);
+ // Reserve at least two real troops for the base and other commanders.
+ const slots=x.available>=9?4:x.available>=6?3:x.available>=4?2:1;
+ return {slots,counter};
 };
 /** Lower wins. Frontline bias keeps early forces fighting for a shared
  * reachable objective rather than wandering towards far-away neutral income.
@@ -55,4 +59,16 @@ export function actionBastionGoalScore(x:{
   -(x.counter&&x.owner===0?480:0)
   -(x.frontierRed?250:0)
   +(x.frontierBlue&&!x.frontierRed?75:0);
+}
+
+/** A small Action detachment may fight one or two actually SEEN soldiers.
+ * Never rush known HQs/turrets, massed defenders or an observed HQ assault.
+ * Classic opening scouting keeps its historical zero-threat tolerance. */
+export function actionContestedBastionSafe(x:{
+ preset:BalancePreset;counter:boolean;available:number;visibleEnemies:number;
+ knownHq:boolean;knownTurret:boolean;
+}):boolean{
+ if(x.knownHq||x.knownTurret||x.visibleEnemies<0)return false;
+ if(x.visibleEnemies===0)return true;
+ return x.preset==='action'&&x.counter&&x.available>=4&&x.visibleEnemies<=2;
 }
