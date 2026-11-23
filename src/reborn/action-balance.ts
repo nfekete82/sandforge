@@ -150,3 +150,18 @@ export function actionEarlyArmyBeforeInfrastructure(x:{
  return x.preset==='action'&&x.time>=12&&x.time<=150&&
   x.barracksReady&&x.fighters<6&&!x.underAttack&&!x.observedSiege;
 }
+
+/** Public front pressure instead of omniscient chase. A verified route to
+ * a BLUE-facing Bastion is the only valid early diversion from a neutral
+ * mission; enemy units and buildings are considered only if truly observed.
+ * Do not interrupt active fire, urgent HQ defense or a nearly-held objective. */
+export function actionPublicFrontPressure(x:{
+ preset:BalancePreset;time:number;blueOwned:number;available:number;
+ oldKind:string|null;oldNeutral:boolean;oldMissionSeconds:number;
+ oldCaptureOccupied:boolean;activeAssault:boolean;homeThreat:boolean;
+}):boolean{
+ return x.preset==='action'&&x.time>=65&&x.time<=215&&
+  x.blueOwned>=2&&x.available>=3&&
+  x.oldKind==='capture'&&x.oldNeutral&&x.oldMissionSeconds>=15&&
+  !x.oldCaptureOccupied&&!x.activeAssault&&!x.homeThreat;
+}
