@@ -9,7 +9,7 @@ const make=(id,owner,x,neighbors,income=20)=>({
 });
 const sectors=[
  make(0,1,0,[1,2]),make(1,-1,110,[0,3]),
- make(2,-1,210,[0,3]),make(3,0,350,[1,2,4]),
+ make(2,-1,210,[0,3]),make(3,0,350,[0,1,2,4]),
  make(4,0,470,[3])
 ];
 const origin={x:0,y:100};
