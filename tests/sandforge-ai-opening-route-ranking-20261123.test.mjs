@@ -1,46 +1,16 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {openingCaptureRouteLength,openingCaptureRouteScore,openingCaptureDecisionDistance}
+import {openingCaptureRouteLength}
  from '../dist/src/reborn/ai33-map-doctrine.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 
-test('an apparently close cliff Bastion loses to a genuinely short open route',()=>{
- const scout={x:0,y:0};
- const closeBehindCliff={x:100,y:0};
- const longerOpen={x:300,y:0};
- const cliffPath=[{x:0,y:900},{x:100,y:900},closeBehindCliff];
- const openPath=[longerOpen];
- const cliff=openingCaptureRouteLength(scout,closeBehindCliff,cliffPath,50);
- const open=openingCaptureRouteLength(scout,longerOpen,openPath,50);
- assert.ok(cliff>open);
- const score=(distance)=>openingCaptureRouteScore({
-  distance,income:15,enemyOwned:false,aggressiveRecapture:false
- });
- assert.ok(score(open)<score(cliff));
- assert.ok(score(openingCaptureDecisionDistance(100,cliff,50))>
-  score(openingCaptureDecisionDistance(300,open,50)),
-  'extreme cliff detour must still override misleading short air distance');
- assert.equal(openingCaptureDecisionDistance(200,350,50),200,
-  'ordinary small route bends must not change Bastion priorities');
- assert.equal(openingCaptureDecisionDistance(300,720,50),520,
-  'longer-than-four-cell detours carry only their meaningful excess');
- assert.ok(score(Math.hypot(100,0))<score(300),
-  'old Euclidean scoring would pick the wrong distant mountain route');
-});
-test('incomplete, empty and nonfinite A* paths are rejected',()=>{
- const from={x:100,y:100},target={x:2000,y:150};
- assert.equal(openingCaptureRouteLength(from,target,[],45),Infinity);
- assert.equal(openingCaptureRouteLength(from,target,[{x:400,y:150}],45),Infinity);
- assert.equal(openingCaptureRouteLength(from,target,[{x:NaN,y:150}],45),Infinity);
- assert.equal(openingCaptureRouteLength(from,{x:200,y:100},[{x:180,y:100}],45),80);
-});
-test('public recapture priority and high-income neutral priority are preserved',()=>{
- const rank=(distance,income,enemyOwned,aggressiveRecapture)=>
-  openingCaptureRouteScore({distance,income,enemyOwned,aggressiveRecapture});
- assert.equal(rank(900,20,true,true),40);
- assert.equal(rank(900,20,false,true),740);
- assert.equal(rank(900,20,true,false),740);
- assert.ok(rank(700,35,false,false)<rank(700,10,false,false));
+test('complete physical paths have measurable length; partial routes cannot justify an opening capture',()=>{
+ const scout={x:0,y:0},goal={x:100,y:0};
+ assert.equal(openingCaptureRouteLength(scout,goal,[{x:0,y:900},{x:100,y:900},goal],50),1900);
+ assert.equal(openingCaptureRouteLength(scout,goal,[],50),Infinity);
+ assert.equal(openingCaptureRouteLength(scout,goal,[{x:1,y:1}],50),Infinity);
+ assert.equal(openingCaptureRouteLength(scout,goal,[{x:NaN,y:0}],50),Infinity);
+ assert.equal(openingCaptureRouteLength(scout,goal,[goal],50),100);
 });
 test('real seeded modern opening still reserves a paid reachable infantry scout',()=>{
  const g=Simulation.campaign(9999,24,'oasis',10);
@@ -54,4 +24,40 @@ test('real seeded modern opening still reserves a paid reachable infantry scout'
  const order=scout.orders[0];
  assert.equal(order?.kind,'attackMove');
  assert.ok(Math.hypot(order.x-site.point.x,order.y-site.point.y)<125);
+});
+test('two-soldier Bastion opening does not repeat identical A* candidate searches',()=>{
+ const g=Simulation.campaign(9999,24,'oasis',10);
+ g.time=3;
+ const red=g.units.find(u=>u.owner===1&&u.kind==='infantry'&&u.hp>0);
+ assert.ok(red);
+ // Real paid units only; the test uses spawn for the fixture, not in gameplay.
+ g.spawn(1,{x:red.x+45,y:red.y+30},'infantry');
+ g.spawn(1,{x:red.x+55,y:red.y+45},'infantry');
+ const calls=new Map(),original=g.world.path.bind(g.world);
+ g.world.path=(from,to,...args)=>{
+  const key=[Math.round(from.x),Math.round(from.y),Math.round(to.x),Math.round(to.y)].join(':');
+  calls.set(key,(calls.get(key)??0)+1);
+  return original(from,to,...args);
+ };
+ g.tactical.contestOpeningBastions();
+ assert.ok(calls.size>0,'must check real reachable front');
+ assert.ok([...calls.values()].every(count=>count===1),
+  'a two-member capture squad repeated a costly identical A* search');
+});
+test('a modern paid rover scout receives a vehicle-grade path, not a cliff-bypassing infantry route',()=>{
+ const g=Simulation.campaign(9999,24,'oasis',10);
+ g.time=3;
+ g.units=g.units.filter(u=>u.owner!==1||u.kind==='engineer');
+ const worker=g.units.find(u=>u.owner===1);
+ assert.ok(worker);
+ g.spawn(1,{x:worker.x+75,y:worker.y+80},'rover');
+ const requested=[],original=g.world.path.bind(g.world);
+ g.world.path=(from,to,...args)=>{
+  if(from.kind==='rover')requested.push(args[6]);
+  return original(from,to,...args);
+ };
+ g.tactical.contestOpeningBastions();
+ assert.ok(requested.length>0);
+ assert.ok(requested.every(x=>x===.195),
+  'physical tank/rover grade must be checked by all opening routes');
 });
