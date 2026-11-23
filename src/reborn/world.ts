@@ -375,10 +375,10 @@ export class World {
    * approach segment for moving units, or [] for strategic reachability checks.
    * Expansion counts, not wall-clock timing, keep multiplayer/replays
    * deterministic across machines. Legacy map versions remain unchanged. */
-  path(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false,maxSlope=Infinity): Point[] {
-    if(!profiler&&!this.profilePaths)return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial,maxSlope);
+  path(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false,maxSlope=Infinity,mesaLane=0): Point[] {
+    if(!profiler&&!this.profilePaths)return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial,maxSlope,mesaLane);
     const at=performance.now();this.pathNodes=0;
-    try{return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial,maxSlope);}
+    try{return this.findPath(start,target,obstacles,clearance,risk,air,exact,allowPartial,maxSlope,mesaLane);}
     finally{
       const ms=performance.now()-at;
       if(this.profilePaths){
@@ -418,7 +418,7 @@ export class World {
     return feasible;
   }
 
-  private findPath(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false,maxSlope=Infinity): Point[] {
+  private findPath(start: Point, target: Point, obstacles: {x:number;y:number;radius:number}[]=[],clearance=0,risk?:Float32Array,air=false,exact=false,allowPartial=false,maxSlope=Infinity,mesaLane=0): Point[] {
     const precise=exact&&this.mapVersion>=3&&!air;
     const walk=(p:Point)=>air?(p.x>=10&&p.y>=10&&p.x<=this.size-10&&p.y<=this.size-10):this.walkable(p,obstacles,clearance)&&this.groundVehicleSlopeSafe(p,maxSlope,clearance+10);
     const line=(a:Point,b:Point)=>air?walk(a)&&walk(b):precise
@@ -473,7 +473,7 @@ export class World {
      this.generated?.plateaus?.length
       ?raisedMesaRouteWaypoint(start,target,this.generated.plateaus,
        p=>this.walkable(p,obstacles,clearance)&&
-        this.groundVehicleSlopeSafe(p,maxSlope,clearance+10))
+        this.groundVehicleSlopeSafe(p,maxSlope,clearance+10),mesaLane)
       :undefined;
     const routingTarget=pass??mesaWaypoint??target;
     const end=air?{x:Math.max(10,Math.min(this.size-10,target.x)),y:Math.max(10,Math.min(this.size-10,target.y))}:this.nearest(routingTarget,obstacles,[],start,clearance,maxSlope);
