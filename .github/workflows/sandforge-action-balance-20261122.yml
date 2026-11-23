@@ -73,3 +73,33 @@ jobs:
           path: reports/sandforge-action-${{ matrix.map }}.json
           if-no-files-found: warn
           retention-days: 30
+
+  burning-extended-contact:
+    name: "Burning Horizon · 300s real ground contact"
+    needs: action-regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build deterministic battle simulator
+        run: npm run build
+      - name: Extended genuine ground combat window · Classic vs Action
+        env:
+          ACTION_BENCHMARK_SECONDS: '300'
+          ACTION_BENCHMARK_MAPS: burning-horizon
+        run: node scripts/benchmark-sandforge-action-20261122.mjs reports/burning-horizon-300s.json
+      - name: Upload extended ground combat metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-action-burning-horizon-300s
+          path: reports/burning-horizon-300s.json
+          if-no-files-found: warn
+          retention-days: 30
