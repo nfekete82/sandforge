@@ -10,6 +10,7 @@ on:
       - feat/ai-action-rally-diagnostics-20261123
       - feat/ai-action-small-forward-squads-20261123
       - feat/ai-action-contact-diagnostics-20261123
+      - feat/ai-action-early-neutral-meeting-front-20261123
       - feat/ai-action-public-front-pressure-20261123
   workflow_dispatch:
 permissions:
@@ -36,7 +37,8 @@ jobs:
         run: |
           node --test \
             tests/sandforge-action-balance-20261122.test.mjs \
-            tests/sandforge-desert-strike-integrated-cliff-pbr-20261122.test.mjs
+            tests/sandforge-desert-strike-integrated-cliff-pbr-20261122.test.mjs \
+            tests/sandforge-universal-map-intelligence-20261123.test.mjs
   action-map-pacing:
     name: "${{ matrix.map }} · Classic vs Action"
     needs: action-regressions
@@ -102,5 +104,58 @@ jobs:
         with:
           name: sandforge-action-burning-horizon-300s
           path: reports/burning-horizon-300s.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  universal-seed-regressions:
+    name: "${{ matrix.map }} · seed ${{ matrix.seed }} · ${{ matrix.opponent }}"
+    needs: action-regressions
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {map: desert-strike, seed: 4101, opponent: rush, seconds: 120}
+          - {map: broken-empire, seed: 4102, opponent: contest, seconds: 120}
+          - {map: burning-horizon, seed: 4103, opponent: rush, seconds: 120}
+          - {map: last-stronghold, seed: 4104, opponent: contest, seconds: 120}
+          # User-run batch revealed a territorial regression at this orientation.
+          - {map: desert-strike, seed: 4102, opponent: rush, seconds: 180}
+          # User-run batch revealed no real ground combat within 180s.
+          - {map: burning-horizon, seed: 4102, opponent: contest, seconds: 180}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build seeded battlefield and AI
+        run: npm run build
+      - name: Paid armies on an UNSEEN procedural seed and start corner
+        env:
+          ACTION_BENCHMARK_SECONDS: "${{ matrix.seconds }}"
+          ACTION_BENCHMARK_MAPS: "${{ matrix.map }}"
+          ACTION_BENCHMARK_SEEDS: "${{ matrix.seed }}"
+          ACTION_BENCHMARK_OPPONENT: "${{ matrix.opponent }}"
+        run: node scripts/benchmark-sandforge-action-20261122.mjs reports/universal-ai-${{ matrix.map }}-${{ matrix.seed }}.json
+      - name: Verify batch evaluator and end-of-game summary on a smoke match
+        if: matrix.map == 'desert-strike' && matrix.seed == 4101
+        env:
+          UNIVERSAL_AI_SECONDS: '60'
+          UNIVERSAL_AI_MAPS: desert-strike
+          UNIVERSAL_AI_SEEDS: '4101'
+          UNIVERSAL_AI_OPPONENTS: contest
+          UNIVERSAL_AI_REPORT: reports/universal-ai-batch-smoke.json
+        run: node scripts/benchmark-sandforge-ai-generalization-20261123.mjs
+      - name: Upload real seeded-map results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-ai-${{ matrix.map }}-${{ matrix.seed }}
+          path: reports/universal-ai-${{ matrix.map }}-${{ matrix.seed }}.json
           if-no-files-found: warn
           retention-days: 30
