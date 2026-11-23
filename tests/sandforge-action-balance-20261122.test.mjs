@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -249,4 +249,26 @@ test('Action reuses paid scouts after capture without launching solo assaults',(
  assert.match(ai,/const count=actionOpening\? actionOpeningHandoffSize/);
  assert.match(ai,/g\.world\.path\(u,p,blockers,5\)/,'all follow-on orders need actual A* paths');
  assert.match(ai,/if\(maxAssigned-s\.openingContests\.length<count\)break/);
+});
+
+test('Action forward rally is restricted to real safe neutral captures',()=>{
+ const base={preset:'action',mapVersion:26,generatorVersion:10,
+  time:90,missionKind:'capture',targetOwner:-1,phase:'gather',
+  available:5,observedHomePressure:false,knownThreats:0};
+ assert.equal(actionForwardRallyPolicy(base),true);
+ assert.equal(actionForwardRallyPolicy({...base,preset:'classic'}),false);
+ assert.equal(actionForwardRallyPolicy({...base,missionKind:'structure'}),false);
+ assert.equal(actionForwardRallyPolicy({...base,targetOwner:0}),false);
+ assert.equal(actionForwardRallyPolicy({...base,phase:'attack'}),false);
+ assert.equal(actionForwardRallyPolicy({...base,phase:'defend'}),false);
+ assert.equal(actionForwardRallyPolicy({...base,available:2}),false);
+ assert.equal(actionForwardRallyPolicy({...base,observedHomePressure:true}),false);
+ assert.equal(actionForwardRallyPolicy({...base,knownThreats:1}),false);
+ assert.equal(actionForwardRallyPolicy({...base,mapVersion:11}),false);
+ const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(ai,/mission\.since!==this\.actionForwardRallyMissionSince/);
+ assert.match(ai,/this\.actionForwardRallyRetryAt=g\.time\+18/);
+ assert.match(ai,/reachableCluster\.length<3/);
+ assert.match(ai,/g\.world\.path\(candidate,at,obstacles,5\)\.length>0/);
+ assert.match(ai,/g\.world\.walkable\(candidate,obstacles,10\)/);
 });
