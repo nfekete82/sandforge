@@ -343,7 +343,8 @@ test('Action only redirects a neutral mission to a PUBLIC BLUE-facing front',()=
  assert.match(commander,/!buildings\.some\(b=>b\.kind==='headquarters'/);
  assert.match(commander,/g\.canSee\(1,u\)/);
  assert.match(commander,/meet\.route|meet\.t\.point/);
- assert.match(commander,/v\.route\.length<4700&&v\.route\.risk<8/);
+ assert.match(commander,/rankPublicFronts\(/);
+ assert.match(commander,/knownThreat:t=>!actionFront\(t\)/);
 });
 
 test('Real contact protects firefights, not an ordinary attack-move march',()=>{
@@ -359,9 +360,10 @@ test('Real contact protects firefights, not an ordinary attack-move march',()=>{
 
 test('Early public pressure never raids the only BLUE-held home sector',()=>{
  const s=readFileSync('src/reborn/campaign-commander.ts','utf8');
- assert.match(s,/blueOwned>=2\|\|t\.owner===-1/);
+ assert.match(s,/rankPublicFronts\(/);
+ assert.match(s,/worldSize:g\.world\.size/);
  assert.match(s,/!buildings\.some\(b=>b\.kind==='headquarters'/);
- assert.match(s,/v\.route\.length<4700&&v\.route\.risk<8/);
+ assert.match(s,/knownThreat:t=>!actionFront\(t\)/);
  const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
  assert.match(ai,/firstRerouteAt\?\?=g\.time/);
 });
