@@ -13,7 +13,8 @@ import {resolve,dirname} from 'node:path';
 import './webgl-desert-maps.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {unitSpec,canAttack} from '../dist/src/reborn/catalog.js';
-import {blueBastionRush} from './benchmark-ai-opponent.mjs';
+import {blueBastionRush,blueContest} from './benchmark-ai-opponent.mjs';
+import {campaignLayout} from '../dist/src/reborn/config.js';
 
 const ALL_MAP_IDS=['desert-strike','broken-empire','burning-horizon','last-stronghold'];
 const MAP_IDS=(process.env.ACTION_BENCHMARK_MAPS||ALL_MAP_IDS.join(','))
@@ -21,14 +22,30 @@ const MAP_IDS=(process.env.ACTION_BENCHMARK_MAPS||ALL_MAP_IDS.join(','))
 if(!MAP_IDS.length||MAP_IDS.some(id=>!ALL_MAP_IDS.includes(id))||
  new Set(MAP_IDS).size!==MAP_IDS.length)throw Error('Invalid Action benchmark map selection');
 const SECONDS=Math.min(1200,Math.max(60,Number(process.env.ACTION_BENCHMARK_SECONDS)||360));
+const RANDOM_SEEDS=(process.env.ACTION_BENCHMARK_SEEDS??'').split(',')
+ .map(s=>s.trim()).filter(Boolean).map(Number);
+if(RANDOM_SEEDS.some(seed=>!Number.isInteger(seed)||seed<1||seed>4294967295)||
+ RANDOM_SEEDS.length>8||new Set(RANDOM_SEEDS).size!==RANDOM_SEEDS.length)
+ throw Error('ACTION_BENCHMARK_SEEDS must be 1-8 unique uint32 integers');
+const OPPONENT=process.env.ACTION_BENCHMARK_OPPONENT??'rush';
+if(!['rush','contest'].includes(OPPONENT))
+ throw Error('ACTION_BENCHMARK_OPPONENT must be rush or contest');
+const blueOpponent=OPPONENT==='contest'?blueContest:blueBastionRush;
 const OUTPUT=resolve(process.argv[2]??'reports/sandforge-action-pacing-20261122.json');
-const maps=MAP_IDS.map(id=>{
+const maps=MAP_IDS.flatMap(id=>{
  const m=globalThis.SandforgeDesertMaps.byId(id);
  if(!m)throw Error('Missing authored desert map '+id);
- return m;
+ // Retain canonical fixed seeds by default. Only an explicit benchmark
+ // override explores procedurally new terrain and independent start corners.
+ return (RANDOM_SEEDS.length?RANDOM_SEEDS:[m.seed]).map(seed=>({
+  ...m,seed,scenario:RANDOM_SEEDS.length?id+'@'+seed:id
+ }));
 });
 const report={schema:'sandforge-action-pacing-v1',elapsedTargetSeconds:SECONDS,
- modes:['classic','action'],maps:MAP_IDS,complete:false,
+ modes:['classic','action'],maps:MAP_IDS,opponent:OPPONENT,
+ scenarios:maps.map(m=>({id:m.scenario,map:m.id,seed:m.seed,
+  mapVersion:m.mapVersion,terrain:m.terrain})),
+ complete:false,
  caveat:'CI checks early-game tactical pacing. A 15–20-minute game is a target, not a guarantee.',
  rows:[],pairs:[]};
 const save=()=>{mkdirSync(dirname(OUTPUT),{recursive:true});writeFileSync(OUTPUT,JSON.stringify(report,null,2)+'\n')};
@@ -51,10 +68,15 @@ function run(map,preset){
  g.configureBalancePreset(preset);
  const initial={seed:g.seed,mapVersion:g.world.mapVersion,
   generatorVersion:g.world.generatorVersion,bastions:g.territories.length,
+  startCornerIds:campaignLayout(map.mapVersion,map.seed).headquarters,
+  actualStarts:g.startRegions.map(s=>({
+   x:Number(s.center.x.toFixed(2)),y:Number(s.center.y.toFixed(2))
+  })),
   blueCredits:g.credits[0],redCredits:g.credits[1],
   blueCombat:g.units.filter(u=>u.owner===0&&u.kind==='infantry').length,
   redCombat:g.units.filter(u=>u.owner===1&&u.kind==='infantry').length};
- const metrics={map:map.id,preset,initial,seconds:0,status:'playing',
+ const metrics={map:map.id,scenario:map.scenario,seed:map.seed,
+  opponent:OPPONENT,preset,initial,seconds:0,status:'playing',
   firstBlueHQOrder:null,firstBlueHQFinished:null,firstBlueBarracksFinished:null,
   firstRedHQFinished:null,firstRedAttackPhase:null,
   firstExchange:null,firstFireByFaction:[null,null],
@@ -114,7 +136,7 @@ function run(map,preset){
  for(let i=0;i<steps&&g.status==='playing';i++){
   if(i%60===0){
    if(paidBlueHeadquarters(g))metrics.firstBlueHQOrder??=Number(g.time.toFixed(2));
-   blueBastionRush(g);
+   blueOpponent(g);
   }
   const beforeContests=(g.tactical.state.openingContests??[]).map(e=>({
    unitId:e.unitId,sectorId:e.sectorId
@@ -305,9 +327,13 @@ for(const map of maps){
     a.initial.generatorVersion!==b.initial.generatorVersion||
     a.initial.bastions!==b.initial.bastions||
     a.initial.blueCombat!==b.initial.blueCombat||
-    a.initial.redCombat!==b.initial.redCombat)
-  throw Error('Mismatched fixed map / paid initial unit composition '+map.id);
- report.pairs.push({map:map.id,firstExchangeDelta:
+    a.initial.redCombat!==b.initial.redCombat||
+    JSON.stringify(a.initial.startCornerIds)!==JSON.stringify(b.initial.startCornerIds)||
+    JSON.stringify(a.initial.actualStarts)!==JSON.stringify(b.initial.actualStarts))
+  throw Error('Mismatched seed, starting corners or paid initial armies '+map.scenario);
+ report.pairs.push({map:map.id,scenario:map.scenario,
+  seed:map.seed,startCorners:a.initial.startCornerIds,
+  opponent:OPPONENT,firstExchangeDelta:
   b.firstExchange===null||a.firstExchange===null?null:
   Number((b.firstExchange-a.firstExchange).toFixed(2)),
   // "firstExchange" remains backward-compatible but also includes
