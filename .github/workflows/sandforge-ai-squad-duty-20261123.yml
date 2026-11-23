@@ -1,0 +1,29 @@
+name: Sandforge Squad Roles - deterministic AI arbitration
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ai-duty-arbitration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile the actual Sandforge RTS
+        run: npm run build
+      - name: Test exclusive unit orders, tactical AI, HQ and campaigns
+        run: |
+          node --test \
+            tests/sandforge-squad-duty-arbiter-20261123.test.mjs \
+            tests/reborn-tactical-ai.test.mjs \
+            tests/reborn-campaign.test.mjs
