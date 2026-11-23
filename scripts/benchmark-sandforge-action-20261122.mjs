@@ -62,6 +62,11 @@ function run(map,preset){
   firstRedCapture:null,firstBlueCapture:null,
   redArmyPeak:0,blueArmyPeak:0,
   redIdleUnitSeconds:0,redCombatUnitSeconds:0,
+  redIdleHeldSeconds:0,redIdleHomeSeconds:0,
+  redIdleCapturedBastionSeconds:0,redIdleOpeningSeconds:0,
+  redIdleCampaignSeconds:0,redIdleRecoveringSeconds:0,
+  redIdleUnassignedSeconds:0,redIdleByKind:{},
+  redPhaseSeconds:{gather:0,attack:0,regroup:0,defend:0},
   capturedScoutHandoffsEligible:0,capturedScoutHandoffsCompleted:0,
   capturedScoutHandoffSeconds:0,capturedScoutHandoffsLost:0,
   redAttackPhaseSeconds:0,redProduced:0,blueProduced:0,
@@ -93,8 +98,28 @@ function run(map,preset){
   metrics.redArmyPeak=Math.max(metrics.redArmyPeak,red.length);
   metrics.blueArmyPeak=Math.max(metrics.blueArmyPeak,blue.length);
   if(g.tactical.state.phase==='attack')metrics.redAttackPhaseSeconds+=dt;
-  metrics.redIdleUnitSeconds+=red.filter(u=>!u.orders.length&&!u.moving).length*dt;
+  // Attribute physical idle time without guessing hidden intent. Counts
+  // overlap by design: home guards can also be unassigned and holding.
+  const idle=red.filter(u=>!u.orders.length&&!u.moving);
+  metrics.redIdleUnitSeconds+=idle.length*dt;
   metrics.redCombatUnitSeconds+=red.length*dt;
+  metrics.redPhaseSeconds[g.tactical.state.phase]+=dt;
+  const redHQ=g.bases.find(b=>b.owner===1&&b.kind==='headquarters'&&b.hp>0);
+  const opening=new Set((g.tactical.state.openingContests??[]).map(e=>e.unitId));
+  const campaign=new Set(g.tactical.state.group);
+  const recovery=new Set(g.tactical.state.recovering??[]);
+  for(const u of idle){
+   if(u.hold)metrics.redIdleHeldSeconds+=dt;
+   if(redHQ&&length(u,redHQ)<550)metrics.redIdleHomeSeconds+=dt;
+   if(g.territories.some(t=>t.owner===1&&length(u,t.point)<150))
+    metrics.redIdleCapturedBastionSeconds+=dt;
+   if(opening.has(u.id))metrics.redIdleOpeningSeconds+=dt;
+   if(campaign.has(u.id))metrics.redIdleCampaignSeconds+=dt;
+   if(recovery.has(u.id))metrics.redIdleRecoveringSeconds+=dt;
+   if(!opening.has(u.id)&&!campaign.has(u.id)&&!recovery.has(u.id))
+    metrics.redIdleUnassignedSeconds+=dt;
+   metrics.redIdleByKind[u.kind]=(metrics.redIdleByKind[u.kind]??0)+dt;
+  }
   // Every damage-dealing event is counted once, even if the visual tracer
   // persists over several frames. No fabricated "first fight" timestamp.
   let fireThisFrame=false,blueFired=false;
@@ -167,6 +192,15 @@ function run(map,preset){
  metrics.outcome=g.status==='playing'?'time-limit':g.status;
  metrics.redIdleFraction=metrics.redCombatUnitSeconds?
   Number((metrics.redIdleUnitSeconds/metrics.redCombatUnitSeconds).toFixed(3)):null;
+ for(const k of ['redIdleHeldSeconds','redIdleHomeSeconds',
+  'redIdleCapturedBastionSeconds','redIdleOpeningSeconds',
+  'redIdleCampaignSeconds','redIdleRecoveringSeconds',
+  'redIdleUnassignedSeconds'])
+  metrics[k]=Number(metrics[k].toFixed(1));
+ metrics.redIdleByKind=Object.fromEntries(Object.entries(metrics.redIdleByKind)
+  .map(([kind,seconds])=>[kind,Number(seconds.toFixed(1))]));
+ metrics.redPhaseSeconds=Object.fromEntries(Object.entries(metrics.redPhaseSeconds)
+  .map(([phase,seconds])=>[phase,Number(seconds.toFixed(1))]));
  metrics.redCaptureSeconds=Number(metrics.redCaptureSeconds.toFixed(1));
  metrics.redAttackPhaseSeconds=Number(metrics.redAttackPhaseSeconds.toFixed(1));
  metrics.engagementSeconds=Number(metrics.engagementSeconds.toFixed(2));
