@@ -88,13 +88,13 @@ test('four participants never share credits, technology, fog, memory or bot time
  grantFactionIncome(states,3,100);
  states[1].visible[4]=1;
  states[2].explored[4]=1;
- states[3].research.completed.push('armor');
+ states[3].research.completed.push('armor1');
  states[3].memories.push({id:9,owner:0,x:15,y:30,seenAt:10});
  states[3].aiClock=24;
  assert.deepEqual(states.map(x=>x.credits),[750,950,950,1050]);
  assert.deepEqual(states.map(x=>x.visible[4]),[0,1,0,0]);
  assert.deepEqual(states.map(x=>x.explored[4]),[0,0,1,0]);
- assert.deepEqual(states.map(x=>x.research.completed),[[],[],[],['armor']]);
+ assert.deepEqual(states.map(x=>x.research.completed),[[],[],[],['armor1']]);
  assert.deepEqual(states.map(x=>x.memories.length),[0,0,0,1]);
  assert.deepEqual(states.map(x=>x.aiClock),[0,0,0,24]);
  assert.throws(()=>spendFactionCredits(states,0,-1),/credit/);
