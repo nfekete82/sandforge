@@ -11,6 +11,7 @@ on:
       - feat/ai-action-small-forward-squads-20261123
       - feat/ai-action-contact-diagnostics-20261123
       - feat/ai-action-early-neutral-meeting-front-20261123
+      - feat/ai-universal-public-map-intelligence-20261123
       - feat/ai-action-public-front-pressure-20261123
   workflow_dispatch:
 permissions:
@@ -157,5 +158,37 @@ jobs:
         with:
           name: universal-ai-${{ matrix.map }}-${{ matrix.seed }}
           path: reports/universal-ai-${{ matrix.map }}-${{ matrix.seed }}.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  territory-regression-600:
+    name: "Desert Strike 4102 Rush · 600s Bastion control"
+    needs: action-regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build deterministic universal director
+        run: npm run build
+      - name: 600 simulated seconds · both paid factions · identical seed
+        env:
+          ACTION_BENCHMARK_SECONDS: '600'
+          ACTION_BENCHMARK_MAPS: desert-strike
+          ACTION_BENCHMARK_SEEDS: '4102'
+          ACTION_BENCHMARK_OPPONENT: rush
+        run: node scripts/benchmark-sandforge-action-20261122.mjs reports/action-territory-desert-4102-600s.json
+      - name: Publish exact combat and public Bastion ownership results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: action-territory-desert-4102-600s
+          path: reports/action-territory-desert-4102-600s.json
           if-no-files-found: warn
           retention-days: 30
