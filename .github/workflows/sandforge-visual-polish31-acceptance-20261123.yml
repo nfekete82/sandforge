@@ -1,19 +1,10 @@
 name: Sandforge · Visual Polish 3.1 paired A/B + 60 vehicle stress
+# Heavy 600-frame/60-vehicle software-render runs are opt-in, not a
+# mandatory PR check. Repeated automatic attempts saturated Actions runners
+# and cannot establish native Apple Metal GPU 1%-lows anyway.
+# Native acceptance is documented in the visual-polish31 QA readme.
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - scripts/qa-visual-polish31.mjs
-      - scripts/compare-visual-polish31-acceptance.mjs
-      - scripts/report-visual-polish31-spikes.mjs
-      - scripts/webgl-actor-presentation.js
-      - scripts/webgl-battlefield.js
-      - scripts/webgl-building-pbr.js
-      - scripts/webgl-building-shading.js
-      - scripts/webgl-combat-vfx.js
-      - scripts/webgl-vehicle-polish.js
-      - scripts/webgl-particle-finish.js
-      - .github/workflows/sandforge-visual-polish31-acceptance-20261123.yml
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
