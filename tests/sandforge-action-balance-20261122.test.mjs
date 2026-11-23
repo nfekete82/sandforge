@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -274,4 +274,26 @@ test('Action forward rally is restricted to real safe neutral captures',()=>{
  assert.match(ai,/distance\(leader,mission\)\+80>=distance\(s\.rally,mission\)/);
  assert.match(ai,/g\.world\.path\(candidate,at,obstacles,5\)\.length>0/);
  assert.match(ai,/g\.world\.walkable\(candidate,obstacles,10\)/);
+});
+
+test('Action keeps a real HQ guard while freeing surplus opening reserves',()=>{
+ const base={preset:'action',mapVersion:26,time:110,phase:'gather',
+  missionKind:'capture',defendedTarget:false,fighters:10,
+  normalReserve:4,homeMinimum:2,observedHomePressure:false,
+  knownThreats:0,recentLosses:0,recentFailures:0};
+ assert.equal(actionHomeReservePolicy(base),2);
+ assert.equal(actionHomeReservePolicy({...base,defendedTarget:true}),3);
+ assert.equal(actionHomeReservePolicy({...base,normalReserve:2}),2);
+ assert.equal(actionHomeReservePolicy({...base,fighters:4,normalReserve:2,homeMinimum:0}),1);
+ for(const testInput of [
+  {preset:'classic'},{missionKind:'structure'},{phase:'attack'},
+  {phase:'defend'},{observedHomePressure:true},{knownThreats:1},
+  {recentLosses:1},{recentFailures:1},{time:20},{time:300},
+  {mapVersion:11},{fighters:2}
+ ])assert.equal(actionHomeReservePolicy({...base,...testInput}),4,
+  'guard quota must be preserved under '+JSON.stringify(testInput));
+ const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(ai,/const actionReserve=actionHomeReservePolicy/);
+ assert.match(ai,/\.slice\(0,actionReserve\)\.map\(u=>u\.id\)/);
+ assert.match(ai,/homeGuardCapPulses\+\+/);
 });
