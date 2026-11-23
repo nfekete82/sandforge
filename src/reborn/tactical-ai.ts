@@ -217,7 +217,9 @@ export class TacticalAI {
   homeGuardCapPulses:0,homeGuardSlotPulsesFreed:0,
   homeReserveBlocks:{} as Record<string,number>,
   contactFront:{checked:0,eligible:0,rerouted:0,noRoute:0,
-   firstRerouteAt:null as number|null},
+   firstRerouteAt:null as number|null,
+   recoveryChecked:0,recoveryEligible:0,recoveryRerouted:0,
+   recoveryNoRoute:0,firstRecoveryAt:null as number|null},
   blocks:{} as Record<string,number>
  };
  /** Explicitly opt-in ONLY for headless benchmark observation. No saves. */
@@ -1756,6 +1758,13 @@ export class TacticalAI {
      d.firstRerouteAt??=g.time;
     }
     else if(reason==='no-route')d.noRoute++;
+    else if(reason==='recovery-checked')d.recoveryChecked++;
+    else if(reason==='recovery-eligible')d.recoveryEligible++;
+    else if(reason==='recovery-rerouted'){
+     d.recoveryRerouted++;
+     d.firstRecoveryAt??=g.time;
+    }
+    else if(reason==='recovery-no-route')d.recoveryNoRoute++;
    },
    experience,
    route:p=>{const route=this.route(origin,p);return route.length?this.sampleRoute(route,origin):undefined;},
