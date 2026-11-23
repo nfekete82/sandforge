@@ -87,3 +87,15 @@ export function selectReachableOpeningSquad<T>(
  }
  return squad.length===required?squad:[];
 }
+
+/** Action-only opening handoff. Reserve the normal opening slot cap:
+ * real counterattacks require a pair; a lone spare scout can ONLY visit
+ * a safe neutral Bastion (enforced by tactical target filtering).
+ * Classic never calls this helper. */
+export function actionOpeningHandoffSize(x:{
+ counter:boolean;slots:number;free:number
+}):0|1|2{
+ if(!Number.isInteger(x.slots)||!Number.isInteger(x.free)||
+  x.slots<1||x.free<1)return 0;
+ return x.counter&&x.slots>=2&&x.free>=2?2:1;
+}

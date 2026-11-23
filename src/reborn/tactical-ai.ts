@@ -37,7 +37,7 @@ import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
-import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,ACTION_BALANCE} from './action-balance.js';
+import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,ACTION_BALANCE} from './action-balance.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -2342,6 +2342,12 @@ export class TacticalAI {
    }
    approachCache.set(key,null);
   };
+  // Once a squad actually secures its objective, release its existing paid
+  // fighters for a follow-on mission. Preserve the original commanders'
+  // untouched orders on enemy threats and unfinished objectives.
+  const freshlySecured=actionOpening?new Set((s.openingContests??[])
+   .filter(e=>g.territories[e.sectorId]?.owner===1)
+   .map(e=>e.unitId)):new Set<number>();
   s.openingContests=(s.openingContests??[]).filter(e=>
    ready.some(u=>u.id===e.unitId)&&targets.some(t=>t.id===e.sectorId)&&
    !observedThreat(g.territories[e.sectorId])).slice(0,maxAssigned);
@@ -2386,14 +2392,23 @@ export class TacticalAI {
    if(p)g.command([u.id],{...p,kind:'attackMove'});
   }
   const free=assignable.filter(u=>!reserved.has(u.id));
+  if(actionOpening&&freshlySecured.size)free.sort((a,b)=>
+   Number(freshlySecured.has(b.id))-Number(freshlySecured.has(a.id))||a.id-b.id);
   // A counterattack requires two fighters who can both reach the SAME goal.
   // Selecting free[0]/free[1] first can silently discard an otherwise viable
   // front whenever one of those soldiers is trapped behind a plateau.
-  while(s.openingContests.length<maxAssigned&&free.length>=(counter?2:1)){
-   const count=counter?2:1;
+  while(s.openingContests.length<maxAssigned&&free.length){
+   const count=actionOpening? actionOpeningHandoffSize({
+    counter,slots:maxAssigned-s.openingContests.length,free:free.length
+   }):counter?2:1;
+   if(!count)break;
    if(maxAssigned-s.openingContests.length<count)break;
+   // A single leftover slot may scout an actually empty Bastion, but can
+   // NEVER be sent alone to fight a BLUE-held, possibly defended sector.
+   const soloNeutral=actionOpening&&counter&&count===1;
    const goals=targets.filter(t=>!observedThreat(t)&&
-     (!focusEnemyFront||t.owner===0)&&
+     (!soloNeutral||t.owner===-1)&&
+     (!focusEnemyFront||t.owner===0||soloNeutral)&&
      (counter||!s.openingContests!.some(e=>e.sectorId===t.id)))
     .map(t=>{
      const squad=actionOpening
