@@ -1,0 +1,26 @@
+name: Sandforge AI focused order-repeat diagnosis
+on:
+  pull_request:
+    branches:
+      - feat/ai-focused-bastion-control-20261123
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  one-match-order-trace:
+    name: 180s Broken Empire - exact same-order caller trace
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript and WebGL build
+        run: npm run build
+      - name: Trace one paid 180s scenario without changing behavior
+        run: node scripts/trace-focused-ai-order-repeats.mjs
