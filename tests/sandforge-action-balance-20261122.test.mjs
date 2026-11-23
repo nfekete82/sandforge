@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -205,8 +205,8 @@ test('Action early skirmish uses observed fighters and public frontlines, not un
  assert.equal(actionContestedBastionSafe({...observed,preset:'classic'}),false);
  assert.equal(actionContestedBastionSafe({...observed,visibleEnemies:0,preset:'classic'}),true);
  const tactical=readFileSync('src/reborn/tactical-ai.ts','utf8');
- assert.match(tactical,/ready\.slice\(1,5\)\.some\(u=>Boolean\(approach\(u,v\.t\)\)\)/,
-  'two independently path-validated paid fighters must reach the front');
+ assert.match(tactical,/selectReachableOpeningSquad\(assignable,2/,
+  'front pivot validates the actual assignable two-unit squad');
  assert.match(tactical,/focusEnemyFront&&!s\.openingContests\.some/,
   'retain existing neutral missions unless a safe frontline pivot is worthwhile');
  assert.match(tactical,/frontierBias=g\.territories\.length>=16\?420:120/,
@@ -217,4 +217,18 @@ test('Action early skirmish uses observed fighters and public frontlines, not un
   'after choosing a public front do not immediately retarget the same pair to neutral');
  assert.match(tactical,/if\(maxAssigned-s\.openingContests\.length<count\)break/,
   'never push a new two-fighter mission past the save cap');
+});
+
+test('Action front squad skips blocked first soldiers, keeps feasible two-person counterattack',()=>{
+ const paid=[{id:1},{id:2},{id:3},{id:4}];
+ const reachable=new Set([2,4]);
+ assert.deepEqual(selectReachableOpeningSquad(paid,2,u=>reachable.has(u.id)).map(u=>u.id),[2,4]);
+ assert.deepEqual(selectReachableOpeningSquad(paid,3,u=>reachable.has(u.id)),[]);
+ assert.deepEqual(selectReachableOpeningSquad(paid,1,u=>reachable.has(u.id)).map(u=>u.id),[2]);
+ assert.deepEqual(selectReachableOpeningSquad(paid,0,()=>true),[]);
+ const tactical=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(tactical,/const assignable=ready\.filter/);
+ assert.match(tactical,/const squad=actionOpening\s*\?selectReachableOpeningSquad\(free,count/);
+ assert.match(tactical,/approachCache\.has\(key\)/,'A* probes reused only within one planning pulse');
+ assert.match(tactical,/if\(!issued\)break/,'no infinite retry when command fails');
 });
