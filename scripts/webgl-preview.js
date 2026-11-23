@@ -996,7 +996,14 @@ $('load').onclick=()=>{
  const q=new URLSearchParams({bastions:$('bastions').value,seed:String(text===''?randomMapSeed():Number(text)>>>0),terrain:terrain.battlefield?.profile??'random',biome,
   landscape:world.generatorVersion===2?'classic':world.generatorVersion===3?'network-v3':'network'});
  if(game.balancePreset==='action')q.set('balance','action');
-if(desertMap&&Number(q.get('seed'))===desertMap.seed&&
+ if(sourceMapId&&[3,5,7].includes(Number(q.get('bastions')))){
+  const preset=globalThis.SandforgeDesertMaps?.byId(sourceMapId);
+  if(preset?.seed===Number(q.get('seed'))&&preset.terrain===q.get('terrain')){
+   q.set('sourceMap',sourceMapId);
+   if(world.mapVersion>=30)q.set('mapSize','original');
+  }
+ }
+ if(desertMap&&Number(q.get('seed'))===desertMap.seed&&
    Number(q.get('bastions'))===desertMap.bastions)q.set('map',desertMap.id);
  location.href=(window.Sandforge3DMenu?.gameRoute?.()??'/webgl-preview.html')+'?'+q;
 };
