@@ -1,20 +1,20 @@
 /** Sandforge AI 3.3: map-size-aware decisions, using ONLY paid red units,
  * observed contact, publicly known territory and the existing safe routes.
- * MapVersion 25 (12 Bastions) intentionally preserves proven AI 3.2.
+ * The paid opening also covers 12-Bastion maps; other 3.2 tactics stay intact.
  * Pure and deterministic so opt-out comparisons use identical worlds.
  */
 export type AI33Mode='off'|'adaptive';
 
-/** AI 3.4 Bastion-control opening for the two maps that 3.3 already adapts.
+/** Bastion-control opening for modern 8-, 12- and 16-Bastion maps.
  * Sector ownership is public. Soldiers must be paid, healthy, available
  * and routed by TacticalAI; the policy never reads hidden enemies.
- * 12-Bastion 3.2 and the proven four-sector opener remain unchanged. */
+ * The proven four-sector opener remains unchanged. */
 export function mapBastionContestOpening(
  mapVersion:number,time:number,blue:number,red:number,available:number
 ):{slots:number;counter:boolean}{
- if(mapVersion!==24&&mapVersion!==26||available<1||
-    time>(mapVersion===24?210:255))return {slots:0,counter:false};
- const total=mapVersion===24?8:16;
+ if(mapVersion<24||mapVersion>26||available<1||
+    time>(mapVersion===24?210:mapVersion===25?230:255))return {slots:0,counter:false};
+ const total=mapVersion===24?8:mapVersion===25?12:16;
  const behind=blue-red>=2&&blue>=Math.max(3,Math.ceil(total*.30));
  const counter=behind&&time>=30&&available>=3;
  // One pioneer is never pulled from construction. With >=3 combat units

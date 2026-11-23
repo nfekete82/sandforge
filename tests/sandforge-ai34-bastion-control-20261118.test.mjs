@@ -4,8 +4,8 @@ import {Simulation} from '../dist/src/reborn/simulation.js';
 import {mapBastionContestOpening,mapFrontierPosts} from '../dist/src/reborn/ai33-map-doctrine.js';
 import {RULES,distance} from '../dist/src/reborn/config.js';
 
-test('AI 3.4 contests income on 8/16-Bastion maps without free soldiers or credits',()=>{
- for(const version of [24,26]){
+test('modern opening contests income on 8/12/16-Bastion maps without free soldiers or credits',()=>{
+ for(const version of [24,25,26]){
   const g=Simulation.campaign(2026,version,'dunes'),initial=g.units.map(u=>u.id);
   const initialMoney=g.credits[1];
   g.time=3;g.tactical.ai33Mode='adaptive';g.tactical.plan();
@@ -30,7 +30,8 @@ test('AI 3.4 counterattack is based on PUBLIC Bastion ownership and paid reserve
  assert.deepEqual(mapBastionContestOpening(24,45,4,1,2),{slots:1,counter:false});
  assert.deepEqual(mapBastionContestOpening(26,80,6,2,5),{slots:2,counter:true});
  assert.deepEqual(mapBastionContestOpening(24,215,6,1,8),{slots:0,counter:false});
- assert.deepEqual(mapBastionContestOpening(25,80,7,1,8),{slots:0,counter:false});
+ assert.deepEqual(mapBastionContestOpening(25,80,7,1,8),{slots:2,counter:true});
+ assert.deepEqual(mapBastionContestOpening(25,231,7,1,8),{slots:0,counter:false});
 });
 test('AI 3.4 stations paid guards at frontline Bastions without emptying HQ',()=>{
  assert.equal(mapFrontierPosts(24,2,4,2),0);

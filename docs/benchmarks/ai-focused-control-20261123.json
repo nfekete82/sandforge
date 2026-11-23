@@ -1,0 +1,592 @@
+{
+  "schema": "sandforge-focused-ai-revision-ab-v1",
+  "baselineCommit": "85f46f68720d711a75cb556593434b5597e15bd3",
+  "seconds": 180,
+  "seed": 4102,
+  "baselineTacticalHash": "86dec84467ce022489d187ab0c8329664aa79e51f0720e756110d6e68658030c",
+  "candidateTacticalHash": "0c664f0ac522c11473213f826e0b413e1b3332f395f6302b90105047020513d4",
+  "opponentHash": "a3b20b717604a93d4017beac80424f1baaf8caeafbe86fd6c4b99d2349cb5326",
+  "notes": [
+    "Exactly two revision A/B pairs, each 180 seconds at dt=0.05; same playable-start hashes.",
+    "HQ-less campaign bootstrap; BLUE pays for HQ, construction and recruits. Same existing Rush/Contest opponents as the Action benchmark. No Action balance changes.",
+    "firstGroundDamage is an exact applied-damage event between hostile ground combatants; workers, drones, aircraft and buildings are excluded.",
+    "Idle fraction counts ground combat unit time without orders, motion or combatTarget, including deliberate guards and assembly waits.",
+    "Repeated commands are identical requested goals across pulses, not proof of conflicting roles. Rapid changes and sampled role overlaps are separate.",
+    "The two open-map runs do not exercise the repaired recapture guard expiry or role preemption; direct behavioral regression tests establish those fixes.",
+    "24 directly relevant tests pass; 3 home-defense policy expectations also fail on independently compiled main. Full build passed. No 600-second run or seed matrix."
+  ],
+  "pairs": [
+    {
+      "map": "desert-strike",
+      "opponent": "bastion-rush",
+      "before": {
+        "initialStateHash": "a0bd4169c89e81c4f670c5416286db5feea50f978b0cba1eda5d65ce9b24151b",
+        "elapsedSeconds": 180,
+        "outcome": "timeout",
+        "redBastions": 5,
+        "blueBastions": 3,
+        "firstRedCapture": 30.2,
+        "firstGroundDamage": 155.1,
+        "redProduced": {
+          "infantry": 6,
+          "heavy": 3,
+          "drone": 1,
+          "medic": 1
+        },
+        "redLosses": {
+          "infantry": 2
+        },
+        "blueLosses": {
+          "infantry": 1
+        },
+        "redUnits": 11,
+        "redCredits": 200,
+        "redFinalIncome": 160,
+        "idleFraction": 0.328,
+        "idleHeldSeconds": 158.8,
+        "idleAttackGroupSeconds": 0,
+        "decisions": 52,
+        "overlappingDutyDecisions": 0,
+        "recaptureLaunches": 1,
+        "rapidUnitOrderChanges": 0,
+        "repeatedUnitCommands": 33,
+        "commands": 74,
+        "abortedMissions": 0,
+        "ownership": [
+          {
+            "at": 0.05,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              1
+            ]
+          },
+          {
+            "at": 30.2,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 65.45,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 73.6,
+            "owners": [
+              0,
+              0,
+              -1,
+              -1,
+              -1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 92.9,
+            "owners": [
+              0,
+              0,
+              -1,
+              -1,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 93.65,
+            "owners": [
+              0,
+              0,
+              -1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 128.35,
+            "owners": [
+              0,
+              0,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 128.95,
+            "owners": [
+              0,
+              0,
+              1,
+              1,
+              0,
+              1,
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "after": {
+        "initialStateHash": "a0bd4169c89e81c4f670c5416286db5feea50f978b0cba1eda5d65ce9b24151b",
+        "elapsedSeconds": 180,
+        "outcome": "timeout",
+        "redBastions": 5,
+        "blueBastions": 3,
+        "firstRedCapture": 30.2,
+        "firstGroundDamage": 155.1,
+        "redProduced": {
+          "infantry": 6,
+          "heavy": 3,
+          "drone": 1,
+          "medic": 1
+        },
+        "redLosses": {
+          "infantry": 2
+        },
+        "blueLosses": {
+          "infantry": 1
+        },
+        "redUnits": 11,
+        "redCredits": 200,
+        "redFinalIncome": 160,
+        "idleFraction": 0.328,
+        "idleHeldSeconds": 158.8,
+        "idleAttackGroupSeconds": 0,
+        "decisions": 52,
+        "overlappingDutyDecisions": 0,
+        "recaptureLaunches": 1,
+        "rapidUnitOrderChanges": 0,
+        "repeatedUnitCommands": 33,
+        "commands": 74,
+        "abortedMissions": 0,
+        "ownership": [
+          {
+            "at": 0.05,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              1
+            ]
+          },
+          {
+            "at": 30.2,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 65.45,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 73.6,
+            "owners": [
+              0,
+              0,
+              -1,
+              -1,
+              -1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 92.9,
+            "owners": [
+              0,
+              0,
+              -1,
+              -1,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 93.65,
+            "owners": [
+              0,
+              0,
+              -1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 128.35,
+            "owners": [
+              0,
+              0,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 128.95,
+            "owners": [
+              0,
+              0,
+              1,
+              1,
+              0,
+              1,
+              1,
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "map": "broken-empire",
+      "opponent": "contesting",
+      "before": {
+        "initialStateHash": "404ab4b75cd60d5f1a329c04cd5869220c251c721356b803c9b67dc5b12951ae",
+        "elapsedSeconds": 180,
+        "outcome": "timeout",
+        "redBastions": 5,
+        "blueBastions": 1,
+        "firstRedCapture": 80.8,
+        "firstGroundDamage": null,
+        "redProduced": {
+          "infantry": 5,
+          "heavy": 2,
+          "medic": 1
+        },
+        "redLosses": {},
+        "blueLosses": {},
+        "redUnits": 10,
+        "redCredits": 165,
+        "redFinalIncome": 160,
+        "idleFraction": 0.327,
+        "idleHeldSeconds": 167.95,
+        "idleAttackGroupSeconds": 0,
+        "decisions": 52,
+        "overlappingDutyDecisions": 0,
+        "recaptureLaunches": 0,
+        "rapidUnitOrderChanges": 0,
+        "repeatedUnitCommands": 0,
+        "commands": 45,
+        "abortedMissions": 0,
+        "ownership": [
+          {
+            "at": 0.05,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              1
+            ]
+          },
+          {
+            "at": 80.8,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 106.35,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              -1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 137.9,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              1,
+              -1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 171.3,
+            "owners": [
+              0,
+              1,
+              -1,
+              -1,
+              -1,
+              1,
+              1,
+              -1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "after": {
+        "initialStateHash": "404ab4b75cd60d5f1a329c04cd5869220c251c721356b803c9b67dc5b12951ae",
+        "elapsedSeconds": 180,
+        "outcome": "timeout",
+        "redBastions": 8,
+        "blueBastions": 1,
+        "firstRedCapture": 31.8,
+        "firstGroundDamage": null,
+        "redProduced": {
+          "infantry": 7,
+          "heavy": 2,
+          "rocket": 1,
+          "medic": 2
+        },
+        "redLosses": {},
+        "blueLosses": {},
+        "redUnits": 14,
+        "redCredits": 270,
+        "redFinalIncome": 225,
+        "idleFraction": 0.401,
+        "idleHeldSeconds": 164.8,
+        "idleAttackGroupSeconds": 0,
+        "decisions": 52,
+        "overlappingDutyDecisions": 0,
+        "recaptureLaunches": 0,
+        "rapidUnitOrderChanges": 0,
+        "repeatedUnitCommands": 73,
+        "commands": 75,
+        "abortedMissions": 0,
+        "ownership": [
+          {
+            "at": 0.05,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              1
+            ]
+          },
+          {
+            "at": 31.8,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 58.2,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              -1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 78.35,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 86.4,
+            "owners": [
+              0,
+              -1,
+              -1,
+              -1,
+              -1,
+              1,
+              1,
+              1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 114.15,
+            "owners": [
+              0,
+              1,
+              -1,
+              -1,
+              -1,
+              1,
+              1,
+              1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 116,
+            "owners": [
+              0,
+              1,
+              -1,
+              1,
+              -1,
+              1,
+              1,
+              1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          },
+          {
+            "at": 148.2,
+            "owners": [
+              0,
+              1,
+              1,
+              1,
+              -1,
+              1,
+              1,
+              1,
+              -1,
+              -1,
+              1,
+              1
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
