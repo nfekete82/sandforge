@@ -130,7 +130,7 @@ export function actionHomeReservePolicy(x:{
  const normal=Math.max(0,Math.min(x.fighters,Math.floor(x.normalReserve)));
  if(x.preset!=='action'||x.mapVersion<23||x.time<45||x.time>240||
   x.phase==='attack'||x.phase==='defend'||
-  x.missionKind!=='capture'||x.fighters<3||
+  x.missionKind!=='capture'||x.fighters<2||
   x.observedHomePressure||x.knownThreats>0||
   x.recentLosses>0||x.recentFailures>0)return normal;
  // A publicly BLUE-owned Bastion is treated as contested even with no
