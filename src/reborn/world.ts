@@ -495,10 +495,38 @@ export class World {
       if(walkEpoch[i]!==epoch){walkEpoch[i]=epoch;walkable[i]=walk(this.center(i))?1:-1;}
       return walkable[i]===1;
     };
-    const heap: {i:number;f:number}[]=[];
+    // Keep the exact historical binary-heap order and tie-breaking, but
+    // avoid allocating one {i,f} object for every OPEN-set insertion.
+    // On hard canyons a single paid AI opening visited 300k+ nodes in
+    // 78 path requests, producing many short-lived GC objects.
+    // These parallel numeric heaps are LOCAL to the call: recursive pass
+    // verification cannot corrupt another A* search's priority queue.
+    const heapIndex:number[]=[],heapPriority:number[]=[];
     const h=(i:number)=>Math.hypot(i%RULES.grid-goal%RULES.grid,Math.floor(i/RULES.grid)-Math.floor(goal/RULES.grid));
-    const push=(v:{i:number;f:number})=>{heap.push(v);let k=heap.length-1;while(k>0){const p=(k-1)>>1;if(heap[p].f<=v.f)break;heap[k]=heap[p];k=p;}heap[k]=v;};
-    const pop=()=>{const top=heap[0],last=heap.pop()!;if(heap.length){let k=0;while(k*2+1<heap.length){let c=k*2+1;if(c+1<heap.length&&heap[c+1].f<heap[c].f)c++;if(heap[c].f>=last.f)break;heap[k]=heap[c];k=c;}heap[k]=last;}return top.i;};
+    const push=(i:number,f:number):void=>{
+      let k=heapIndex.length;heapIndex.push(i);heapPriority.push(f);
+      while(k>0){
+        const p=(k-1)>>1;
+        if(heapPriority[p]<=f)break;
+        heapIndex[k]=heapIndex[p];heapPriority[k]=heapPriority[p];k=p;
+      }
+      heapIndex[k]=i;heapPriority[k]=f;
+    };
+    const pop=():number=>{
+      const top=heapIndex[0],lastIndex=heapIndex.pop()!,
+       lastPriority=heapPriority.pop()!;
+      if(heapIndex.length){
+        let k=0;
+        while(k*2+1<heapIndex.length){
+          let c=k*2+1;
+          if(c+1<heapIndex.length&&heapPriority[c+1]<heapPriority[c])c++;
+          if(heapPriority[c]>=lastPriority)break;
+          heapIndex[k]=heapIndex[c];heapPriority[k]=heapPriority[c];k=c;
+        }
+        heapIndex[k]=lastIndex;heapPriority[k]=lastPriority;
+      }
+      return top;
+    };
     // One endgame command previously expanded ~54,000 nodes, blocked the
     // main browser thread for 500–560 ms, and repeated every 1.4 s. Limit
     // work BEFORE expanding the full map, including exact-path retries.
@@ -530,8 +558,8 @@ export class World {
       }
       return smooth;
     };
-    setCost(s,0);push({i:s,f:startH});
-    while(heap.length) {
+    setCost(s,0);push(s,startH);
+    while(heapIndex.length) {
       const i=pop();if(closed[i]===epoch)continue;closed[i]=epoch;
       if(profiler||this.profilePaths)this.pathNodes++;
       if(i===goal)return reconstruct(i,true);
@@ -555,7 +583,7 @@ export class World {
           // Only a cheaper candidate can change the route, so avoid repeating
           // the pure geometric check for candidates already ruled out by cost.
           if(precise&&!line(i===s?start:this.center(i),j===goal?end:this.center(j)))continue;
-          setCost(j,g);prev[j]=i;push({i:j,f:g+h(j)});
+          setCost(j,g);prev[j]=i;push(j,g+h(j));
         }
       }
     }
