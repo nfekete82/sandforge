@@ -139,3 +139,14 @@ export function actionHomeReservePolicy(x:{
  const cap=minimum+(x.defendedTarget?1:0);
  return Math.min(normal,cap);
 }
+
+/** Optional infrastructure must not starve the FIRST paid Action infantry
+ * wave. A real siege discovery or visible base attack immediately cancels
+ * this temporary economic preference. Classic and later tech unchanged. */
+export function actionEarlyArmyBeforeInfrastructure(x:{
+ preset:BalancePreset;time:number;barracksReady:boolean;fighters:number;
+ underAttack:boolean;observedSiege:boolean;
+}):boolean{
+ return x.preset==='action'&&x.time>=12&&x.time<=150&&
+  x.barracksReady&&x.fighters<6&&!x.underAttack&&!x.observedSiege;
+}
