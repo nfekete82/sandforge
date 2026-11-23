@@ -17,7 +17,9 @@ const summary=[];
 for(const map of maps){
  const group=results.filter(r=>r.map===map);
  const before=group.filter(r=>r.variant==='before'),after=group.filter(r=>r.variant==='after');
- assert.ok(before.length>=2&&after.length>=2,map+' must have at least two interleaved samples');
+ const required=group[0].stress?1:2;
+ assert.ok(before.length>=required&&after.length>=required,
+  map+' must have '+required+' interleaved sample(s) per variant');
  for(const run of group){
   assert.equal(run.metrics.glError,0,map+' WebGL error');
   assert.ok(run.metrics.initialDetails===run.actorCount,map+' missing real vehicle GLBs');
@@ -39,6 +41,7 @@ for(const map of maps){
  const meanChangePct=100*(workB/workA-1);
  const row={map,stress:!!controls.stress,totalVehicles:controls.actorCount+controls.enemyCount,
   repeatedPairs:Math.min(before.length,after.length),
+  measurementConfidence:controls.stress?'single-pair descriptive stress':'two-pair descriptive visual',
   fpsMain:fpsA,fpsVisual:fpsB,low1PercentMain:lowA,low1PercentVisual:lowB,
   workMsMain:workA,workMsVisual:workB,workChangePct:meanChangePct,
   lowChangePct:100*(lowB/lowA-1),
@@ -47,7 +50,7 @@ for(const map of maps){
  summary.push(row);
  console.log('VISUAL_POLISH31_AB '+JSON.stringify(row));
 }
-const output={source:file,warning:'Two repeats per variant do not prove changes in 1%-lows, cross-hardware FPS or sustained performance.',results:summary};
+const output={source:file,warning:'Software-rendered Chromium measurements are not GPU-device performance. Two repeats (stress: one) do not prove changes in 1%-lows, cross-hardware FPS or sustained performance.',results:summary};
 if(out)writeFileSync(out,JSON.stringify(output,null,2)+'\n');
 if(process.env.POLISH31_REJECT_SLOW==='1'&&summary.some(x=>x.workChangePct>5))
  throw Error('Mean frame work exceeded 5% on at least one matched scene; keep PR Draft');
