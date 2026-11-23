@@ -1,0 +1,68 @@
+name: Sandforge Action 2.0 - classic vs action pacing
+on:
+  pull_request:
+    branches:
+      - feat/sandforge-natural-cliff-dressing-20261122
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: action-pacing-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  action-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build WebGL and simulation
+        run: npm run build
+      - name: Action paid production, recon scan, historical saves and cliff PBR
+        run: |
+          node --test \
+            tests/sandforge-action-balance-20261122.test.mjs \
+            tests/sandforge-desert-strike-integrated-cliff-pbr-20261122.test.mjs
+  action-map-pacing:
+    name: "${{ matrix.map }} · Classic vs Action"
+    needs: action-regressions
+    strategy:
+      fail-fast: false
+      matrix:
+        map:
+          - desert-strike
+          - broken-empire
+          - burning-horizon
+          - last-stronghold
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build deterministic battle simulator
+        run: npm run build
+      - name: Same fixed-map seed and paid armies · Classic vs Action
+        env:
+          ACTION_BENCHMARK_SECONDS: '180'
+          ACTION_BENCHMARK_MAPS: "${{ matrix.map }}"
+        run: node scripts/benchmark-sandforge-action-20261122.mjs reports/sandforge-action-${{ matrix.map }}.json
+      - name: Upload measured results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "sandforge-action-${{ matrix.map }}"
+          path: reports/sandforge-action-${{ matrix.map }}.json
+          if-no-files-found: warn
+          retention-days: 30

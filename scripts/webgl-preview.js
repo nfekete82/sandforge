@@ -88,6 +88,9 @@ const selectedGenerator=requestedMap&&requestedMap.seed===seed&&
 const generatorVersion=procedural?(selectedGenerator??(query.get('landscape')==='classic'?2:
  query.get('landscape')==='network-v3'?3:4)):2;
 const game=session??Simulation.campaign(seed,sizes[bastions],profile,generatorVersion);
+// Resume uses the saved authoritative preset, never an untrusted URL toggle.
+// New direct links without ?balance=action stay Classic for compatibility.
+if(!session&&query.get('balance')==='action')game.configureBalancePreset('action');
 // Local AI laboratory: compare the same game and seed with 3.2 or 3.3 tactics.
 // Not serialized, never affects the live Uberspace release.
 if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
@@ -237,6 +240,32 @@ function setSimulationSpeed(value){
  return simulationSpeed;
 }
 if(speedControl)speedControl.addEventListener('change',()=>setSimulationSpeed(speedControl.value));
+// Action-only tactical scan targets the current camera focus. Paid, finite
+// fog visibility. No mouse selection interception or developer map reveal.
+const actionScanButton=$('action-scan');
+if(actionScanButton){
+ actionScanButton.hidden=game.balancePreset!=='action';
+ actionScanButton.onclick=()=>{
+  if(!running)return;
+  const focus={x:Math.max(1,Math.min(size-1,controls.target.x+half)),
+   y:Math.max(1,Math.min(size-1,controls.target.z+half))};
+  if(game.useActionReconScan(focus)){
+   battlefield.updateFog();
+   battlefield.message('SCAN AKTIV · Kameramitte · 9 s · 180 Credits');
+  }else battlefield.message('SCAN NICHT BEREIT · Hauptquartier, Credits oder Cooldown prüfen.');
+  refreshActionScanButton();
+ };
+}
+function refreshActionScanButton(){
+ if(!actionScanButton||game.balancePreset!=='action')return;
+ const seconds=Math.max(0,Math.ceil(game.actionScanReadyAt-game.time));
+ const ready=running&&game.status==='playing'&&game.hasHeadquarters(0)&&
+  game.credits[0]>=180&&!seconds;
+ actionScanButton.disabled=!ready;
+ actionScanButton.textContent=seconds?'SCAN · '+seconds+' s':'SCAN · 180 C';
+ actionScanButton.title='Aufklärung über Kameramitte · 630 M Radius, 9 s Dauer · 180 Credits · 90 s Cooldown';
+}
+refreshActionScanButton();
 let pauseSource=query.get('pause')==='1'?'URL-Parameter pause=1':'';
 // Distinguish a deliberate pause or an ended battle from an animation stall.
 // Previously all three looked identical: stationary soldiers on screen.
@@ -944,6 +973,7 @@ $('load').onclick=()=>{
  const text=$('seed').value.trim();
  const q=new URLSearchParams({bastions:$('bastions').value,seed:String(text===''?randomMapSeed():Number(text)>>>0),terrain:terrain.battlefield?.profile??'random',biome,
   landscape:world.generatorVersion===2?'classic':world.generatorVersion===3?'network-v3':'network'});
+ if(game.balancePreset==='action')q.set('balance','action');
  if(desertMap&&Number(q.get('seed'))===desertMap.seed&&
    Number(q.get('bastions'))===desertMap.bastions)q.set('map',desertMap.id);
  location.href=(window.Sandforge3DMenu?.gameRoute?.()??'/webgl-preview.html')+'?'+q;
@@ -1514,6 +1544,7 @@ function animate(now){
   updateSimulationBanner();
   $('fps').textContent=String(Math.round(frames/elapsed));frames=0;elapsed=0;
   $('clock').textContent=Math.floor(game.time)+' s';
+  refreshActionScanButton();
  }
 }
 renderer.setAnimationLoop(animate);
