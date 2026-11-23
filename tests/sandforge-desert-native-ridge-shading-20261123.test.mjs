@@ -24,7 +24,7 @@ test('natural ridge tint has soft continuous falloff and keeps original PBR deta
 
 test('modern desert preview shades original sand and skips ONLY extra ridge carpet',()=>{
  const source=readFileSync('scripts/webgl-preview.js','utf8');
- assert.match(source,/const nativeDesertRidgeShade=biome==='desert'&&spacious&&\s*terrain\.battlefield\?\.generatorVersion>=3/);
+ assert.match(source,/const nativeDesertRidgeShade=biome==='desert'&&world\.mapVersion>=19&&\s*terrain\.battlefield\?\.generatorVersion>=3/);
  assert.match(source,/vertexColor\.multiplyScalar\(desertRidgeGroundShade\(slope,h\)\)/);
  assert.match(source,/ridges:nativeDesertRidgeShade\?\[\]:terrain\.ridges/);
  assert.match(source,/const h=heightAt\(x,z\),k=j\*\(segments\+1\)\+i/);
