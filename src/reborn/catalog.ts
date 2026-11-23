@@ -1,6 +1,6 @@
 import { RULES } from './config.js';
 
-export type UnitKind='infantry'|'medic'|'engineer'|'heavy'|'rocket'|'rover'|'supply'|'tank'|'artillery'|'scout'|'bomber'|'drone';
+export type UnitKind='infantry'|'medic'|'engineer'|'heavy'|'rocket'|'rover'|'supply'|'tank'|'flamer'|'artillery'|'scout'|'bomber'|'drone';
 export type BuildingKind='headquarters'|'barracks'|'factory'|'airfield'|'generator'|'turret'|'research'|'silo'|'interceptor'|'wall'|'wallGate'|'bunker';
 /** Both factions may operate the same maximum number of recurring-income generators. */
 export const MAX_GENERATORS_PER_FACTION=3;
@@ -20,6 +20,7 @@ export const UNITS:Record<UnitKind,UnitSpec>={
  supply:{name:'Nachschubtransporter (Legacy)',group:'Fahrzeuge',cost:275,buildTime:12,hp:260,speed:175,sight:310,range:0,damage:0,cooldown:1,radius:19,width:76,producers:[],flying:false,description:'Eingestellte Einheit; beim Laden alter Spielstände erstattet.'},
  rover:{name:'Humvee',group:'Fahrzeuge',cost:350,buildTime:11,hp:295,speed:235,sight:465,range:240,damage:13,cooldown:.68,radius:18,width:76,producers:['factory'],flying:false,description:'Schneller Humvee mit schwerem Dach-MG, animierten Geländereifen und vier Sitzplätzen. Eigene Infanterie per Rechtsklick einladen und am Ziel ausladen.'},
  tank:{name:'Kampfpanzer',group:'Fahrzeuge',cost:550,buildTime:18,hp:1000,speed:80,sight:390,range:300,damage:155,cooldown:2.35,targetsAir:false,radius:22,width:90,producers:['factory'],flying:false,description:'Schwerer Kampfpanzer mit 1.000 LP: gelenkte Panzerabwehrraketen gegen Fahrzeuge und Gebäude (300 M), unabhängiges starkes Dach-MG gegen Infanterie. Widerstandsfähig gegen normale Gewehre.'},
+ flamer:{name:'Flammenpanzer',group:'Fahrzeuge',cost:500,buildTime:16,hp:760,speed:96,sight:345,range:160,damage:18,cooldown:.29,targetsAir:false,radius:21,width:90,producers:['factory'],flying:false,description:'Gepanzerter Nahkampf-Flammenpanzer. Verheerend gegen Infanterie und ungeschützte Gebäude auf kurze Distanz; schwach gegen Kampfpanzer und Luftziele.'},
  artillery:{name:'Raketenwerfer',group:'Fahrzeuge',cost:600,buildTime:18,hp:340,speed:65,sight:RULES.turret.sight+80,range:RULES.turret.range+80,damage:120,cooldown:3.8,targetsAir:false,radius:20,width:94,producers:['factory'],flying:false,description:'Schwerer 6×6-Raketenwerfer mit sechs Werferrohren. 680 M Reichweite und 830 M Sicht: bekämpft Bodenziele außerhalb der Turmreichweite.'},
  drone:{name:'R-01 Aufklärungsdrohne',group:'Luftunterstützung',cost:50,buildTime:4,hp:35,speed:680,sight:1120,range:0,damage:0,cooldown:1,radius:8,width:40,producers:['headquarters'],flying:true,description:'Extrem schnelle und günstige unbewaffnete Aufklärungsdrohne. Enthüllt große Bereiche der Karte; sehr zerbrechlich, kann keine Bastionen erobern.'},
  scout:{name:'Transporthelikopter',group:'Luftunterstützung',cost:600,buildTime:14,hp:360,speed:280,sight:780,range:225,damage:24,cooldown:.6,radius:20,width:106,producers:['airfield'],flying:true,description:'Schneller Transporthelikopter für zehn Infanteristen. Stärkeres defensives MG gegen Infanterie plus sechs leichte, einzeln abgefeuerte Selbstverteidigungsraketen (9 s Abstand). Raketen am Flugfeld für Credits nachladen. Einsteigen und Ausladen per Befehl.'},
@@ -29,7 +30,7 @@ export interface BuildingSpec {name:string;cost:number;buildTime:number;hp:numbe
 export const BUILDINGS:Record<BuildingKind,BuildingSpec>={
  headquarters:{...RULES.headquarters,name:'Kommandozentrale',cost:300,buildTime:20,width:225,income:10,description:'Hauptquartier der Blauen Legion. Bildet Pioniere und R-01 Aufklärungsdrohnen aus und liefert 10 Credits alle 10 Sekunden. Die Heimat-Bastion liefert 50 Credits, weitere Bastionen 15 bis 35 Credits je Intervall.'},
  barracks:{name:'Kaserne',cost:200,buildTime:12,hp:800,sight:300,radius:53,width:158,income:0,description:'Bildet Infanterie, Sanitäter, schwere Infanterie und Raketenwerfer-Soldaten aus.'},
- factory:{name:'Fahrzeugfabrik',cost:350,buildTime:18,hp:1100,sight:310,radius:70,width:200,income:0,description:'Kompakte Fahrzeugfabrik für Humvees, Kampfpanzer und Raketenwerfer. Beschädigte Fahrzeuge werden ausschließlich durch Pioniere direkt auf dem Schlachtfeld repariert.'},
+ factory:{name:'Fahrzeugfabrik',cost:350,buildTime:18,hp:1100,sight:310,radius:70,width:200,income:0,description:'Kompakte Fahrzeugfabrik für Humvees, Kampfpanzer, Flammenpanzer und Raketenwerfer. Beschädigte Fahrzeuge werden ausschließlich durch Pioniere direkt auf dem Schlachtfeld repariert.'},
  airfield:{name:'Flugfeld',cost:450,buildTime:22,hp:1200,sight:410,radius:91,width:218,income:0,description:'Kleines Feldflugfeld: ein Hangar links, kurze Landebahn direkt rechts und ein kleiner Tower. Bomber und Transporthelikopter können dort landen und für Credits reparieren.'},
  generator:{name:'Energiekern',cost:150,buildTime:9,hp:500,sight:230,radius:38,width:112,income:10,description:'Versorgt die Basis und liefert zusätzliche 10 Credits alle 10 Sekunden.'},
  wall:{name:'Sperrmauer',cost:75,buildTime:8,hp:750,sight:80,radius:24,width:108,income:0,description:'Massive, drehbare Betonsperre. Blockiert Infanterie und Fahrzeuge. Gegen Raketen und Panzerbeschuss zerstörbar.'},
@@ -60,7 +61,12 @@ export const SMALL_ARMS_VS_AIR=Object.freeze({
 export const weaponDamage=(u:{kind?:UnitKind},target:{kind?:UnitKind|BuildingKind;queue?:unknown}):number=>{
  const base=unitSpec(u).damage,building='queue' in target;
  const kind=u.kind??'infantry';
- if(building&&(target.kind==='wall'||target.kind==='wallGate'))return base*(kind==='rocket'?1.35:kind==='artillery'?1.25:kind==='tank'?1:kind==='heavy'?.22:kind==='rover'?.16:.10);
+ if(kind==='flamer'){
+  if(building)return base*.40;
+  const enemy=unitSpec(target as {kind?:UnitKind});
+  return base*(enemy.flying?0:enemy.group==='Fahrzeuge'?.18:1);
+ }
+ if(building&&(target.kind==='wall'||target.kind==='wallGate'))return base*(kind==='rocket'?1.35:kind==='artillery'?1.25:kind==='tank'?1:kind==='flamer'?.32:kind==='heavy'?.22:kind==='rover'?.16:.10);
  if(!building){
   const defender=unitSpec(target as {kind?:UnitKind});
   if(defender.flying&&kind in SMALL_ARMS_VS_AIR)
