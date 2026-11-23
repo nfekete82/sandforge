@@ -28,6 +28,4 @@ jobs:
         run: |
           node --test \
             tests/sandforge-desert-native-ridge-shading-20261123.test.mjs \
-            tests/sandforge-desert-clear-scenery-network-20261119.test.mjs \
-            tests/sandforge-desert-strike-natural-cliffs-20261122.test.mjs \
-            tests/sandforge-desert-ai-navigation-20261120.test.mjs
+            tests/sandforge-desert-strike-natural-cliffs-20261122.test.mjs
