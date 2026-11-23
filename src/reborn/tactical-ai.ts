@@ -208,6 +208,12 @@ export class TacticalAI {
  /** Prevent replanning the same safe Action-only forward rally every pulse. */
  private actionForwardRallyMissionSince=-1;
  private actionForwardRallyRetryAt=0;
+ /** Runtime-only counters used by paired AI benchmarks, never serialized. */
+ readonly actionRallyDiagnostics={
+  inspected:0,policyEligible:0,attempts:0,leadForward:0,
+  clusters:0,clusterPaths:0,ringPaths:0,applied:0,
+  blocks:{} as Record<string,number>
+ };
  /** Explicitly opt-in ONLY for headless benchmark observation. No saves. */
  rallyGateTraceEnabled=false;
  rallyGateTrace:Array<{
@@ -1820,14 +1826,33 @@ export class TacticalAI {
   // of recalling fighters across a distant plateau to the nearest owned
   // Bastion. Only neutral capture missions; never bypass known defenders.
   // Existing sieges, emergency HQ defense and Classic rally remain intact.
-  if(actionForwardRallyPolicy({
+  const forwardEligible=actionForwardRallyPolicy({
     preset:g.balancePreset,mapVersion:g.world.mapVersion,
     generatorVersion:g.world.generatorVersion,time:g.time,
     missionKind:mission.kind,targetOwner:g.territories[mission.sector].owner,
     phase:s.phase,available:mainFighters.filter(u=>!guards.has(u.id)).length,
     observedHomePressure,knownThreats:towers.length+visible.length
-   })&&s.rally&&mission.since!==this.actionForwardRallyMissionSince&&
+   });
+  if(g.balancePreset==='action'&&g.time>=45&&g.time<=245){
+   const d=this.actionRallyDiagnostics;
+   d.inspected++;
+   const blocked=g.world.mapVersion<23?'map':
+    g.world.generatorVersion<7?'terrain':
+    g.time<50?'early':g.time>240?'late':
+    mission.kind!=='capture'?'mission-'+mission.kind:
+    g.territories[mission.sector].owner!==-1?'owned-target':
+    s.phase==='attack'||s.phase==='defend'?'phase-'+s.phase:
+    mainFighters.filter(u=>!guards.has(u.id)).length<3?'few-reserves':
+    observedHomePressure?'home-threat':towers.length+visible.length>0?'visible-threat':
+    !s.rally?'no-rally':
+    mission.since===this.actionForwardRallyMissionSince?'already-staged':
+    g.time<this.actionForwardRallyRetryAt?'cooldown':'eligible';
+   d.blocks[blocked]=(d.blocks[blocked]??0)+1;
+   if(forwardEligible)d.policyEligible++;
+  }
+  if(forwardEligible&&s.rally&&mission.since!==this.actionForwardRallyMissionSince&&
       g.time>=this.actionForwardRallyRetryAt){
+   this.actionRallyDiagnostics.attempts++;
    this.actionForwardRallyRetryAt=g.time+18; // bounded A* budget
    const pool=mainFighters.filter(u=>!guards.has(u.id)&&
     !unitSpec(u).flying&&!u.hold&&u.hp>=unitSpec(u).hp*.55);
@@ -1836,14 +1861,17 @@ export class TacticalAI {
    for(const leader of leaders){
     if(distance(leader,s.rally)<330||
        distance(leader,mission)+230>=distance(s.rally,mission))continue;
+    this.actionRallyDiagnostics.leadForward++;
     const cluster=pool.filter(u=>distance(u,leader)<=270);
     if(cluster.length<3)continue;
+    this.actionRallyDiagnostics.clusters++;
     const candidate=g.world.nearest(leader,obstacles,[],undefined,10);
     if(!candidate||distance(candidate,leader)>75||
        !g.world.walkable(candidate,obstacles,10)||this.danger(candidate)>2)continue;
     const reachableCluster=cluster.filter(u=>distance(u,candidate)<20||
      g.world.path(u,candidate,obstacles,5).length>0);
     if(reachableCluster.length<3)continue;
+    this.actionRallyDiagnostics.clusterPaths++;
     // The Bastion's solid center is NOT a legitimate path target.
     // Validate the full physical route to a free point inside its ring.
     const toward=Math.atan2(candidate.y-mission.y,candidate.x-mission.x);
@@ -1854,8 +1882,10 @@ export class TacticalAI {
       g.world.path(candidate,at,obstacles,5).length>0;
     });
     if(!ring)continue;
+    this.actionRallyDiagnostics.ringPaths++;
     s.rally=candidate;
     this.actionForwardRallyMissionSince=mission.since;
+    this.actionRallyDiagnostics.applied++;
     break;
    }
   }
