@@ -216,6 +216,7 @@ export class TacticalAI {
   clusters:0,clusterPaths:0,ringPaths:0,applied:0,
   homeGuardCapPulses:0,homeGuardSlotPulsesFreed:0,
   homeReserveBlocks:{} as Record<string,number>,
+  contactFront:{checked:0,eligible:0,rerouted:0,noRoute:0},
   blocks:{} as Record<string,number>
  };
  /** Explicitly opt-in ONLY for headless benchmark observation. No saves. */
@@ -1735,7 +1736,24 @@ export class TacticalAI {
    breakthrough,
    force:fighters,losses:s.losses,fronts:s.battle?.fronts??[],
    intelligent:this.missionPlannerMode==='legacy'?false:this.doctrineMode==='intelligent',
-   bastionControl:this.ai35Enabled,experience,
+   bastionControl:this.ai35Enabled,
+   actionContact:g.balancePreset==='action'&&g.world.mapVersion>=23,
+   // "attack" denotes a march phase, NOT necessarily an actual battle.
+   // Only a currently VISIBLE enemy near the real committed column
+   // prevents re-targeting. Unseen enemies never enter this gate.
+   activeAssault:s.phase==='attack'&&g.units.some(enemy=>
+    enemy.owner===0&&enemy.hp>0&&!enemy.carrier&&enemy.kind!=='drone'&&
+    g.canSee(1,enemy)&&fighters.some(u=>s.group.includes(u.id)&&
+     distance(u,enemy)<Math.max(520,unitSpec(enemy).range+80))),
+   homeThreat:hqAssaultSituation.homeThreat,
+   actionContactEvent:reason=>{
+    const d=this.actionRallyDiagnostics.contactFront;
+    if(reason==='checked')d.checked++;
+    else if(reason==='eligible')d.eligible++;
+    else if(reason==='rerouted')d.rerouted++;
+    else if(reason==='no-route')d.noRoute++;
+   },
+   experience,
    route:p=>{const route=this.route(origin,p);return route.length?this.sampleRoute(route,origin):undefined;},
    routeFallback});
   if(!mission){

@@ -8,12 +8,13 @@ import type {Loss} from './tactical-ai.js';
 import {replanAfterLoss} from './ai25-doctrine.js';
 import {publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {ai43KeepKnownHqMission} from './ai43-hq-breakthrough.js';
+import {actionPublicFrontPressure} from './action-balance.js';
 
 export type CampaignPhase='opening'|'expansion'|'buildup'|'offensive'|'siege'|'endgame'|'emergencyDefense';
 export interface WarMission extends Point {kind:'capture'|'structure'|'hunt';sector:number;objective:number|null;since:number;progressAt:number;distance:number;hp:number}
 export interface ReconTask extends Point {unit:number;since:number}
 export interface CampaignState {version:1;phase:CampaignPhase;phaseSince:number;mission?:WarMission;recon:ReconTask[];survey:{x:number;y:number;at:number}[];intel:{id:number;seenAt:number}[];aborted:number;observedEnemyHQ?:Point&{id:number};enemyHQEliminatedAt?:number;alternatives?:{sector:number;score:number;expectedLoss:number;budgetCost:number}[]}
-export interface MissionContext {strategy:EnemyStrategy;force:Unit[];losses:Loss[];fronts:FailedFront[];route:(p:Point)=>{length:number;risk:number}|undefined;routeFallback?:(p:Point)=>{length:number;risk:number}|undefined;intelligent?:boolean;bastionControl?:boolean;experience?:Experience;breakthrough?:boolean}
+export interface MissionContext {strategy:EnemyStrategy;force:Unit[];losses:Loss[];fronts:FailedFront[];route:(p:Point)=>{length:number;risk:number}|undefined;routeFallback?:(p:Point)=>{length:number;risk:number}|undefined;intelligent?:boolean;bastionControl?:boolean;experience?:Experience;breakthrough?:boolean;actionContact?:boolean;activeAssault?:boolean;homeThreat?:boolean;actionContactEvent?:(reason:string)=>void}
 export const newCampaign=():CampaignState=>({version:1,phase:'opening',phaseSince:0,recon:[],survey:[],intel:[],aborted:0});
 /** Preserve a recent, observed tower objective after confirmed HQ loss,
  * unless the screen suffers substantial losses or artillery disappears. */
@@ -68,6 +69,48 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
  const pressured=g.world.mapVersion>=23&&g.territories.length===4&&
   blueOwned>=3&&redOwned<=1||
   !!context?.bastionControl&&publicBastionDeficit(g.world.mapVersion,blueOwned,redOwned);
+ // Action-only contact lane: sectors are PUBLIC owner colors, not hidden
+ // enemy unit coordinates. Scout memory may exclude known HQ/turrets;
+ // unobserved forces are never inspected for this decision.
+ const actionFront=(t:typeof g.territories[number])=>
+  t.owner!==1&&(
+   t.owner===0&&t.neighbors.some(id=>g.territories[id]?.owner===1)||
+   t.owner===-1&&t.neighbors.some(id=>g.territories[id]?.owner===0)
+  )&&
+  !buildings.some(b=>b.kind==='headquarters'&&b.territory===t.id||
+   b.kind==='turret'&&distance(b,t.point)<670)&&
+  g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
+   u.kind!=='drone'&&g.canSee(1,u)&&distance(u,t.point)<330).length<=1;
+ const actionFighters=context?.force.filter(u=>u.hp>0&&!u.carrier&&
+  !['engineer','medic','scout','drone'].includes(u.kind)).length??0;
+ if(old&&context?.actionContact)context.actionContactEvent?.('checked');
+ if(old&&actionPublicFrontPressure({
+    preset:g.balancePreset,time:g.time,blueOwned,available:actionFighters,
+    oldKind:old.kind,oldNeutral:g.territories[old.sector]?.owner===-1,
+    oldMissionSeconds:g.time-old.since,
+    // Opening scouts securing an unrelated Bastion must not pin the whole
+    // paid campaign army; only the actual commander's own force qualifies.
+    oldCaptureOccupied:context?.force.some(u=>u.hp>0&&!u.carrier&&
+     distance(u,old)<175)??false,activeAssault:!!context?.activeAssault,
+    homeThreat:!!context?.homeThreat
+   })&&context?.actionContact&&!actionFront(g.territories[old.sector])){
+   context.actionContactEvent?.('eligible');
+   const candidates=g.territories.filter(actionFront)
+    .sort((a,b)=>distance(origin,a.point)-distance(origin,b.point)||a.id-b.id)
+    .slice(0,9).map(t=>({t,route:context.route(t.point)}))
+    .filter((v):v is {t:typeof g.territories[number];route:{length:number;risk:number}}=>
+      !!v.route&&v.route.length<4700&&v.route.risk<8)
+    .sort((a,b)=>(a.route.length-(a.t.owner===0?400:150))-
+     (b.route.length-(b.t.owner===0?400:150))||a.t.id-b.t.id);
+   const meet=candidates[0];
+   if(meet){
+    context.actionContactEvent?.('rerouted');
+    return s.mission={kind:'capture',...meet.t.point,sector:meet.t.id,
+     objective:null,hp:0,since:g.time,progressAt:g.time,
+     distance:distance(origin,meet.t.point)};
+   }
+   context.actionContactEvent?.('no-route');
+ }
  const canKeepBlockingObjective=(mission:WarMission,remembered:Memory|undefined)=>{
   if(!remembered||g.territories[mission.sector]?.owner===1)return false;
   const target=g.territories[mission.sector];

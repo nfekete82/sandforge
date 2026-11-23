@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure,actionPublicFrontPressure}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -322,4 +322,35 @@ test('Action pays for an early six-fighter infantry wave before optional tech',(
  assert.match(source,/const actionInfantryFirst=actionEarlyArmyBeforeInfrastructure/);
  assert.match(source,/!actionInfantryFirst&&\s*\(generators===0/);
  assert.match(source,/!has\('factory'\)&&!actionInfantryFirst/);
+});
+
+test('Action only redirects a neutral mission to a PUBLIC BLUE-facing front',()=>{
+ const base={preset:'action',time:100,blueOwned:3,available:4,
+  oldKind:'capture',oldNeutral:true,oldMissionSeconds:25,
+  oldCaptureOccupied:false,activeAssault:false,homeThreat:false};
+ assert.equal(actionPublicFrontPressure(base),true);
+ for(const override of [
+  {preset:'classic'},{time:45},{time:250},{blueOwned:1},
+  {available:2},{oldKind:'structure'},{oldNeutral:false},
+  {oldMissionSeconds:5},{oldCaptureOccupied:true},
+  {activeAssault:true},{homeThreat:true}
+ ])assert.equal(actionPublicFrontPressure({...base,...override}),false,
+  'no interrupt under '+JSON.stringify(override));
+ const commander=readFileSync('src/reborn/campaign-commander.ts','utf8');
+ assert.match(commander,/t\.owner===-1&&t\.neighbors\.some\(id=>g\.territories\[id\]\?\.owner===0\)/);
+ assert.match(commander,/!buildings\.some\(b=>b\.kind==='headquarters'/);
+ assert.match(commander,/g\.canSee\(1,u\)/);
+ assert.match(commander,/meet\.route|meet\.t\.point/);
+ assert.match(commander,/v\.route\.length<4700&&v\.route\.risk<8/);
+});
+
+test('Real contact protects firefights, not an ordinary attack-move march',()=>{
+ const source=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(source,/activeAssault:s\.phase==='attack'&&g\.units\.some\(enemy=>/);
+ assert.match(source,/g\.canSee\(1,enemy\)/);
+ assert.match(source,/s\.group\.includes\(u\.id\)/);
+ const plan=readFileSync('src/reborn/campaign-commander.ts','utf8');
+ assert.match(plan,/oldCaptureOccupied:context\?\.force\.some/);
+ assert.match(plan,/actionContactEvent\?\.\('rerouted'\)/);
+ assert.match(plan,/actionContactEvent\?\.\('no-route'\)/);
 });
