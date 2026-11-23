@@ -18,14 +18,25 @@ permissions:
   contents: read
 jobs:
   paired-graphics:
-    name: 600 frames × 3 maps · fixed scene + shader/GLB parity
+    name: ${{ matrix.name }} · 600-frame A/B
     runs-on: ubuntu-latest
     timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: three-maps
+            maps: desert-strike,broken-empire,burning-horizon
+            stress: '0'
+          - name: 60-vehicles
+            maps: broken-empire
+            stress: '1'
     env:
       POLISH31_FRAMES: '600'
       POLISH31_VARIANTS: before,after,after,before
       POLISH31_PROFILE: '1'
-      POLISH31_MAPS: desert-strike,broken-empire,burning-horizon
+      POLISH31_MAPS: ${{ matrix.maps }}
+      POLISH31_STRESS: ${{ matrix.stress }}
       POLISH31_CHANNEL: chromium
       POLISH31_URL: http://127.0.0.1:8129
       POLISH31_BASE_REF: ${{ github.event.pull_request.base.sha }}
@@ -62,18 +73,11 @@ jobs:
             sleep .5
           done
           if [ "$READY" != 1 ]; then cat /tmp/sandforge-polish31-ci.log; exit 1; fi
-          POLISH31_OUTPUT=artifacts/visual31/normal node scripts/qa-visual-polish31.mjs
+          POLISH31_OUTPUT=artifacts/visual31/${{ matrix.name }} node scripts/qa-visual-polish31.mjs
           node scripts/report-visual-polish31-spikes.mjs \
-            artifacts/visual31/normal/report.json artifacts/visual31/normal/frame-summary.json
+            artifacts/visual31/${{ matrix.name }}/report.json artifacts/visual31/${{ matrix.name }}/frame-summary.json
           node scripts/compare-visual-polish31-acceptance.mjs \
-            artifacts/visual31/normal/report.json artifacts/visual31/normal/acceptance.json
-          POLISH31_MAPS=broken-empire POLISH31_STRESS=1 \
-            POLISH31_OUTPUT=artifacts/visual31/60-vehicles \
-            node scripts/qa-visual-polish31.mjs
-          node scripts/report-visual-polish31-spikes.mjs \
-            artifacts/visual31/60-vehicles/report.json artifacts/visual31/60-vehicles/frame-summary.json
-          node scripts/compare-visual-polish31-acceptance.mjs \
-            artifacts/visual31/60-vehicles/report.json artifacts/visual31/60-vehicles/acceptance.json
+            artifacts/visual31/${{ matrix.name }}/report.json artifacts/visual31/${{ matrix.name }}/acceptance.json
       - name: Summarize measured performance (not unconditional approval)
         if: always()
         run: |
@@ -90,7 +94,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sandforge-visual31-600frames-60vehicles-${{ github.run_id }}
+          name: sandforge-visual31-${{ matrix.name }}-${{ github.run_id }}
           path: artifacts/visual31/
           retention-days: 21
           if-no-files-found: warn
