@@ -16,6 +16,7 @@ test('flame tank: factory-produced anti-infantry specialist, never anti-air',()=
  assert.deepEqual(f.producers,['factory']);
  assert.equal(f.cost,500);
  assert.equal(f.targetsAir,false);
+ assert.equal(f.range,245,'flame jet and actual combat range must match');
  assert.equal(f.flying,false);
  assert.ok(f.range<UNITS.tank.range);
  assert.ok(weaponDamage({kind:'flamer'},{kind:'infantry'})>

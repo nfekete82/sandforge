@@ -78,6 +78,7 @@ cpSync('scripts/webgl-battlefield.js','dist/webgl-battlefield.js');
 cpSync('scripts/webgl-shadow-budget.js','dist/webgl-shadow-budget.js');
 cpSync('scripts/webgl-scout-rocket-pods.js','dist/webgl-scout-rocket-pods.js');
 cpSync('scripts/webgl-recon-drone.js','dist/webgl-recon-drone.js');
+cpSync('scripts/webgl-flame-tank-polish.js','dist/webgl-flame-tank-polish.js');
 cpSync('scripts/webgl-builder-input.js','dist/webgl-builder-input.js');
 cpSync('scripts/webgl-wall-drag.js','dist/webgl-wall-drag.js');
 cpSync('scripts/webgl-strategic-buildings.js','dist/webgl-strategic-buildings.js');

@@ -77,6 +77,7 @@ import {attachMeshyHeadquartersRadarMotion,updateMeshyHeadquartersRadarMotion} f
 import {equipEngineerTools} from '/webgl-engineer-tools.js';
 import {polishMedicModel} from '/webgl-medic-polish.js';
 import {createReconDrone,animateReconDrone} from '/webgl-recon-drone.js';
+import {polishFlameTank} from '/webgl-flame-tank-polish.js';
 
 // Runtime adapter: game state, movement, combat, production and AI are owned
 // exclusively by the original Simulation. 3D nodes are presentation only.
@@ -516,7 +517,10 @@ export class SandforgeBattlefield {
     if(!entry.node.parent)return;
     const model=cloneSkeleton(data.scene);
     // Flammenpanzer source GLB points -X; game models face +Z.
-    if(type==='unit'&&entry.kind==='flamer')model.rotation.y+=Math.PI/2;
+    if(type==='unit'&&entry.kind==='flamer'){
+      polishFlameTank(model);
+      model.rotation.y+=Math.PI/2;
+     }
     const hasMeshySkin=type==='building'&&task.url.includes('/meshy-structures/');
     if(hasMeshySkin)prepareMeshyStructure(model,entry.kind,entry.owner);
     if(type==='building'&&((entry.kind==='headquarters'&&

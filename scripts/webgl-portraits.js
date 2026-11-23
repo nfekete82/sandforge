@@ -8,6 +8,7 @@ import {decorateHumanInfantryRole,HUMAN_INFANTRY_ROLES} from './webgl-human-infa
 import {polishMedicModel} from './webgl-medic-polish.js';
 import {equipEngineerTools,updateEngineerTools} from './webgl-engineer-tools.js';
 import {createReconDrone} from './webgl-recon-drone.js';
+import {polishFlameTank} from './webgl-flame-tank-polish.js';
 import {createResearchArtwork,RESEARCH_ARTWORK_KINDS} from './webgl-research-artworks.js';
 import {tintFactionMaterials} from './webgl-faction-accents.js';
 import {finishBarracksSides,finishBarracksDesertPalette} from './webgl-barracks-shell.js';
@@ -464,6 +465,7 @@ export function unitIcon(kind,renderer){
   if(!iconCache.has(kind))iconCache.set(kind,(async()=>{
    const data=await new GLTFLoader().loadAsync('/src/assets/reborn/animation/flamer-0.glb');
    const model=cloneSkeleton(data.scene);
+   polishFlameTank(model);
    model.rotation.y+=Math.PI/2; // same orientation as the actual unit
    isolatePortraitMeshes(model);
    return renderModelPortrait(model,renderer,{width:192,height:132});
