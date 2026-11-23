@@ -32,6 +32,10 @@ test('five convoy lanes stay inside the exact same driveable Desert Strike ramp'
  }
  assert.equal(new Set(entries.map(v=>Math.round(v))).size,5,'all tanks converge to one outer marker');
  assert.equal(new Set(exits.map(v=>Math.round(v))).size,5,'all tanks converge to one inner marker');
- assert.deepEqual(entries.map(v=>Math.round(v)).sort((a,b)=>a-b),
-  [...entries].map(v=>Math.round(v)).sort((a,b)=>a-b));
+ for(let i=1;i<entries.length;i++){
+  assert.ok(entries[i]-entries[i-1]>55,
+   'tank lanes overlap at the ramp mouth '+i);
+  assert.ok(exits[i]-exits[i-1]>55,
+   'tank lanes overlap at the summit '+i);
+ }
 });
