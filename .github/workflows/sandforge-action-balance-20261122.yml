@@ -10,6 +10,7 @@ on:
       - feat/ai-action-rally-diagnostics-20261123
       - feat/ai-action-small-forward-squads-20261123
       - feat/ai-action-contact-diagnostics-20261123
+      - feat/ai-action-early-neutral-meeting-front-20261123
       - feat/ai-action-public-front-pressure-20261123
   workflow_dispatch:
 permissions:
@@ -36,7 +37,8 @@ jobs:
         run: |
           node --test \
             tests/sandforge-action-balance-20261122.test.mjs \
-            tests/sandforge-desert-strike-integrated-cliff-pbr-20261122.test.mjs
+            tests/sandforge-desert-strike-integrated-cliff-pbr-20261122.test.mjs \
+            tests/sandforge-universal-map-intelligence-20261123.test.mjs
   action-map-pacing:
     name: "${{ matrix.map }} · Classic vs Action"
     needs: action-regressions
@@ -102,5 +104,45 @@ jobs:
         with:
           name: sandforge-action-burning-horizon-300s
           path: reports/burning-horizon-300s.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  universal-seed-regressions:
+    name: "${{ matrix.map }} · seed ${{ matrix.seed }} · ${{ matrix.opponent }}"
+    needs: action-regressions
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {map: desert-strike, seed: 4101, opponent: rush}
+          - {map: broken-empire, seed: 4102, opponent: contest}
+          - {map: burning-horizon, seed: 4103, opponent: rush}
+          - {map: last-stronghold, seed: 4104, opponent: contest}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build seeded battlefield and AI
+        run: npm run build
+      - name: Paid armies on an UNSEEN procedural seed and start corner
+        env:
+          ACTION_BENCHMARK_SECONDS: '120'
+          ACTION_BENCHMARK_MAPS: "${{ matrix.map }}"
+          ACTION_BENCHMARK_SEEDS: "${{ matrix.seed }}"
+          ACTION_BENCHMARK_OPPONENT: "${{ matrix.opponent }}"
+        run: node scripts/benchmark-sandforge-action-20261122.mjs reports/universal-ai-${{ matrix.map }}-${{ matrix.seed }}.json
+      - name: Upload real seeded-map results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-ai-${{ matrix.map }}-${{ matrix.seed }}
+          path: reports/universal-ai-${{ matrix.map }}-${{ matrix.seed }}.json
           if-no-files-found: warn
           retention-days: 30
