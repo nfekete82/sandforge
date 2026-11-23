@@ -1,0 +1,66 @@
+name: Sandforge · Visual Polish 3.1 browser harness smoke
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/qa-visual-polish31.mjs
+      - scripts/webgl-actor-presentation.js
+      - scripts/webgl-battlefield.js
+      - scripts/webgl-combat-vfx.js
+      - .github/workflows/sandforge-visual-polish31-browser-smoke-20261123.yml
+permissions:
+  contents: read
+jobs:
+  smoke:
+    name: Same-scene 60-frame before/after · Chromium WebGL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      POLISH31_FRAMES: '60'
+      POLISH31_VARIANTS: before,after
+      POLISH31_PROFILE: '1'
+      POLISH31_MAP: desert-strike
+      POLISH31_CHANNEL: chromium
+      POLISH31_BASE_REF: ${{ github.event.pull_request.base.sha }}
+      POLISH31_URL: http://127.0.0.1:8132
+      POLISH31_OUTPUT: artifacts/visual31/smoke
+      LIBGL_ALWAYS_SOFTWARE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tests/browser --no-audit --no-fund
+          cd tests/browser && npx playwright install --with-deps chromium
+      - run: |
+          npm run build
+          node --check scripts/qa-visual-polish31.mjs
+          node --check scripts/compare-visual-polish31-acceptance.mjs
+      - name: Launch game and verify before/after with real loaded GLBs
+        run: |
+          set -euo pipefail
+          PORT=8132 HOST=127.0.0.1 node scripts/serve.mjs >/tmp/sandforge-polish31-smoke.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          READY=0
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8132/healthz >/dev/null 2>&1; then READY=1; break; fi
+            sleep .5
+          done
+          if [ "$READY" -ne 1 ]; then cat /tmp/sandforge-polish31-smoke.log; exit 1; fi
+          node scripts/qa-visual-polish31.mjs
+          node scripts/report-visual-polish31-spikes.mjs \
+            artifacts/visual31/smoke/report.json artifacts/visual31/smoke/summary.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual31-browser-smoke-${{ github.run_id }}
+          path: artifacts/visual31/smoke/
+          retention-days: 14
+          if-no-files-found: warn
