@@ -8,6 +8,7 @@ import {assaultDecision,abortAssault} from './ai-director.js';
 import {battleDirectorPulse,validBattleDirector,type BattleDirectorState,type BattleDirectorOrder} from './battle-director.js';
 import {selectiveRaidAllowed} from './selective-raids.js';
 import {planCombatDuties} from './squad-duty-arbiter.js';
+import {stickyGuardRoster} from './sticky-guard-roster.js';
 import {newCampaign,campaignPhase,refreshIntelligence,chooseMission,reconGoal,validCampaign,knownBuildings,type CampaignState} from './campaign-commander.js';
 import {segmentDistance} from './world-generation.js';
 import {newBattle,assessBattle,fightingPower,hasDecisiveLocalAdvantage,shouldCommitFirefight,fightInsteadOfFleeing,retreatCorridorSafe,recordFailure,retryFront,validBattle,type BattleState} from './battle-response.js';
@@ -168,6 +169,9 @@ export class TacticalAI {
  hqBreakthroughMode:'baseline'|'calibrated'='calibrated';
  private recaptureMission:{sector:number;ids:number[];since:number;securedAt:number|null}|null=null;
  private recaptureRetryAt=0;
+ /** Persistent only for this live match: keep a paid HQ guard on the same
+  * post when other defenders move and change distance-to-HQ rankings. */
+ private readonly assignedHomeGuards=new Set<number>();
  private roverAirEscapeRetryAt=new Map<number,number>();
  private battleDirective:BattleDirectorOrder|undefined;
  // Transient real-combat HQ damage history. Never serialized or able to
@@ -232,7 +236,7 @@ export class TacticalAI {
   this.sectorPreference={sectorId,until:this.g.time+35};return true;
  }
  restore(state:TacticalState|undefined):void{
-  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.battleDirective=undefined;this.lastSeenHqHp=null;this.hqLastStandUntil=0;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
+  this.state=state?structuredClone(state):fresh();this.risk=undefined;this.riskAt=-1;this.routeCache.clear();this.strategyOptions=[];this.sectorPreference=null;this.diagnostics=newDiagnostics();this.recaptureMission=null;this.recaptureRetryAt=0;this.assignedHomeGuards.clear();this.battleDirective=undefined;this.lastSeenHqHp=null;this.hqLastStandUntil=0;this.ai40RallyRetryAt=0;this.ai40RecoveredMissionSince=-1;this.rallyGateTrace=[];this.lastRallyGateTraceAt=-1e6;
   // Legacy memories contain only previously seen buildings; no live hidden bases are consulted.
   if(!state)for(const m of this.g.memories[1])if(m.owner===0&&
     (m.kind==='turret'||m.kind==='bunker')&&m.hp>0)
@@ -1807,10 +1811,18 @@ export class TacticalAI {
   const homeGuardPriority=(u:Unit)=>u.kind==='infantry'?0:
    u.kind==='heavy'?1:u.kind==='rover'?2:u.kind==='tank'?3:
    u.kind==='artillery'?4:2;
-  const guards=new Set(mainFighters.filter(u=>s.phase!=='attack'||!s.group.includes(u.id))
+  // The old distance-only sort changed the guard roster as soon as a posted
+  // soldier moved away from HQ: the next nearest rifleman inherited its job,
+  // then another on the next 3-second plan. This created perpetual running
+  // and disrupted real assaults. Keep living eligible paid guards until the
+  // reserve changes, they leave the roster or real emergency defense takes over.
+  const eligibleHomeGuards=mainFighters.filter(u=>s.phase!=='attack'||!s.group.includes(u.id))
    .sort((a,b)=>homeGuardPriority(a)-homeGuardPriority(b)||
-    distance(a,home)-distance(b,home)||a.id-b.id)
-   .slice(0,reserve).map(u=>u.id));
+    distance(a,home)-distance(b,home)||a.id-b.id);
+  const guards=stickyGuardRoster(eligibleHomeGuards.map(u=>u.id),
+   this.assignedHomeGuards,reserve);
+  this.assignedHomeGuards.clear();
+  for(const id of guards)this.assignedHomeGuards.add(id);
   if(policy&&s.phase!=='attack')s.group=s.group.filter(id=>!guards.has(id));
   if(policy)this.stationHomeGuards(mainFighters.filter(u=>guards.has(u.id)),home);
   // Read-only, benchmark-opt-in gate trace of REAL planner inputs.
