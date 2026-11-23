@@ -36,6 +36,7 @@ import {airfieldPoint,airfieldLerp,airfieldTaxiPoint,validAirfieldService,AIRFIE
 import {validFactoryService,type FactoryService} from './factory-maintenance.js';
 import {factoryDoorExitCandidates,infantryDoorExitCandidates} from './production-exit.js';
 import {eliminationOutcome} from './match-outcome.js';
+import {perPlayerSlots} from './multiplayer-faction-runtime.js';
 // Only legacy save validation uses supply types; no active logistics controller.
 import {validSupplyJob,SUPPLY_RESTOCK_INTERVAL,type SupplyCache,type SupplyJob} from './legacy-supply-save.js';
 import {formationSlotPitch,vehicleSpacingGap,preservesVehicleProgress,vehicleYieldWaypoint} from './vehicle-spacing.js';
@@ -462,9 +463,10 @@ export class Simulation {
   hadBuildings:[boolean,boolean]=[false,false];
   supplyCaches:SupplyCache[]=[];
   units:Unit[]=[]; bases:Base[]=[]; territories:Territory[];
-  visible=[new Uint8Array(RULES.grid**2),new Uint8Array(RULES.grid**2)];
-  explored=[new Uint8Array(RULES.grid**2),new Uint8Array(RULES.grid**2)];
-  memories:Memory[][]=[[],[]]; shots:Shot[]=[]; notices:string[]=[];
+  visible=perPlayerSlots(2,()=>new Uint8Array(RULES.grid**2));
+  explored=perPlayerSlots(2,()=>new Uint8Array(RULES.grid**2));
+  memories:Memory[][]=perPlayerSlots(2,()=>[] as Memory[]);
+  shots:Shot[]=[]; notices:string[]=[];
   readonly productionReleases:ProductionRelease[]=[];
   /** Only enabled by WebGL. Never serialized; old saves and headless/Canvas
    * simulation retain the original immediate production semantics. */
