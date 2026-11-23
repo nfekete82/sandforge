@@ -1,0 +1,92 @@
+name: Sandforge · Action 2.0 mainline integration and pacing
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/reborn/action-balance.ts
+      - src/reborn/simulation.ts
+      - src/reborn/tactical-ai.ts
+      - src/reborn/audio.ts
+      - scripts/webgl-preview.js
+      - scripts/webgl-title-menu.js
+      - scripts/webgl-combat-vfx.js
+      - webgl-preview.html
+      - tests/sandforge-action-balance-20261122.test.mjs
+      - scripts/benchmark-sandforge-action-20261122.mjs
+      - .github/workflows/sandforge-action-mainline-20261123.yml
+permissions:
+  contents: read
+concurrency:
+  group: sandforge-action-mainline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  action-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Actual game build and WebGL module graph
+        run: npm run build
+      - name: Action, saves, physical construction, movement and combat regressions
+        run: |
+          node --test \
+            tests/sandforge-action-balance-20261122.test.mjs \
+            tests/sandforge-webgl-simulation-speed-20261119.test.mjs \
+            tests/sandforge-ai-opening-route-ranking-20261123.test.mjs \
+            tests/reborn-production.test.mjs \
+            tests/reborn-combat-balance-20261117.test.mjs
+      - name: Guard gameplay assets and abandoned cliff shaders
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${{ github.event.pull_request.base.sha }}"
+          if git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD |
+            grep -E '(\.glb$|\.gltf$|webgl-desert-cliff-ground-pbr|webgl-raised-mesa-cliffs\.js$)'; then
+            echo 'Action release must not bundle rejected cliff geometry or GLBs' >&2
+            exit 1
+          fi
+          echo 'No rejected cliff renderers or GLB changes'
+  action-map-pacing:
+    name: "${{ matrix.map }} · 180 seconds Classic vs Action"
+    needs: action-regressions
+    strategy:
+      fail-fast: false
+      matrix:
+        map:
+          - desert-strike
+          - broken-empire
+          - burning-horizon
+          - last-stronghold
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Paid, deterministic four-map AI vs player opening A/B
+        env:
+          ACTION_BENCHMARK_SECONDS: '180'
+          ACTION_BENCHMARK_MAPS: "${{ matrix.map }}"
+        run: |
+          mkdir -p reports
+          node scripts/benchmark-sandforge-action-20261122.mjs reports/action-${{ matrix.map }}.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandforge-action-mainline-${{ matrix.map }}-${{ github.run_id }}
+          path: reports/action-${{ matrix.map }}.json
+          retention-days: 21
+          if-no-files-found: warn
