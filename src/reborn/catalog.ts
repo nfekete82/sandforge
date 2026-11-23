@@ -20,7 +20,7 @@ export const UNITS:Record<UnitKind,UnitSpec>={
  supply:{name:'Nachschubtransporter (Legacy)',group:'Fahrzeuge',cost:275,buildTime:12,hp:260,speed:175,sight:310,range:0,damage:0,cooldown:1,radius:19,width:76,producers:[],flying:false,description:'Eingestellte Einheit; beim Laden alter Spielstände erstattet.'},
  rover:{name:'Humvee',group:'Fahrzeuge',cost:350,buildTime:11,hp:295,speed:235,sight:465,range:240,damage:13,cooldown:.68,radius:18,width:76,producers:['factory'],flying:false,description:'Schneller Humvee mit schwerem Dach-MG, animierten Geländereifen und vier Sitzplätzen. Eigene Infanterie per Rechtsklick einladen und am Ziel ausladen.'},
  tank:{name:'Kampfpanzer',group:'Fahrzeuge',cost:550,buildTime:18,hp:1000,speed:80,sight:390,range:300,damage:155,cooldown:2.35,targetsAir:false,radius:22,width:90,producers:['factory'],flying:false,description:'Schwerer Kampfpanzer mit 1.000 LP: gelenkte Panzerabwehrraketen gegen Fahrzeuge und Gebäude (300 M), unabhängiges starkes Dach-MG gegen Infanterie. Widerstandsfähig gegen normale Gewehre.'},
- flamer:{name:'Flammenpanzer',group:'Fahrzeuge',cost:500,buildTime:16,hp:760,speed:96,sight:345,range:245,damage:18,cooldown:.29,targetsAir:false,radius:21,width:90,producers:['factory'],flying:false,description:'Gepanzerter Nahkampf-Flammenpanzer. Verheerend gegen Infanterie und ungeschützte Gebäude auf kurze Distanz; schwach gegen Kampfpanzer und Luftziele.'},
+ flamer:{name:'Flammenpanzer',group:'Fahrzeuge',cost:500,buildTime:16,hp:760,speed:96,sight:345,range:245,damage:60,cooldown:.25,targetsAir:false,radius:21,width:90,producers:['factory'],flying:false,description:'Gepanzerter Nahkampf-Flammenpanzer. Treffsicherer, durchgehender Flammenstrahl mit sehr hohem Schaden gegen Infanterie. Schwach gegen Fahrzeuge, Mauern und Luftziele.'},
  artillery:{name:'Raketenwerfer',group:'Fahrzeuge',cost:600,buildTime:18,hp:340,speed:65,sight:RULES.turret.sight+80,range:RULES.turret.range+80,damage:120,cooldown:3.8,targetsAir:false,radius:20,width:94,producers:['factory'],flying:false,description:'Schwerer 6×6-Raketenwerfer mit sechs Werferrohren. 680 M Reichweite und 830 M Sicht: bekämpft Bodenziele außerhalb der Turmreichweite.'},
  drone:{name:'R-01 Aufklärungsdrohne',group:'Luftunterstützung',cost:50,buildTime:4,hp:35,speed:680,sight:1120,range:0,damage:0,cooldown:1,radius:8,width:40,producers:['headquarters'],flying:true,description:'Extrem schnelle und günstige unbewaffnete Aufklärungsdrohne. Enthüllt große Bereiche der Karte; sehr zerbrechlich, kann keine Bastionen erobern.'},
  scout:{name:'Transporthelikopter',group:'Luftunterstützung',cost:600,buildTime:14,hp:360,speed:280,sight:780,range:225,damage:24,cooldown:.6,radius:20,width:106,producers:['airfield'],flying:true,description:'Schneller Transporthelikopter für zehn Infanteristen. Stärkeres defensives MG gegen Infanterie plus sechs leichte, einzeln abgefeuerte Selbstverteidigungsraketen (9 s Abstand). Raketen am Flugfeld für Credits nachladen. Einsteigen und Ausladen per Befehl.'},
@@ -62,9 +62,9 @@ export const weaponDamage=(u:{kind?:UnitKind},target:{kind?:UnitKind|BuildingKin
  const base=unitSpec(u).damage,building='queue' in target;
  const kind=u.kind??'infantry';
  if(kind==='flamer'){
-  if(building)return base*((target.kind==='wall'||target.kind==='wallGate') ? .32 : .40);
+  if(building)return base*((target.kind==='wall'||target.kind==='wallGate') ? .10 : .25);
   const enemy=unitSpec(target as {kind?:UnitKind});
-  return base*(enemy.flying?0:enemy.group==='Fahrzeuge'?.18:1);
+  return base*(enemy.flying?0:enemy.group==='Fahrzeuge'?.08:1);
  }
  if(building&&(target.kind==='wall'||target.kind==='wallGate'))return base*(kind==='rocket'?1.35:kind==='artillery'?1.25:kind==='tank'?1:kind==='heavy'?.22:kind==='rover'?.16:.10);
  if(!building){

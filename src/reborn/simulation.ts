@@ -1640,8 +1640,10 @@ export class Simulation {
     // Misses must not damage/suppress or create AI hit reactions. Emit one
     // ordinary Shot so the existing pooled sand dents, dust and tracers play.
     const unitShooter='orders' in source;
-    if(this.stageWebGLProduction&&(unitShooter||weapon==='turret')){
-      // A turret's four alternating-barrel burst needs independent rolls even
+    if(weapon!=='flame'&&this.stageWebGLProduction&&(unitShooter||weapon==='turret')){
+      // Flammenwerfer hits are guaranteed after target/range/LoS checks; only
+     // discrete gunfire and turret bursts use the deterministic miss roll.
+     // A turret's four alternating-barrel burst needs independent rolls even
       // when several bullets are simulated in one fixed 20 Hz tick. Offset
       // its ordinal from unit ballistics without mutable/random state.
       const ordinal=(source.burst?.index??0)+(weapon==='machinegun'?71:
