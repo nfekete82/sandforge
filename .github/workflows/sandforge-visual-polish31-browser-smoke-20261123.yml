@@ -19,6 +19,8 @@ jobs:
       POLISH31_FRAMES: '60'
       POLISH31_VARIANTS: before,after
       POLISH31_PROFILE: '1'
+      POLISH31_VIEWPORT: 800x500
+      POLISH31_SOFTWARE_QA: '1'
       POLISH31_MAP: desert-strike
       POLISH31_CHANNEL: chromium
       POLISH31_BASE_REF: ${{ github.event.pull_request.base.sha }}
