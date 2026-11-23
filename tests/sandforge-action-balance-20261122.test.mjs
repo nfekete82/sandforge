@@ -162,8 +162,10 @@ test('Action AI selects reachable, publicly contested frontiers before distant n
  const tactical=readFileSync('src/reborn/tactical-ai.ts','utf8');
  assert.match(tactical,/actionBastionGoalScore\(\{/);
  assert.match(tactical,/frontierEnemy:g\.territories\.filter/);
- assert.match(tactical,/g\.world\.path\(u,p,blockers,5\)/,
+ assert.match(tactical,/g\.world\.path\(u,point,blockers,5/,
   'an A* validated approach is required before prioritizing a site');
+ assert.match(tactical,/pathDistance:p\.length/,
+  'Action uses the existing full A* route length rather than straight-line proxy');
 });
 
 test('Broken Empire plateau HQ builders work from the true collision-safe edge in both presets',()=>{
