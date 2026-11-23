@@ -58,7 +58,8 @@ function run(map,preset){
   firstBlueHQOrder:null,firstBlueHQFinished:null,firstBlueBarracksFinished:null,
   firstRedHQFinished:null,firstRedAttackPhase:null,
   firstExchange:null,firstFireByFaction:[null,null],
-  firstBlueShotContact:null,contactSnapshots:[],
+  firstBlueShotContact:null,contactSnapshots:[],firstFireEvents:[],
+  firstGroundUnitExchange:null,groundShotsByFaction:[0,0],
   shotsByFaction:[0,0],redShots:0,engagementSeconds:0,
   redCaptureEvents:0,blueCaptureEvents:0,redCaptureSeconds:0,
   firstRedCapture:null,firstBlueCapture:null,
@@ -182,6 +183,32 @@ function run(map,preset){
    countedShots.add(shot);
    metrics.shotsByFaction[shot.owner]++;
    metrics.firstFireByFaction[shot.owner]??=metrics.seconds;
+   // The ordinary first-shot clock also counts bullets fired at scouts,
+   // drones, workers and structures. This separate metric requires a REAL
+   // ground fighting unit on both ends and resolves the shot's true source.
+   const source=g.units.find(u=>u.id===shot.source) ??
+    g.bases.find(b=>b.id===shot.source);
+   const opponent=g.units.filter(u=>u.owner!==shot.owner&&u.hp>0);
+   const closest=opponent.slice().sort((a,b)=>
+    length(a,shot.groundTo??shot.to)-length(b,shot.groundTo??shot.to)||a.id-b.id)[0];
+   const gap=closest?length(closest,shot.groundTo??shot.to):Infinity;
+   if(metrics.firstFireEvents.length<18)
+    metrics.firstFireEvents.push({
+     at:metrics.seconds,owner:shot.owner,
+     sourceId:shot.source,sourceKind:source?.kind??null,
+     sourceType:source&&'orders' in source?'unit':'base',
+     weapon:shot.weapon,hit:shot.hit,targetClass:shot.targetClass??null,
+     nearestTargetKind:closest?.kind??null,
+     nearestTargetId:closest?.id??null,
+     nearestTargetGap:Number.isFinite(gap)?Math.round(gap):null,
+     groundFrom:shot.groundFrom??null,groundTo:shot.groundTo??null
+    });
+   const combatKinds=new Set(['infantry','heavy','rocket','rover','tank','artillery']);
+   if(source&&'orders' in source&&combatKinds.has(source.kind)&&
+      closest&&combatKinds.has(closest.kind)&&gap<70){
+    metrics.groundShotsByFaction[shot.owner]++;
+    metrics.firstGroundUnitExchange??=metrics.seconds;
+   }
    if(shot.owner===0)blueFired=true;
    fireThisFrame=true;
   }
