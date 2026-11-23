@@ -30,8 +30,10 @@ test('modern desert preview shades original sand and skips ONLY extra ridge carp
  assert.match(source,/const h=heightAt\(x,z\),k=j\*\(segments\+1\)\+i/);
  assert.match(source,/map:texture,normalMap,normalScale:/,'same physical sand and wind texture');
  assert.match(source,/installDesertRegionalPBR\(material,renderer,desertRegion\?\.id\)/);
+ assert.match(source,/terrain\.battlefield\?\.generatorVersion>=7&&!nativeDesertRidgeShade\s*\?createPlayableMesaCliffs/,
+  'modern desert removes the old overlapping mesa facade as well as ridge carpet');
  assert.match(source,/createPlayableMesaCliffs\(\{scene,size,heightAt,plateaus:/,
-  'genuine playable mesa faces remain independently preserved');
+  'historical maps retain the optional legacy cliff facade');
 });
 
 test('ridge carpet goes away, physical heightfield and pathing remain unchanged',()=>{
