@@ -1,0 +1,47 @@
+name: Sandforge · flame tank launch integration
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/reborn/director-production.ts
+      - tests/sandforge-flame-tank-ai-integration-20261123.test.mjs
+      - .github/workflows/sandforge-flame-tank-release-20261123.yml
+permissions:
+  contents: read
+jobs:
+  flamer-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact game dependencies and build real GLBs
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Complete flame tank gameplay/GLB/render/AI and mixed vehicle tests
+        run: |
+          node --test \
+            tests/sandforge-flame-tank-ai-integration-20261123.test.mjs \
+            tests/sandforge-flame-tank-playtest.test.mjs \
+            tests/sandforge-flame-assets-build.test.mjs \
+            tests/sandforge-flame-tank-3d-polish.test.mjs \
+            tests/sandforge-flame-jet.test.mjs \
+            tests/sandforge-plateau-multivehicle-stress-20261122.test.mjs \
+            tests/sandforge-artillery-launcher-aim-20261123.test.mjs \
+            tests/reborn-combat-balance-20261117.test.mjs
+      - name: Ensure only AI purchase logic and its verification changed
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${{ github.event.pull_request.base.sha }}"
+          git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD > /tmp/flame-files.txt
+          if grep -E '(\.glb$|\.gltf$|src/reborn/simulation\.ts$|scripts/webgl-)' /tmp/flame-files.txt; then
+            echo 'Do not modify flame gameplay, VFX, original 3D assets or engine in an AI rollout' >&2
+            exit 1
+          fi
+          cat /tmp/flame-files.txt
