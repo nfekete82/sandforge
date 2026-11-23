@@ -8,6 +8,7 @@ on:
       - feat/ai-action-post-capture-handoff-20261123
       - feat/ai-action-forward-rally-20261123
       - feat/ai-action-rally-diagnostics-20261123
+      - feat/ai-action-small-forward-squads-20261123
   workflow_dispatch:
 permissions:
   contents: read
