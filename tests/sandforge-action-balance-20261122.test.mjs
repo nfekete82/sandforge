@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -231,4 +231,22 @@ test('Action front squad skips blocked first soldiers, keeps feasible two-person
  assert.match(tactical,/const squad=actionOpening\s*\?selectReachableOpeningSquad\(free,count/);
  assert.match(tactical,/approachCache\.has\(key\)/,'A* probes reused only within one planning pulse');
  assert.match(tactical,/if\(!issued\)break/,'no infinite retry when command fails');
+});
+
+test('Action reuses paid scouts after capture without launching solo assaults',()=>{
+ assert.equal(actionOpeningHandoffSize({counter:true,slots:2,free:2}),2);
+ assert.equal(actionOpeningHandoffSize({counter:true,slots:2,free:1}),1);
+ assert.equal(actionOpeningHandoffSize({counter:true,slots:1,free:3}),1);
+ assert.equal(actionOpeningHandoffSize({counter:false,slots:2,free:2}),1);
+ assert.equal(actionOpeningHandoffSize({counter:true,slots:0,free:2}),0);
+ assert.equal(actionOpeningHandoffSize({counter:true,slots:2,free:0}),0);
+ const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
+ assert.match(ai,/const freshlySecured=actionOpening\?new Set/);
+ assert.match(ai,/g\.territories\[e\.sectorId\]\?\.owner===1/);
+ assert.match(ai,/freshlySecured\.has\(b\.id\)/,'reassign just-captured squad members first');
+ assert.match(ai,/const soloNeutral=actionOpening&&counter&&count===1/);
+ assert.match(ai,/!soloNeutral\|\|t\.owner===-1/,'single soldier must never attack occupied enemy Bastions');
+ assert.match(ai,/const count=actionOpening\? actionOpeningHandoffSize/);
+ assert.match(ai,/g\.world\.path\(u,p,blockers,5\)/,'all follow-on orders need actual A* paths');
+ assert.match(ai,/if\(maxAssigned-s\.openingContests\.length<count\)break/);
 });
