@@ -497,11 +497,8 @@ export class SandforgeCombatEffects {
   const fromHeight=this.heightAt(from.x,from.y);
   const toHeight=this.heightAt(to.x,to.y);
   this.flameJet.add(from,to,fromHeight,toHeight,this.world.size);
-  const dx=to.x-from.x,dz=to.y-from.y,d=Math.max(1,Math.hypot(dx,dz));
-  const nozzleX=from.x+dx/d*Math.min(42,d*.28);
-  const nozzleZ=from.y+dz/d*Math.min(42,d*.28);
-  // Short pilot light, not a giant round muzzle explosion.
-  this.particle(this.flash,nozzleX,nozzleZ,fromHeight+29,9,.075);
+  // The jet itself provides the ignition light: no round muzzle flash
+  // above the tank (formerly looked like a bright sun).
   // Infantry visibly catches fire at the exact hit location. The flames are
   // brief and capped; there are no immortal burning ground decals.
   if(shot.targetClass==='infantry'){
