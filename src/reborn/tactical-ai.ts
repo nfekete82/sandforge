@@ -7,6 +7,7 @@ import {selectObservedCounterTarget} from './ai-counter-doctrine.js';
 import {assaultDecision,abortAssault} from './ai-director.js';
 import {battleDirectorPulse,validBattleDirector,type BattleDirectorState,type BattleDirectorOrder} from './battle-director.js';
 import {selectiveRaidAllowed} from './selective-raids.js';
+import {planCombatDuties} from './squad-duty-arbiter.js';
 import {newCampaign,campaignPhase,refreshIntelligence,chooseMission,reconGoal,validCampaign,knownBuildings,type CampaignState} from './campaign-commander.js';
 import {segmentDistance} from './world-generation.js';
 import {newBattle,assessBattle,fightingPower,hasDecisiveLocalAdvantage,shouldCommitFirefight,fightInsteadOfFleeing,retreatCorridorSafe,recordFailure,retryFront,validBattle,type BattleState} from './battle-response.js';
@@ -2274,8 +2275,8 @@ export class TacticalAI {
  private contestOpeningBastions():Set<number>{
   const g=this.g,s=this.state;
   const adaptiveLarge=this.ai33Mode==='adaptive'&&
-   (g.world.mapVersion===24||g.world.mapVersion===26);
-  const openingLimit=adaptiveLarge?(g.world.mapVersion===24?210:255):145;
+   (g.world.mapVersion>=24&&g.world.mapVersion<=26);
+  const openingLimit=adaptiveLarge?(g.world.mapVersion===24?210:g.world.mapVersion===25?230:255):145;
   if(this.mode!=='director'||g.world.mapVersion<23||
      !(g.territories.length===4||adaptiveLarge)||
      g.time>openingLimit||g.status!=='playing'){
@@ -2289,6 +2290,8 @@ export class TacticalAI {
    ['infantry','heavy','rover'].includes(u.kind)&&u.hp>=unitSpec(u).hp*.65&&
    u.defendUntil<=g.time&&!(s.recovering??[]).includes(u.id)&&
    !s.battle?.withdrawals.some(w=>w.unit===u.id&&w.until>g.time)&&
+   !s.battle?.squads.some(q=>q.role==='defense'&&q.ids.includes(u.id))&&
+   !u.orders.some(o=>['garrison','board','build','repair'].includes(o.kind))&&
    !s.group.includes(u.id)).sort((a,b)=>a.id-b.id);
   const blue=g.territories.filter(t=>t.owner===0).length;
   const red=g.territories.filter(t=>t.owner===1).length;
@@ -2351,6 +2354,16 @@ export class TacticalAI {
   }
   return new Set(s.openingContests.map(e=>e.unitId));
  }
+ /** End the temporary capture guard without cancelling a newer order. */
+ private releaseRecapture():void{
+  const ids=new Set(this.recaptureMission?.ids??[]);
+  for(const u of this.g.units)if(ids.has(u.id)&&u.owner===1&&u.hp>0&&
+    !u.carrier&&u.hold&&u.guardArea&&!u.orders.length&&
+    !this.state.recovering?.includes(u.id)){
+   this.g.stop([u.id]);
+  }
+  this.recaptureMission=null;
+ }
  /** KI 3.6: a small genuine squad attacks ONE reachable blue-held Bastion
   * together and secures the capture circle. The main assault, the HQ guard,
   * construction, recovery and tactical emergency defense keep priority.
@@ -2359,14 +2372,14 @@ export class TacticalAI {
  private coordinatedRecapture(fighters:Unit[],home:Point):Set<number>{
   const g=this.g,s=this.state;
   if(!this.ai36Enabled||g.status!=='playing'){
-   this.recaptureMission=null;return new Set();
+   this.releaseRecapture();return new Set();
   }
   const blue=g.territories.filter(t=>t.owner===0).length;
   const red=g.territories.filter(t=>t.owner===1).length;
   const visible=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
    u.kind!=='drone'&&g.canSee(1,u));
   const homeThreat=visible.some(u=>distance(u,home)<660);
-  if(homeThreat){this.recaptureMission=null;return new Set();}
+  if(homeThreat){this.releaseRecapture();return new Set();}
   const combatants=fighters.filter(u=>u.hp>0&&!u.carrier&&!u.hold&&
    u.defendUntil<=g.time&&['infantry','heavy','rover'].includes(u.kind)&&
    u.hp>=unitSpec(u).hp*.66&&!u.factoryService&&!u.airfieldService&&
@@ -2398,7 +2411,7 @@ export class TacticalAI {
     }
    }
    if(site?.owner!==1)this.recaptureRetryAt=g.time+25;
-   this.recaptureMission=null;
+   this.releaseRecapture();
    if(g.time<this.recaptureRetryAt)return new Set();
   }
   // Active large-scale assaults retain their existing committed soldiers.
@@ -2557,20 +2570,31 @@ export class TacticalAI {
     ||ownedBastions.some(t=>distance(u,t.point)<260)));
   if(g.world.mapVersion>=3&&this.mode==='director'){
    const defense=this.localDefense(fighters,medics,intruders,home);
-   // Earlier paid raids follow the shorter home-defense buildup.
-   // Preserve an uncontested initial setup and never strip emergency
-   // defenders; expansionRaid independently checks actual safe sectors.
+   // Reconcile the existing controllers with the reviewed PR #469 arbiter.
+   // Defense may preempt a scout, but that scout must not reclaim the
+   // defender on the next pulse or remain in the campaign roster.
+   const frontline=planCombatDuties(fighters.map(u=>u.id),{
+    defense,opening:earlyContesters,recapture:new Set(),raid:new Set()
+   });
+   s.openingContests=(s.openingContests??[]).filter(e=>frontline.opening.has(e.unitId));
    const recapture=this.coordinatedRecapture(fighters.filter(u=>
-    !defense.has(u.id)&&!earlyContesters.has(u.id)),home);
+    frontline.campaign.has(u.id)),home);
    const raiders=g.world.mapVersion>=19&&g.time<125&&
     !this.battleDirective?.allowEarlyRaid
     ?new Set<number>():this.expansionRaid(fighters.filter(u=>
-     !defense.has(u.id)&&!earlyContesters.has(u.id)&&!recapture.has(u.id)),home);
-   const main=fighters.filter(u=>!defense.has(u.id)&&!raiders.has(u.id)&&
-    !earlyContesters.has(u.id)&&!recapture.has(u.id));
+     frontline.campaign.has(u.id)&&!recapture.has(u.id)),home);
+   const duties=planCombatDuties(fighters.map(u=>u.id),{
+    defense,opening:frontline.opening,recapture,raid:raiders
+   });
+   // Preserve eligible medic escorts as well as campaign combatants.
+   const escorts=new Set(medics.filter(u=>!defense.has(u.id)).map(u=>u.id));
+   s.group=s.group.filter(id=>duties.campaign.has(id)||escorts.has(id));
+   const main=fighters.filter(u=>duties.campaign.has(u.id));
    if(main.length)this.campaign(army,main,medics.filter(u=>!defense.has(u.id)),home);
-   this.dispatchObservedSpecialists(army);
-   this.supportBombers(army,home);
+   // Local defense already chooses rocket counter-targets. Its aircraft
+   // must not receive a second, unrelated strike from a later controller.
+   this.dispatchObservedSpecialists(army.filter(u=>!defense.has(u.id)));
+   this.supportBombers(army.filter(u=>u.kind!=='bomber'||!defense.has(u.id)),home);
    if(defense.size)campaignPhase(s.commander??=newCampaign(),'emergencyDefense',g.time);
    return;
   }

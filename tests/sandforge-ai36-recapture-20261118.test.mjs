@@ -91,6 +91,11 @@ test('recapture squad holds gained Bastion for 15 simulated seconds instead of i
  }
  g.time+=16;assert.equal(g.tactical.coordinatedRecapture(fighters,home).size,0);
  assert.equal(g.tactical.recaptureMission,null);
+ for(const id of assigned){
+  const u=g.units.find(v=>v.id===id);
+  assert.equal(u.hold,false,'temporary garrison returns to the mobile army');
+  assert.equal(u.guardArea,false);
+ }
 });
 test('same-binary A/B opt-out retains KI3.5 with identical start-state and no new save fields',()=>{
  const {g,home,site,fighters}=scenario();
