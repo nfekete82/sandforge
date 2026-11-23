@@ -182,3 +182,15 @@ export function actionTerritoryRecoveryPolicy(x:{
   x.oldMissionSeconds>=25&&!x.oldCaptureOccupied&&
   !x.activeAssault&&!x.homeThreat;
 }
+
+/** The 15s guard-on-capture is temporary. Once the point is secure, the
+ * same real paid soldiers should rejoin planning; an observed raid keeps
+ * them on the capture ring until it passes. Lost sites may be recaptured
+ * with the same squad instead of leaving it permanently on hold. */
+export function actionReleaseTemporaryRecaptureHold(x:{
+ preset:BalancePreset;temporaryGuard:boolean;hasOrders:boolean;
+ siteOwned:boolean;securedSeconds:number;observedThreat:boolean;
+}):boolean{
+ return x.preset==='action'&&x.temporaryGuard&&!x.hasOrders&&
+  (!x.siteOwned||x.securedSeconds>=15&&!x.observedThreat);
+}
