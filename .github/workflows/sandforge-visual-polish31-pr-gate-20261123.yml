@@ -1,0 +1,48 @@
+name: Sandforge · Visual Polish 3.1 focused PR gate
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/build.mjs
+      - scripts/webgl-actor-presentation.js
+      - scripts/webgl-battlefield.js
+      - scripts/webgl-building-pbr.js
+      - scripts/webgl-building-shading.js
+      - scripts/webgl-combat-vfx.js
+      - scripts/webgl-vehicle-polish.js
+      - scripts/webgl-particle-finish.js
+      - tests/webgl-visual-polish31.test.mjs
+      - tests/webgl-desert-building-pbr-20261115.test.mjs
+      - .github/workflows/sandforge-visual-polish31-pr-gate-20261123.yml
+permissions:
+  contents: read
+jobs:
+  focused-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compile real game and WebGL module graph
+        run: npm run build
+      - name: Verify authored PBR, vehicle rigs, pooled effects, idle and recoil
+        run: |
+          node --test \
+            tests/webgl-visual-polish31.test.mjs \
+            tests/webgl-desert-building-pbr-20261115.test.mjs
+      - name: No changes to committed model or game sources
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${{ github.event.pull_request.base.sha }}"
+          if git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD \
+            | grep -E '^src/|\.(glb|gltf)$'; then
+            echo 'Visual-only PR must not modify game authority or GLB assets' >&2
+            exit 1
+          fi
+          echo 'No src/ or GLB changes'
