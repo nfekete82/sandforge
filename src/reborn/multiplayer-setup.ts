@@ -64,7 +64,7 @@ export function planMultiplayerSetup(options:{
  if(playerCount===2){
   return {version,seed,playerCount,mode,
    slots:layout.headquarters.map((startSector,player)=>({
-    player:player as PlayerId,controller:player===0?'human':'ai',
+    player:player as PlayerId,controller:player===0?'human' as const:'ai' as const,
     team:player as TeamId,startSector
    }))};
  }
