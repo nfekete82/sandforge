@@ -4,6 +4,7 @@ on:
     branches:
       - feat/sandforge-natural-cliff-dressing-20261122
       - feat/sandforge-action-balance-20261122
+      - feat/ai-action-reachable-front-squads-20261123
   workflow_dispatch:
 permissions:
   contents: read
