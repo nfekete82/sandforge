@@ -76,7 +76,7 @@
  let pauseCheatProgress=0;
  let suppressSpaceRelease=false;
  const saved=readSave();
- const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert',landscape='network',mapId=null}={})=>{
+ const play=(count,seed,{resume=false,legacy=false,terrain='random',biome='desert',landscape='network',mapId=null,balancePreset='classic'}={})=>{
   const params=new URLSearchParams({bastions:String(count),seed:String(seed>>>0),play:'1'});
   // Keep local A/B policy selection while navigating from the main menu.
   if(query.get('ai33')==='off'||query.get('ai33')==='adaptive')
@@ -85,6 +85,7 @@
    params.set('ai35',query.get('ai35'));
   if(query.get('ai36')==='off'||query.get('ai36')==='coordinated')
    params.set('ai36',query.get('ai36'));
+  if(balancePreset==='action')params.set('balance','action');
   if(resume)params.set('resume','1');
   if(legacy)params.set('legacy','1');
   const options=readOptions();
@@ -114,7 +115,8 @@
   const mapId=map&&visual?.seed===data.seed&&
    map.mapVersion===data.mapVersion&&map.generatorVersion===data.generatorVersion&&
    map.terrain===data.terrainProfile&&map.biome===biome?map.id:null;
-  play(bastions,data.seed,{resume:true,legacy:data.mapVersion<=18,biome,mapId});
+  play(bastions,data.seed,{resume:true,legacy:data.mapVersion<=18,biome,mapId,
+   balancePreset:data.balancePreset==='action'?'action':'classic'});
  }
  function randomSeed(){
   if(window.crypto?.getRandomValues){
@@ -229,7 +231,7 @@
    $('sf3d-new-status').textContent='Bitte eine der vier Wüstenkarten auswählen.';return;
   }
   play(map.bastions,map.seed,{terrain:map.terrain,biome:'desert',
-   landscape:'network',mapId:map.id});
+   landscape:'network',mapId:map.id,balancePreset:$('sf3d-balance-preset').value});
  });
  $('sf3d-pause-resume').addEventListener('click',resumeGame);
  $('sf3d-pause-save').addEventListener('click',()=>{

@@ -436,8 +436,11 @@ export class Soundscape {
       const screen=r.screen(blast);
       if(screen.x<0||screen.x>r.width||screen.y<0||screen.y>r.height)continue;
       if(this.context&&this.context.currentTime-this.lastExplosionAt>.095){
-        this.burst(blast,r,.42,.20,360,'lowpass');
-        this.burst(blast,r,.22,.075,1680,'bandpass');
+        // Action uses punchier sound on real, visible explosions only.
+        // Keep the existing spatial voice limiter and user volume controls.
+        const action=g.balancePreset==='action';
+        this.burst(blast,r,action?.48:.42,action?.23:.20,360,'lowpass');
+        this.burst(blast,r,action?.24:.22,action?.088:.075,1680,'bandpass');
         this.lastExplosionAt=this.context.currentTime;
         this.played.explosions++;
       }
