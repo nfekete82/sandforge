@@ -170,17 +170,31 @@ export function actionPublicFrontPressure(x:{
  * invent enemy sightings, expose hidden buildings or strip home defenders.
  * Only a real, fully pathable frontline may replace a long neutral march.
  * Classic and ongoing visible firefights are never interrupted. */
-export function actionTerritoryRecoveryPolicy(x:{
+export interface ActionTerritoryRecoveryInputs {
  preset:BalancePreset;mapVersion:number;time:number;
  ownSectors:number;enemySectors:number;available:number;
  oldKind:string|null;oldNeutral:boolean;oldMissionSeconds:number;
  oldCaptureOccupied:boolean;activeAssault:boolean;homeThreat:boolean;
-}):boolean{
- return x.preset==='action'&&x.mapVersion>=23&&x.time>=160&&
-  x.enemySectors>=3&&x.enemySectors-x.ownSectors>=2&&
-  x.available>=4&&x.oldKind==='capture'&&x.oldNeutral&&
-  x.oldMissionSeconds>=25&&!x.oldCaptureOccupied&&
-  !x.activeAssault&&!x.homeThreat;
+}
+/** Ordered rejection reasons, counted only in opt-in headless diagnostics.
+ * This observes public state supplied by the caller, never unseen enemies. */
+export function actionTerritoryRecoveryBlock(x:ActionTerritoryRecoveryInputs):string|null{
+ if(x.preset!=='action')return 'classic';
+ if(x.mapVersion<23)return 'old-map';
+ if(x.time<160)return 'early';
+ if(x.enemySectors<3)return 'few-blue';
+ if(x.enemySectors-x.ownSectors<2)return 'no-deficit';
+ if(x.available<4)return 'few-fighters';
+ if(x.oldKind!=='capture')return 'other-mission';
+ if(!x.oldNeutral)return 'existing-blue-target';
+ if(x.oldMissionSeconds<25)return 'fresh-mission';
+ if(x.oldCaptureOccupied)return 'occupied-capture';
+ if(x.activeAssault)return 'visible-fight';
+ if(x.homeThreat)return 'home-threat';
+ return null;
+}
+export function actionTerritoryRecoveryPolicy(x:ActionTerritoryRecoveryInputs):boolean{
+ return actionTerritoryRecoveryBlock(x)===null;
 }
 
 /** The 15s guard-on-capture is temporary. Once the point is secure, the
