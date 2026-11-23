@@ -42,7 +42,7 @@ import {attachBastionBeacon,setBastionBeaconColor,detachBastionBeacon,
  bastionOwnerLight} from '/webgl-bastion-beacon.js';
 import {selectedInfantryForTransport,selectedCarrierForPickup,selectedLoadedTransports,selectedTransportManifest} from '/webgl-transport-controls.js';
 import {pointerGestureIntent,submitConstruction,nearestEngineer,keepPlacementAfterBuild,POINTER_CLICK_SLOP} from '/webgl-builder-input.js';
-import {validatedWallDrag,snapWallSiteToMap,WALL_CHAIN_DRAG_THRESHOLD,WALL_CHAIN_MAX} from '/webgl-wall-drag.js';
+import {validatedWallDrag,snapWallSiteToMap,gateRetrofitAt,WALL_CHAIN_DRAG_THRESHOLD,WALL_CHAIN_MAX} from '/webgl-wall-drag.js';
 import {wallTerrainPitch,isWallLike,WALL_GATE_UPGRADE_COST} from '/src/reborn/defensive-wall.js';
 import {sameKindVisibleUnits,visibleFriendlyUnits} from '/webgl-double-click-select.js';
 import {FIELD_UNIT_COMMANDS,orderReturnToBase} from '/webgl-unit-commands.js';
@@ -1159,17 +1159,21 @@ export class SandforgeBattlefield {
    ?snapWallSiteToMap(raw,this.placementFacing,this.world.size,this.buildKind):raw;
   ghost.visible=Boolean(p);
   if(!p){this.buildHint.style.display='none';return;}
-  ghost.position.copy(this.pos(p.x,p.y));
-  ghost.rotation.y=buildingFacingAngle(this.placementFacing);
+  const retrofit=this.buildKind==='wallGate'?gateRetrofitAt(this.game,p,0):null;
+  const placement=retrofit?.center??p,facing=retrofit?.facing??this.placementFacing;
+  ghost.position.copy(this.pos(placement.x,placement.y));
+  ghost.rotation.y=buildingFacingAngle(facing);
   ghost.rotation.z=isWallLike(this.buildKind)
-   ?wallTerrainPitch(this.world,p,this.placementFacing,
+   ?wallTerrainPitch(this.world,placement,facing,
     this.buildKind==='wallGate'?2:1):0;
   if(this.buildKind==='airfield'&&ghost.userData.previewService)
    conformAirfieldSurface(ghost.userData.previewService,
     {...p,facing:this.placementFacing},(x,z)=>this.heightAt(x,z));
-  const error=this.game.buildError(0,this.buildKind,p,this.placementFacing);
-  const engineer=this.game.units.some(u=>u.owner===0&&u.kind==='engineer'&&u.hp>0&&!u.carrier);
-  const valid=!error&&engineer;
+  const error=retrofit?(this.game.credits[0]<WALL_GATE_UPGRADE_COST?
+   'Zu wenig Credits für Tor-Umrüstung':null):
+   this.game.buildError(0,this.buildKind,p,this.placementFacing);
+  const engineer=retrofit||this.game.units.some(u=>u.owner===0&&u.kind==='engineer'&&u.hp>0&&!u.carrier);
+  const valid=!error&&Boolean(engineer);
   // Recolor owned cloned materials only when validity changes. This is
   // stable even if the GLB loads while a red/unbuildable spot is selected.
   if(ghost.userData.previewSiteValid!==valid){
@@ -1196,7 +1200,8 @@ export class SandforgeBattlefield {
   this.buildHint.style.left=Math.max(4,Math.min(event.clientX+17,window.innerWidth-265))+'px';
   this.buildHint.style.top=Math.max(4,Math.min(event.clientY+15,window.innerHeight-85))+'px';
   this.buildHint.textContent=BUILDINGS[this.buildKind].name+' · '+
-   (valid?this.buildKind==='wall'?
+   (valid?retrofit?'Bestehende Mauer ersetzen · Klick baut Doppeltor ('+
+    WALL_GATE_UPGRADE_COST+' Credits)':this.buildKind==='wall'?
     'Bauplatz frei · Linksklick halten und Mauer ziehen':'Bauplatz frei · Klick baut':
     error??'Pionier benötigt')+
    ' · R drehen ('+buildingFacingDegrees(this.placementFacing)+'°)';
@@ -3299,6 +3304,24 @@ export class SandforgeBattlefield {
     const kind=this.buildKind;
     const site=isWallLike(kind)
      ?snapWallSiteToMap(p,this.placementFacing,this.world.size,kind):p;
+    const retrofit=kind==='wallGate'?gateRetrofitAt(this.game,site,0):null;
+    if(retrofit){
+     if(this.game.convertWallToGate(0,retrofit.wall.id)){
+      for(const wallId of [retrofit.wall.id,retrofit.partner.id]){
+       const entry=this.bases.get(wallId);
+       if(!entry)continue;
+       this.construction.dispose(entry);
+       if(entry.yard)disposeBuildingYard(entry.yard);
+       if(entry.placeholder)disposeActorPlaceholder(entry.placeholder);
+       this.scene.remove(entry.node);this.bases.delete(wallId);
+      }
+      this.clearPlacement();this.sync(true);this.drawInterface();
+      this.message('Doppeltor in vorhandene Mauer eingebaut · '+
+       WALL_GATE_UPGRADE_COST+' Credits · eigene Fahrzeuge passieren');
+     }else this.message('Tor-Umrüstung benötigt zwei fertige Mauersegmente und '+
+      WALL_GATE_UPGRADE_COST+' Credits');
+     return;
+    }
     const blocked=this.game.buildError(0,kind,site,this.placementFacing);
     if(blocked){
      this.message(blocked+' · Bauplatz oder Ausrichtung ändern');

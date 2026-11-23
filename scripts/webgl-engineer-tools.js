@@ -68,22 +68,23 @@ export function equipEngineerTools(model,{fallback=false}={}){
  }else{
   // Atlas_WeaponSocket is parented to the animated right-hand bone.
   wrench.position.set(-.045,.075,.025);
+  wrench.scale.setScalar(1.10);
   wrench.rotation.set(.18,0,.35);
  }
  wrench.userData.restRotationZ=wrench.rotation.z;
  wrench.userData.restY=wrench.position.y;
- wrench.visible=false;
+ wrench.visible=true;
  socket.add(wrench);
  model.userData.sandforgeEngineerToolsEquipped=true;
  return {wrench,pistol};
 }
 
-/** Visual-only. A working pioneer holds the wrench; otherwise his pistol. */
+/** Visual-only. Pioneer carries the wrench at idle and while working. */
 export function updateEngineerTools(equipment,working,time){
  if(!equipment?.wrench)return;
  const {wrench,pistol}=equipment;
- wrench.visible=Boolean(working);
- if(pistol)pistol.visible=!working;
+ wrench.visible=true;
+ if(pistol)pistol.visible=false;
  const rest=wrench.userData.restRotationZ;
  wrench.rotation.z=rest+(working?Math.sin(time*12)*.18:0);
  wrench.position.y=wrench.userData.restY+(working?Math.sin(time*12)*.012:0);
