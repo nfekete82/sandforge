@@ -72,3 +72,18 @@ export function actionContestedBastionSafe(x:{
  if(x.visibleEnemies===0)return true;
  return x.preset==='action'&&x.counter&&x.available>=4&&x.visibleEnemies<=2;
 }
+
+/** Select a REAL same-goal squad, preserving paid-unit order and avoiding
+ * phantom two-unit counterattacks when only one route is traversable.
+ * No game state, fog data or extra units are created by this selector. */
+export function selectReachableOpeningSquad<T>(
+ units:readonly T[],required:number,canReach:(unit:T)=>boolean
+):T[]{
+ if(!Number.isInteger(required)||required<1||required>units.length)return [];
+ const squad:T[]=[];
+ for(const unit of units)if(canReach(unit)){
+  squad.push(unit);
+  if(squad.length===required)break;
+ }
+ return squad.length===required?squad:[];
+}
