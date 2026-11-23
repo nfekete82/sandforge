@@ -160,8 +160,8 @@ export function actionPublicFrontPressure(x:{
  oldKind:string|null;oldNeutral:boolean;oldMissionSeconds:number;
  oldCaptureOccupied:boolean;activeAssault:boolean;homeThreat:boolean;
 }):boolean{
- return x.preset==='action'&&x.time>=65&&x.time<=215&&
-  x.blueOwned>=2&&x.available>=3&&
-  x.oldKind==='capture'&&x.oldNeutral&&x.oldMissionSeconds>=15&&
+ return x.preset==='action'&&x.time>=55&&x.time<=215&&
+  x.blueOwned>=1&&x.available>=3&&
+  x.oldKind==='capture'&&x.oldNeutral&&x.oldMissionSeconds>=12&&
   !x.oldCaptureOccupied&&!x.activeAssault&&!x.homeThreat;
 }
