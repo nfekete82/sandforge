@@ -365,3 +365,12 @@ test('Early public pressure never raids the only BLUE-held home sector',()=>{
  const ai=readFileSync('src/reborn/tactical-ai.ts','utf8');
  assert.match(ai,/firstRerouteAt\?\?=g\.time/);
 });
+
+test('Pacing report separates true paid infantry fights from drone warning shots',()=>{
+ const s=readFileSync('scripts/benchmark-sandforge-action-20261122.mjs','utf8');
+ assert.match(s,/firstGroundUnitExchange\?\?=metrics\.seconds/);
+ assert.match(s,/firstGroundExchangeDelta:/);
+ assert.match(s,/groundShotsByFactionDelta:/);
+ assert.match(s,/firstFireEvents:/);
+ assert.match(s,/sourceType:source&&'orders' in source\?'unit':'base'/);
+});
