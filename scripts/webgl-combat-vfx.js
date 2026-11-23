@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {BLOOM_LAYER} from '/webgl-visual-post.js';
+import {SandforgeFlameJet} from '/webgl-flame-jet.js';
 import {tankCannonMuzzleWorld} from '/webgl-tank-muzzle-origin.js';
 import {UNITS} from '/src/reborn/catalog.js';
 import {hitResponseFor,impactHeight,damagedVehicleIntensity} from '/webgl-hit-response.js';
@@ -227,6 +228,9 @@ export class SandforgeCombatEffects {
   this.rocketSmoke=makePool(scene,'rocketSmoke',lowQuality?48:160,.68);
   this.flash=makePool(scene,'flash',lowQuality?16:48,.86);
   this.flames=makePool(scene,'flame',lowQuality?48:210,.94);
+  this.flameJet=new SandforgeFlameJet(scene,lowQuality);
+  this.flameJet.outer.layers.enable(BLOOM_LAYER);
+  this.flameJet.inner.layers.enable(BLOOM_LAYER);
   this.dust=makePool(scene,'dust',lowQuality?40:170,.50,biome);
   this.trailDust=makePool(scene,'dust',lowQuality?VEHICLE_DUST_CAP_LITE:VEHICLE_DUST_CAP,.27,biome);
   this.trailDust.mesh.name='visual-moving-vehicle-dust';
@@ -483,41 +487,42 @@ export class SandforgeCombatEffects {
    12,.30,(this.rand()-.5)*15,(this.rand()-.5)*15,8);
   this.stats.muzzlePuffs++;
  }
- /** Long, tapered flamethrower plume, strictly visual: the 20-Hz
-  * Simulation owns range, damage and target checks. All sprites are pooled.
-  * Avoid new lights, tracers, meshes and uncapped environmental emitters.
+ /** Continuous two-layer, camera-facing fire jet, and local ignition
+  * around an actual hit target (never detached ground-fire dots).
+  * All hit chance, DPS and visibility live in Simulation, not the shader.
   */
  flameStreamAt(shot){
   const from=shot.groundFrom??shot.from,to=shot.groundTo??shot.to;
-  if(!from||!to||!this.game.canSee(0,from))return;
-  const dx=to.x-from.x,dz=to.y-from.y,d=Math.hypot(dx,dz);
-  if(d<1)return;
-  const sx=dx/d,sz=dz/d,limit=Math.min(UNITS.flamer.range,d);
-  const lip=Math.min(53,Math.max(13,limit*.29));
-  const groundStart=this.heightAt(from.x,from.y),groundEnd=this.heightAt(to.x,to.y);
-  // Use a coherent bright flame heart and gradually broader orange tongues.
-  // The cone begins at the front nozzle, not inside the tank's body.
-  for(let i=0;i<16;i++){
-   const t=(i+.45)/16,travel=lip+(limit-lip)*t;
-   const side=(this.rand()-.5)*(2+t*17);
-   const x=from.x+sx*travel-sz*side,z=from.y+sz*travel+sx*side;
-   const y=groundStart+(groundEnd-groundStart)*t+20+Math.sin(Math.PI*t)*10;
-   this.particle(this.flames,x,z,y,7+t*17,
-    .16+this.rand()*.16,sx*(38+this.rand()*22),
-    sz*(38+this.rand()*22),3+this.rand()*17);
-   if(i%4===1)this.particle(this.flash,x,z,y+2,4+t*6,
-    .09+this.rand()*.08,sx*22,sz*22,5);
-  }
-  if(shot.hit){
-   for(let i=0;i<3;i++){
-    const a=this.rand()*Math.PI*2;
-    this.particle(this.flames,to.x+Math.cos(a)*7,to.y+Math.sin(a)*7,
-     groundEnd+10,11+this.rand()*9,.19+this.rand()*.14,0,0,21);
+  if(!from||!to||!shot.hit||!this.game.canSee(0,from))return;
+  const fromHeight=this.heightAt(from.x,from.y);
+  const toHeight=this.heightAt(to.x,to.y);
+  this.flameJet.add(from,to,fromHeight,toHeight,this.world.size);
+  const dx=to.x-from.x,dz=to.y-from.y,d=Math.max(1,Math.hypot(dx,dz));
+  const nozzleX=from.x+dx/d*Math.min(42,d*.28);
+  const nozzleZ=from.y+dz/d*Math.min(42,d*.28);
+  // Short pilot light, not a giant round muzzle explosion.
+  this.particle(this.flash,nozzleX,nozzleZ,fromHeight+29,9,.075);
+  // Infantry visibly catches fire at the exact hit location. The flames are
+  // brief and capped; there are no immortal burning ground decals.
+  if(shot.targetClass==='infantry'){
+   for(let i=0;i<8;i++){
+    const a=this.rand()*Math.PI*2,r=this.rand()*9;
+    const px=to.x+Math.cos(a)*r,pz=to.y+Math.sin(a)*r;
+    this.particle(this.flames,px,pz,toHeight+7+this.rand()*17,
+     9+this.rand()*12,.21+this.rand()*.19,
+     (this.rand()-.5)*9,(this.rand()-.5)*9,24+this.rand()*33);
    }
-   if(this.rand()<.55)this.particle(this.smoke,to.x,to.y,
-    groundEnd+18,10,.43,0,0,15);
+   this.particle(this.smoke,to.x,to.y,toHeight+20,12,.42,
+    (this.rand()-.5)*7,(this.rand()-.5)*7,22);
+  }else{
+   // A tighter contact flare against metal/concrete, without an artillery
+   // explosion or aircraft-sized ball of fire.
+   for(let i=0;i<3;i++)
+    this.particle(this.flames,to.x+(this.rand()-.5)*12,
+     to.y+(this.rand()-.5)*12,toHeight+19,10,.17,0,0,12);
   }
  }
+
  impactAt(shot){
   const p=shot.groundTo??shot.to;
   if(!this.game.canSee(0,{x:p.x,y:p.y}))return;
@@ -1120,6 +1125,7 @@ export class SandforgeCombatEffects {
   this.updateFallingBombs(active,subTick);
   if(!active)return;
   this.frame++;
+  this.flameJet.update(dt,this.camera);
   this.updateBlastGlow(dt);
   this.updateAircraftCrashes(dt);
   this.wreckSync+=dt;

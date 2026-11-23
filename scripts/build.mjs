@@ -115,6 +115,7 @@ cpSync('scripts/webgl-landscape-network.js','dist/webgl-landscape-network.js');
 cpSync('scripts/webgl-raised-mesa-cliffs.js','dist/webgl-raised-mesa-cliffs.js');
 cpSync('scripts/webgl-atmosphere-3d.js','dist/webgl-atmosphere-3d.js');
 cpSync('scripts/webgl-combat-vfx.js','dist/webgl-combat-vfx.js');
+cpSync('scripts/webgl-flame-jet.js','dist/webgl-flame-jet.js');
 cpSync('scripts/webgl-tank-muzzle-origin.js','dist/webgl-tank-muzzle-origin.js');
 cpSync('scripts/webgl-ordnance-profile.js','dist/webgl-ordnance-profile.js');
 cpSync('scripts/webgl-hit-response.js','dist/webgl-hit-response.js');
