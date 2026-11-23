@@ -25,6 +25,14 @@ const browser=await chromium.launch({
 });
 const stress=process.env.POLISH31_STRESS==='1';
 const actorCount=stress?48:12,enemyCount=stress?12:4;
+const variantTimeout=Number(process.env.POLISH31_VARIANT_TIMEOUT_MS??720000);
+assert.ok(Number.isFinite(variantTimeout)&&variantTimeout>=120000,
+ 'Invalid POLISH31_VARIANT_TIMEOUT_MS');
+const timeBound=(promise,label)=>Promise.race([
+ promise,
+ new Promise((_,reject)=>setTimeout(()=>reject(
+  Error('POLISH31_TIMEOUT '+label+' after '+variantTimeout+'ms')),variantTimeout))
+]);
 const reports=[],errors=[];
 const maps=[['desert-strike',9999,8,'oasis'],['broken-empire',2026,12,'rocky'],['burning-horizon',1907,16,'dunes']];
 try{
@@ -35,15 +43,21 @@ try{
    if(process.env.POLISH31_VARIANT&&process.env.POLISH31_VARIANT!==variant)continue;
    const page=await browser.newPage({viewport:{width:1440,height:900},deviceScaleFactor:1,
     ...(process.env.POLISH31_VIDEO==='1'?{recordVideo:{dir:out+'/video',size:{width:1440,height:900}}}:{})});
+   console.log('POLISH31_STAGE '+JSON.stringify({map,variant,stress,stage:'page-open',frames,trial}));
    page.on('pageerror',e=>errors.push({map,variant,message:e.message}));
-   page.on('console',m=>{if(m.type()==='error'&&/WebGL|shader|VALIDATE_STATUS/.test(m.text()))errors.push({map,variant,message:m.text()});});
+   page.on('console',m=>{
+    if(m.text().startsWith('POLISH31_PROGRESS '))console.log(m.text());
+    if(m.type()==='error'&&/WebGL|shader|VALIDATE_STATUS/.test(m.text()))
+     errors.push({map,variant,message:m.text()});
+   });
    if(variant==='before'||variant==='submitted')await page.route('**/webgl-*.js',route=>{
     const body=(variant==='submitted'?submitted:original).get(new URL(route.request().url()).pathname.slice(1));
     return body?route.fulfill({contentType:'text/javascript',body}):route.continue();
    });
    await page.goto(base+`/webgl-preview.html?play=1&map=${map}&seed=${seed}&bastions=${bastions}&terrain=${terrain}&biome=desert&landscape=network&pause=1&perf=1&adaptive=0&post=${process.env.POLISH31_POST??0}`,{waitUntil:'domcontentloaded'});
    await page.waitForFunction(()=>{const a=window.__sandforgeWebGL;return a?.loaded&&a.authenticDesertReady&&a.desertArtReady;},null,{timeout:120000});
-   const scene=await page.evaluate(async({stress,actorCount,enemyCount})=>{
+   console.log('POLISH31_STAGE '+JSON.stringify({map,variant,stage:'scene-ready'}));
+   const scene=await timeBound(page.evaluate(async({stress,actorCount,enemyCount})=>{
     const a=window.__sandforgeWebGL,g=a.game,b=a.battlefield;
     a.renderer.setAnimationLoop(null);
     const {BUILDINGS}=await import('/src/reborn/catalog.js');
@@ -89,14 +103,16 @@ try{
     return {seed:g.seed,map:a.desertMapId,actors:actors.length,
      camera:{position:a.camera.position.toArray(),target:a.controls.target.toArray(),zoom:a.camera.zoom},
      gpu:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER)};
-   },{stress,actorCount,enemyCount});
+   },{stress,actorCount,enemyCount}),map+'/'+variant+'/scene-setup');
+   console.log('POLISH31_STAGE '+JSON.stringify({map,variant,stage:'models-loading'}));
    await page.waitForFunction(()=>{const b=window.__sandforgeWebGL.battlefield;return !b.loadingCount&&!b.modelQueue.length&&!b.pending.size;},null,{timeout:120000});
+   console.log('POLISH31_STAGE '+JSON.stringify({map,variant,stage:'models-ready'}));
    await page.evaluate(()=>{
     const a=window.__sandforgeWebGL;a.battlefield.sync(true,0,false,1);
     a.renderer.info.reset();a.visualPost.render(a.scene,a.camera);
    });
    await page.screenshot({path:`${out}/${map}-${variant}-rts.png`});
-   const metrics=await page.evaluate(async({frames,profile,stress})=>{
+   const metrics=await timeBound(page.evaluate(async({frames,profile,stress})=>{
     const a=window.__sandforgeWebGL,g=a.game,b=a.battlefield;
     const ids=globalThis.__polish31Actors;
     const movers=g.units.filter(u=>ids.includes(u.id)).slice(0,stress?24:6);
@@ -113,6 +129,10 @@ try{
     const samples=[];let last=performance.now();
     let lastAi=g.aiPlanCompletedAt,lastVision=g.visionCompletedAt;
     for(let i=0;i<frames;i++){
+     if(i%120===0)console.info('POLISH31_PROGRESS '+JSON.stringify({
+      frame:i,frames,stress,simTime:Number(g.time.toFixed(2)),
+      vehicleCount:g.units.filter(u=>u.owner===0||u.owner===1).length
+     }));
      await new Promise(r=>requestAnimationFrame(r));
      const now=performance.now();samples.push(now-last);last=now;
      if(profile){g.resetSquadProfile?.();g.world.resetPathProfile?.();}
@@ -152,7 +172,8 @@ try{
      actualDetails:ids.filter(id=>b.units.get(id)?.detail).length,
      particleCap:a.effects.pools.map(p=>({mode:p.mode,max:p.max,count:p.mesh.count})),
      post:a.visualPost.snapshot(),glError:a.renderer.getContext().getError()};
-   },{frames,profile,stress});
+   },{frames,profile,stress}),map+'/'+variant+'/600-frames');
+   console.log('POLISH31_STAGE '+JSON.stringify({map,variant,stage:'metrics-done',workMs:metrics.workMs}));
    await page.screenshot({path:`${out}/${map}-${variant}-combat.png`});
    reports.push({map,variant,trial,stress,actorCount,enemyCount,scene,metrics});
    writeFileSync(out+'/report.json',JSON.stringify({baseRef:ref,reports,errors},null,2)+'\n');
