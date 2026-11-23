@@ -2354,8 +2354,13 @@ export class TacticalAI {
     .map(t=>({t,p:approach(ready[0],t)})).filter(v=>Boolean(v.p));
    const neutralScore=Math.min(Infinity,...candidates.filter(v=>v.t.owner===-1)
     .map(v=>actionMerit(ready[0],v.t,v.p!)));
+   // On the 16-Bastion battlefield, adjacent enemy territory may be
+   // materially farther away than another uncontested neutral objective.
+   // Accept a modest strategic detour to establish a meaningful front;
+   // keep the narrower threshold on the smaller, faster combat maps.
+   const frontierBias=g.territories.length>=16?420:120;
    focusEnemyFront=candidates.some(v=>v.t.owner===0&&
-    actionMerit(ready[0],v.t,v.p!)<=neutralScore+120&&
+    actionMerit(ready[0],v.t,v.p!)<=neutralScore+frontierBias&&
     ready.slice(1,5).some(u=>Boolean(approach(u,v.t))));
   }
   // Reallocate an old neutral scout pair once to the attainable public
