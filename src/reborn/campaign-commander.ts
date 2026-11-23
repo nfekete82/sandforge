@@ -8,7 +8,7 @@ import type {Loss} from './tactical-ai.js';
 import {replanAfterLoss} from './ai25-doctrine.js';
 import {publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {ai43KeepKnownHqMission} from './ai43-hq-breakthrough.js';
-import {actionPublicFrontPressure} from './action-balance.js';
+import {actionPublicFrontPressure,actionTerritoryRecoveryPolicy} from './action-balance.js';
 import {rankPublicFronts,type PublicSector} from './map-intelligence.js';
 
 export type CampaignPhase='opening'|'expansion'|'buildup'|'offensive'|'siege'|'endgame'|'emergencyDefense';
@@ -84,6 +84,40 @@ export function chooseMission(g:Simulation,s:CampaignState,origin:Point,context?
    u.kind!=='drone'&&g.canSee(1,u)&&distance(u,t.point)<330).length<=1;
  const actionFighters=context?.force.filter(u=>u.hp>0&&!u.carrier&&
   !['engineer','medic','scout','drone'].includes(u.kind)).length??0;
+ // Recovery of the ACTUAL public economy takes priority when Action has
+ // lost its Bastion front. Never chase a hidden unit or abandon a visible
+ // firefight. In particular, a distant valid NEUTRAL order may no longer
+ // pin the entire army while BLUE controls a decisive majority.
+ if(old&&context?.actionContact){
+  context.actionContactEvent?.('recovery-checked');
+  if(actionTerritoryRecoveryPolicy({
+   preset:g.balancePreset,mapVersion:g.world.mapVersion,time:g.time,
+   ownSectors:redOwned,enemySectors:blueOwned,available:actionFighters,
+   oldKind:old.kind,oldNeutral:g.territories[old.sector]?.owner===-1,
+   oldMissionSeconds:g.time-old.since,
+   oldCaptureOccupied:context.force.some(u=>u.hp>0&&!u.carrier&&
+    distance(u,old)<175),
+   activeAssault:!!context.activeAssault,homeThreat:!!context.homeThreat
+  })){
+   context.actionContactEvent?.('recovery-eligible');
+   const fronts=rankPublicFronts({
+    sectors:g.territories,origin,worldSize:g.world.size,blueOwned,
+    route:context.route,
+    // The target must be publicly BLUE-held, adjacent to a RED sector,
+    // not occupied by an OBSERVED fortification or enemy strike group.
+    knownThreat:t=>t.owner!==0||!actionFront(t),
+    maxPaths:Math.min(16,g.territories.length)
+   }).filter(t=>t.route.risk<7&&t.detour<2.8);
+   const target=fronts[0];
+   if(target){
+    context.actionContactEvent?.('recovery-rerouted');
+    return s.mission={kind:'capture',...target.sector.point,
+     sector:target.sector.id,objective:null,hp:0,since:g.time,
+     progressAt:g.time,distance:distance(origin,target.sector.point)};
+   }
+   context.actionContactEvent?.('recovery-no-route');
+  }
+ }
  if(old&&context?.actionContact)context.actionContactEvent?.('checked');
  if(old&&actionPublicFrontPressure({
     preset:g.balancePreset,time:g.time,blueOwned,available:actionFighters,
