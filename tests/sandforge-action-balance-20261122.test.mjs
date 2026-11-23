@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {RULES} from '../dist/src/reborn/config.js';
-import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure,actionPublicFrontPressure,actionTerritoryRecoveryPolicy,actionReleaseTemporaryRecaptureHold}
+import {ACTION_BALANCE,initialActionCredits,constructionRate,productionRate,groundSpeedRate,actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionEarlyArmyBeforeInfrastructure,actionPublicFrontPressure,actionTerritoryRecoveryPolicy,actionTerritoryRecoveryBlock,actionReleaseTemporaryRecaptureHold}
  from '../dist/src/reborn/action-balance.js';
 
 test('new Action matches grant the same paid credit bonus to BOTH sides, only once',()=>{
@@ -418,4 +418,22 @@ test('Action 15s recapture guard orders expire without abandoning a visible defe
  assert.match(ai,/actionReleaseTemporaryRecaptureHold\(/);
  assert.match(ai,/observedThreat=site\.capturing===0\|\|visible\.some/);
  assert.match(ai,/g\.stop\(\[u\.id\]\);/);
+});
+
+test('Recovery rejection reasons separate stale BLUE mission from valid defense',()=>{
+ const x={preset:'action',mapVersion:24,time:360,ownSectors:2,
+  enemySectors:6,available:7,oldKind:'capture',oldNeutral:true,
+  oldMissionSeconds:35,oldCaptureOccupied:false,
+  activeAssault:false,homeThreat:false};
+ assert.equal(actionTerritoryRecoveryBlock(x),null);
+ assert.equal(actionTerritoryRecoveryBlock({...x,oldNeutral:false}),'existing-blue-target');
+ assert.equal(actionTerritoryRecoveryBlock({...x,activeAssault:true}),'visible-fight');
+ assert.equal(actionTerritoryRecoveryBlock({...x,available:2}),'few-fighters');
+ assert.equal(actionTerritoryRecoveryBlock({...x,homeThreat:true}),'home-threat');
+ assert.equal(actionTerritoryRecoveryBlock({...x,enemySectors:2}),'few-blue');
+ const plan=readFileSync('src/reborn/campaign-commander.ts','utf8');
+ assert.match(plan,/context\.actionContactEvent\?\.\('recovery-block:'\+recoveryBlock\)/);
+ const trace=readFileSync('scripts/benchmark-sandforge-action-20261122.mjs','utf8');
+ assert.match(trace,/territoryTimeline\.push\(/);
+ assert.match(trace,/territoryEvents\.push\(/);
 });
