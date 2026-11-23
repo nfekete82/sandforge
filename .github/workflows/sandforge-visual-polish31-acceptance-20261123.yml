@@ -25,16 +25,27 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: three-maps
-            maps: desert-strike,broken-empire,burning-horizon
+          - name: desert-strike
+            maps: desert-strike
             stress: '0'
+            variants: before,after,after,before
+          - name: broken-empire
+            maps: broken-empire
+            stress: '0'
+            variants: before,after,after,before
+          - name: burning-horizon
+            maps: burning-horizon
+            stress: '0'
+            variants: before,after,after,before
           - name: 60-vehicles
             maps: broken-empire
             stress: '1'
+            variants: before,after
     env:
       POLISH31_FRAMES: '600'
-      POLISH31_VARIANTS: before,after,after,before
+      POLISH31_VARIANTS: ${{ matrix.variants }}
       POLISH31_PROFILE: '1'
+      POLISH31_VARIANT_TIMEOUT_MS: '720000'
       POLISH31_MAPS: ${{ matrix.maps }}
       POLISH31_STRESS: ${{ matrix.stress }}
       POLISH31_CHANNEL: chromium
