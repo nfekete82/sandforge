@@ -208,11 +208,14 @@ export class TacticalAI {
  /** Prevent replanning the same safe Action-only forward rally every pulse. */
  private actionForwardRallyMissionSince=-1;
  private actionForwardRallyRetryAt=0;
+ /** Current *real* home-guard IDs; runtime observer, never save state. */
+ readonly actionGuardIds=new Set<number>();
  /** Runtime-only counters used by paired AI benchmarks, never serialized. */
  readonly actionRallyDiagnostics={
   inspected:0,policyEligible:0,attempts:0,leadForward:0,
   clusters:0,clusterPaths:0,ringPaths:0,applied:0,
   homeGuardCapPulses:0,homeGuardSlotPulsesFreed:0,
+  homeReserveBlocks:{} as Record<string,number>,
   blocks:{} as Record<string,number>
  };
  /** Explicitly opt-in ONLY for headless benchmark observation. No saves. */
@@ -1829,14 +1832,30 @@ export class TacticalAI {
    observedHomePressure,knownThreats:towers.length+visible.length,
    recentLosses,recentFailures:recentFailures.length
   });
-  if(g.balancePreset==='action'&&actionReserve<reserve){
-   this.actionRallyDiagnostics.homeGuardCapPulses++;
-   this.actionRallyDiagnostics.homeGuardSlotPulsesFreed+=reserve-actionReserve;
+  if(g.balancePreset==='action'&&g.time>=45&&g.time<=240){
+   const d=this.actionRallyDiagnostics;
+   const reason=s.phase==='attack'||s.phase==='defend'?'active-'+s.phase:
+    mission.kind!=='capture'?'mission-'+mission.kind:
+    mainFighters.length<3?'few-fighters':
+    observedHomePressure?'home-threat':
+    towers.length+visible.length>0?'observed-threat':
+    recentLosses>0?'recent-loss':
+    recentFailures.length>0?'recent-failure':
+    actionReserve<reserve?'released':'already-minimum';
+   d.homeReserveBlocks[reason]=(d.homeReserveBlocks[reason]??0)+1;
+   if(actionReserve<reserve){
+    d.homeGuardCapPulses++;
+    d.homeGuardSlotPulsesFreed+=reserve-actionReserve;
+   }
   }
   const guards=new Set(mainFighters.filter(u=>s.phase!=='attack'||!s.group.includes(u.id))
    .sort((a,b)=>homeGuardPriority(a)-homeGuardPriority(b)||
     distance(a,home)-distance(b,home)||a.id-b.id)
    .slice(0,actionReserve).map(u=>u.id));
+  if(g.balancePreset==='action'){
+   this.actionGuardIds.clear();
+   for(const id of guards)this.actionGuardIds.add(id);
+  }
   if(policy&&s.phase!=='attack')s.group=s.group.filter(id=>!guards.has(id));
   if(policy)this.stationHomeGuards(mainFighters.filter(u=>guards.has(u.id)),home);
   // Action early-game pressure: rally at a REAL paid troop cluster instead
