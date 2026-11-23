@@ -387,9 +387,19 @@ export class SandforgeBattlefield {
  }
  orientTankRig(entry,unit){
   const hull=Number.isFinite(unit.hullAngle)?unit.hullAngle:unit.angle;
-  const gun=Number.isFinite(unit.angle)?unit.angle:hull;
-  // Local +Z points forwards. The outer actor follows the slower physical
-  // hullAngle; both rigid gun groups independently track the aimed bearing.
+  // Rocket artillery's upper pod is FIXED to its truck while driving,
+  // turning in place for a move order, or parked without an active target.
+  // unit.angle also records the navigation bearing: following it blindly
+  // makes the launcher counter-rotate whenever the 6x6 chassis steers.
+  // Only combat aiming (target acquired or a recent launch) can traverse.
+  // This is presentation-only: never modify angle, hullAngle, shots, orders
+  // or the authoritative weapon range/aiming in the 20 Hz simulation.
+  const artilleryAiming=entry.kind!=='artillery'||(
+   !unit.moving&&unit.orders?.[0]?.kind!=='move'&&
+   (unit.combatTarget!=null||unit.fire>0||(unit.burst?.remaining??0)>0));
+  const gun=artilleryAiming&&Number.isFinite(unit.angle)?unit.angle:hull;
+  // Local +Z points forwards; keep tank independent aiming unchanged.
+  // For the artillery rig the difference is zero outside active combat.
   const relative=hull-gun;
   const rig=entry.tankRig;
   if(rig?.turret)rig.turret.rotation.y=rig.turretRest+relative;
