@@ -209,8 +209,10 @@ test('Action early skirmish uses observed fighters and public frontlines, not un
   'two independently path-validated paid fighters must reach the front');
  assert.match(tactical,/focusEnemyFront&&!s\.openingContests\.some/,
   'retain existing neutral missions unless a safe frontline pivot is worthwhile');
- assert.match(tactical,/neutralScore\+120/,
-  'distant contested sectors must not force repeated long-distance retargets');
+ assert.match(tactical,/frontierBias=g\.territories\.length>=16\?420:120/,
+  'large maps may commit a paid squad to a reachable public frontline');
+ assert.match(tactical,/neutralScore\+frontierBias/,
+  'distant targets still require a competitive score to avoid repeated retargeting');
  assert.match(tactical,/!focusEnemyFront\|\|t\.owner===0/,
   'after choosing a public front do not immediately retarget the same pair to neutral');
  assert.match(tactical,/if\(maxAssigned-s\.openingContests\.length<count\)break/,
