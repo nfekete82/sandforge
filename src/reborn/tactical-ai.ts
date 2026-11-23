@@ -2629,7 +2629,7 @@ export class TacticalAI {
      // securedAt + 15s. Release ONLY the temporary guard-area post,
      // never a live battle order or an unrelated HQ/bunker defender.
      for(const u of squad)if(actionReleaseTemporaryRecaptureHold({
-      preset:g.balancePreset,temporaryGuard:u.hold&&!!u.guardArea,
+      preset:g.balancePreset,temporaryGuard:!!u.hold&&!!u.guardArea,
       hasOrders:u.orders.length>0,siteOwned:true,
       securedSeconds:g.time-old.securedAt,observedThreat
      }))g.stop([u.id]);
@@ -2637,7 +2637,7 @@ export class TacticalAI {
      // A Bastion that went BLUE again must not strand the old squad in
      // an obsolete guard hold. Reactivate the *same* paid soldiers.
      for(const u of squad)if(actionReleaseTemporaryRecaptureHold({
-      preset:g.balancePreset,temporaryGuard:u.hold&&!!u.guardArea,
+      preset:g.balancePreset,temporaryGuard:!!u.hold&&!!u.guardArea,
       hasOrders:u.orders.length>0,siteOwned:false,
       securedSeconds:0,observedThreat:false
      }))g.stop([u.id]);
@@ -2656,7 +2656,7 @@ export class TacticalAI {
     // Even when the 70s mission expires, never leak its temporary hold
     // into the rest of the game. Classic retains its prior behavior.
     for(const u of squad)if(actionReleaseTemporaryRecaptureHold({
-     preset:g.balancePreset,temporaryGuard:u.hold&&!!u.guardArea,
+     preset:g.balancePreset,temporaryGuard:!!u.hold&&!!u.guardArea,
      hasOrders:u.orders.length>0,siteOwned:false,
      securedSeconds:0,observedThreat:false
     }))g.stop([u.id]);
