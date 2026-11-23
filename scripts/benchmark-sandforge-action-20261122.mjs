@@ -12,6 +12,7 @@ import {mkdirSync,writeFileSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 import './webgl-desert-maps.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
+import {unitSpec,canAttack} from '../dist/src/reborn/catalog.js';
 import {blueBastionRush} from './benchmark-ai-opponent.mjs';
 
 const ALL_MAP_IDS=['desert-strike','broken-empire','burning-horizon','last-stronghold'];
@@ -57,6 +58,7 @@ function run(map,preset){
   firstBlueHQOrder:null,firstBlueHQFinished:null,firstBlueBarracksFinished:null,
   firstRedHQFinished:null,firstRedAttackPhase:null,
   firstExchange:null,firstFireByFaction:[null,null],
+  firstBlueShotContact:null,contactSnapshots:[],
   shotsByFaction:[0,0],redShots:0,engagementSeconds:0,
   redCaptureEvents:0,blueCaptureEvents:0,redCaptureSeconds:0,
   firstRedCapture:null,firstBlueCapture:null,
@@ -77,6 +79,36 @@ function run(map,preset){
  const before=g.territories.map(t=>t.owner);
  const countedShots=new WeakSet();
  const pendingHandoffs=new Map();
+ // These probes DO NOT influence orders, vision, pathfinding or damage.
+ const nearContacts=()=>{
+  const reds=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier&&
+   !['engineer','medic','scout','drone'].includes(u.kind));
+  const blues=g.units.filter(u=>u.owner===0&&u.hp>0&&!u.carrier&&
+   !['engineer','medic','scout','drone'].includes(u.kind));
+  const snapshots=reds.map(u=>{
+   const nearest=blues.slice().sort((a,b)=>length(u,a)-length(u,b)||a.id-b.id)[0];
+   const seen=blues.filter(v=>g.canSee(1,v));
+   const fireable=seen.filter(v=>canAttack(u,v)&&length(u,v)<=g.range(u)&&
+    g.world.line(u,v,g.obstacles().filter(o=>o.id!==v.id)));
+   return {id:u.id,kind:u.kind,hp:Math.round(u.hp),
+    nearBlue:nearest?Math.round(length(u,nearest)):null,
+    visibleBlues:seen.length,fireable:fireable.length,
+    order:u.orders[0]?.kind??null,mode:u.orders[0]?.tactical?.mode??null,
+    target:u.orders[0]?.target??null,
+    hold:u.hold,guardArea:u.guardArea,cooldown:Number(u.cooldown.toFixed(1)),
+    combatTarget:u.combatTarget??null,
+    at:{x:Math.round(u.x),y:Math.round(u.y)}};
+  }).sort((a,b)=>(a.nearBlue??Infinity)-(b.nearBlue??Infinity)||a.id-b.id);
+  return {at:Number(g.time.toFixed(2)),blue:blues.length,red:reds.length,
+   visibleFromRed:blues.filter(u=>g.canSee(1,u)).length,
+   closest:snapshots.slice(0,8),
+   redOrders:Object.fromEntries([...new Set(snapshots.map(u=>u.order??'idle'))]
+    .map(key=>[key,snapshots.filter(u=>(u.order??'idle')===key).length])),
+   redHeld:snapshots.filter(u=>u.hold).length,
+   redFireable:snapshots.filter(u=>u.fireable>0).length,
+   redWithVisible:snapshots.filter(u=>u.visibleBlues>0).length};
+ };
+
  const dt=.05,steps=Math.round(SECONDS/dt);
  for(let i=0;i<steps&&g.status==='playing';i++){
   if(i%60===0){
@@ -153,11 +185,16 @@ function run(map,preset){
    if(shot.owner===0)blueFired=true;
    fireThisFrame=true;
   }
-  if(blueFired)metrics.firstBlueAttack??=metrics.seconds;
+  if(blueFired){
+   metrics.firstBlueAttack??=metrics.seconds;
+   metrics.firstBlueShotContact??=nearContacts();
+  }
   if(fireThisFrame){
    metrics.firstExchange??=metrics.seconds;
    metrics.engagementSeconds+=dt;
   }
+  if([1200,1800,2100,2400,3000,3600].includes(i+1))
+   metrics.contactSnapshots.push(nearContacts());
   for(let t=0;t<g.territories.length;t++){
    const now=g.territories[t].owner;
    if(now!==before[t]){
