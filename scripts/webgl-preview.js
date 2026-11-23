@@ -21,6 +21,7 @@ import {BIOME_STYLES,normalizeBiome,createBiomeGroundTexture,addBiomeVegetation}
 import {SandforgeCombatEffects} from '/webgl-combat-vfx.js';
 import {SandforgeStrategicEffects} from '/webgl-strategic-effects.js';
 import {SandforgePerformanceWatch} from '/webgl-perf-watch.js';
+import {AdaptiveVisualQuality} from '/webgl-adaptive-quality.js';
 import {SandforgeAtmosphere3D} from '/webgl-atmosphere-3d.js';
 import {DESERT_GOLDEN_HOUR,desertGoldenHourEnabled} from '/webgl-golden-hour.js';
 import {addVisualPerimeter} from '/webgl-perimeter.js';
@@ -157,7 +158,8 @@ renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=biome==='desert'?(spacious?.96:1.00):biomeStyle.exposure;
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.65));
+const basePixelRatio=Math.min(devicePixelRatio||1,1.65);
+renderer.setPixelRatio(basePixelRatio);
 stage.append(renderer.domElement);
 const scene=new THREE.Scene();
 // The playable desert still ends at a BLACK void beyond the map. Golden
@@ -1381,6 +1383,9 @@ soundButton.onclick=async()=>{
 };
 
 const performanceWatch=new SandforgePerformanceWatch({game,renderer,effects,groundTracks,battlefield});
+const adaptiveVisualQuality=new AdaptiveVisualQuality({
+ renderer,effects,basePixelRatio,enabled:query.get('adaptive')!=='0'
+});
 // The 3D preview reuses the authoritative, player-only classic attack alerts.
 let lastAttackSequence=game.attackAlerts.sequence;
 let lastAttackBannerUntil=-Infinity;
@@ -1406,7 +1411,10 @@ let lastFrame=performance.now(),frames=0,lastOutcome=game.status;
 const reusableShadowShift=new THREE.Vector3();
 function animate(now){
  performanceWatch.begin(now);
- const dt=Math.min(.08,(now-lastFrame)/1000);lastFrame=now;
+ const frameMs=now-lastFrame;
+ const dt=Math.min(.08,frameMs/1000);lastFrame=now;
+ // Never affect 20-Hz gameplay: this changes only render resolution and VFX.
+ adaptiveVisualQuality.observe(frameMs,now,{running,visible:!document.hidden});
  const beforeSteps=performanceWatch.enabled?performance.now():0;
  let visualDt=0;
  if(running){
@@ -1502,6 +1510,7 @@ window.__sandforgeWebGL={renderer,scene,camera,controls,game,terrain,heightAt,ba
  burnedSedans,
  get burnedSedanCount(){return burnedSedans?.placements.length??0;},
  performance:performanceWatch,
+ visualQuality:adaptiveVisualQuality,
  // Console diagnostic: compare FPS/draw calls with site props on/off live.
  setSiteDecorEnabled:enabled=>battlefield.setSiteDecorEnabled(enabled),
  setStormPreview,
