@@ -14,7 +14,7 @@ import {newBattle,assessBattle,fightingPower,hasDecisiveLocalAdvantage,shouldCom
 import {newAdaptive,updateAdaptive,validAdaptive,type AdaptiveState} from './adaptive-strategy.js';
 import {newExperience,validExperience,finishExperience,canOverrun,observeOwnedLosses,lessonScore,type Experience} from './battle-learning.js';
 import {rankLegacyFrontiers} from './legacy-campaign.js';
-import {canCaptureSector,comebackPressure,chooseComebackOpportunity} from './territory-warfare.js';
+import {canCaptureSector,comebackPressure,chooseComebackOpportunity,capturePresenceRadius} from './territory-warfare.js';
 import {chooseTacticalManeuver,flankCandidate,type TacticalChoice} from './tactical-search.js';
 import {assignScreen,assignFlank,flankRouteScore,isContinuingFlank} from './battle-squads.js';
 import {assaultWaveDecision,reinforcementStagingPoint} from './assault-wave.js';
@@ -22,7 +22,7 @@ import {homeDefensePlan} from './home-defense-doctrine.js';
 import {hqLastStandDecision} from './ai-hq-last-stand.js';
 import {chooseSiegeShot,chooseRaidFront,allowSecondaryPressure,type SiegeShot,type RaidFront} from './ai25-doctrine.js';
 import {decisiveContact,parallelFrontReady,frontierGuardPosts,localBastionDefenseMultiplier} from './ai32-doctrine.js';
-import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,type AI33Mode} from './ai33-map-doctrine.js';
+import {mapRaidReady,mapRaidRouteReady,mapFrontierPosts,mapBastionContestOpening,openingScoutNeedsCaptureMove,type AI33Mode} from './ai33-map-doctrine.js';
 import {bastionGuardPriority,bastionGarrisonReserve,observedDefensePriority,publicBastionDeficit} from './ai35-bastion-doctrine.js';
 import {recaptureDetachmentSize,recaptureObjectiveScore,recaptureThreatPermits,type AI36Mode} from './ai36-recapture-doctrine.js';
 import {rankTerrainRecaptureSquad,canyonPassWaypoint} from './ai36-terrain-routes.js';
@@ -2325,7 +2325,11 @@ export class TacticalAI {
   // Keep assigned soldiers moving; do not reset their A* order every pulse.
   for(const e of s.openingContests){
    const u=ready.find(v=>v.id===e.unitId)!,t=g.territories[e.sectorId],o=u.orders[0];
-   if(o?.kind==='attackMove'&&distance(o,t.point)<105)continue;
+   if(!openingScoutNeedsCaptureMove({
+    sectorOwner:t.owner,distanceToSector:distance(u,t.point),
+    capturePresenceRadius:capturePresenceRadius(g.world.mapVersion),
+    existingCaptureOrder:o?.kind==='attackMove'&&distance(o,t.point)<105
+   }))continue;
    const p=approach(u,t);
    if(p)g.command([u.id],{...p,kind:'attackMove'});
   }
