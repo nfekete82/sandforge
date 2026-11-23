@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {createDetailedDesertRuinHouse} from './webgl-detailed-desert-ruins.js';
 import {renderGroundHeightSampler} from './webgl-environment.js';
 import {DESERT_SCENIC_STYLE as desertStyle} from './webgl-desert-style.js';
 import {planOasisVillages,OASIS_HAMLET_REVISION} from './webgl-oasis-village-layout.js';
@@ -69,14 +71,21 @@ export function planDesertVillages({world,terrain,seed=world?.seed??0,lowQuality
     fixed.some(f=>distance(f,point)<200)||
     houses.some(h=>distance(h,point)<225)||
     (world.terrainSlope?.(point.x,point.y)??0)>.19)break;
+   // Modern v10 battlefields use three different weathered adobe GLBs,
+   // including a genuinely broken house, instead of repeating a tiny
+   // two-model canyon hut. The position and collision rules stay unchanged.
+   const modernAdobe=world.generatorVersion>=10;
+   const adobeVariants=[0,2,4],adobeKinds=['main_house','courtyard_house','ruin_house'];
    houses.push({
     x:point.x,y:point.y,
     angle:angle+(random()-.5)*.48,
     width:76+random()*20,
+    depth:modernAdobe?65+random()*18:undefined,
     height:39+random()*9,
-    variant:i===2?1:0,
-    damage:random()>.42,
-    tint:Math.floor(random()*3)
+    variant:modernAdobe?adobeVariants[i]:i===2?1:0,
+    ...(modernAdobe?{kind:adobeKinds[i]}:{}),
+    damage:modernAdobe?i===2:random()>.42,
+    tint:modernAdobe?.91+random()*.10:Math.floor(random()*3)
    });
   }
   if(houses.length!==count)continue;
@@ -151,11 +160,50 @@ export async function createDesertVillages({
  if(!villages.length)return {villages:[],meshes:[],roads:null,drawCalls:0};
  if(typeof loadModel!=='function')throw Error('Desert village requires authored GLTF model loader');
  const oasisStyle=villages.some(v=>v.architecturalStyle==='oasis-adobe');
- const modelUrls=oasisStyle?OASIS_VILLAGE_MODELS:DESERT_VILLAGE_MODELS;
+ // Current v10 desert villages have their own authored PBR adobe models.
+ // Historical map versions retain their original two canyon GLTF sources.
+ const modernAdobe=world.generatorVersion>=10;
+ const modelUrls=oasisStyle||modernAdobe?OASIS_VILLAGE_MODELS:DESERT_VILLAGE_MODELS;
+ const meshes=[];
+ if(modernAdobe){
+  // The v10 villages in the screenshots are separate from the terrain.ruins
+  // pipeline. Render their genuinely damaged geometry here, not clean adobe
+  // GLBs with an intact outer wall and roof.
+  const batches=new Map();
+  const all=villages.flatMap(v=>v.houses);
+  for(const [i,house] of all.entries()){
+   const ruin={width:house.width,depth:house.depth??house.width*.80,
+    height:house.height,variant:house.variant};
+   const root=createDetailedDesertRuinHouse(ruin,seed,i);
+   const point=pos(house.x,house.y,heightAt(house.x,house.y)-1.3);
+   root.position.copy(point);
+   root.rotation.y=house.angle;
+   root.updateMatrixWorld(true);
+   root.traverse(part=>{
+    if(!part.isMesh)return;
+    const geometry=part.geometry.index?part.geometry.toNonIndexed():part.geometry.clone();
+    geometry.applyMatrix4(part.matrixWorld);
+    const material=part.material;
+    if(!batches.has(material))batches.set(material,[]);
+    batches.get(material).push(geometry);
+   });
+  }
+  for(const [material,parts] of batches){
+   const geometry=mergeGeometries(parts,false);
+   for(const part of parts)part.dispose();
+   if(!geometry)throw Error('Cannot batch desert ruin geometry');
+   const mesh=new THREE.Mesh(geometry,material);
+   mesh.name='visual-modern-damaged-adobe-'+material.name;
+   mesh.userData={visualOnly:true,nonPlayable:true,desertVillage:true,
+    detailedRuin:true,revision:'modern-damaged-adobe-v3-20261122'};
+   mesh.castShadow=true;mesh.receiveShadow=true;mesh.raycast=()=>{};
+   scene.add(mesh);meshes.push(mesh);
+  }
+ }else{
  const gltfs=await Promise.all(modelUrls.map(url=>loadModel(url)));
  const templates=gltfs.map((data,variant)=>{
   const source=data.scene.clone(true);
-  if(!oasisStyle)weatherModel?.(source); // Preserve GLB baked albedo/normal/roughness
+  if(!oasisStyle&&!modernAdobe)weatherModel?.(source); // Keep modern GLB baked PBR maps
   source.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(source);
   const extent=bounds.getSize(new THREE.Vector3());
@@ -174,7 +222,7 @@ export async function createDesertVillages({
   return {submeshes,height:extent.y,width:Math.max(.001,extent.x,extent.z)};
  });
  const houses=villages.flatMap(v=>v.houses);
- const meshes=[];
+
  const origin=new THREE.Vector3(),quaternion=new THREE.Quaternion();
  const scale=new THREE.Vector3(),worldMatrix=new THREE.Matrix4(),transformed=new THREE.Matrix4();
  for(let type=0;type<templates.length;type++){
@@ -184,10 +232,10 @@ export async function createDesertVillages({
    const part=template.submeshes[index];
    const material=part.material;
    const mesh=new THREE.InstancedMesh(part.geometry,material,entries.length);
-   mesh.name='visual-authored-'+(oasisStyle?'oasis-adobe-'+type:'abandoned-'+(type===0?'house':'depot'))+'-'+index;
+   mesh.name='visual-authored-'+(oasisStyle||modernAdobe?'oasis-adobe-'+type:'abandoned-'+(type===0?'house':'depot'))+'-'+index;
    mesh.userData={
     visualOnly:true,nonPlayable:true,desertVillage:true,authoredRuin:true,
-    source:modelUrls[type],revision:oasisStyle?OASIS_HAMLET_REVISION:DESERT_VILLAGE_ART_REVISION
+    source:modelUrls[type],revision:oasisStyle?OASIS_HAMLET_REVISION:modernAdobe?'modern-adobe-ruins-v2-20261122':DESERT_VILLAGE_ART_REVISION
    };
    mesh.castShadow=false;mesh.receiveShadow=true;
    mesh.raycast=()=>{};mesh.frustumCulled=false;
@@ -215,6 +263,7 @@ export async function createDesertVillages({
    mesh.computeBoundingSphere();
    scene.add(mesh);meshes.push(mesh);
   }
+ }
  }
  const road=new THREE.Mesh(makeTracks(villages,world,pos,heightAt),
   new THREE.MeshBasicMaterial({

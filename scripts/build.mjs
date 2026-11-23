@@ -67,6 +67,7 @@ for(const name of ['webgl-desert-water-plan','webgl-desert-water-3d','webgl-dese
  cpSync('scripts/'+name+'.js','dist/'+name+'.js');
 cpSync('scripts/webgl-rock-materials.js','dist/webgl-rock-materials.js');
 cpSync('scripts/webgl-ruin-fragments.js','dist/webgl-ruin-fragments.js');
+cpSync('scripts/webgl-detailed-desert-ruins.js','dist/webgl-detailed-desert-ruins.js');
 cpSync('scripts/webgl-scenic-desert-houses.js','dist/webgl-scenic-desert-houses.js');
 for(const module of ['webgl-oases','webgl-oasis-generation','webgl-oasis-materials','webgl-oasis-village-layout'])cpSync(`scripts/${module}.js`,`dist/${module}.js`);
 cpSync('scripts/webgl-map-edges.js','dist/webgl-map-edges.js');

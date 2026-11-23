@@ -45,6 +45,7 @@ import {stoneMaterial,sharedStoneMaps,weatheredStoneGeometry,applyRockMineralVei
 import {CANYON_GEOLOGY,buildGeologicalMesaSurface} from '/webgl-authentic-canyon-geology.js';
 import {createPlayableMesaCliffs} from '/webgl-raised-mesa-cliffs.js';
 import {makeSmallRuinFragments,isSmallRuin} from '/webgl-ruin-fragments.js';
+import {createDetailedDesertRuinHouse} from '/webgl-detailed-desert-ruins.js';
 import {chooseRareScenicHouseIndex,createScenicDesertHouse} from '/webgl-scenic-desert-houses.js';
 import {createBurnedSedanWrecks} from '/webgl-burned-sedan-3d.js';
 
@@ -452,6 +453,12 @@ function buildTerrain(){
    // full old orange/gold vertex palette into the real photo texture.
    if(biome==='desert'&&terrain.battlefield&&!desertRegion)
     vertexColor.lerp(new THREE.Color(desertStyle.authoredSandVertex),desertStyle.authoredSandVertexBlend);
+   if(desertRegion?.id==='desert-strike'&&terrain.battlefield?.generatorVersion>=10){
+    // Shade ONLY real steep slopes. The top and traversable ramps retain
+    // their original sand PBR albedo and heightfield continuity.
+    const cliffFace=smooth((slope-.19)/.30);
+    vertexColor.lerp(new THREE.Color('#78604c'),cliffFace*.75);
+   }
    colors[n]=vertexColor.r;colors[n+1]=vertexColor.g;colors[n+2]=vertexColor.b;
    // A 512px photographic sand tile stretched over 2.2km loses all
    // fine detail. Repeat it at a realistic RTS surface scale instead.
@@ -588,7 +595,10 @@ function instancedStone(){
   }
  }
  // Never allocate a zero-vertex rock mesh when modern maps have no mesas.
- if(terrain.battlefield&&terrain.mesas.length)addBattlefieldRocks(materials[0]);
+ // No stacked geological skin on Desert Strike: shade the actual ground.
+ if(terrain.battlefield&&terrain.mesas.length&&
+    !(biome==='desert'&&desertRegion?.id==='desert-strike'))
+  addBattlefieldRocks(materials[0]);
  for(const mesa of terrain.battlefield?[]:terrain.mesas)for(const col of mesa.columns){
   const x=col.base.reduce((n,p)=>n+p.x,0)/col.base.length;
   const z=col.base.reduce((n,p)=>n+p.y,0)/col.base.length;
@@ -854,9 +864,12 @@ async function addRuins(){
   anchor.position.copy(pos(ruin.x,ruin.y));
   anchor.rotation.y=ruin.rotation;
   const micro=spacious&&isSmallRuin(ruin);
-  if(i===rareHouse){
-   // Replace one existing large-ruin site with a rare abandoned whitewashed
-   // house. Same collision/seed/save, never an extra map obstacle.
+  if(spacious&&biome==='desert'&&!micro){
+   // Modern desert maps use varied, physically hollow and roof-damaged
+   // architecture rather than three copies of the same rectangular GLTF.
+   // The original ruin owns the same navigation and save footprint.
+   anchor.add(createDetailedDesertRuinHouse(ruin,seed,i));
+  }else if(i===rareHouse){
    anchor.add(createScenicDesertHouse(ruin,seed,i));
   }else if(micro){
    // Only 2–3 broken walls, 2–4 bits of debris, NO roof/whole building.

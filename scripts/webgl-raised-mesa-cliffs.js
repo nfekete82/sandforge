@@ -34,9 +34,9 @@ export function createPlayableMesaCliffs({
  if(!scene||!heightAt||!plateaus?.length)return meshes;
  // New visual treatment only for the currently selected Desert Strike map.
  // Old saves and every other biome still get their historical geometry.
- if(mapId==='desert-strike')return createNaturalDesertStrikeCliffs({
-  scene,size,heightAt,plateaus,lowQuality
- });
+ // Desert Strike's actual terrain carries the rock shade. Do not overlay
+ // a second near-coplanar, fractured mesh that looks like translucent ribbons.
+ if(mapId==='desert-strike')return [];
  const half=size*.5,positions=[],colors=[],uv=[];
  // More resolution is spent on the visible rock face, not the flat
  // buildable plateau or the valley. Still a SINGLE GPU draw call for all mesas.

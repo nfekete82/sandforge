@@ -1,0 +1,37 @@
+name: Sandforge · Plateau and detailed desert ruins
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/webgl-detailed-desert-ruins.js
+      - scripts/webgl-desert-village.js
+      - scripts/webgl-preview.js
+      - scripts/webgl-raised-mesa-cliffs.js
+      - scripts/webgl-landscape-network.js
+      - scripts/build.mjs
+      - tests/sandforge-detailed-desert-ruins-20261122.test.mjs
+      - tests/sandforge-modern-desert-village-models-20261122.test.mjs
+      - tests/sandforge-desert-strike-natural-cliffs-20261122.test.mjs
+      - .github/workflows/sandforge-detailed-desert-ruins-20261122.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: |
+          node --test \
+            tests/sandforge-detailed-desert-ruins-20261122.test.mjs \
+            tests/sandforge-modern-desert-village-models-20261122.test.mjs \
+            tests/sandforge-desert-strike-natural-cliffs-20261122.test.mjs
