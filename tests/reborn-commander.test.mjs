@@ -14,7 +14,10 @@ test('commander: unknown enemy changes cannot influence strategic or recon choic
 });
 test('commander: remembered HQ remains a mission in captured territory until observed gone',()=>{
  const g=new Simulation(9109,4),s=newCampaign(),hq=g.bases.find(b=>b.owner===0);
- g.territories[hq.territory].owner=1;
+ // HQ destruction is a legal strategic priority after Bastion control.
+ // Isolate the remembered-HQ lifetime test from the intentional
+ // Bastion-first expansion doctrine; all public Bastions are held.
+ for(const sector of g.territories)sector.owner=1;
  g.memories[1].push({id:hq.id,kind:hq.kind,owner:0,x:hq.x,y:hq.y,hp:hq.hp,territory:hq.territory});
  const mission=chooseMission(g,s,hq);assert.equal(mission.kind,'structure');assert.equal(mission.objective,hq.id);
  g.time=60;hq.hp=0;assert.equal(chooseMission(g,s,hq),mission,'hidden live state must not erase memory');
@@ -22,6 +25,7 @@ test('commander: remembered HQ remains a mission in captured territory until obs
 });
 test('commander: genuine observed siege damage extends a persistent mission beyond movement timeout',()=>{
  const g=new Simulation(2027,4),s=newCampaign(),hq=g.bases.find(b=>b.owner===0);
+ for(const sector of g.territories)sector.owner=1;
  const memory={id:hq.id,kind:hq.kind,owner:0,x:hq.x,y:hq.y,hp:hq.hp,territory:hq.territory};g.memories[1].push(memory);
  const mission=chooseMission(g,s,hq);
  g.time=90;memory.hp-=100;assert.equal(chooseMission(g,s,hq),mission);assert.equal(mission.progressAt,90);
