@@ -36,6 +36,8 @@ import {airfieldPoint,airfieldLerp,airfieldTaxiPoint,validAirfieldService,AIRFIE
 import {validFactoryService,type FactoryService} from './factory-maintenance.js';
 import {factoryDoorExitCandidates,infantryDoorExitCandidates} from './production-exit.js';
 import {eliminationOutcome} from './match-outcome.js';
+import {perPlayerSlots} from './multiplayer-faction-runtime.js';
+import {resolveTeamCapturePresence} from './multiplayer-faction-rules.js';
 // Only legacy save validation uses supply types; no active logistics controller.
 import {validSupplyJob,SUPPLY_RESTOCK_INTERVAL,type SupplyCache,type SupplyJob} from './legacy-supply-save.js';
 import {formationSlotPitch,vehicleSpacingGap,preservesVehicleProgress,vehicleYieldWaypoint} from './vehicle-spacing.js';
@@ -462,9 +464,10 @@ export class Simulation {
   hadBuildings:[boolean,boolean]=[false,false];
   supplyCaches:SupplyCache[]=[];
   units:Unit[]=[]; bases:Base[]=[]; territories:Territory[];
-  visible=[new Uint8Array(RULES.grid**2),new Uint8Array(RULES.grid**2)];
-  explored=[new Uint8Array(RULES.grid**2),new Uint8Array(RULES.grid**2)];
-  memories:Memory[][]=[[],[]]; shots:Shot[]=[]; notices:string[]=[];
+  visible=perPlayerSlots(2,()=>new Uint8Array(RULES.grid**2));
+  explored=perPlayerSlots(2,()=>new Uint8Array(RULES.grid**2));
+  memories:Memory[][]=perPlayerSlots(2,()=>[] as Memory[]);
+  shots:Shot[]=[]; notices:string[]=[];
   readonly productionReleases:ProductionRelease[]=[];
   /** Only enabled by WebGL. Never serialized; old saves and headless/Canvas
    * simulation retain the original immediate production semantics. */
@@ -2972,9 +2975,12 @@ export class Simulation {
     for(const t of this.territories){
       // Use the same modern 3D Bastion ring as captureReadiness and RMB.
       const nearby=this.spatial.query(t.point,captureRadius).filter(u=>u.hp>0&&!u.carrier&&u.kind!=='drone');
-      const blue=nearby.some(u=>u.owner===0),red=nearby.some(u=>u.owner===1);
-      if(blue&&red)continue;
-      const owner:Owner=blue?0:red?1:-1;
+      // The actual 1v1 engine still uses players 0/1 (each its own team).
+      // The shared team-based capture rule also supports 3/4 players:
+      // two allies can hold the ring together, while hostile teams block it.
+      const pressure=resolveTeamCapturePresence(nearby,id=>id);
+      if(pressure.contested)continue;
+      const owner:Owner=pressure.claimant as Owner;
       const defendedBase=this.bases.some(b=>b.kind==='headquarters'&&b.territory===t.id&&b.owner!==owner&&b.hp>0);
       if(owner<0||owner===t.owner||defendedBase||!canCaptureSector(this.territories,t,owner,this.world.mapVersion)){
         t.progress=Math.max(0,t.progress-dt*.5);if(t.progress===0)t.capturing=-1;continue;

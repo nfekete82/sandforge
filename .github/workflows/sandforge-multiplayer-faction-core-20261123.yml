@@ -1,0 +1,30 @@
+name: Sandforge 3-4 Player Faction Core
+on:
+  pull_request:
+    branches:
+      - main
+      - feat/multiplayer-match-foundation-20261123
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  multiplayer-faction-core:
+    name: True team/FFA win rules and four isolated economies
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build real current RTS engine
+        run: npm run build
+      - name: Validate 1v1 compatibility, multiplayer starts, diplomacy, fog isolation and outcomes
+        run: |
+          node --test \
+            tests/sandforge-multiplayer-match-setup-20261123.test.mjs \
+            tests/sandforge-multiplayer-faction-core-20261123.test.mjs

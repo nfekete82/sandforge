@@ -16,8 +16,18 @@ export const capturePresenceRadius=(version:MapVersion):number=>
 /** Any neutral or hostile bastion may be captured by either faction, regardless
  * of adjacent ownership. The simulation still enforces presence, contest and
  * the intact-enemy-HQ lock. Keep the original parameters for caller stability. */
-export function canCaptureSector(_territories:readonly Territory[],sector:Territory,owner:Owner,_version:MapVersion):boolean{
- return (owner===0||owner===1)&&sector.owner!==owner;
+export function canCaptureSector(
+ _territories:readonly Territory[],sector:Territory,owner:number,
+ _version:MapVersion,teamOf?:(owner:number)=>number
+):boolean{
+ if(!Number.isInteger(owner)||owner<0||owner>3||
+    sector.owner===owner)return false;
+ // Allied sites are never legal conquest targets in 2v2. The optional
+ // callback is absent in historical 1v1 calls, so their behavior is
+ // unchanged until the true multi-faction Simulation supplies a team map.
+ if(teamOf&&sector.owner>=0&&teamOf(sector.owner)===teamOf(owner))
+  return false;
+ return true;
 }
 
 export interface TerritoryGuard extends Point {owner:Owner;hp:number;carrier?:number|null;kind?:string}
@@ -29,7 +39,7 @@ export function captureSeconds(input:{
  version:MapVersion;territory:Territory;attacker:Owner;units:readonly TerritoryGuard[];bases:readonly TerritoryBattery[];
 }):number{
  const {version,territory:t,attacker,units,bases}=input;
- if(!dynamicTerritoryWarfare(version)||t.owner!==1-attacker)return RULES.captureTime;
+ if(!dynamicTerritoryWarfare(version)||t.owner<0||t.owner===attacker)return RULES.captureTime;
  const defended=units.some(u=>u.owner===t.owner&&u.hp>0&&!u.carrier&&u.kind!=='drone'&&distance(u,t.point)<260)
   ||bases.some(b=>b.owner===t.owner&&b.hp>0&&b.kind==='turret'
     &&(b.buildRemaining??0)<=0&&distance(b,t.point)<=RULES.turret.range+30);
