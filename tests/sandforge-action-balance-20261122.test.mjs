@@ -205,9 +205,14 @@ test('Action early skirmish uses observed fighters and public frontlines, not un
  assert.equal(actionContestedBastionSafe({...observed,preset:'classic'}),false);
  assert.equal(actionContestedBastionSafe({...observed,visibleEnemies:0,preset:'classic'}),true);
  const tactical=readFileSync('src/reborn/tactical-ai.ts','utf8');
- assert.match(tactical,/ready\.slice\(0,4\)\.some\(u=>Boolean\(approach\(u,t\)\)\)/,
-  'only a path-validated BLUE frontage can replace an active neutral scout');
- assert.match(tactical,/if\(contact\)s\.openingContests=\[\]/);
+ assert.match(tactical,/ready\.slice\(1,5\)\.some\(u=>Boolean\(approach\(u,v\.t\)\)\)/,
+  'two independently path-validated paid fighters must reach the front');
+ assert.match(tactical,/focusEnemyFront&&!s\.openingContests\.some/,
+  'retain existing neutral missions unless a safe frontline pivot is worthwhile');
+ assert.match(tactical,/neutralScore\+120/,
+  'distant contested sectors must not force repeated long-distance retargets');
+ assert.match(tactical,/!focusEnemyFront\|\|t\.owner===0/,
+  'after choosing a public front do not immediately retarget the same pair to neutral');
  assert.match(tactical,/if\(maxAssigned-s\.openingContests\.length<count\)break/,
   'never push a new two-fighter mission past the save cap');
 });
