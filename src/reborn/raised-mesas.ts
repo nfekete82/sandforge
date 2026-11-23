@@ -32,7 +32,7 @@ export function mesaLocation(p:Point,mesa:RaisedMesa){
  */
 export function raisedMesaRouteWaypoint(
  from:Point,goal:Point,mesas:readonly RaisedMesa[],
- valid:(p:Point)=>boolean
+ valid:(p:Point)=>boolean,lane=0
 ):Point|undefined {
  const d=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.y-b.y);
  for(const mesa of mesas){
@@ -53,10 +53,19 @@ export function raisedMesaRouteWaypoint(
   // Classify occupancy of the actual authored corridor from physical
   // coordinates, never from the last path's ephemeral endpoint.
   const candidates=mesaRampDirections(mesa).map(direction=>{
-   const outer={x:mesa.center.x+direction.x*(mesa.rampEnd-140),
-    y:mesa.center.y+direction.y*(mesa.rampEnd-140)};
-   const inner={x:mesa.center.x+direction.x*mesa.topRadius*.75,
-    y:mesa.center.y+direction.y*mesa.topRadius*.75};
+   // Convoys may use 5 parallel driveable lanes. All are carved through
+   // the existing ramp; this does not create new entrances or teleport
+   // vehicles through the cliff. Default zero retains historical paths.
+   let perp={x:-direction.y,y:direction.x};
+   if(Math.abs(perp.y)>=Math.abs(perp.x)?perp.y<0:perp.x<0)
+    perp={x:-perp.x,y:-perp.y};
+   const lateralOffset=Math.max(-2,Math.min(2,lane))*
+    Math.min(75,mesa.rampWidth*.16);
+   const offset={x:perp.x*lateralOffset,y:perp.y*lateralOffset};
+   const outer={x:mesa.center.x+direction.x*(mesa.rampEnd-140)+offset.x,
+    y:mesa.center.y+direction.y*(mesa.rampEnd-140)+offset.y};
+   const inner={x:mesa.center.x+direction.x*mesa.topRadius*.75+offset.x,
+    y:mesa.center.y+direction.y*mesa.topRadius*.75+offset.y};
    const x=from.x-mesa.center.x,y=from.y-mesa.center.y;
    const along=x*direction.x+y*direction.y;
    const lateral=Math.abs(x*direction.y-y*direction.x);
