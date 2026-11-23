@@ -6,6 +6,7 @@ on:
       - tests/sandforge-desert-strike-live-tank-convoy-20261123.test.mjs
       - tests/sandforge-cliff-separation-20261123.test.mjs
       - tests/sandforge-mesa-ramp-replan-stability-20261123.test.mjs
+      - tests/sandforge-mesa-convoy-lanes-20261123.test.mjs
       - .github/workflows/sandforge-live-convoy-20261123.yml
       - src/reborn/world.ts
       - src/reborn/raised-mesas.ts
@@ -25,4 +26,4 @@ jobs:
           node-version: 22
       - run: npm ci --no-audit --no-fund
       - run: npm run build
-      - run: node --test tests/sandforge-desert-strike-live-tank-convoy-20261123.test.mjs tests/sandforge-cliff-separation-20261123.test.mjs tests/sandforge-mesa-ramp-replan-stability-20261123.test.mjs tests/sandforge-tank-plateau-corner-contact-20261122.test.mjs
+      - run: node --test tests/sandforge-desert-strike-live-tank-convoy-20261123.test.mjs tests/sandforge-cliff-separation-20261123.test.mjs tests/sandforge-mesa-ramp-replan-stability-20261123.test.mjs tests/sandforge-mesa-convoy-lanes-20261123.test.mjs tests/sandforge-tank-plateau-corner-contact-20261122.test.mjs
