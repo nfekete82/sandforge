@@ -1,20 +1,21 @@
-# Flammenpanzer — lokaler WebGL-Spieltest (23.11.2026)
+# Flammenpanzer — in Sandforge integrierter WebGL-Panzer (23.11.2026)
 
-Dieser Branch erweitert die Simulation um den Einheitentyp `flamer` (500 Credits, Fahrzeugfabrik).
-Der Flammenpanzer kämpft auf kurze Distanz gegen Infanterie und Gebäude, ist gegen Panzer schwach
-und kann keine Luftziele angreifen. Echte `flame`-Schüsse erzeugen gebündelte, begrenzte WebGL-Flammenpartikel.
+Der Einheitentyp `flamer` kostet 500 Credits und wird in der Fahrzeugfabrik gebaut.
+Seine Flamme reicht 245 M, trifft bei freier Sicht garantiert und verursacht hohen Infanterieschaden;
+gegen Panzer, Mauern und Flugzeuge bleibt er schwach. Eine zweilagige WebGL-Flammenzunge
+verläuft bis zum Ziel, ohne den vorherigen runden Lichtpunkt über dem Fahrzeug.
 
-## Modell-Dateien
+## 3D-Modell und Build
 
-Die **PBR-GLB-Dateien sind derzeit nicht im Git-Branch enthalten**. Das Testpaket aus dem
-ChatGPT-Gespräch enthält folgende Dateien samt Generator:
+Die PBR-GLBs für beide Fraktionen werden jetzt automatisch und reproduzierbar aus
+`scripts/generate-flame-tank-pbr.mjs` in den Build geschrieben:
 
-- `src/assets/reborn/animation/flamer-0.glb` — blau
-- `src/assets/reborn/animation/flamer-1.glb` — rot
-- `scripts/generate-flame-tank-pbr.mjs` — reproduzierbare PBR-Asset-Erstellung
+- `dist/src/assets/reborn/animation/flamer-0.glb` — blau
+- `dist/src/assets/reborn/animation/flamer-1.glb` — rot
 
-Das ZIP im Git-Worktree-Wurzelverzeichnis entpacken, bevor `npm run build` startet.
-Fehlen die GLBs, erscheint im Spiel nur die vereinfachte Fahrzeug-Placeholder-Geometrie.
+Wenn hochwertige, bereits vorhandene GLBs unter `src/assets/reborn/animation` liegen,
+behalten diese Vorrang. **Kein ZIP-Download nötig**. Der reguläre WebGL-Build und
+die Produktionsauswahl funktionieren auch bei einem sauberen Checkout.
 
 ## Lokaler Test ohne Änderungen an main
 
@@ -23,9 +24,6 @@ cd ~/Projects/sandforge-bastion-wars
 git fetch origin
 git worktree add ../sandforge-flame-test origin/feat/flame-tank-playtest-20261123
 cd ../sandforge-flame-test
-
-# Das in ChatGPT bereitgestellte ZIP zuerst in ~/Downloads speichern.
-unzip -o ~/Downloads/sandforge-flammenpanzer-playtest-assets.zip -d .
 
 npm ci
 npm run build
@@ -37,7 +35,7 @@ Direkt ausprobieren:
 `http://127.0.0.1:8158/webgl-preview.html?flameTest=1&seed=9999&play=1`
 
 Das explizite lokale Query-Flag `flameTest=1` setzt einen blauen Flammenpanzer und
-ein rotes Infanterieziel nahe dem blauen Startsektor. Es wird **nicht** in normalen
+ein rotes schweres Infanterieziel in Flammenreichweite. Es wird **nicht** in normalen
 Partien, geladenen Spielständen oder automatisierten KI-Simulationen verwendet.
 
 Normaler Spielmodus: zuerst HQ und Fahrzeugfabrik errichten, anschließend im
@@ -53,5 +51,6 @@ Fahrzeugkatalog `Flammenpanzer` für 500 Credits produzieren.
 - Normaler Save/Load mit `kind: 'flamer'`
 - Regressions-Build und neue Tests, bevor nach main gemergt wird
 
-Status: **Testbranch**. Die Tests wurden aus ChatGPT heraus nicht auf deinem lokalen
-Mac ausgeführt. Dieser Branch ist nicht automatisch produktiv bereit.
+Status: Vollständig im Git-Repository enthalten, einschließlich Generator und Tests.
+Für den lokalen Grafiktest weiterhin `flameTest=1` nutzen; normale Partien schalten den
+Panzer über die Fahrzeugfabrik frei.
