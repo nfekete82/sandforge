@@ -10,7 +10,8 @@
  *        UNIVERSAL_AI_SEEDS=4101,4102 UNIVERSAL_AI_OPPONENTS=rush,contest
  *        npm run benchmark:universal-ai
  */
-import {spawnSync} from 'node:child_process';
+import {spawn} from 'node:child_process';
+import {createInterface} from 'node:readline';
 import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 
@@ -45,18 +46,51 @@ const save=()=>{mkdirSync(root,{recursive:true});
 const mean=(values)=>values.length?
  Number((values.reduce((a,b)=>a+b,0)/values.length).toFixed(3)):null;
 save();
-for(const scenario of scenarios){
+for(const [index,scenario] of scenarios.entries()){
  const {map,seed,opponent}=scenario;
+ const number=index+1;
+ console.log(`UNIVERSAL_AI_START ${number}/${scenarios.length} map=${map} seed=${seed} opponent=${opponent}`);
  const filename=resolve(root,`universal-ai-${map}-${seed}-${opponent}.json`);
- const run=spawnSync(process.execPath,
+ // Stream the child output instead of blocking silently in spawnSync.
+ // Every completed mode is reported immediately; a heartbeat keeps longer
+ // runs visibly active. Both presets still use exactly the same paid
+ // simulation and are persisted to the same benchmark JSON.
+ const child=spawn(process.execPath,
   ['scripts/benchmark-sandforge-action-20261122.mjs',filename],{
-   encoding:'utf8',maxBuffer:16*1024*1024,
+   stdio:['ignore','pipe','pipe'],
    env:{...process.env,ACTION_BENCHMARK_SECONDS:String(seconds),
     ACTION_BENCHMARK_MAPS:map,ACTION_BENCHMARK_SEEDS:String(seed),
     ACTION_BENCHMARK_OPPONENT:opponent}
   });
+ let tail='';
+ const keepTail=line=>{tail=(tail+line+'\\n').slice(-2400);};
+ const stdout=createInterface({input:child.stdout,crlfDelay:Infinity});
+ stdout.on('line',line=>{
+  if(!line.startsWith('ACTION_MATCH ')){keepTail(line);return;}
+  try{
+   const mode=JSON.parse(line.slice('ACTION_MATCH '.length));
+   console.log('UNIVERSAL_AI_MODE '+JSON.stringify({
+    number,total:scenarios.length,map,seed,opponent,
+    preset:mode.preset,seconds:mode.seconds,
+    groundShotsRed:mode.groundShotsByFaction[1],
+    firstGroundContact:mode.firstGroundUnitExchange,
+    redOwnedBastions:mode.redOwnedBastions
+   }));
+  }catch{keepTail(line);}
+ });
+ const stderr=createInterface({input:child.stderr,crlfDelay:Infinity});
+ stderr.on('line',keepTail);
+ const started=Date.now();
+ const heartbeat=setInterval(()=>
+  console.log(`UNIVERSAL_AI_RUNNING ${number}/${scenarios.length} elapsedWallSeconds=${Math.round((Date.now()-started)/1000)}`),
+  30000);
+ const run=await new Promise(resolve=>{
+  child.once('error',error=>resolve({error,status:null}));
+  child.once('close',(status,signal)=>resolve({status,signal}));
+ });
+ clearInterval(heartbeat);
  if(run.error||run.status!==0){
-  const detail=(run.stderr||run.stdout||'').slice(-1700);
+  const detail=String(run.error??run.signal??'')+' '+tail.slice(-1700);
   report.results.push({scenario,status:'failed',detail});
   save();throw Error(`Scenario ${map}/${seed}/${opponent} failed: ${detail}`);
  }
