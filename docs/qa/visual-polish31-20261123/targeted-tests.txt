@@ -1,0 +1,31 @@
+✔ authored building facade gets subtle face shadow after existing camouflage, without replacing PBR maps (1.409958ms)
+✔ shading keeps a previously installed camouflage callback and skips translucent windows (0.292292ms)
+✔ render-only facade finish is applied to actual building GLBs and has zero gameplay state (0.764125ms)
+✔ visual heading takes the short arc across +/-PI and is frame-rate independent (0.651792ms)
+✔ terrain support follows both axes, caches parked actors and never writes simulation (0.842583ms)
+✔ lite mode never adds terrain queries; invalid displacement resets without NaNs (0.088375ms)
+✔ cannon recoil has a fast small kick and a slow exact return (0.050541ms)
+✔ smoke smoothly dissipates within its original footprint, flash has immediate onset (0.066375ms)
+✔ particle opacity is one bounded instanced attribute applied before alpha test (0.361125ms)
+✔ headquarters: full UV PBR and shader survive normal gameplay finish (0.647583ms)
+✔ headquarters: full UV PBR and shader survive moving ghost finish (0.152333ms)
+✔ barracks: full UV PBR and shader survive normal gameplay finish (0.1135ms)
+✔ barracks: full UV PBR and shader survive moving ghost finish (0.182708ms)
+✔ factory: full UV PBR and shader survive normal gameplay finish (0.083958ms)
+✔ factory: full UV PBR and shader survive moving ghost finish (0.073291ms)
+✔ airfield: full UV PBR and shader survive normal gameplay finish (0.090667ms)
+✔ airfield: full UV PBR and shader survive moving ghost finish (0.062834ms)
+✔ new visual modules ship and source GLB generation still targets dist only (0.212291ms)
+✔ light-only facade depth preserves custom PBR shader hooks and material sharing (1.296542ms)
+✔ legacy fallback surfaces have real mipmapped UV albedo, normal and roughness maps (17.496792ms)
+✔ stationary Humvees never rotate tyres just because movement is ordered (0.742667ms)
+✔ vehicle wheel motion requires actual valid 20-Hz distance (0.066334ms)
+✔ factory shutter animation alone does not rotate any wheels (0.053917ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 107.467292

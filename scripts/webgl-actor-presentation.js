@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {GROUND_VEHICLES} from '/webgl-vehicle-polish.js';
 import {disposeRocketLauncher} from '/webgl-rocket-infantry.js';
 import {restoreHumanStance,applyHumanStance} from '/webgl-human-stance.js';
 import {updateEngineerTools} from '/webgl-engineer-tools.js';
@@ -253,6 +254,9 @@ export class SandforgeActorPresentation {
    const state=entry.presentation;
    if(!state)continue;
    state.shotPulse=.23;
+   if(entry.kind==='tank'&&shot.weapon==='cannon'){
+    state.cannonPulse=.20;state.cannonTrigger=(state.cannonTrigger??0)+1;
+   }
    if(state.turretFlashes&&shot.weapon==='turret')
     state.turretPulses[shot.barrel===1?1:0]=.17;
    state.shotTrigger++;
@@ -316,6 +320,7 @@ export class SandforgeActorPresentation {
   }
   // A brief additive muzzle flash is driven only by real Shot events.
   state.shotPulse=Math.max(0,state.shotPulse-dt);
+  state.cannonPulse=Math.max(0,(state.cannonPulse??0)-(active?dt:0));
   if(state.flash){
    state.flash.visible=visible&&state.shotPulse>0;
    if(state.flash.visible){
@@ -411,7 +416,8 @@ export class SandforgeActorPresentation {
   const recoil=shooting?Math.sin((1-clamp(state.shotPulse/.23,0,1))*Math.PI)*2.4:0;
   const stagger=state.hurtTime>0?Math.sin((1-state.hurtTime/.25)*Math.PI)*1.7:0;
   body.position.y=base+bob;
-  if(!air.has(entity.kind))body.position.z=entry.visualBaseZ+recoil-stagger;
+  if(!air.has(entity.kind))body.position.z=entry.visualBaseZ+
+   (GROUND_VEHICLES.has(entity.kind)?0:recoil-stagger);
  }
  refreshStats(){
   this.stats.visibleBars=0;this.stats.walking=0;this.stats.shooting=0;

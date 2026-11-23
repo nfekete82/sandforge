@@ -1,0 +1,108 @@
+
+Running 3 tests using 1 worker
+
+(node:10188) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/3] tests/browser/webgl-actor-presentation.spec.mjs:2:1 › 3D soldiers: health changes, weapon fire, hit recoil and death effect follow actual simulation state
+  1) tests/browser/webgl-actor-presentation.spec.mjs:2:1 › 3D soldiers: health changes, weapon fire, hit recoil and death effect follow actual simulation state 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      33 |  expect(before.corpses).toBeGreaterThan(0);
+      34 |  expect(before.removed).toBe(true);
+    > 35 |  expect(before.remaining).toBe(0);
+         |                           ^
+      36 |  expect(await page.evaluate(()=>window.__sandforgeWebGL.battlefield.presentation.showHealth)).toBe('smart');
+      37 |  await page.locator('[data-action="health"]').click();
+      38 |  expect(await page.evaluate(()=>window.__sandforgeWebGL.battlefield.presentation.showHealth)).toBe('all');
+        at /private/tmp/sandforge-polish31/tests/browser/webgl-actor-presentation.spec.mjs:35:27
+
+    Error Context: tests/browser/artifacts/runs/webgl-polish31-control-3D--4d658-low-actual-simulation-state/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/browser/artifacts/runs/webgl-polish31-control-3D--4d658-low-actual-simulation-state/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/browser/artifacts/runs/webgl-polish31-control-3D--4d658-low-actual-simulation-state/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+(node:10255) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[2/3] tests/browser/webgl-playable.spec.mjs:6:1 › Playable 3D: assets, terrain, fog, units, buildings, minimap and production UI
+  2) tests/browser/webgl-playable.spec.mjs:6:1 › Playable 3D: assets, terrain, fog, units, buildings, minimap and production UI 
+
+    TimeoutError: locator.click: Timeout 8000ms exceeded.
+    Call log:
+      - waiting for locator('[data-action="cancel"]')
+
+
+      47 |  await page.locator('[data-build="headquarters"]').click();
+      48 |  expect(await page.evaluate(()=>window.__sandforgeWebGL.battlefield.buildKind)).toBe('headquarters');
+    > 49 |  await page.locator('[data-action="cancel"]').click();
+         |                                               ^
+      50 |  expect(await page.evaluate(()=>window.__sandforgeWebGL.battlefield.buildKind)).toBe(null);
+      51 |  expect(errors).toEqual([]);
+      52 |  await mkdir(fileURLToPath(new URL('./artifacts/',import.meta.url)),{recursive:true});
+        at /private/tmp/sandforge-polish31/tests/browser/webgl-playable.spec.mjs:49:47
+
+    Error: apiRequestContext._wrapApiCall: ENOENT: no such file or directory, copyfile '/private/tmp/sandforge-polish31/tests/browser/artifacts/runs/.playwright-artifacts-1/traces/49650d5d5519017011c2-4215edb7b59351d7012d-recording1.network' -> '/private/tmp/sandforge-polish31/tests/browser/artifacts/runs/.playwright-artifacts-1/traces/49650d5d5519017011c2-4215edb7b59351d7012d-recording1-pwnetcopy-1.network'
+
+    Error: browserContext._wrapApiCall: ENOENT: no such file or directory, open '/private/tmp/sandforge-polish31/tests/browser/artifacts/runs/.playwright-artifacts-1/traces/49650d5d5519017011c2-4215edb7b59351d7012d.trace'
+
+    Error: ENOENT: no such file or directory, open '/private/tmp/sandforge-polish31/tests/browser/artifacts/runs/.playwright-artifacts-1/9f1c9b84aa0389c7113f90fa29f60828.zip'
+
+
+(node:10446) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[3/3] tests/browser/webgl-playable.spec.mjs:172:1 › WebGL menu v2: every tab isolates its content and unit sprites become proper portraits
+  3) tests/browser/webgl-playable.spec.mjs:172:1 › WebGL menu v2: every tab isolates its content and unit sprites become proper portraits 
+
+    Error: expect(locator).toBeHidden() failed
+
+    Locator:  locator('[data-sf-group="buildings"]')
+    Expected: hidden
+    Received: visible
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toBeHidden" locator('[data-sf-group="buildings"]') with timeout 5000ms
+      - waiting for locator('[data-sf-group="buildings"]')
+        14 × locator resolved to <div class="sf-group" data-sf-group="buildings">…</div>
+           - unexpected value "visible"
+
+
+      177 |  await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded===true,{timeout:90000});
+      178 |  await expect(page.locator('[data-sf-group="units"]')).toBeHidden();
+    > 179 |  await expect(page.locator('[data-sf-group="buildings"]')).toBeHidden();
+          |                                                            ^
+      180 |  await expect(page.locator('[data-sf-group="territories"]')).toBeVisible();
+      181 |  await expect(page.locator('#sf-tabs button[data-tab="units"]')).toBeHidden();
+      182 |  await page.evaluate(()=>{
+        at /private/tmp/sandforge-polish31/tests/browser/webgl-playable.spec.mjs:179:60
+
+    Error Context: tests/browser/artifacts/runs/webgl-polish31-control-Web-f1a02-tes-become-proper-portraits/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    tests/browser/artifacts/runs/webgl-polish31-control-Web-f1a02-tes-become-proper-portraits/trace.zip
+    Usage:
+
+        npx playwright show-trace tests/browser/artifacts/runs/webgl-polish31-control-Web-f1a02-tes-become-proper-portraits/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+  3 failed
+    tests/browser/webgl-actor-presentation.spec.mjs:2:1 › 3D soldiers: health changes, weapon fire, hit recoil and death effect follow actual simulation state 
+    tests/browser/webgl-playable.spec.mjs:6:1 › Playable 3D: assets, terrain, fog, units, buildings, minimap and production UI 
+    tests/browser/webgl-playable.spec.mjs:172:1 › WebGL menu v2: every tab isolates its content and unit sprites become proper portraits 

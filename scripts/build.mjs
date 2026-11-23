@@ -114,6 +114,7 @@ cpSync('scripts/webgl-landscape-network.js','dist/webgl-landscape-network.js');
 cpSync('scripts/webgl-raised-mesa-cliffs.js','dist/webgl-raised-mesa-cliffs.js');
 cpSync('scripts/webgl-atmosphere-3d.js','dist/webgl-atmosphere-3d.js');
 cpSync('scripts/webgl-combat-vfx.js','dist/webgl-combat-vfx.js');
+cpSync('scripts/webgl-particle-finish.js','dist/webgl-particle-finish.js');
 cpSync('scripts/webgl-tank-muzzle-origin.js','dist/webgl-tank-muzzle-origin.js');
 cpSync('scripts/webgl-ordnance-profile.js','dist/webgl-ordnance-profile.js');
 cpSync('scripts/webgl-hit-response.js','dist/webgl-hit-response.js');
@@ -164,6 +165,7 @@ cpSync('scripts/webgl-construction-recovery.js','dist/webgl-construction-recover
 cpSync('scripts/webgl-production-gates.js','dist/webgl-production-gates.js');
 cpSync('scripts/webgl-building-collapse.js','dist/webgl-building-collapse.js');
 cpSync('scripts/webgl-wheel-motion.js','dist/webgl-wheel-motion.js');
+cpSync('scripts/webgl-vehicle-polish.js','dist/webgl-vehicle-polish.js');
 cpSync('scripts/webgl-barracks-portal.js','dist/webgl-barracks-portal.js');
 cpSync('scripts/webgl-headquarters-portal.js','dist/webgl-headquarters-portal.js');
 cpSync('scripts/webgl-scale.js','dist/webgl-scale.js');

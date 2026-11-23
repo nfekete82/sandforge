@@ -51,13 +51,13 @@ function fixture(){
   'BarracksPanelJoint_1_0.319','FactoryRoofArmor','ArmouredBlastDoorLeft','SideWindow']){
   const source=new THREE.MeshStandardMaterial({color:'#bb9677',roughness:.72});
   source.map=new THREE.Texture();source.normalMap=new THREE.Texture();
-  source.roughnessMap=new THREE.Texture();
+  // Legacy fixture lacks roughness: the finish supplies that missing map.
   const mesh=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),source);
   mesh.name=name;root.add(mesh);originals.set(name,source);
  }
  return {root,originals};
 }
-test('PBR textures are triplanar in local coordinates, preserve original GLB maps, no geometry',()=>{
+test('incomplete legacy PBR gets a local coating and missing maps without new geometry',()=>{
  const {root,originals}=fixture();
  assert.equal(finishDesertBuildingMaterials(root,'barracks')>=3,true);
  assert.equal(finishDesertBuildingMaterials(root,'barracks'),0,'idempotent');
@@ -73,7 +73,7 @@ test('PBR textures are triplanar in local coordinates, preserve original GLB map
   assert.equal(source.userData.sandforgeBuildingPBRRevision,undefined);
   assert.equal(mesh.material.map,source.map);
   assert.equal(mesh.material.normalMap,source.normalMap);
-  assert.equal(mesh.material.roughnessMap,source.roughnessMap);
+  assert.ok(mesh.material.roughnessMap.isDataTexture);
   assert.equal(mesh.material.userData.sandforgeBuildingPBRRevision,DESERT_BUILDING_PBR_REVISION);
   const shader={
    vertexShader:'#include <common>\n#include <begin_vertex>\n#include <beginnormal_vertex>',

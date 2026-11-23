@@ -22,15 +22,16 @@ export function finishBuildingFacadeShading(root){
    if(adjusted.has(source))return adjusted.get(source);
    // Already per-instance after faction tint / brightening / barracks finish.
    // Keep the cached GLB's shared PBR albedo, ORM and normal textures intact.
-   const owned=source.userData?.sandforgeFactionTint||
+   const owned=source.userData?.sandforgeBuildingPBROwned||
+    source.userData?.sandforgeFactionTint||
     source.userData?.sandforgeBuildingFill||
     source.userData?.sandforgeBarracksPalette;
    const material=owned?source:source.clone();
    if(!owned)material.userData={...material.userData,sandforgeBuildingFacadeOwned:true};
    material.userData={...material.userData,
     sandforgeBuildingFacadeShade:BUILDING_FACADE_SHADING_REVISION};
-   const priorCompile=material.onBeforeCompile;
-   const priorProgramKey=material.customProgramCacheKey.bind(material);
+   const priorCompile=source.onBeforeCompile;
+   const priorProgramKey=source.customProgramCacheKey.bind(source);
    material.onBeforeCompile=function(shader,renderer){
     priorCompile?.call(this,shader,renderer);
     const varying='varying float sfFacadeExposure;';

@@ -4,6 +4,7 @@ import {SandforgeBuildingCollapse} from '/webgl-building-collapse.js';
 import {SandforgeAirfieldLaunch} from '/webgl-airfield-launch.js';
 import {nextPeriodicRefresh} from '/webgl-frame-scheduling.js';
 import {createAiDebugOverlay} from '/webgl-ai-debug.js';
+import {GROUND_VEHICLES,vehiclePose,cannonKick} from '/webgl-vehicle-polish.js';
 import {wheelsShouldRoll} from '/webgl-wheel-motion.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
 import {UNITS,BUILDINGS,MAX_GENERATORS_PER_FACTION,unitKinds,buildingKinds,unitSpec,buildingSpec} from '/src/reborn/catalog.js';
@@ -381,7 +382,8 @@ export class SandforgeBattlefield {
   let gunNested=false;
   if(turret&&gun)for(let p=gun.parent;p;p=p.parent)if(p===turret){gunNested=true;break;}
   entry.tankRig={turret,gun,gunNested,
-   turretRest:turret?.rotation.y??0,gunRest:gun?.rotation.y??0};
+   turretRest:turret?.rotation.y??0,gunRest:gun?.rotation.y??0,
+   gunPosition:gun?.position.clone()};
   if(entry.kind==='artillery')
    entry.rocketMuzzles=Array.from({length:6},(_,i)=>model.getObjectByName('RocketMuzzle_'+i));
  }
@@ -390,10 +392,23 @@ export class SandforgeBattlefield {
   const gun=Number.isFinite(unit.angle)?unit.angle:hull;
   // Local +Z points forwards. The outer actor follows the slower physical
   // hullAngle; both rigid gun groups independently track the aimed bearing.
-  const relative=hull-gun;
+  const pose=entry.vehiclePose;
+  const displayedHull=pose?Math.PI*.5-pose.yaw:hull;
+  // A real shot must always leave the barrel on the actual firing bearing.
+  const trigger=entry.presentation?.cannonTrigger??0;
+  if(pose&&trigger!==(pose.cannonTrigger??0)){
+   pose.aim=gun;pose.cannonTrigger=trigger;
+  }
+  const relative=displayedHull-(pose?.aim??gun);
   const rig=entry.tankRig;
   if(rig?.turret)rig.turret.rotation.y=rig.turretRest+relative;
   if(rig?.gun&&!rig.gunNested)rig.gun.rotation.y=rig.gunRest+relative;
+  if(rig?.gun&&rig.gunPosition&&entry.kind==='tank'){
+   const kick=cannonKick(entry.presentation?.cannonPulse??0);
+   rig.gun.position.copy(rig.gunPosition);
+   rig.gun.position.x-=Math.sin(rig.gunNested?0:relative)*kick;
+   rig.gun.position.z-=Math.cos(rig.gunNested?0:relative)*kick;
+  }
  }
  // Restore authored building activity. Clip-controlled rotors get driven by
  // authoritative turretAngle; exported static models receive an unobtrusive
@@ -616,8 +631,10 @@ export class SandforgeBattlefield {
       entry.modelFootprint,entry.modelHeight);
      if(type==='building'&&entry.kind==='barracks')finishBarracksDesertPalette(model);
      if(type==='building')finishDesertBuildingMaterials(model,entry.kind);
-     if(type==='building')finishBuildingFacadeShading(model);
     }
+    // The original PBR models need the same subtle facade depth as legacy
+    // shells. This light-only pass preserves their authored texture stack.
+    if(type==='building')finishBuildingFacadeShading(model);
     if(type==='building')unifyModelFactionFlags(model,entry.owner);
     if(type==='building'&&entry.kind==='barracks')addBarracksContactShadows(model);
     if(type==='unit')
@@ -1260,7 +1277,12 @@ export class SandforgeBattlefield {
    entry.node.position.copy(this.pos(x,z,
     visualGround+unitRenderAltitude(u.kind,u.flightHeight??1)+flightLane));
    const hullAngle=['tank','artillery'].includes(u.kind)&&Number.isFinite(u.hullAngle)?u.hullAngle:u.angle;
-   entry.node.rotation.y=unitVisualYaw(u.kind,hullAngle);
+   if(GROUND_VEHICLES.has(u.kind)&&(u.owner===0||this.game.canSee(0,u))){
+    const pose=vehiclePose(entry,u,{x,z,heightAt:this.heightAt,
+     time:this.game.time,dt,active,lite:this.lite});
+    entry.node.rotation.set(pose.pitch,pose.yaw,pose.roll,'YXZ');
+    entry.node.position.y+=pose.heave??0;
+   }else entry.node.rotation.y=unitVisualYaw(u.kind,hullAngle);
    if(u.kind==='tank'||u.kind==='artillery')this.orientTankRig(entry,u);
    entry.node.visible=u.owner===0||this.game.canSee(0,u);
   }

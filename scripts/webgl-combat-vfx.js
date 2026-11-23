@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {installParticleFade,particleFade} from '/webgl-particle-finish.js';
 import {BLOOM_LAYER} from '/webgl-visual-post.js';
 import {tankCannonMuzzleWorld} from '/webgl-tank-muzzle-origin.js';
 import {UNITS} from '/src/reborn/catalog.js';
@@ -175,7 +176,9 @@ function makePool(scene,mode,max,opacity,biome='desert'){
  mesh.userData={visualOnly:true,nonPlayable:true,combatParticles:true,mode};
  mesh.raycast=()=>{};
  scene.add(mesh);
- return {mesh,particles:[],max,mode};
+ const fadeAttribute=installParticleFade(mesh.geometry,mesh.material,max);
+ return {mesh,opacity:fadeAttribute,particles:[],max,mode,
+  dissipates:mode==='smoke'||mode==='rocketSmoke'||mode==='dust'};
 }
 /** Four shaped steel stabilizers baked into ONE triangular-prism geometry.
  * Unlike four standalone fins per missile, this adds a single instanced draw
@@ -1155,7 +1158,10 @@ export class SandforgeCombatEffects {
      p.z+=Math.cos(age*1.7+p.angle*13)*dt*4;
     }
     const progress=clamp(p.life/p.ttl,0,1);
+    // Retain the existing raster footprint, including its late taper.
+    // The new opacity envelope must never increase combat overdraw.
     const scale=p.size*(.65+(1-progress)*1.25)*Math.min(1,progress*4);
+    pool.opacity.setX(k,particleFade(p.life,p.ttl,pool.dissipates));
     dummy.position.set(p.x-this.world.size*.5,p.y,p.z-this.world.size*.5);
     dummy.quaternion.copy(this.camera.quaternion);
     const width=scale*(pool.mode==='spark'?.45:
@@ -1168,10 +1174,14 @@ export class SandforgeCombatEffects {
    particles.length=k;
    pool.mesh.count=k;
    // Avoid uploading a large instance matrix when nothing is left to draw.
-   if(k||pool.mesh.instanceMatrix.needsUpdate)pool.mesh.instanceMatrix.needsUpdate=true;
+   if(k){
+    pool.mesh.instanceMatrix.needsUpdate=true;
+    pool.opacity.clearUpdateRanges();pool.opacity.addUpdateRange(0,k);
+    pool.opacity.needsUpdate=true;
+   }
   }
   this.activeParticles=this.particleCount;
  }
- get particleCount(){return this.smoke.particles.length+this.rocketSmoke.particles.length+this.flash.particles.length+this.flames.particles.length+this.dust.particles.length+this.sparks.particles.length+this.debris.particles.length;}
+ get particleCount(){return this.trailDust.particles.length+this.smoke.particles.length+this.rocketSmoke.particles.length+this.flash.particles.length+this.flames.particles.length+this.dust.particles.length+this.sparks.particles.length+this.debris.particles.length;}
 }
 const worldIndex=(world,x,z)=>world.index({x,y:z});

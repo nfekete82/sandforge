@@ -163,6 +163,11 @@ export function finishDesertBuildingMaterials(model,kind){
   const materials=Array.isArray(mesh.material)?mesh.material:[mesh.material];
   const result=materials.map(source=>{
    if(!source?.isMeshStandardMaterial)return source;
+   // Fully authored UV PBR wins over the older triplanar coating, including
+   // construction ghosts. Keep albedo, normal, ORM, AO and shader identity.
+   // Tagged legacy coatings remain idempotent on repeat calls.
+   if(source.map&&source.normalMap&&source.roughnessMap&&
+      !source.userData?.sandforgeBuildingPBRRevision)return source;
    const role=buildingSurfaceRole(kind,mesh.name,source.name);
    if(!role||source.transparent&&source.opacity<.45)return source;
    if(source.userData?.sandforgeBuildingPBRRevision===DESERT_BUILDING_PBR_REVISION&&
@@ -182,6 +187,7 @@ export function finishDesertBuildingMaterials(model,kind){
    const authoredWallShell=role==='facilityWall';
    const uvScale=kind==='airfield'?.015:config.scale;
    const wallCoverage=authoredWallShell?1:config.coverage;
+   if(!material.map)material.map=maps.albedo;
    if(!material.normalMap)material.normalMap=maps.normal;
    if(!material.roughnessMap)material.roughnessMap=maps.roughness;
    material.roughness=Math.max(material.roughness,config.roughness);
