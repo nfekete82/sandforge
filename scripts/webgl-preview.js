@@ -107,11 +107,11 @@ if(query.get('flameTest')==='1'&&!session){
  if(pioneer){
   const safe=(x,y)=>game.world.nearest({x,y},game.obstacles());
   const tankSite=safe(pioneer.x+64,pioneer.y+38);
-  const targetSite=safe(pioneer.x+178,pioneer.y+36);
+  const targetSite=safe(pioneer.x+257,pioneer.y+36); // >160 M from tank: tests new 245-M flame reach
   if(tankSite&&targetSite){
    const testTank=game.spawn(0,tankSite,'flamer');
    testTank.hold=true;
-   const target=game.spawn(1,targetSite,'infantry');
+   const target=game.spawn(1,targetSite,'heavy'); // survives long enough to inspect the flame jet
    target.hold=true;target.cooldown=1e8;
    console.info('Flammenpanzer-Test aktiviert:',{unit:testTank.id,target:target.id});
   }
