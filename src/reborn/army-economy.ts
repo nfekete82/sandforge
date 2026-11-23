@@ -115,7 +115,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
   g.world.mapVersion>=23);
  // Action's faster infantry queue is wasted when a generator/factory build
  // immediately sequesters the cash needed for the first real attack group.
- // On quiet starts, pay for five real fighters before OPTIONAL infrastructure.
+ // On quiet starts, pay for six real fighters before OPTIONAL infrastructure.
  // Known siege objectives or an observed home attack keep their normal tech.
  const actionInfantryFirst=actionEarlyArmyBeforeInfrastructure({
   preset:g.balancePreset,time:g.time,barracksReady:complete('barracks'),
