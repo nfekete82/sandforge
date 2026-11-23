@@ -28,11 +28,14 @@ const actorCount=stress?48:12,enemyCount=stress?12:4;
 const variantTimeout=Number(process.env.POLISH31_VARIANT_TIMEOUT_MS??720000);
 assert.ok(Number.isFinite(variantTimeout)&&variantTimeout>=120000,
  'Invalid POLISH31_VARIANT_TIMEOUT_MS');
-const timeBound=(promise,label)=>Promise.race([
- promise,
- new Promise((_,reject)=>setTimeout(()=>reject(
-  Error('POLISH31_TIMEOUT '+label+' after '+variantTimeout+'ms')),variantTimeout))
-]);
+const timeBound=(promise,label)=>{
+ let timer;
+ return Promise.race([
+  promise,
+  new Promise((_,reject)=>{timer=setTimeout(()=>reject(
+   Error('POLISH31_TIMEOUT '+label+' after '+variantTimeout+'ms')),variantTimeout);})
+ ]).finally(()=>clearTimeout(timer));
+};
 const reports=[],errors=[];
 const maps=[['desert-strike',9999,8,'oasis'],['broken-empire',2026,12,'rocky'],['burning-horizon',1907,16,'dunes']];
 try{
