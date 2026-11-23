@@ -20,7 +20,11 @@ assert.ok(variants.every(v=>['before','submitted','after'].includes(v)),'Unknown
 const submitted=variants.includes('submitted')?new Map(
  [...modules,'webgl-vehicle-polish','webgl-particle-finish'].map(name=>
   [name+'.js',execFileSync('git',['show','8512c9e8:scripts/'+name+'.js'],{encoding:'utf8'})])):null;
-const browser=await chromium.launch({channel:'chrome',headless:true});
+const browser=await chromium.launch({
+ channel:process.env.POLISH31_CHANNEL??'chrome',headless:true
+});
+const stress=process.env.POLISH31_STRESS==='1';
+const actorCount=stress?48:12,enemyCount=stress?12:4;
 const reports=[],errors=[];
 const maps=[['desert-strike',9999,8,'oasis'],['broken-empire',2026,12,'rocky'],['burning-horizon',1907,16,'dunes']];
 try{
@@ -39,7 +43,7 @@ try{
    });
    await page.goto(base+`/webgl-preview.html?play=1&map=${map}&seed=${seed}&bastions=${bastions}&terrain=${terrain}&biome=desert&landscape=network&pause=1&perf=1&adaptive=0&post=${process.env.POLISH31_POST??0}`,{waitUntil:'domcontentloaded'});
    await page.waitForFunction(()=>{const a=window.__sandforgeWebGL;return a?.loaded&&a.authenticDesertReady&&a.desertArtReady;},null,{timeout:120000});
-   const scene=await page.evaluate(async()=>{
+   const scene=await page.evaluate(async({stress,actorCount,enemyCount})=>{
     const a=window.__sandforgeWebGL,g=a.game,b=a.battlefield;
     a.renderer.setAnimationLoop(null);
     const {BUILDINGS}=await import('/src/reborn/catalog.js');
@@ -53,12 +57,23 @@ try{
       buildRemaining:0,cooldown:0,rally:null});
     }
     const actors=[];
-    for(let i=0;i<12;i++){
-     const u=g.spawn(0,{x:x-240+(i%6)*92,y:y+85+Math.floor(i/6)*115},i%3===0?'tank':i%3===1?'rover':'artillery');
+    // Normal graphics A/B uses the original 12+4 fixture unchanged.
+    // Stress A/B uses 48 friendly and 12 enemy REAL model-backed vehicles,
+    // including the same physical collisions, shots, AI and VFX on both sides.
+    for(let i=0;i<actorCount;i++){
+     const u=g.spawn(0,stress
+      ?{x:x-250+(i%8)*88,y:y+80+Math.floor(i/8)*100}
+      :{x:x-240+(i%6)*92,y:y+85+Math.floor(i/6)*115},
+      i%3===0?'tank':i%3===1?'rover':'artillery');
      u.guardArea=true;actors.push(u.id);
     }
-    // Enemy tanks in range create real shots during the controlled replay.
-    for(let i=0;i<4;i++){const u=g.spawn(1,{x:x-190+i*125,y:y+430},'tank');u.guardArea=true;}
+    // The stress variant introduces a genuine second armored line.
+    for(let i=0;i<enemyCount;i++){
+     const u=g.spawn(1,stress
+      ?{x:x-190+(i%6)*118,y:y+470+Math.floor(i/6)*116}
+      :{x:x-190+i*125,y:y+430},'tank');
+     u.guardArea=true;
+    }
     g.spatial.rebuild(g.units);g.updateVision();b.sync(true,0,false,1);
     // A second camera makes normal RTS zoom and optional close inspection
     // reproducible. Default strategic zoom is kept at .59.
@@ -74,17 +89,17 @@ try{
     return {seed:g.seed,map:a.desertMapId,actors:actors.length,
      camera:{position:a.camera.position.toArray(),target:a.controls.target.toArray(),zoom:a.camera.zoom},
      gpu:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER)};
-   });
+   },{stress,actorCount,enemyCount});
    await page.waitForFunction(()=>{const b=window.__sandforgeWebGL.battlefield;return !b.loadingCount&&!b.modelQueue.length&&!b.pending.size;},null,{timeout:120000});
    await page.evaluate(()=>{
     const a=window.__sandforgeWebGL;a.battlefield.sync(true,0,false,1);
     a.renderer.info.reset();a.visualPost.render(a.scene,a.camera);
    });
    await page.screenshot({path:`${out}/${map}-${variant}-rts.png`});
-   const metrics=await page.evaluate(async({frames,profile})=>{
+   const metrics=await page.evaluate(async({frames,profile,stress})=>{
     const a=window.__sandforgeWebGL,g=a.game,b=a.battlefield;
     const ids=globalThis.__polish31Actors;
-    const movers=g.units.filter(u=>ids.includes(u.id)).slice(0,6);
+    const movers=g.units.filter(u=>ids.includes(u.id)).slice(0,stress?24:6);
     for(const u of movers)g.command([u.id],{kind:'move',x:u.x+210,y:u.y+80});
     const initialDetails=ids.filter(id=>b.units.get(id)?.detail).length;
     const stats=[],poses=[],shotsBefore=b.presentation.stats.shots;
@@ -106,7 +121,7 @@ try{
      const simEnd=performance.now();
      b.sync(false,1/60,true,(i%3)/3);const syncEnd=performance.now();
      a.effects.update(1/60,true,(i%3)/60);const fxEnd=performance.now();
-     if(i%60===0)for(let j=0;j<3;j++)a.effects.blastAt(centre.x+120+j*90,centre.y+170,true);
+     if(i%(stress?30:60)===0)for(let j=0;j<(stress?12:3);j++)a.effects.blastAt(centre.x+120+(j%6)*85,centre.y+170+Math.floor(j/6)*90,true);
      const synced=performance.now();render();const end=performance.now();
      if(raw){const k=i*16;
       raw[k]=now;raw[k+1]=samples.at(-1);raw[k+2]=simEnd-start;raw[k+3]=syncEnd-simEnd;
@@ -137,9 +152,9 @@ try{
      actualDetails:ids.filter(id=>b.units.get(id)?.detail).length,
      particleCap:a.effects.pools.map(p=>({mode:p.mode,max:p.max,count:p.mesh.count})),
      post:a.visualPost.snapshot(),glError:a.renderer.getContext().getError()};
-   },{frames,profile});
+   },{frames,profile,stress});
    await page.screenshot({path:`${out}/${map}-${variant}-combat.png`});
-   reports.push({map,variant,trial,scene,metrics});
+   reports.push({map,variant,trial,stress,actorCount,enemyCount,scene,metrics});
    writeFileSync(out+'/report.json',JSON.stringify({baseRef:ref,reports,errors},null,2)+'\n');
    console.log(JSON.stringify({map,variant,...Object.fromEntries(Object.entries(metrics).filter(([k])=>!['poses','simulation','particleCap','profile'].includes(k)))}));
    const video=page.video();await page.close();
@@ -151,9 +166,10 @@ try{
   for(const peer of peers){
    assert.deepEqual(reference.scene,peer.scene,'same map, camera and GPU');
    assert.deepEqual(reference.metrics.simulation,peer.metrics.simulation,'presentation cannot change simulation');
-   assert.equal(peer.metrics.initialDetails,12,'all real vehicle GLBs loaded');
+   assert.equal(peer.metrics.initialDetails,actorCount,'all real vehicle GLBs loaded');
    assert.equal(peer.metrics.glError,0);
    assert.ok(peer.metrics.shots>0,'real combat animation verified');
+   assert.equal(peer.metrics.actualDetails<=actorCount,true,'bounded vehicle details');
   }
  }
  assert.deepEqual(errors,[]);
