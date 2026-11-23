@@ -37,7 +37,7 @@ import {bastionEffectiveIncome} from './bastion-upgrades.js';
 import {BUNKER_CAPACITY,BUNKER_MAX_FIRE_RANGE} from './bunker-garrison.js';
 import {ai38DecisiveAssault} from './ai38-investment-doctrine.js';
 import {ai43OffensiveHqBreakthrough} from './ai43-hq-breakthrough.js';
-import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,ACTION_BALANCE} from './action-balance.js';
+import {actionBastionProbePolicy,actionBastionGoalScore,actionContestedBastionSafe,selectReachableOpeningSquad,actionOpeningHandoffSize,actionForwardRallyPolicy,actionHomeReservePolicy,actionReleaseTemporaryRecaptureHold,ACTION_BALANCE} from './action-balance.js';
 import {selectDesertAIDoctrine,fixedDesertLateAirSupport} from './desert-ai-doctrine.js';
 import {ai40ClusterRallyRecovery,ai40CountBlockedRallyOrders,ai40RecoveryWaitThreshold,ai40ShouldAttemptRecovery,ai41RallyMissionPermitsRescue} from './ai40-rally-recovery.js';
 export type TacticalPhase='gather'|'attack'|'regroup'|'defend';
@@ -2620,8 +2620,27 @@ export class TacticalAI {
      // an immediate one-soldier recapture. Normal weapons, no buffs.
      for(const u of squad)if(distance(u,site.point)<125&&
        u.defendUntil<=g.time&&!u.hold)g.stop([u.id],true,true);
-     if(g.time-old.securedAt<15)return new Set(squad.map(u=>u.id));
+     const observedThreat=site.capturing===0||visible.some(enemy=>
+      distance(enemy,site.point)<380);
+     if(g.time-old.securedAt<15||
+        g.balancePreset==='action'&&observedThreat)
+      return new Set(squad.map(u=>u.id));
+     // Action's capture sentries were left with hold=true forever after
+     // securedAt + 15s. Release ONLY the temporary guard-area post,
+     // never a live battle order or an unrelated HQ/bunker defender.
+     for(const u of squad)if(actionReleaseTemporaryRecaptureHold({
+      preset:g.balancePreset,temporaryGuard:u.hold&&u.guardArea,
+      hasOrders:u.orders.length>0,siteOwned:true,
+      securedSeconds:g.time-old.securedAt,observedThreat
+     }))g.stop([u.id]);
     }else if(sectorIsExposed(site)&&g.time-old.since<70){
+     // A Bastion that went BLUE again must not strand the old squad in
+     // an obsolete guard hold. Reactivate the *same* paid soldiers.
+     for(const u of squad)if(actionReleaseTemporaryRecaptureHold({
+      preset:g.balancePreset,temporaryGuard:u.hold&&u.guardArea,
+      hasOrders:u.orders.length>0,siteOwned:false,
+      securedSeconds:0,observedThreat:false
+     }))g.stop([u.id]);
      // Never reissue the same attack every 3-second macro pulse.
      // Retarget only if an old order genuinely disappeared.
      for(const u of squad)if(!u.orders.length&&!u.hold&&
@@ -2632,7 +2651,16 @@ export class TacticalAI {
      return new Set(squad.map(u=>u.id));
     }
    }
-   if(site?.owner!==1)this.recaptureRetryAt=g.time+25;
+   if(site?.owner!==1){
+    this.recaptureRetryAt=g.time+25;
+    // Even when the 70s mission expires, never leak its temporary hold
+    // into the rest of the game. Classic retains its prior behavior.
+    for(const u of squad)if(actionReleaseTemporaryRecaptureHold({
+     preset:g.balancePreset,temporaryGuard:u.hold&&u.guardArea,
+     hasOrders:u.orders.length>0,siteOwned:false,
+     securedSeconds:0,observedThreat:false
+    }))g.stop([u.id]);
+   }
    this.recaptureMission=null;
    if(g.time<this.recaptureRetryAt)return new Set();
   }
