@@ -70,3 +70,28 @@ export function publicTeamTerritoryCounts(
  }
  return totals;
 }
+
+/** Single capture claimant selected from REAL units inside a Bastion ring.
+ * Units from multiple hostile teams contest the circle. Allied soldiers
+ * jointly enable capture, assigned deterministically to the lowest owner ID
+ * among those present. Drones, dead and boarded units do not capture.
+ *
+ * This deliberately accepts teamOf as a callback so legacy 1v1 can use
+ * owner=>owner with no MatchSetup/allocations inside each simulation tick.
+ */
+export function resolveTeamCapturePresence(
+ units:readonly {owner:number;hp:number;carrier?:number|null;kind?:string}[],
+ teamOf:(owner:number)=>number
+):{claimant:number;contested:boolean}{
+ let claimant=-1,team=-1;
+ for(const unit of units){
+  if(unit.hp<=0||unit.carrier||unit.kind==='drone')continue;
+  const actualTeam=teamOf(unit.owner);
+  if(!Number.isSafeInteger(actualTeam)||actualTeam<0)
+   throw Error('Invalid capture team');
+  if(team>=0&&team!==actualTeam)return {claimant:-1,contested:true};
+  team=actualTeam;
+  claimant=claimant<0?unit.owner:Math.min(claimant,unit.owner);
+ }
+ return {claimant,contested:false};
+}
