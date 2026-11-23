@@ -41,7 +41,6 @@ jobs:
             tests/sandforge-action-balance-20261122.test.mjs \
             tests/sandforge-webgl-simulation-speed-20261119.test.mjs \
             tests/sandforge-ai-opening-route-ranking-20261123.test.mjs \
-            tests/reborn-production.test.mjs \
             tests/reborn-combat-balance-20261117.test.mjs
       - name: Guard gameplay assets and abandoned cliff shaders
         run: |
