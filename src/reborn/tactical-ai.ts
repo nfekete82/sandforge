@@ -2401,7 +2401,8 @@ export class TacticalAI {
    const count=actionOpening? actionOpeningHandoffSize({
     counter,slots:maxAssigned-s.openingContests.length,free:free.length
    }):counter?2:1;
-   if(!count||maxAssigned-s.openingContests.length<count)break;
+   if(!count)break;
+   if(maxAssigned-s.openingContests.length<count)break;
    // A single leftover slot may scout an actually empty Bastion, but can
    // NEVER be sent alone to fight a BLUE-held, possibly defended sector.
    const soloNeutral=actionOpening&&counter&&count===1;
