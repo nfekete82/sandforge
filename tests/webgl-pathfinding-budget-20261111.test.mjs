@@ -24,6 +24,9 @@ test('unreachable goal behind fully closed dynamic ring stops bounded A* before 
  assert.ok(world.pathVisitedNodes<=4200,
   'strategic search must not traverse whole 57,600-cell map');
  assert.ok(world.pathMaxMs>=0);
+ // The AI route cache relies on the default partial=false contract.
+ assert.deepEqual(world.path(from,goal,blockers,5),[],
+  'default strategic search must not silently accept partial progress');
  world.resetPathProfile();
  const partial=world.path(from,goal,blockers,0,undefined,false,false,true);
  assert.ok(world.pathVisitedNodes<=2600,
@@ -71,12 +74,12 @@ test('legacy campaign maps retain original unlimited path search behaviour',()=>
  assert.equal(modern.generated.battlefield.generatorVersion,2);
 });
 
-test('real simulation only uses bounded progress for actual movement, not AI reachability',()=>{
+test('real movement uses partial routes with slope and lane constraints; strict AI reachability remains exact',()=>{
  const simSource=source('src/reborn/simulation.ts');
  const aiSource=source('src/reborn/tactical-ai.ts');
- assert.match(simSource,/this\.world\.path\(u,target,routeObstacles,clearance,risk,spec\.flying,u\.exactPath,true\)/);
- assert.match(simSource,/this\.world\.path\(u,target,routeObstacles,clearance,risk,false,true,true\)/);
- assert.match(simSource,/this\.world\.mapVersion>=23\?2\.8:1\.4/);
+ assert.match(simSource,/this\.world\.path\(u,target,routeObstacles,clearance,risk,spec\.flying,u\.exactPath,true,slopeLimit,mesaLane\)/);
+ assert.match(simSource,/this\.world\.path\(u,target,routeObstacles,clearance,risk,false,true,true,slopeLimit,mesaLane\)/);
+ assert.match(simSource,/this\.world\.mapVersion>=23\?2\.8\+\(u\.id%5\)\*\.18:1\.4/);
  assert.match(aiSource,/this\.g\.world\.path\(from,to,this\.obstacles\(\),5,this\.field\(\)\)/);
  const game=new Simulation(20261111,24);
  assert.equal(game.world.mapVersion,24);
