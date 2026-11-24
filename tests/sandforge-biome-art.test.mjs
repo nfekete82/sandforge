@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {existsSync,readFileSync} from 'node:fs';
+import * as THREE from 'three';
 import {BIOME_STYLES,normalizeBiome,addBiomeVegetation} from '../scripts/webgl-biomes.js';
 
 test('all three biomes have distinct, validated visual palettes',()=>{
@@ -33,31 +34,17 @@ test('WebGL build packages biome renderer and menu selection',()=>{
 
 test('instanced biome vegetation is deterministic, cosmetic and bounded',()=>{
  const meshes=[];
- class Vector{
-  set(x,y,z){this.x=x;this.y=y;this.z=z;return this;}
- }
- class Object3D{
-  constructor(){this.position=new Vector();this.rotation=new Vector();this.scale=new Vector();this.matrix={};}
-  updateMatrix(){this.matrix={position:{...this.position},scale:{...this.scale}};}
- }
- class InstancedMesh{
-  constructor(geometry,material,max){
-   this.geometry=geometry;this.material=material;this.max=max;
-   this.instanceMatrix={needsUpdate:false};this.matrices=[];
-  }
-  setMatrixAt(i,matrix){assert.ok(i<this.max);this.matrices[i]=structuredClone(matrix);}
- }
- const Three={
-  ConeGeometry:class{},IcosahedronGeometry:class{},CylinderGeometry:class{},
-  MeshStandardMaterial:class{},InstancedMesh,Object3D
- };
+ const matrix=new THREE.Matrix4();
+ const matrices=mesh=>Array.from({length:mesh.count},(_,i)=>{
+  mesh.getMatrixAt(i,matrix);return matrix.toArray();
+ });
  const blocked=new Uint8Array(16);
  const world={
-  size:3000,blocked,
+  size:3000,blocked,mapVersion:23,terrainSlope:()=>0,
   walkable:({x,y})=>x>0&&y>0&&x<3000&&y<3000
  };
  const options={
-  THREE:Three,scene:{add:mesh=>meshes.push(mesh)},world,
+  THREE,scene:{add:mesh=>meshes.push(mesh)},world,
   terrain:{sites:[{x:1500,y:1500}],ruins:[]},game:{units:[{x:300,y:300}]},
   heightAt:()=>0,seed:2074,biome:'snow'
  };
@@ -65,11 +52,19 @@ test('instanced biome vegetation is deterministic, cosmetic and bounded',()=>{
  assert.ok(first.count>0&&first.count<=210);
  assert.equal(meshes.length,3);
  assert.ok(meshes.every(mesh=>mesh.count===first.count&&mesh.userData.visualOnly&&mesh.userData.nonPlayable));
- for(const mesh of meshes)for(const instance of mesh.matrices)
-  assert.ok(Math.abs(instance.position.x)<1500&&Math.abs(instance.position.z)<1500);
+ for(const mesh of meshes)for(const instance of matrices(mesh))
+  assert.ok(Math.abs(instance[12])<1500&&Math.abs(instance[14])<1500);
  const second=addBiomeVegetation({...options,scene:{add:()=>{}}});
  assert.equal(first.count,second.count);
- assert.deepEqual(first.meshes.map(m=>m.matrices),second.meshes.map(m=>m.matrices));
- assert.deepEqual(world.blocked,blocked);
+ assert.deepEqual(first.meshes.map(matrices),second.meshes.map(matrices));
+ assert.deepEqual(world.blocked,new Uint8Array(16));
  assert.equal(addBiomeVegetation({...options,biome:'desert'}).count,0);
+ const legacyOptions={...options,world:{...world,mapVersion:22},biome:'desert',scene:{add:()=>{}}};
+ const legacy=addBiomeVegetation(legacyOptions),legacyAgain=addBiomeVegetation(legacyOptions);
+ assert.ok(legacy.count>0&&legacy.count<=165,'legacy desert keeps its authored shrubs');
+ assert.equal(legacy.meshes.length,3);
+ assert.equal(legacy.meshes.reduce((sum,m)=>sum+m.count,0),legacy.count);
+ assert.ok(legacy.meshes.every(m=>m.userData.visualOnly&&m.userData.nonPlayable));
+ assert.deepEqual(legacy.meshes.map(matrices),legacyAgain.meshes.map(matrices));
+ assert.deepEqual(world.blocked,new Uint8Array(16));
 });
