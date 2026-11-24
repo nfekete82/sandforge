@@ -70,7 +70,7 @@ test('maintenance routing never hides combat targets or removes explicit attack 
 
 test('sector capture timer must not rebuild complete 3D unit/building portrait catalog',()=>{
  const start=source.indexOf('  const tiles=this.game.territories.map');
- const end=source.indexOf('  const upgrades=UPGRADE_KINDS.map',start);
+ const end=source.indexOf('  if(this.previousActionsMarkup!==markup){',start);
  assert.ok(start>0&&end>start);
  const markup=source.slice(start,end);
  assert.ok(!markup.includes('t.progress'),'static markup cannot depend on changing capture progress');
