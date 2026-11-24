@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Simulation} from '../dist/src/reborn/simulation.js';
-import {UNITS} from '../dist/src/reborn/catalog.js';
+import {UNITS,weaponDamage} from '../dist/src/reborn/catalog.js';
 import {RULES,distance} from '../dist/src/reborn/config.js';
 import {BASTION_SPACING,seededRandom} from '../dist/src/reborn/world-generation.js';
 
@@ -49,7 +49,7 @@ test('combat: two attackers cannot steal focus; the survivor is acquired immedia
  const g=new Simulation(2026);g.aiClock=-1e8;g.units=[];g.world.blocked.fill(0);g.world.opaque.fill(0);
  const blue=g.spawn(0,{x:1900,y:2100},'heavy'),first=g.spawn(1,{x:2020,y:2100}),second=g.spawn(1,{x:2055,y:2100});
  g.stop([blue.id],false); // Ordinary stationary guard auto-acquires; explicit HOLD is defensive-only.
- g.step();assert.equal(blue.combatTarget,first.id);assert.equal(blue.lastAttacker,second.id);assert.equal(first.hp,100-UNITS.heavy.damage/3);assert.equal(second.hp,100);
+ g.step();assert.equal(blue.combatTarget,first.id);assert.equal(blue.lastAttacker,second.id);assert.equal(first.hp,100-weaponDamage(blue,first)/3);assert.equal(second.hp,100);
  for(let i=0;i<65&&g.units.some(u=>u.id===first.id);i++)g.step();
  assert.equal(g.units.some(u=>u.id===first.id),false);assert.equal(second.hp,100);assert.ok(blue.hp>0);
  g.step();assert.equal(blue.combatTarget,second.id);assert.equal(blue.orders.length,0);

@@ -15,7 +15,8 @@ for(const version of [0,1,2])test(`production: map ${version} starts both factio
  const g=new Simulation(2026,version);for(const owner of [0,1]){
   const units=g.units.filter(u=>u.owner===owner);assert.equal(units.length,2);assert.deepEqual(units.map(u=>u.kind).sort(),['engineer','infantry']);
   assert.ok(units.every(u=>g.world.walkable(u,g.obstacles())));assert.ok(distance(units[0],units[1])>21);assert.equal(g.credits[owner],500);
-  assert.equal(g.producer(owner,'engineer').kind,'headquarters');for(const k of unitKinds.filter(k=>k!=='engineer'))assert.equal(g.producer(owner,k),undefined);
+  const hq=g.bases.find(b=>b.owner===owner&&b.kind==='headquarters');
+  for(const k of unitKinds)assert.equal(g.producer(owner,k),['engineer','drone'].includes(k)?hq:undefined,k);
  }
 });
 test('production: every building rejects foreign roles without spending credits or queuing them',()=>{

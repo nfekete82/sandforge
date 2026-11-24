@@ -66,10 +66,12 @@ test('maps: capture and income work, but start-sector ownership cannot trigger p
  const g=new Simulation(2026,2);g.aiClock=-1e8;const t=g.territories.find(t=>t.owner===-1&&t.neighbors.some(i=>g.territories[i].owner===0));
  g.command([g.units[0].id],{...t.point,kind:'move'});advance(g,30);assert.equal(t.owner,0);assert.equal(g.income(0),35+t.income);
  const ai=new Simulation(2026,2);advance(ai,150);assert.ok(ai.territories.filter(t=>t.owner===1).length>2);assert.ok(ai.count(1)>1);
- const victory=new Simulation(123,2);victory.aiClock=-1e8;for(const b of victory.bases)b.owner=0;victory.territories[2].owner=0;victory.step();assert.equal(victory.status,'playing');victory.territories[3].owner=0;victory.step();assert.equal(victory.status,'playing');
- // Remaining opposing soldiers still prevent victory even if their former HQ
- // and original start sectors have changed hands.
- victory.units=victory.units.filter(u=>u.owner!==1);
+ const victory=new Simulation(123,2);victory.aiClock=-1e8;
+ for(const id of mapLayout(2).starts[1]){
+  victory.territories[id].owner=0;victory.step();assert.equal(victory.status,'playing');
+ }
+ assert.ok(victory.units.some(u=>u.owner===1&&u.hp>0));
+ victory.bases.find(b=>b.owner===1&&b.kind==='headquarters').hp=0;
  victory.step();assert.equal(victory.status,'victory');
 });
 
@@ -111,9 +113,11 @@ test('maps: 0/1/2 saves preserve economy, construction and elimination-only vict
   const saved=g.save();if(version===0)delete saved.mapVersion;const loaded=Simulation.load(saved);assert.equal(loaded.world.mapVersion,version);assert.equal(loaded.territories.length,version===2?16:30);assert.deepEqual(loaded.territories,g.territories);assert.deepEqual(loaded.credits,g.credits);assert.deepEqual(loaded.bases,g.bases);
   assert.deepEqual(loaded.units.find(u=>u.id===medic.id).orders,medic.orders);assert.equal(loaded.units.find(u=>u.id===worker.id).orders[0].kind,'build');assert.equal(loaded.bases.find(b=>b.id===construction.id).buildRemaining,construction.buildRemaining);
   const bad=g.save();bad.territories=bad.territories.slice(1);assert.throws(()=>Simulation.load(bad));
-  const goals=mapLayout(version).starts[1];for(const base of loaded.bases.filter(b=>b.kind==='headquarters'))base.owner=0;for(const id of goals)loaded.territories[id].owner=0;loaded.step();assert.equal(loaded.status,'playing','captured start sectors cannot hide remaining enemies');
-  loaded.units=loaded.units.filter(u=>u.owner!==1);
-  loaded.step();assert.equal(loaded.status,'victory','only true elimination ends the match');
+  const goals=mapLayout(version).starts[1];for(const id of goals)loaded.territories[id].owner=0;
+  loaded.step();assert.equal(loaded.status,'playing','territory alone cannot eliminate an established faction');
+  assert.ok(loaded.units.some(u=>u.owner===1&&u.hp>0));
+  loaded.bases.find(b=>b.owner===1&&b.kind==='headquarters').hp=0;
+  loaded.step();assert.equal(loaded.status,'victory','destroying the last structure ends the match');
  }
 });
 
