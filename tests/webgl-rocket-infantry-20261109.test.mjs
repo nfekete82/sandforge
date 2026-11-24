@@ -11,7 +11,9 @@ test('barracks rocket soldier has specialist anti-vehicle/air role and clear MG 
  assert.equal(spec.group,'Infanterie');
  assert.ok(spec.producers.includes('barracks'));
  assert.equal(spec.targetsAir,true);
- assert.ok(spec.hp<=100,'MG should defeat a rocket soldier quickly');
+ const mgDamage=weaponDamage({kind:'rover'},{kind:'rocket'});
+ assert.ok(mgDamage>0);
+ assert.ok(Math.ceil(spec.hp/mgDamage)<=9,'Humvee MG must defeat a rocket soldier within nine landed shots');
  const targetTank={kind:'tank'},targetFlyer={kind:'scout'};
  assert.equal(canAttack({kind:'rocket'},targetFlyer),true);
  assert.equal(weaponDamage({kind:'rocket'},targetTank),145);
@@ -72,7 +74,8 @@ test('redesigned lab and silo maintain a recognisable radar and layered missile 
   if(kind==='silo'){
    assert.ok(model.getObjectByName('Silo_RocketBody'));
    assert.ok(model.getObjectByName('Silo_RocketNose'));
-   assert.ok(model.getObjectByName('Silo_RocketStageSeam'));
+   assert.ok(model.getObjectByName('Silo_RocketHatchJoint'),'visible seal at the launch well');
+   assert.equal(model.getObjectByName('Silo_RocketStageSeam'),undefined,'smooth missile body must not regain the old stage grooves');
   }
  }
 });
@@ -106,7 +109,7 @@ test('rocket specialist reuses animated Atlas infantry and the real launcher in 
  assert.ok(infantryMeta.clips.walk.duration>0);
  assert.match(battlefield,/kind==='rocket'\)return prefix\+'prototype\/infantry-'\+owner\+'\.glb'/);
  assert.match(battlefield,/attachRocketLauncherToInfantry\(model,entry\.owner\)/);
- assert.match(battlefield,/entity\.kind!=='medic'&&entity\.kind!=='rocket'/,
+ assert.match(battlefield,/this\.lite&&type!=='building'&&\s*!\['medic','rocket','tank','flamer'\]\.includes\(entity\.kind\)/,
   'rocket infantry must animate even with lite-mode enabled');
  assert.doesNotMatch(battlefield,/\(type==='unit'&&entity\.kind==='rocket'\)\|\|entry\.requested/,
   'old forced-static rocket exception must not return');
@@ -114,7 +117,8 @@ test('rocket specialist reuses animated Atlas infantry and the real launcher in 
  assert.match(weapon,/getObjectByName\('Atlas_Rifle'\)/);
  assert.match(weapon,/muzzle\.name='RocketMuzzle_0'/);
  assert.match(portraits,/cloneSkeleton\(data\.scene\)/);
- assert.match(portraits,/attachRocketLauncherToInfantry\(model,0\)/);
+ assert.match(portraits,/kind==='rocket'\)attachRocketLauncherToInfantry\(model,owner\)/);
+ assert.match(portraits,/dressHumanInfantryPortrait\(model,kind,0\)/);
  assert.match(portraits,/renderModelPortrait\(model,renderer,\{width:192,height:132,infantryCard:true\}\)/);
  assert.match(portraits,/if\(infantryCard\)model\.rotation\.y\+=Math\.PI\/4/);
  assert.match(portraits,/infantryCard\?105\/h/);
@@ -147,5 +151,11 @@ test('rocket damage per credit and time to defeat armor allow counterplay',()=>{
  assert.ok(Math.ceil(helicopter.hp/weaponDamage({kind:'rocket'},{kind:'scout'}))>=3);
  assert.ok(rocket.cooldown>tank.cooldown);
  assert.ok(rocket.range>tank.range,'still outranges tank main gun');
- assert.ok(rocket.hp<humvee.hp/3,'light infantry stays vulnerable to vehicle MG');
+ // Compare landed-shot kill times at shared firing range, rather than an
+ // unrelated ratio of maximum HP after the roster rebalance.
+ const mgShots=Math.ceil(rocket.hp/weaponDamage({kind:'rover'},{kind:'rocket'}));
+ const rocketShots=Math.ceil(humvee.hp/weaponDamage({kind:'rocket'},{kind:'rover'}));
+ assert.ok((mgShots-1)*humvee.cooldown<=6,'Humvee MG defeats the specialist quickly at close range');
+ assert.ok((mgShots-1)*humvee.cooldown<(rocketShots-1)*rocket.cooldown,
+  'Humvee wins a simultaneous close-range duel; rocket retains its range advantage');
 });
