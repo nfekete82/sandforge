@@ -33,7 +33,7 @@ test('campaign: new campaigns roll fresh seeds; seeds reproduce terrain and save
  assert.deepEqual(loaded.world.generated,g.world.generated);assert.deepEqual(loaded.world.blocked,g.world.blocked);
  assert.deepEqual(loaded.territories,g.territories);assert.deepEqual(loaded.credits,g.credits);assert.deepEqual(loaded.units[0].orders,g.units[0].orders);
  const old=new Simulation().save();delete old.mapVersion;assert.equal(Simulation.load(old).world.mapVersion,0);
- const invalid=g.save();invalid.mapVersion=3;assert.throws(()=>Simulation.load(invalid));
+ const invalid=g.save();invalid.mapVersion=999;assert.throws(()=>Simulation.load(invalid));
 });
 
 test('combat: a newly approaching enemy is fired on in one tick without waiting for the fog raster',()=>{
@@ -114,4 +114,15 @@ test('combat: cliffs prevent auto-pursuit of opponents outside weapon range',()=
  assert.equal(g.world.sightLine(guard,enemy),false);
  advanceCombat(g,1);assert.equal(guard.x,1900);assert.equal(enemy.hp,UNITS.engineer.hp);
  assert.equal(guard.pursuitOrigin,undefined);
+});
+
+
+test('campaign: Bastion upgrade tiers are canonical on creation and preserve legacy and paid levels on load',()=>{
+ const g=Simulation.campaign(184902);
+ assert.ok(g.territories.every(t=>t.upgradeLevel===1));
+ const legacy=g.save();for(const t of legacy.territories)delete t.upgradeLevel;
+ assert.deepEqual(Simulation.load(legacy).territories,g.territories);
+ const upgraded=g.save(),owned=upgraded.territories.find(t=>t.owner>=0);
+ assert.ok(owned);owned.upgradeLevel=2;
+ assert.equal(Simulation.load(upgraded).territories.find(t=>t.id===owned.id).upgradeLevel,2);
 });
