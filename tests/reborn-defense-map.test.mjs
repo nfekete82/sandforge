@@ -92,7 +92,7 @@ test('maps: original geometry fingerprints for both 30-sector versions stay iden
   }
   const originalGenerated=generated===undefined?undefined:
    {sites:generated.sites,mesas:generated.mesas,corridors:generated.corridors};
-  const geometry={generated:originalGenerated,blocked:Array.from(g.world.blocked),territories:g.territories,bases:g.bases,units:g.units.filter(u=>u.kind==='infantry').map(({xp,...geometry})=>{assert.equal(xp,0,'new recruits have no experience');return geometry;})};
+  const geometry={generated:originalGenerated,blocked:Array.from(g.world.blocked),territories:g.territories.map(({upgradeLevel,...geometry})=>{assert.equal(upgradeLevel,1);return geometry;}),bases:g.bases.map(({queueCosts,...geometry})=>{assert.deepEqual(queueCosts,[]);return geometry;}),units:g.units.filter(u=>u.kind==='infantry').map(({xp,...geometry})=>{assert.equal(xp,0,'new recruits have no experience');return geometry;})};
   // Legacy map v1/seed=0 has two confirmed exact JSON fingerprints across macOS and Linux.
   // Every other legacy seed retains its single strictly pinned reference hash.
   const actual=createHash('sha256').update(JSON.stringify(geometry)).digest('hex');

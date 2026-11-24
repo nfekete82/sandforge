@@ -21,7 +21,7 @@ const scene=()=>{
  const oldHQ=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
  for(const [i,kind] of ['barracks','factory'].entries()){
   const spec=BUILDINGS[kind];g.bases.push({...oldHQ,id:1900+i,kind,hp:spec.hp,radius:spec.radius,
-   x:oldHQ.x+(i+1)*300,y:oldHQ.y,territory:hq.territory,queue:[],queueTypes:[],buildRemaining:0,production:0});
+   x:oldHQ.x+(i+1)*300,y:oldHQ.y,territory:hq.territory,queue:[],queueTypes:[],queueCosts:[],buildRemaining:0,production:0});
  }
  for(let i=0;i<5;i++)g.spawn(1,{x:worker.x+i*22,y:worker.y+140},'heavy');
  return {g,hq,acquired,hostile,worker};
@@ -62,7 +62,7 @@ test('economic planner defers towers until generators, barracks, factory and cas
  const {g,hq}=scene();
  // Tower-specific fixture starts after the newly prioritized economy phase.
  for(let i=0;i<3;i++)g.bases.push({...hq,id:7900+i,kind:'generator',hp:BUILDINGS.generator.hp,
-  radius:BUILDINGS.generator.radius,buildRemaining:0,x:80+i*45,y:80,queue:[],queueTypes:[],production:0});
+  radius:BUILDINGS.generator.radius,buildRemaining:0,x:80+i*45,y:80,queue:[],queueTypes:[],queueCosts:[],production:0});
  g.credits[1]=400;
  g.tactical.plan();
  assert.equal(g.bases.filter(b=>b.owner===1&&b.kind==='turret').length,0);
