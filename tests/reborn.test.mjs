@@ -359,3 +359,24 @@ test('reborn: friendly groups can capture three adjacent bastions simultaneously
  const restored=Simulation.load(g.save());restored.aiClock=-1e8;advance(restored,5);
  for(const t of targets){assert.equal(restored.territories[t.id].owner,0);assert.equal(restored.territories[t.id].progress,0);}
 });
+
+
+test('reborn: production cost ledgers are canonical for new structures and legacy saves',()=>{
+ const g=peaceful();
+ for(const b of g.bases)assert.deepEqual(b.queueCosts,[]);
+ const site=buildWithWorker(g,0,'barracks',buildSite(g,'barracks'));
+ assert.ok(site);assert.deepEqual(site.queueCosts,[]);
+ advance(g,13);assert.equal(site.buildRemaining,0);
+ assert.equal(g.recruit(site.id,'heavy'),true);
+ assert.deepEqual(site.queueCosts,[UNITS.heavy.cost]);
+ const saved=g.save(), restored=Simulation.load(saved);
+ assert.deepEqual(restored.bases,g.bases);
+ assert.deepEqual(restored.credits,g.credits);
+ const legacy=g.save();for(const b of legacy.bases)delete b.queueCosts;
+ const migrated=Simulation.load(legacy);
+ assert.deepEqual(migrated.bases,g.bases);
+ assert.deepEqual(migrated.credits,g.credits);
+ const credits=migrated.credits[0];migrated.cancel(site.id);
+ assert.equal(migrated.credits[0],credits+UNITS.heavy.cost);
+ assert.deepEqual(migrated.bases.find(b=>b.id===site.id).queueCosts,[]);
+});
