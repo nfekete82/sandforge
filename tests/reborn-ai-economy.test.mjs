@@ -89,8 +89,8 @@ test('economy: established armor saves for heavy support rather than replacing e
  assert.equal(g.tactical.state.savingFor,'heavy');
  g.credits[1]+=100;pulse(g);
  assert.deepEqual(barracks.queueTypes,['heavy']);
- assert.equal(barracks.queueCosts[0],250);
- assert.equal(g.credits[1],50);
+ assert.equal(barracks.queueCosts[0],UNITS.heavy.cost);
+ assert.equal(g.credits[1],300-UNITS.heavy.cost);
 });
 
 test('economy: aircraft loss preserves reconnaissance progression and rebuilds a ground escort',()=>{

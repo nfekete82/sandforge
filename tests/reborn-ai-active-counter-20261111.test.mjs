@@ -41,7 +41,7 @@ function productionFixture(seen){
   actor(3,'heavy',220,200),actor(4,'tank',230,200),
   actor(5,'tank',240,200),actor(6,'rover',250,200),actor(7,'infantry',260,200)];
  const spent=[];
- const g={time:130,credits:[5000,5000],count(owner){return owner===1?army.length:0;},
+ const g={time:130,credits:[5000,5000],tactical:{mode:'director',ai36Mode:'legacy'},world:{mapVersion:4},territories:[{owner:1},{owner:-1}],count(owner){return owner===1?army.length:0;},
   queued(owner){return owner===1?own.reduce((n,b)=>n+b.queue.length,0):0;},
   recruit(id,kind){
    const producer=own.find(b=>b.id===id);

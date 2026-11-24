@@ -3182,10 +3182,12 @@ export class SandforgeBattlefield {
   if(event.button===2&&this.buildKind){
    this.clearPlacement();this.message('Bauplatzwahl abgebrochen');this.drawInterface();return;
   }
+  const clickedEnemy=event.button===2&&this.selected.size
+   ?this.enemyAtPointer(event):null;
   // Simulation supports four Humvee seats and ten helicopter seats.
   // An RMB hit on either owned carrier boards selected infantry before terrain movement.
   // Board BEFORE the terrain ray and other click commands.
-  if(event.button===2&&this.selected.size&&!this.attackMode&&this.selectedBase===null){
+  if(event.button===2&&this.selected.size&&!clickedEnemy&&!this.attackMode&&this.selectedBase===null){
    // Aim at the bunker itself, not the nearer soldier/flag/empty slot
    // that can occlude its ray hit. AABBs include authored non-pickable PBR
    // bunker geometry while the existing hard 5-seat simulation is untouched.
@@ -3214,7 +3216,7 @@ export class SandforgeBattlefield {
   // Carrier-first pickup: with ONE helicopter or Humvee selected, RMB on a
   // friendly soldier sends the vehicle/aircraft to THEM (not vice versa).
   // Keep this before terrain, maintenance hitboxes and normal unit orders.
-  if(event.button===2&&this.selected.size&&!this.attackMode&&
+  if(event.button===2&&this.selected.size&&!clickedEnemy&&!this.attackMode&&
      !this.rallyMode&&!this.strategicTargetMode&&this.selectedBase===null){
    const friendly=this.friendlyAtPointer(event);
    const passenger=friendly?.type==='unit'?friendly.entity:null;
@@ -3237,8 +3239,7 @@ export class SandforgeBattlefield {
   // infantry unit standing on our runway therefore triggered a LAND/REPAIR
   // order and intercepted the ATTACK click. Resolve a visible enemy FIRST.
   // Only enemy-free clicks may be interpreted as hangar/workshop requests.
-  const clickedEnemy=event.button===2&&this.selected.size
-   ?this.enemyAtPointer(event):null;
+
   // Aircraft may still use the hangar. A right-click by ground vehicles
   // is an ordinary move/attack order: only Pioniere can repair vehicles.
   // Soldiers, attack-move, strategic targeting and transport boarding retain

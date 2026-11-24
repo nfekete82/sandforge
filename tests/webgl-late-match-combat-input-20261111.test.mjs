@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {maintenanceClickAllowed,serviceFootprintContains} from '../scripts/webgl-maintenance-input.js';
 import {releaseBastionRevision} from '../scripts/webgl-bastion-lifecycle.js';
+import {selectedCarrierForPickup} from '../scripts/webgl-transport-controls.js';
 
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const source=read('scripts/webgl-battlefield.js');
@@ -17,10 +18,10 @@ test('right-click on visible enemy OVER a friendly airfield prioritizes attackin
  assert.ok(action.indexOf('this.enemyAtPointer(event)')<
   action.indexOf('this.maintenanceFacilityAtPointer(event,serviceKind)'),
   'enemy must be picked before any service-yard hitbox check');
- const Fake=new Function('pointerGestureIntent','selectedInfantryForTransport',
+ const Fake=new Function('pointerGestureIntent','selectedInfantryForTransport','selectedCarrierForPickup',
   'selectedMaintenanceKind','maintenanceClickAllowed','UNITS','BUILDINGS',
   'return class FakePointer { '+action+' }')(
-   ()=> 'click',()=>[],()=> 'airfield',maintenanceClickAllowed,
+   ()=> 'click',()=>[],selectedCarrierForPickup,()=> 'airfield',maintenanceClickAllowed,
    {bomber:{name:'Bomber'}},{airfield:{name:'Flugfeld'}}
   );
  const unit={id:12,kind:'bomber',owner:0,hp:40,x:100,y:100,orders:[]};
@@ -36,7 +37,9 @@ test('right-click on visible enemy OVER a friendly airfield prioritizes attackin
  u.selectionBox={style:{display:'block'}};
  u.sound={command(){},acknowledge(){}};
  u.message=()=>{};u.showCommandPulse=()=>{};u.drawInterface=()=>{};
- u.transportAtPointer=()=>null;u.maintenanceFacilityAtPointer=()=>site;
+ let boardingLookups=0;
+ u.bunkerAtPointer=()=>{boardingLookups++;return null;};
+ u.transportAtPointer=()=>null;u.friendlyAtPointer=()=>null;u.maintenanceFacilityAtPointer=()=>site;
  u.enemyAtPointer=()=>enemy;u.terrainPoint=()=>({x:240,y:245});
  let orders=[],repairs=[];
  const rightClick=()=>{
@@ -48,11 +51,13 @@ test('right-click on visible enemy OVER a friendly airfield prioritizes attackin
  assert.equal(orders[0].order.kind,'attack');
  assert.equal(orders[0].order.target,enemy.id);
  assert.equal(repairs.length,0,'enemy must not be converted into hangar landing');
+ assert.equal(boardingLookups,0,'enemy attack must bypass overlapping bunker/transport hitboxes');
  // Empty part of the same runway still routes to repair as before.
  u.enemyAtPointer=()=>null;
  rightClick();
  assert.equal(repairs.length,1);
  assert.equal(repairs[0].id,site.id);
+ assert.equal(boardingLookups,1,'enemy-free clicks retain normal boarding checks');
  assert.equal(orders.length,1);
 });
 
