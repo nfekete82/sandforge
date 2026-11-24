@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {UNITS,TANK_MG,weaponDamage,combatDpsAgainst} from '../dist/src/reborn/catalog.js';
+import {BUILDINGS,UNITS,TANK_MG,weaponDamage,combatDpsAgainst} from '../dist/src/reborn/catalog.js';
 import {createAirfieldServiceYard,disposeAirfieldServiceYard} from '../scripts/webgl-airfield-service.js';
 import {createFactoryServiceYard,updateFactoryServiceYard,disposeFactoryServiceYard} from '../scripts/webgl-factory-service.js';
 import {serviceFootprintContains} from '../scripts/webgl-maintenance-input.js';
@@ -35,58 +35,61 @@ test('small arms remain lethal to infantry but weak against vehicles and airfram
   'retain pre-existing building balance');
 });
 
-test('single hangar and shorter runway preserve aligned landing positions',()=>{
+test('single compact hangar and runway contain all real aircraft waypoints',()=>{
  const airport=createAirfieldServiceYard();
  const runway=airport.getObjectByName('AirfieldExtendedRunway');
  const hangar=airport.getObjectByName('HangarBayFloor_0');
  assert.ok(runway&&hangar);
- assert.ok(runway.geometry.parameters.depth>=hangar.geometry.parameters.depth*2.5);
- assert.ok(airport.scale.z*(runway.position.z+runway.geometry.parameters.depth/2)>300);
- assert.ok(runway.geometry.parameters.depth*airport.scale.z>=470&&runway.geometry.parameters.depth*airport.scale.z<=510,
-  'runway must be long enough for the bomber but fit the actual map');
- assert.equal(airport.getObjectByName('AirfieldCrossTaxiLane'),undefined,
-  'remove the old short cross runway');
+ airport.updateMatrixWorld(true);
+ const strip=new THREE.Box3().setFromObject(runway);
+ const bay=new THREE.Box3().setFromObject(hangar);
+ const length=strip.max.z-strip.min.z;
+ assert.ok(length>=380&&length<=420,'compact runway stays around 400 world units');
+ assert.ok(length>2.5*(bay.max.z-bay.min.z));
+ const base={x:2000,y:2000,facing:0};
+ for(const waypoint of ['approach','touchdown','taxi','departure']){
+  const point=airfieldPoint(base,waypoint);
+  assert.ok(point.x-base.x>=strip.min.x&&point.x-base.x<=strip.max.x,waypoint+' runway width');
+  assert.ok(point.y-base.y>=strip.min.z&&point.y-base.y<=strip.max.z,waypoint+' runway length');
+  assert.ok(serviceFootprintContains({kind:'airfield',...base},point));
+ }
+ const dock=airfieldPoint(base,'dock');
+ assert.ok(dock.x-base.x>=bay.min.x&&dock.x-base.x<=bay.max.x);
+ assert.ok(dock.y-base.y>=bay.min.z&&dock.y-base.y<=bay.max.z);
  assert.ok(airport.getObjectByName('AirfieldAircraftParkingPad_0'));
  assert.equal(airport.getObjectByName('AirfieldAircraftParkingPad_1'),undefined);
+ assert.equal(airport.getObjectByName('HangarBayFloor_1'),undefined);
+ assert.equal(airport.getObjectByName('AirfieldCrossTaxiLane'),undefined);
  const tower=airport.getObjectByName('AirfieldLeftControlTowerShaft');
  const fuel=airport.getObjectByName('AirfieldFuelServiceContainer');
  assert.ok(tower&&fuel);
- assert.ok(tower.position.x<-250&&fuel.position.x<-250,
-  'tower and gas infrastructure must be outside the left hangar, not by the right entrance');
+ assert.ok(tower.position.x<hangar.position.x&&fuel.position.x<hangar.position.x);
  assert.ok(airport.getObjectByName('AirfieldLeftControlTowerGlazing'));
  assert.ok(!airport.getObjectByName('AirfieldRightControlTowerShaft'));
-
- const base={x:2000,y:2000,facing:0};
- assert.ok(airfieldPoint(base,'approach').y>2250);
- assert.ok(airfieldPoint(base,'touchdown').y>2100);
- assert.ok(serviceFootprintContains({kind:'airfield',facing:0,x:1200,y:1400},
-  {x:1330,y:1718}),'runway right-click extends to shortened end');
  assert.ok(airport.getObjectByName('HangarRoofSpine_0'));
- assert.equal(airport.getObjectByName('HangarAngledRoofPlate_1'),undefined);
- assert.ok(serviceFootprintContains({kind:'airfield',facing:0,x:1200,y:1400},{x:1330,y:1740}));
+ assert.ok(serviceFootprintContains({kind:'airfield',...base},{x:base.x+(strip.min.x+strip.max.x)/2,y:base.y+strip.max.z-1}));
  disposeAirfieldServiceYard({airfieldServiceYard:airport});
 });
 
-test('factory restores original main building with ONE compact side garage',()=>{
+test('factory has one compact OPEN repair platform with no enclosing garage',()=>{
  const factory=createFactoryServiceYard(),deck=factory.getObjectByName('VehicleLiftPlatform_0');
- const roof=factory.getObjectByName('FactoryRepairGarageRoof_0');
- const left=factory.getObjectByName('FactorySideWorkshopWallLeft');
- assert.ok(deck&&roof&&left);
- assert.ok(deck.position.x > 140,'repair bay sits right of main factory');
- assert.ok(roof.geometry.parameters.width<145,'side garage stays compact');
- assert.ok(roof.geometry.parameters.depth<140,'no extended front double garages');
- assert.equal(factory.getObjectByName('VehicleLiftPlatform_1'),undefined);
- assert.equal(factory.getObjectByName('FactoryServiceWing'),undefined);
+ assert.ok(deck&&deck.position.x>140);
+ assert.ok(deck.geometry.parameters.width<=100&&deck.geometry.parameters.depth<=100);
+ for(const name of ['FactoryRepairGarageRoof_0','FactorySideWorkshopWallLeft','FactoryServiceDoorLeft_0','VehicleLiftPlatform_1','FactoryServiceWing'])
+  assert.equal(factory.getObjectByName(name),undefined,name+' must not block the open platform');
  assert.ok(factory.getObjectByName('VehicleDriveOnRamp_0'));
  const entry={factoryServiceYard:factory};
  const vehicle={id:901,hp:700,factoryService:{baseId:1,bay:0,phase:'parking'}};
  updateFactoryServiceYard(entry,{id:1},[vehicle],1);
- const opened=factory.userData.bay0.doorOpen;
- assert.ok(opened>.85);
- assert.ok(factory.getObjectByName('FactoryServiceDoorLeft_0').position.y>30);
+ assert.equal(factory.userData.bay0.indicator.visible,true);
+ assert.equal(factory.userData.bay0.icon.visible,false);
  vehicle.factoryService.phase='repair';
  updateFactoryServiceYard(entry,{id:1},[vehicle],1.2);
- assert.ok(factory.userData.bay0.doorOpen<opened);
+ assert.equal(factory.userData.bay0.icon.visible,true);
+ assert.equal(factory.userData.bay0.sparks.visible,true);
+ updateFactoryServiceYard(entry,{id:1},[],1.4);
+ assert.equal(factory.userData.bay0.indicator.visible,false);
+ assert.equal(factory.userData.bay0.sparks.visible,false);
  assert.equal(deck.position.y+deck.geometry.parameters.height/2,9.5);
  disposeFactoryServiceYard({factoryServiceYard:factory});
 });
@@ -97,8 +100,8 @@ test('placement ghost displays actual finished building at 50% with visible door
   battlefield.indexOf(' clearPlacement(){'));
  assert.ok(begin.includes("this.getModel(this.asset(kind,0,'building'))"));
  assert.ok(begin.includes('createBuildingYard(kind,spec.width)'));
- assert.ok(begin.includes('createAirfieldServiceYard()'));
- assert.ok(begin.includes('createFactoryServiceYard()'));
+ assert.ok(begin.includes("kind==='airfield'?createAirfieldServiceYard(0,{ghost:true}):null"));
+ assert.ok(!begin.includes('createFactoryServiceYard()'),'open repair platform is not part of the factory placement ghost');
  assert.ok(begin.includes("hideOldAirfieldHangar({detail:model})"),
   'legacy overlapping airfield structures are still hidden');
  assert.ok(begin.includes('const tint=(root,ownSource=false,opacity=.50)'),'the actual building ghost uses 50% transparency');
@@ -108,10 +111,8 @@ test('placement ghost displays actual finished building at 50% with visible door
  assert.ok(materialHelper.includes('clone.depthWrite=false;clone.depthTest=true'));
  assert.ok(begin.includes('placeholder.visible=true'),
   'temporary model is a 50%-opaque ghost until the GLB resolves');
- assert.ok(begin.includes('model.visible=true'),
-  'finished GLB shape is visible as ghost, including door and hangar openings');
- assert.ok(!begin.includes('model.visible=false'),
-  'the complete building cannot remain hidden after asynchronous load');
+ assert.ok(begin.includes("model.visible=kind!=='airfield'"),
+  'ordinary finished GLB is visible; only the duplicate airfield asset stays hidden');
  assert.ok(begin.includes('tint(yard,false,.34)'));
  assert.ok(begin.includes('tint(service,true,.38)'));
  assert.ok(!begin.includes('mesh.position.y>5||mesh.geometry?.parameters?.height>7'),
@@ -132,22 +133,38 @@ test('placement ghost displays actual finished building at 50% with visible door
   'finished construction still uses the genuine airfield 3D geometry');
 });
 
-test('construction progressively reveals the real building instead of displaying a complete prefab',()=>{
+test('construction reveals real combined meshes from bottom to top and restores materials',()=>{
  const construction=source('scripts/webgl-construction.js');
- assert.ok(!construction.includes('if(model)model.visible=true'));
- assert.ok(construction.includes("stageGroup(model,'building')"));
- assert.ok(construction.includes('constructionOriginalVisible'));
+ const body=construction.slice(construction.indexOf('export class ')).replace('export class ','class ');
+ const fakeDocument={createElement(){return {getContext(){return {clearRect(){},fillRect(){},strokeRect(){},fillText(){}}}}}};
+ const Presentation=new Function('THREE','BUILDINGS','document','disposeOwnedMeshes',body+';return SandforgeConstructionPresentation;')(THREE,BUILDINGS,fakeDocument,()=>{});
+ const renderer={},presentation=new Presentation(renderer);
+ assert.equal(renderer.localClippingEnabled,true);
+ const node=new THREE.Group(),detail=new THREE.Group();
+ node.add(detail);
+ const material=new THREE.MeshStandardMaterial();
+ const mesh=new THREE.Mesh(new THREE.BoxGeometry(10,80,10),material);
+ mesh.position.y=40;detail.add(mesh);
+ const hidden=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),material);hidden.visible=false;detail.add(hidden);
+ const base={id:8,kind:'barracks',buildRemaining:BUILDINGS.barracks.buildTime};
+ const entry={node,detail};
+ presentation.update(entry,base);
+ assert.equal(mesh.visible,false);
+ base.buildRemaining=BUILDINGS.barracks.buildTime*.65;presentation.update(entry,base);
+ assert.equal(mesh.visible,true);assert.equal(hidden.visible,false);
+ assert.notEqual(mesh.material,material);
+ const plane=mesh.material.clippingPlanes[0],first=plane.constant;
+ assert.deepEqual(plane.normal.toArray(),[0,-1,0]);
+ assert.ok(first>0&&first<80);
+ base.buildRemaining=BUILDINGS.barracks.buildTime*.25;presentation.update(entry,base);
+ assert.ok(plane.constant>first&&plane.constant<80);
+ let disposed=0;mesh.material.addEventListener('dispose',()=>disposed++);
+ base.buildRemaining=0;presentation.update(entry,base);
+ assert.equal(entry.construction,null);assert.equal(mesh.material,material);
+ assert.equal(mesh.visible,true);assert.equal(hidden.visible,false);assert.equal(disposed,1);
+ mesh.geometry.dispose();hidden.geometry.dispose();material.dispose();
  assert.ok(construction.includes("stageGroup(entry.yard,'yard')"));
  assert.ok(construction.includes("stageGroup(entry.airfieldServiceYard??entry.factoryServiceYard,'service')"));
- assert.ok(!construction.includes('model.visible=true'));
-
- assert.ok(construction.includes("stageGroup(entry.yard,'yard')"));
- assert.ok(construction.includes("stageGroup(entry.airfieldServiceYard??entry.factoryServiceYard,'service')"));
- assert.ok(!construction.includes('model.traverse(obj=>{'),
-  'construction must no longer clip authored GLB materials');
- assert.ok(!construction.includes('state.clip.constant='));
- assert.ok(construction.includes('state.roof.visible=progress>=.77'));
- assert.ok(construction.includes("threshold=/roof|antenna"));
 });
 
 test('airfield selection no longer hides the building catalogue if a pioneer survives',()=>{
@@ -214,9 +231,9 @@ test('actual HUD factory selection cannot prevent later building card clicks',()
   }};
  const BUILDINGS={barracks:{name:'Kaserne'},generator:{name:'Energiekern'}};
  const fakeCtor=new Function('installClassicHud','BUILDINGS','INTERCEPTOR_ENABLED',
-  'globalCatalogAvailability',
+  'globalCatalogAvailability','createSandforgeResearchDeck','UPGRADES','UPGRADE_KINDS','researchIconMarkup','createSandforgeConfirmDialog',
   'return class TestHUD {'+src.slice(start,end)+'}');
- const Fake=fakeCtor(()=>panel,BUILDINGS,true,globalCatalogAvailability);
+ const Fake=fakeCtor(()=>panel,BUILDINGS,true,globalCatalogAvailability,()=>({}),{},[],()=>'',()=>({}));
  const ui=new Fake();
  const calls=[];
  ui.game={bases:[]};
@@ -259,8 +276,8 @@ test('actual HUD factory selection cannot prevent later building card clicks',()
 
 test('ACTUAL REGRESSION: after factory/airfield preview, next building selection never crashes on map.dispose',()=>{
  for(const site of [createFactoryServiceYard(),createAirfieldServiceYard()]){
-  const original=site.getObjectByName(site.name==='FactoryCompactSideRepairShop'
-   ?'FactoryRepairGarageRoof_0':'AirfieldExtendedRunway');
+  const original=site.getObjectByName(site.name==='FactoryOpenAirRepairPlatform'
+   ?'VehicleLiftPlatform_0':'AirfieldExtendedRunway');
   assert.ok(original?.material?.map?.isTexture,'real service material owns DataTexture');
   const ownedTexture=original.material.userData.sandforgeServiceTexture;
   assert.ok(ownedTexture?.isTexture);
@@ -283,7 +300,7 @@ test('ACTUAL REGRESSION: after factory/airfield preview, next building selection
   assert.doesNotThrow(()=>disposeServicePaint(view));
   preview.dispose();mesh.geometry.dispose();
   obsolete.dispose();legacyPreview.geometry.dispose();
-  if(site.name==='FactoryCompactSideRepairShop')
+  if(site.name==='FactoryOpenAirRepairPlatform')
    disposeFactoryServiceYard({factoryServiceYard:site});
   else disposeAirfieldServiceYard({airfieldServiceYard:site});
  }

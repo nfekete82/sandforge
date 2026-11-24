@@ -72,8 +72,8 @@ test('terrain colours reveal excavated shoulders without new meshes or frame wor
  const heightfield=src('src/reborn/battlefield-terrain.ts');
  assert.match(preview,/terrainGradingEdge\(x,z,terrain\.sites,gradingHomes,terrain\.battlefield\.generatorVersion\)/);
  assert.match(preview,/vertexColor\.lerp\(sandstone,earth\*\.16\)/);
- assert.match(generator,/generatorVersion===1\?780:TERRAIN_GRADING_V2\.homeFlatRadius/);
- assert.match(generator,/TERRAIN_GRADING_V2\.bastionFlatRadius\+TERRAIN_GRADING_V2\.rockSafetyMargin/);
+ assert.match(generator,/generatorVersion===1\?780:grading\.homeFlatRadius\+grading\.rockSafetyMargin/);
+ assert.match(generator,/grading\.bastionFlatRadius\+grading\.rockSafetyMargin/);
  assert.match(heightfield,/generatorVersion===1\)/);
  assert.match(heightfield,/generatorVersion:BattlefieldGeneratorVersion/);
 });
