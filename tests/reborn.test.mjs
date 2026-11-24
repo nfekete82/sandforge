@@ -90,23 +90,41 @@ test('reborn: fog, AI, partial capture and production survive a deterministic sa
  assert.throws(()=>Simulation.load({version:1}));const corrupt=g.save();corrupt.credits[0]=-20;assert.throws(()=>Simulation.load(corrupt));
 });
 
-test('reborn: Bastion control cannot end a battle while enemy units or buildings survive',()=>{
- const g=peaceful();
+
+// Isolate HQ capture from the current last-building elimination rule.
+// A non-attacking, distant, real catalog structure keeps the opponent alive.
+const survivingGenerator=(g,owner)=>{
+ const hq=g.bases.find(b=>b.owner===owner&&b.kind==='headquarters');
+ assert.ok(hq);
+ const spec=BUILDINGS.generator;
+ const p=g.world.nearest({x:hq.x,y:hq.y+(owner===1?450:-450)},g.obstacles(),[],undefined,spec.radius);
+ assert.ok(p,'a clear generator fixture must exist');
+ assert.ok(distance(p,hq)>200,'surviving building must be away from HQ combat');
+ const b={...hq,...p,id:9000+owner,kind:'generator',hp:spec.hp,radius:spec.radius,
+  queue:[],queueTypes:[],queueCosts:[],production:0,buildRemaining:0,cooldown:0,rally:null};
+ g.bases.push(b);return b;
+};
+
+test('reborn: Bastion ownership alone cannot win; destruction of the final structure ends the match',()=>{
+ const g=peaceful(),generator=survivingGenerator(g,1);
  for(const id of [4,5,11])g.territories[id].owner=0;
  g.step();assert.equal(g.status,'playing','captured sectors are not enemy elimination');
  const enemyHQ=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
  assert.ok(enemyHQ&&enemyHQ.hp>0);
  enemyHQ.hp=0;g.step();
- assert.equal(g.status,'playing','destroying the enemy HQ alone is not enough');
+ assert.equal(g.status,'playing','a surviving enemy structure prevents victory');
  assert.equal(enemyHQ.owner,1,'destroyed HQ never transfers to blue');
  g.units=g.units.filter(u=>u.owner!==1);
- g.step();assert.equal(g.status,'victory','only all enemy assets being destroyed ends the battle');
- const lost=peaceful();lost.bases[0].hp=0;lost.step();assert.equal(lost.status,'playing');
- lost.units=lost.units.filter(u=>u.owner!==0);lost.step();assert.equal(lost.status,'defeat');
+ g.step();assert.equal(g.status,'playing','a surviving structure counts without an army');
+ generator.hp=0;g.step();assert.equal(g.status,'victory');
+ const won=peaceful();assert.ok(won.units.some(u=>u.owner===1&&u.hp>0));
+ won.bases[1].hp=0;won.step();assert.equal(won.status,'victory','the last enemy structure ends battle even with surviving troops');
+ const lost=peaceful();assert.ok(lost.units.some(u=>u.owner===0&&u.hp>0));
+ lost.bases[0].hp=0;lost.step();assert.equal(lost.status,'defeat','the same rule applies to the player');
 });
 
 test('reborn: Bastion capture never resurrects or transfers a destroyed enemy HQ',()=>{
- const g=peaceful();g.credits[1]=0;g.units=[];const b=g.bases[1],t=g.territories[5];
+ const g=peaceful(),generator=survivingGenerator(g,1);g.credits[1]=0;g.units=[];const b=g.bases[1],t=g.territories[5];
  for(const id of [4,11])g.territories[id].owner=0;
  const scout=g.spawn(0,{...t.point});advance(g,9);assert.equal(t.owner,1);assert.equal(t.progress,0);
  g.units=[];
@@ -118,12 +136,13 @@ test('reborn: Bastion capture never resurrects or transfers a destroyed enemy HQ
  assert.equal(t.owner,0,'Bastion and territory are captured normally');
  assert.equal(b.owner,1,'the destroyed enemy HQ never changes faction');
  assert.equal(b.hp,0,'the captured territory must never restore a destroyed HQ');
- assert.equal(g.status,'playing','one surviving opponent prevents early victory');
+ assert.equal(g.status,'playing','the surviving enemy generator prevents early victory');
  const restored=Simulation.load(g.save());
  assert.equal(restored.bases.find(x=>x.id===b.id).owner,1);
  assert.equal(restored.bases.find(x=>x.id===b.id).hp,0,
   'save/load must preserve destroyed enemy command center ownership');
- survivor.hp=0;g.step();assert.equal(g.status,'victory');
+ assert.ok(generator.hp>0);survivor.hp=0;g.step();assert.equal(g.status,'playing');
+ generator.hp=0;g.step();assert.equal(g.status,'victory');
 });
 
 test('reborn: AI decisions do not depend on player infantry hidden by its fog',()=>{
@@ -244,7 +263,7 @@ test('reborn: construction respects ownership, terrain, occupied footprints, cre
  assert.ok(g.buildError(0,'barracks',{x:2200,y:900}));assert.ok(g.buildError(0,'barracks',g.bases[0]));
  const b=buildWithWorker(g,0,'barracks',site);assert.ok(b);assert.equal(g.credits[0],before-200);assert.equal(b.buildRemaining,12);assert.equal(g.recruit(b.id,'heavy'),false);
  assert.equal(buildWithWorker(g,0,'barracks',site),null);assert.equal(g.credits[0],before-200);g.paused=true;advance(g,10);assert.equal(b.buildRemaining,12);g.paused=false;
- advance(g,13);assert.equal(b.buildRemaining,0);assert.ok(b.hp>799);assert.equal(g.recruit(b.id,'heavy'),true);assert.equal(g.credits[0],85);advance(g,9);assert.ok(g.units.some(u=>u.kind==='heavy'&&u.hp===UNITS.heavy.hp));
+ advance(g,13);assert.equal(b.buildRemaining,0);assert.ok(b.hp>799);const preRecruit=g.credits[0];assert.equal(preRecruit,before-BUILDINGS.barracks.cost+g.income(0));assert.equal(g.recruit(b.id,'heavy'),true);assert.equal(g.credits[0],preRecruit-UNITS.heavy.cost);advance(g,9);assert.ok(g.units.some(u=>u.kind==='heavy'&&u.hp===UNITS.heavy.hp));
 });
 test('reborn: typed production enforces the producer, refunds each type and preserves later queue timing',()=>{
  const g=peaceful();g.credits[0]=3000;const factory=buildWithWorker(g,0,'factory',buildSite(g,'factory'));advance(g,19);
@@ -307,8 +326,8 @@ test('reborn: air and ground units contest each other and air recapture transfer
  advance(g,RULES.captureTime);assert.equal(t.owner,1);assert.equal(g.income(0),incomes[0]-t.income);assert.equal(g.income(1),incomes[1]+t.income);
 });
 
-test('reborn: air capture requires ground proximity and a defeated headquarters, not adjacent sectors',()=>{
- const g=peaceful();g.units=[];const adjacent=g.territories[20],disconnected=g.territories[16];
+test('reborn: bomber capture requires physical presence and a defeated headquarters, not adjacent sectors',()=>{
+ const g=peaceful();survivingGenerator(g,1);g.units=[];const adjacent=g.territories[20],disconnected=g.territories[16];
  const air=g.spawn(0,{x:adjacent.point.x+RULES.captureRadius+10,y:adjacent.point.y},'bomber');air.cooldown=1e6;
  g.stop([air.id],true); // No idle holding circle drifting into/out of a capture-test fixture.
  const observer=g.spawn(1,{x:300,y:300},'infantry');g.stop([observer.id],true);
@@ -317,7 +336,7 @@ test('reborn: air capture requires ground proximity and a defeated headquarters,
   Object.assign(air,disconnected.point);advance(g,9);assert.equal(disconnected.owner,0);assert.equal(disconnected.progress,0);
  const hq=g.bases[1],target=g.territories[hq.territory];g.territories[4].owner=0;g.territories[11].owner=0;
  Object.assign(air,target.point);advance(g,9);assert.equal(target.owner,1);assert.equal(target.progress,0);
- hq.hp=0;advance(g,RULES.captureTime);assert.equal(target.owner,0);assert.equal(hq.owner,0);assert.equal(hq.hp,RULES.headquarters.hp*.5);
+ hq.hp=0;advance(g,RULES.captureTime);assert.equal(target.owner,0);assert.equal(hq.owner,1);assert.equal(hq.hp,0);assert.equal(g.status,'playing');
 });
 test('reborn: engineers repair nearby buildings and a completed turret independently defends its perimeter',()=>{
  const g=peaceful();g.credits[0]=3000;const tower=buildWithWorker(g,0,'turret',buildSite(g,'turret'));advance(g,11);tower.hp=400;
