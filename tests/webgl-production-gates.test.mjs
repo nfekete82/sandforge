@@ -58,43 +58,55 @@ test('pause uses simulation clock; stale events and missing models do not hide u
  const late=fixture();late.tick(1);assert.equal(late.controller.active.size,0);assert.equal(late.actor.node.visible,true);
  const unloaded=fixture();unloaded.entry.detail=null;unloaded.tick(0);assert.equal(unloaded.actor.node.visible,true);
 });
-for(const owner of [0,1])test(`GLB faction ${owner} has a real opening; UVs and PBR textures survive`,()=>{
- const raw=readFileSync(new URL(`../src/assets/reborn/buildings-3d/factory-${owner}.glb`,import.meta.url));
+for(const owner of [0,1])test(`shipped GLB faction ${owner}: real animated portal, UVs and PBR roof textures`,()=>{
+ // build.mjs writes the current sawtooth factory straight into dist. The
+ // tracked src GLBs are legacy inputs, not the asset loaded by the game.
+ const raw=readFileSync(new URL(`../dist/src/assets/reborn/buildings-3d/factory-${owner}.glb`,import.meta.url));
+ assert.equal(raw.toString('ascii',0,4),'glTF');
+ assert.equal(raw.readUInt32LE(8),raw.length);
  const len=raw.readUInt32LE(12),j=JSON.parse(raw.subarray(20,20+len)),bin=raw.subarray(28+len);
- const exit=j.nodes.find(n=>n.name==='SF_Factory_PBR_OpenBay');
- assert.ok(exit,'the original vehicle-factory GLB must have a permanent, open exit');
- assert.equal(exit.extras?.vehicleDriveThrough,true);
- assert.equal(j.nodes.some(n=>n.name==='FactoryRollupDoor'),false,
-  'no blocking gate leaves or visual door dependency');
- assert.ok(j.images.length>0);assert.ok(j.materials.some(m=>m.pbrMetallicRoughness?.baseColorTexture));
- const moving=new Set(),ray=new THREE.Raycaster(new THREE.Vector3(.18,.75,1.7),new THREE.Vector3(0,0,-1),0,2.5);
- const scene=new THREE.Group();
- for(const [ni,n]of j.nodes.entries()){
-  if(n.mesh===undefined||moving.has(ni))continue;
+ assert.equal(j.asset.generator,'factory-three-bay-sawtooth-pbr-20261121');
+ const door=j.nodes.find(n=>n.name==='FactoryRollupDoor');
+ assert.ok(door?.mesh!==undefined,'the actual moving shutter must have its own geometry');
+ assert.ok(j.images.length>0);
+ const roofMaterial=j.materials.find(m=>m.name==='Sandforge_Factory_roof_metal');
+ assert.ok(roofMaterial?.pbrMetallicRoughness?.baseColorTexture);
+ assert.ok(roofMaterial.normalTexture);
+ assert.ok(roofMaterial.pbrMetallicRoughness.metallicRoughnessTexture);
+ const scene=new THREE.Group(),doorMeshes=[];
+ for(const n of j.nodes){
+  if(n.mesh===undefined)continue;
   for(const p of j.meshes[n.mesh].primitives){
    const geometry=new THREE.BufferGeometry();
-   const bounds=j.accessors[p.attributes.POSITION],translation=n.translation??[0,0,0];
-   if(/ArmouredHull|CeramicHull|FactoryDoorFrame|AtlasUpgrade|Roof_/.test(n.name)){
-    assert.ok(bounds.min[1]+translation[1]>-.025,`deformed fixed surface ${n.name}`);
-    assert.ok(bounds.max[1]+translation[1]<2.3,`deformed roof ${n.name}`);
-   }
    for(const [name,ai]of Object.entries(p.attributes)){
     const a=j.accessors[ai],v=j.bufferViews[a.bufferView],at=(v.byteOffset??0)+(a.byteOffset??0),size={VEC2:2,VEC3:3,VEC4:4}[a.type];
-    assert.equal(a.componentType,5126);const values=new Float32Array(bin.buffer.slice(bin.byteOffset+at,bin.byteOffset+at+a.count*size*4));
+    assert.equal(a.componentType,5126);
+    assert.equal(v.byteStride??size*4,size*4);
+    const values=new Float32Array(bin.buffer.slice(bin.byteOffset+at,bin.byteOffset+at+a.count*size*4));
     geometry.setAttribute({POSITION:'position',NORMAL:'normal',TEXCOORD_0:'uv'}[name]??name,new THREE.BufferAttribute(values,size));
    }
+   assert.equal(geometry.attributes.uv.count,geometry.attributes.position.count);
    if(p.indices!==undefined){const a=j.accessors[p.indices],v=j.bufferViews[a.bufferView],at=(v.byteOffset??0)+(a.byteOffset??0),Ctor=a.componentType===5125?Uint32Array:Uint16Array;
     geometry.setIndex(new THREE.BufferAttribute(new Ctor(bin.buffer.slice(bin.byteOffset+at,bin.byteOffset+at+a.count*Ctor.BYTES_PER_ELEMENT)),1));}
-   const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));mesh.position.fromArray(n.translation??[0,0,0]);scene.add(mesh);
+   const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));
+   mesh.position.fromArray(n.translation??[0,0,0]);scene.add(mesh);
+   if(n.name==='FactoryRollupDoor')doorMeshes.push(mesh);
   }
  }
- scene.updateMatrixWorld(true);assert.equal(ray.intersectObjects(scene.children).length,0,'closed fixed facade remains behind the door');
- // The new factory roof is at y~2.5, not below the old 2.0 m probe.
- // Shoot DOWN from above the actual model roof, ignoring the moving door.
- // The new pitched reference hangar rises to ~3.21 m at the ridge;
- // probe from ABOVE its top, not from inside the sloping metal roof.
- const roofRay=new THREE.Raycaster(new THREE.Vector3(.18,4.80,.9),new THREE.Vector3(0,-1,0),0,3.20);
- assert.ok(roofRay.intersectObjects(scene.children).length>0,'the fixed roof remains closed above the vehicle portal');
+ scene.updateMatrixWorld(true);
+ // Approach from local +Z, stopping inside the entrance. A closed door
+ // must block the center; an opened door must leave the fixed facade clear.
+ const probe=(x,y)=>new THREE.Raycaster(new THREE.Vector3(x,y,3.0),new THREE.Vector3(0,0,-1),0,1.3);
+ for(const x of [-.35,.198,.70])for(const y of [.65,1.1]){
+  assert.ok(probe(x,y).intersectObjects(doorMeshes).length>0,'closed shutter spans the vehicle lane');
+  assert.equal(probe(x,y).intersectObjects(scene.children.filter(m=>!doorMeshes.includes(m))).length,0,'no fixed facade geometry blocks the opened portal');
+ }
+ for(const mesh of doorMeshes){mesh.position.y+=1.70;mesh.scale.y=.04;}
+ scene.updateMatrixWorld(true);
+ assert.equal(probe(.198,.9).intersectObjects(scene.children).length,0,'raised shutter clears vehicle lane');
+ const roofRay=new THREE.Raycaster(new THREE.Vector3(.198,5,0),new THREE.Vector3(0,-1,0),0,3);
+ assert.ok(roofRay.intersectObjects(scene.children).length>0,'fixed roof remains above workshop');
+ for(const mesh of scene.children){mesh.geometry.dispose();mesh.material.dispose();}
 });
 test('independent buildings animate concurrently; repeated releases reuse a closed gate',()=>{
  const f=fixture(),second=fixture(2,1);
