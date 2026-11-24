@@ -746,7 +746,7 @@ export class Simulation {
       const territory=layout.headquarters[owner];
       const t=this.territories[territory],site=mapVersion>=23?battlefieldStart(t.point,this.world.size):mapVersion>=2?{x:t.point.x+(owner===0?-260:260),y:t.point.y+(owner===0?165:-165)}:mapVersion===1?{x:t.point.x-165,y:t.point.y+45}:t.point,p=this.world.clearSite(site,RULES.headquarters.radius)!;
       this.startRegions.push({center:{...p},radius:Math.min(600,this.world.size/6)});
-      if(!bootstrap)this.bases.push({id:1000+owner,owner,kind:'headquarters',...p,hp:RULES.headquarters.hp,territory,queue:[],queueTypes:[],production:0,buildRemaining:0,cooldown:0,rally:null,radius:RULES.headquarters.radius});
+      if(!bootstrap)this.bases.push({id:1000+owner,owner,kind:'headquarters',...p,hp:RULES.headquarters.hp,territory,queue:[],queueTypes:[],queueCosts:[],production:0,buildRemaining:0,cooldown:0,rally:null,radius:RULES.headquarters.radius});
       if(mapVersion===0)t.point=this.world.nearest({x:p.x+165,y:p.y-45},this.obstacles())!;
       const sign=mapVersion>=2&&owner===1?-1:1;
       this.spawn(owner,this.world.nearest({x:p.x+140*sign,y:p.y+100*sign},this.obstacles())!);
@@ -1074,7 +1074,7 @@ export class Simulation {
     if(!territory){this.notices.push('Bauplatz liegt außerhalb eines Sektors.');return null;}
     let id=1000;while(this.bases.some(b=>b.id===id)||this.units.some(u=>u.id===id))id++;
     const instant=owner===0&&this.testMode;
-    const b:Base={id,owner,kind,...p,hp:instant?spec.hp:spec.hp*.25,territory:territory.id,radius:spec.radius,queue:[],queueTypes:[],production:0,buildRemaining:instant?0:spec.buildTime,cooldown:0,rally:null,
+    const b:Base={id,owner,kind,...p,hp:instant?spec.hp:spec.hp*.25,territory:territory.id,radius:spec.radius,queue:[],queueTypes:[],queueCosts:[],production:0,buildRemaining:instant?0:spec.buildTime,cooldown:0,rally:null,
       ...(kind==='silo'?{siloCharge:SILO_CHARGE_SECONDS}:{}),
       ...(kind==='interceptor'?{interceptorAmmo:INTERCEPTOR_MAX_AMMO}:{}),
       ...(facing!==0?{facing}:{}),
