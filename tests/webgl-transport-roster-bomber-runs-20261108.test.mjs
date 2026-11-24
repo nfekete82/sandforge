@@ -11,6 +11,8 @@ import {selectedTransportManifest} from '../scripts/webgl-transport-controls.js'
 const sim=()=>{const g=new Simulation(2074,4);g.aiClock=1e8;
  g.units=[];g.bases=[];g.world.blocked.fill(0);g.world.opaque.fill(0);
  g.status='playing';g.paused=false;g.tactical.plan=()=>{};
+ // The cleared bases represent a fresh HQ-less scenario, not destroyed HQs.
+ g.hadBuildings=[false,false];
  // Keep one remote enemy alive so eliminationOutcome does not end this isolated 20 Hz test.
  const observer=g.spawn(1,{x:300,y:300},'infantry');g.stop([observer.id],true);
  return g;};
