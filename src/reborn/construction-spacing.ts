@@ -30,7 +30,7 @@ const localShapes=(kind:BuildingKind):Shape[]=>{
  const s:Shape[]=isWallLike(kind)?[{type:'rect',x:0,z:0,hx:kind==='wallGate'?109:54,hz:16}]:
   [{type:'circle',x:0,z:0,r:buildingVisualRadius(kind)}];
  if(kind==='airfield')s.push(
-  {type:'rect',x:106,z:29,hx:71,hz:181}, // short runway directly beside hangar
+  {type:'rect',x:106,z:29,hx:71,hz:206}, // compact runway including shoulder: (484+18)*.82/2
   {type:'rect',x:-81,z:-3,hx:119,hz:174}); // one hangar, tower and fuel
  if(kind==='research')s.push(
   {type:'rect',x:0,z:0,hx:82,hz:70}); // enlarged research facade and pedestal

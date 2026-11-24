@@ -989,7 +989,7 @@ export class SandforgeBattlefield {
    if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksDesertPalette(model);
    if(!model.userData.sandforgeOriginalPBR)
     finishDesertBuildingMaterials(model,kind);
-   model.visible=!(kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root')); // no duplicate hangar
+   model.visible=kind!=='airfield'; // service yard is the only airfield geometry
    group.remove(placeholder);disposeActorPlaceholder(placeholder);
    group.userData.previewPlaceholder=null;group.userData.previewDetail=model;
    group.add(model);

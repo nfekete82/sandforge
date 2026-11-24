@@ -14,7 +14,7 @@ export function serviceFootprintContains(base,point){
  const dx=point.x-base.x,dz=point.y-base.y;
  const localX=dx*c-dz*s,localZ=dx*s+dz*c;
  // Only the hangar can provide automated service. Factory clicks are moves.
- return localX>=-200&&localX<=181&&localZ>=-153&&localZ<=209;
+ return localX>=-200&&localX<=181&&localZ>=-170&&localZ<=228;
 }
 
 /** Right-click targeting precedence. Ground-based enemies standing on a
