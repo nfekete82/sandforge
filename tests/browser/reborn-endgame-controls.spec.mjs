@@ -13,11 +13,13 @@ test('victory: result buttons are clickable; inspecting battlefield and reopenin
  await page.evaluate(()=>{
   const a=window.__reborn;
   a.game.paused=false;
+  a.game.hadBuildings[1]=true;
   a.game.status='victory';
   a.refresh();
  });
  await expect(page.locator('#result-dialog')).toBeVisible();
  await expect(page.locator('#app')).not.toHaveAttribute('inert');
+ await expect(page.locator('#result-copy')).toHaveText('Das letzte feindliche Gebäude wurde zerstört.');
  await expect(page.locator('#result-new')).toBeEnabled();
  await expect(page.locator('#result-close')).toBeEnabled();
  await page.locator('#result-close').click();
@@ -48,12 +50,12 @@ test('defeat: new campaign button opens map selection and restarts playable camp
  await page.locator('#map-size').selectOption('small');
  await page.locator('#new-dialog button[value="new"]').click();
  await expect(page.locator('#new-dialog')).not.toBeVisible();
- const current=await page.evaluate(()=>({
+ const current=()=>page.evaluate(()=>({
   status:window.__reborn.game.status,
   paused:window.__reborn.game.paused,
   version:window.__reborn.game.world.mapVersion,
   inert:document.querySelector('#app').inert
  }));
- expect(current).toEqual({status:'playing',paused:false,version:11,inert:false});
+ await expect.poll(current).toEqual({status:'playing',paused:false,version:15,inert:false});
  expect(errors).toEqual([]);
 });

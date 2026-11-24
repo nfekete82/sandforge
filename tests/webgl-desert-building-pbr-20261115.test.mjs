@@ -150,7 +150,8 @@ test('generated factory and airfield walls no longer bake low-resolution checker
  const airfield=readFileSync('scripts/generate-airfield-pbr.mjs','utf8');
  assert.doesNotMatch(factory,/if\(key==='camo'\)\{const blob=Math\.sin/);
  assert.doesNotMatch(airfield,/if\(key==='camo'\)\{const blob=Math\.sin/);
- assert.match(factory,/key==='roof'\?1024/,'authored reference roof needs actual 1K PBR');
+ assert.match(factory,/const detailed=\['roof','roof_metal','roof_trim','roof_glass','camo'\]\.includes\(key\)/);
+ assert.match(factory,/size=detailed\?512/,'roof and camouflage retain the detailed embedded albedo');
  assert.match(factory,/metallicRoughnessTexture/);
 });
 

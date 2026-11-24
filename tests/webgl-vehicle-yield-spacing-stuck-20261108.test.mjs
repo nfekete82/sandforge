@@ -10,6 +10,7 @@ import {
 const fixture=()=>{
  const g=new Simulation(2074,23);
  g.units=[];g.bases=[];g.world.blocked.fill(0);g.world.opaque.fill(0);
+ g.world.terrainHeight=()=>0;g.world.terrainSlope=()=>0;
  // This deliberately base-free navigation fixture must also clear the
  // PERSISTED building history. Otherwise the post-HQ-elimination rule ends
  // the test as defeat after one tick, before either tank can move.
@@ -86,7 +87,8 @@ test('stalled tank reroutes toward a legal flank without adding live vehicles to
  // and the tank has already completed its normal gun/hull startup turn.
  g.spatial.rebuild(g.units);
  moving.angle=0;moving.hullAngle=0;moving.driveSpeed=3;
- g.vehicleProgress.set(moving,{x:moving.x,y:moving.y,since:g.time-5,retryAt:-10});
+ g.vehicleProgress.set(moving,{x:moving.x,y:moving.y,since:g.time-5,retryAt:-10,
+  nextX:1450,nextY:1000,bestDistance:450,order:moving.orders[0]});
  const before=moving.x;
  g.move(moving,moving.orders[0],.05);
  assert.equal(moving.x,before,'watchdog queues a safe detour, no teleport');
@@ -108,7 +110,7 @@ test('same scenario and commands produce bit-identical saved game even with spac
 test('original buildings, cliffs and terrain still block vehicles; spacing stays a soft preference',()=>{
  const text=readFileSync('src/reborn/simulation.ts','utf8');
  assert.match(text,/this\.world\.walkable\(p,collisionObstacles,clearance\)/);
- assert.match(text,/this\.world\.line\(u,p,collisionObstacles,clearance\)/);
+ assert.match(text,/this\.world\.line\(u,p,collisionObstacles,clearance,slopeLimit\)/);
  assert.match(text,/this\.spatial\.rebuild\(this\.units\);\s*\/\/ Comfort separation/);
  assert.match(text,/preservesVehicleProgress\(a,delta\)/);
  assert.match(text,/formationSlotPitch\(members\)/);

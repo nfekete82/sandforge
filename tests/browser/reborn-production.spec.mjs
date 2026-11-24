@@ -19,13 +19,13 @@ async function build(page,kind){
 }
 async function finish(page,id){await page.evaluate(id=>{const a=window.__reborn,g=a.game;g.paused=false;for(let i=0;i<2400&&g.bases.find(b=>b.id===id).buildRemaining>0;i++)g.step();g.paused=true;a.refresh();a.renderer.render(0);},id);}
 
-test('production: worker and soldier start; HQ trains only workers; actual barracks construction unlocks soldiers and durable queues',async({page})=>{
+test('production: worker and soldier start; HQ trains workers and recon drones; actual barracks construction unlocks soldiers and durable queues',async({page})=>{
  const errors=await start(page),openingCredits=await page.evaluate(()=>window.__reborn.game.credits[0]);expect(await page.evaluate(()=>window.__reborn.game.units.filter(u=>u.owner===0).map(u=>u.kind).sort())).toEqual(['engineer','infantry']);
- await expect(page.locator('#catalog-units [data-unit]:visible')).toHaveCount(1);await expect(page.locator('[data-unit="engineer"]')).toBeVisible();await expect(page.locator('[data-unit="infantry"]')).toBeHidden();
- await page.locator('#select-base').click();await expect(page.locator('[data-context-unit]')).toHaveCount(1);await expect(page.locator('[data-context-unit="engineer"]')).toBeVisible();await expect(page.locator('#recruit')).toHaveAttribute('data-kind','engineer');
+ await expect(page.locator('#catalog-units [data-unit]:visible')).toHaveCount(2);await expect(page.locator('[data-unit="engineer"]')).toBeVisible();await expect(page.locator('[data-unit="infantry"]')).toBeHidden();
+ await page.locator('#select-base').click();await expect(page.locator('[data-context-unit]')).toHaveCount(2);await expect(page.locator('[data-context-unit="engineer"]')).toBeVisible();await expect(page.locator('#recruit')).toHaveAttribute('data-kind','engineer');
  await page.locator('#recruit').click();expect(await page.evaluate(()=>window.__reborn.game.bases[0].queueTypes)).toEqual(['engineer']);await page.locator('#cancel').click();await expect(page.locator('#credits')).toHaveText(openingCredits.toLocaleString('de-DE'));
  const barracks=await build(page,'barracks');expect(barracks.remaining).toBeGreaterThan(0);await expect(page.locator('[data-unit="infantry"]')).toBeHidden();await finish(page,barracks.id);
- await expect(page.locator('#catalog-units [data-unit]:visible')).toHaveCount(4);for(const kind of ['infantry','medic','heavy'])await expect(page.locator(`[data-unit="${kind}"]`)).toBeVisible();await expect(page.locator('[data-unit="tank"]')).toBeHidden();
+ await expect(page.locator('#catalog-units [data-unit]:visible')).toHaveCount(6);for(const kind of ['infantry','medic','heavy','rocket'])await expect(page.locator(`[data-unit="${kind}"]`)).toBeVisible();await expect(page.locator('[data-unit="tank"]')).toBeHidden();
  await page.locator('[data-unit="infantry"]').click();expect(await page.evaluate(id=>window.__reborn.game.bases.find(b=>b.id===id).queueTypes,barracks.id)).toEqual(['infantry']);
  await page.evaluate(async()=>{const a=window.__reborn;await a.save();await a.load();a.game.paused=true;a.game.aiClock=-1e8;a.refresh();});await expect(page.locator('[data-unit="infantry"]')).toBeVisible();
  const produced=await page.evaluate(()=>{const a=window.__reborn,g=a.game;g.paused=false;for(let i=0;i<101;i++)g.step();g.paused=true;a.refresh();return g.units.filter(u=>u.owner===0&&u.kind==='infantry').length;});expect(produced).toBe(2);expect(errors).toEqual([]);
@@ -33,14 +33,14 @@ test('production: worker and soldier start; HQ trains only workers; actual barra
 
 test('production: real factory and airfield unlock their own menus only after completion, destroyed facilities hide them again',async({page})=>{
  const errors=await start(page);await page.evaluate(()=>window.__reborn.game.credits[0]=5000);
- for(const [building,roles] of [['factory',['rover','tank','artillery']],['airfield',['scout','bomber']]]){
+ for(const [building,roles] of [['factory',['rover','tank','artillery','flamer']],['airfield',['scout','bomber']]]){
   const b=await build(page,building);for(const kind of roles)await expect(page.locator(`[data-unit="${kind}"]`)).toBeHidden();await finish(page,b.id);
   for(const kind of roles)await expect(page.locator(`[data-unit="${kind}"]`)).toBeVisible();
   await page.evaluate(id=>{const a=window.__reborn;a.renderer.selected.clear();a.renderer.selectedBase=id;a.refresh();},b.id);await expect(page.locator('[data-context-unit]')).toHaveCount(roles.length);
   await page.locator(`[data-context-unit="${roles[0]}"]`).click();expect(await page.evaluate(id=>window.__reborn.game.bases.find(b=>b.id===id).queueTypes,b.id)).toEqual([roles[0]]);
  }
  await expect(page.locator('[data-unit="infantry"]')).toBeHidden();
- await page.evaluate(()=>{const a=window.__reborn;a.game.bases.find(b=>b.owner===0&&b.kind==='factory').hp=0;a.refresh();});for(const kind of ['rover','tank','artillery'])await expect(page.locator(`[data-unit="${kind}"]`)).toBeHidden();await expect(page.locator('[data-unit="scout"]')).toBeVisible();expect(errors).toEqual([]);
+ await page.evaluate(()=>{const a=window.__reborn;a.game.bases.find(b=>b.owner===0&&b.kind==='factory').hp=0;a.refresh();});for(const kind of ['rover','tank','artillery','flamer'])await expect(page.locator(`[data-unit="${kind}"]`)).toBeHidden();await expect(page.locator('[data-unit="scout"]')).toBeVisible();expect(errors).toEqual([]);
 });
 
 test('production: full queues disable available cards without hiding their category; enemy buildings do not unlock it',async({page})=>{
@@ -52,7 +52,9 @@ test('production: full queues disable available cards without hiding their categ
 
 test('production: old paid HQ queues migrate through IndexedDB without free starting units or repeated refunds',async({page})=>{
  await start(page);const loaded=await page.evaluate(async()=>{
-  const a=window.__reborn,{saveCampaign}=await import('/src/reborn/storage.js'),raw=a.game.save();delete raw.productionVersion;raw.units=raw.units.filter(u=>u.kind==='infantry');raw.credits[0]=50;
+  const a=window.__reborn,{saveCampaign}=await import('/src/reborn/storage.js');
+  const {Simulation}=await import('/src/reborn/simulation.js'),raw=new Simulation(2026,2).save();
+  delete raw.productionVersion;raw.units=raw.units.filter(u=>u.kind==='infantry');raw.credits[0]=50;
   Object.assign(raw.bases[0],{queue:[5,7,15],queueTypes:['infantry','engineer','tank'],queueCosts:[100,200,450],production:2});
   await saveCampaign({save:()=>raw});await a.load();a.game.paused=true;a.game.aiClock=-1e8;a.refresh();
   const first={credits:a.game.credits[0],units:a.game.count(0),queue:[...a.game.bases[0].queueTypes]};await a.save();await a.load();a.game.paused=true;a.refresh();return {first,second:{credits:a.game.credits[0],units:a.game.count(0),queue:a.game.bases[0].queueTypes}};

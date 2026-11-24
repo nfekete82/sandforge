@@ -1,9 +1,11 @@
 import {test,expect} from '@playwright/test';
+import {finishOpeningHQ} from './hq-bootstrap-fixture.mjs';
 
 test('enemy hit triggers exactly one Captain warning and a five-second red minimap pulse',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('/?debug&seed=2026&map=medium');
  await page.locator('#loading').waitFor({state:'detached'});
+ await finishOpeningHQ(page);
  const state=await page.evaluate(()=>{
   const a=window.__reborn,g=a.game,r=a.renderer;
   g.aiClock=-1e8;

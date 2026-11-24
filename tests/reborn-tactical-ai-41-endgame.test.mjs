@@ -44,7 +44,7 @@ test('4.1: stale or missing memory cannot fake a kill while HQ is visibly alive'
  assert.equal(c.enemyHQEliminatedAt,undefined);
 });
 
-test('4.1: cleanup prefers observed production over neutral land and never hunts hidden units',()=>{
+test('4.1: cleanup targets observed production after securing Bastions and never hunts hidden units',()=>{
  const g=new Simulation(2026,4),c=newCampaign();
  const home=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
  const hq=g.bases.find(b=>b.owner===0&&b.kind==='headquarters');
@@ -52,6 +52,8 @@ test('4.1: cleanup prefers observed production over neutral land and never hunts
  g.memories[1].push(remembered);
  c.observedEnemyHQ={id:hq.id,x:hq.x,y:hq.y};
  c.enemyHQEliminatedAt=80;g.time=120;
+ hq.hp=0;
+ for(const territory of g.territories)territory.owner=1;
  g.visible[1].fill(0);
  const mission=chooseMission(g,c,home);
  assert.equal(mission.kind,'structure');

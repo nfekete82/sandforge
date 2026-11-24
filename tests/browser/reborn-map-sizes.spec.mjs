@@ -4,19 +4,22 @@ test('campaign sizes: all four new layouts selectable and world bounds/minimap c
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.setViewportSize({width:1440,height:1000});
  await page.goto('/');await page.locator('#loading').waitFor({state:'detached'});
+ await page.locator('#new').click();
  await expect(page.locator('#new-dialog')).toBeVisible();
  await expect(page.locator('#map-size option')).toHaveCount(4);
  const choices=[
-  ['small',4,11,3564],['medium',8,12,3920],['large',12,13,4277],['extraLarge',16,14,4470]
+  ['small',4,15,4160],['medium',8,16,4600],['large',12,17,4960],['extraLarge',16,18,5260]
  ];
  for(const [name,count] of choices){
   if(!await page.locator('#new-dialog').isVisible()){
    await page.locator('#menu').click();
+   await page.locator('#to-main').click();
    await page.locator('#new').click();
   }
   await page.locator('#map-size').selectOption(name);
   await page.locator('#new-dialog button[value="new"]').click();
-  await expect(page.locator('#territories')).toContainText('/ '+count);
+  await expect(page.locator('#catalog-territories [data-territory]')).toHaveCount(count);
+  await expect(page.locator('#radar-offline')).toBeVisible();
  }
  // The debug endpoint exposes test-only read access; normal player pages do not.
  for(const [name,count,version,size] of choices){
@@ -26,11 +29,11 @@ test('campaign sizes: all four new layouts selectable and world bounds/minimap c
    const a=window.__reborn,g=a.game;
    return {version:g.world.mapVersion,size:g.world.size,count:g.territories.length,
     minimap:document.querySelector('#minimap').width,
-    home:g.bases.find(b=>b.owner===0&&b.kind==='headquarters')};
+    home:g.startRegions[0].center,opening:g.needsHeadquarters(0)};
   });
   expect(data.version).toBe(version);expect(data.size).toBe(size);
   expect(data.count).toBe(count);expect(data.minimap).toBeGreaterThan(0);
-  expect(data.home.x).toBeGreaterThan(0);expect(data.home.x).toBeLessThan(size);
+  expect(data.opening).toBe(true);expect(data.home.x).toBeGreaterThan(0);expect(data.home.x).toBeLessThan(size);
  }
  expect(errors).toEqual([]);
 });

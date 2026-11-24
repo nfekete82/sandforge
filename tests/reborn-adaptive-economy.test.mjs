@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {UNITS,weaponDamage} from '../dist/src/reborn/catalog.js';
-import {developArmy} from '../dist/src/reborn/army-economy.js';
+import {developArmy,directorArmyTarget} from '../dist/src/reborn/army-economy.js';
 import {assessBattle,fightingPower,fightingPowerAgainst} from '../dist/src/reborn/battle-response.js';
 import {newAdaptive,updateAdaptive} from '../dist/src/reborn/adaptive-strategy.js';
 import {addProducer} from './fixtures/reborn-production.mjs';
@@ -19,8 +19,10 @@ function scene(){
 
 test('matched strength uses the actual heavy armor penalty rather than nominal weapon damage',()=>{
  const {g,home,enemy}=scene(),heavy=g.spawn(1,home,'heavy'),tank=enemy('tank'),infantry=enemy('infantry');
- assert.ok(Math.abs(fightingPowerAgainst([heavy],[infantry])-fightingPower([heavy]))<1e-10);
- assert.ok(Math.abs(fightingPowerAgainst([heavy],[tank])/fightingPower([heavy])-Math.sqrt(weaponDamage(heavy,tank)/UNITS.heavy.damage))<1e-12);
+ const nominal=fightingPower([heavy]);
+ for(const target of [tank,infantry])
+  assert.ok(Math.abs(fightingPowerAgainst([heavy],[target])/nominal-
+   Math.sqrt(weaponDamage(heavy,target)/UNITS.heavy.damage))<1e-12);
 });
 
 test('an artillery army cannot count firepower against known aircraft or claim a safe siege screen',()=>{
@@ -33,20 +35,28 @@ test('an artillery army cannot count firepower against known aircraft or claim a
 
 test('observed massed infantry creates a paid heavy infantry deficit before discretionary aircraft',()=>{
  const {g,barracks,enemy,pulse}=scene();for(let i=0;i<6;i++)enemy('infantry');
- g.credits[1]=250;pulse();assert.deepEqual(barracks.queueTypes,['heavy']);
- assert.equal(barracks.queueCosts[0],250);assert.equal(g.credits[1],0);
+ g.credits[1]=UNITS.heavy.cost;pulse();assert.deepEqual(barracks.queueTypes,['heavy']);
+ assert.equal(barracks.queueCosts[0],UNITS.heavy.cost);assert.equal(g.credits[1],0);
 });
 
 test('observed armor receives a fully paid tank response during an attack',()=>{
- const {g,factory,enemy,pulse}=scene();enemy('tank');enemy('tank');
- g.credits[1]=550;pulse();assert.deepEqual(factory.queueTypes,['tank']);
- assert.equal(factory.queueCosts[0],550);assert.equal(g.credits[1],0);
+ const {g,barracks,factory,enemy,pulse}=scene();enemy('tank');enemy('tank');
+ g.credits[1]=UNITS.rocket.cost;pulse();
+ assert.deepEqual(barracks.queueTypes,['rocket']);
+ assert.equal(g.credits[1],0);
+ g.credits[1]=UNITS.rocket.cost;pulse();
+ assert.deepEqual(barracks.queueTypes,['rocket','rocket']);
+ assert.deepEqual(barracks.queueCosts,[UNITS.rocket.cost,UNITS.rocket.cost]);
+ assert.equal(g.credits[1],0);
+ g.credits[1]=UNITS.tank.cost;pulse();
+ assert.deepEqual(factory.queueTypes,['tank']);
+ assert.equal(factory.queueCosts[0],UNITS.tank.cost);assert.equal(g.credits[1],0);
 });
 
 test('known air force funds an affordable anti-air screen and reinforces it rather than buying ground-only aircraft',()=>{
  const {g,barracks,factory,airfield,enemy,pulse}=scene();for(let i=0;i<5;i++)enemy('bomber');
- g.credits[1]=250;pulse();assert.deepEqual(barracks.queueTypes,['heavy']);assert.deepEqual(factory.queueTypes,[]);
- g.credits[1]=250;pulse();assert.deepEqual(barracks.queueTypes,['heavy','heavy']);assert.deepEqual(airfield.queueTypes,[]);assert.equal(barracks.queueCosts[1],250);
+ g.credits[1]=UNITS.heavy.cost;pulse();assert.deepEqual(barracks.queueTypes,['heavy']);assert.deepEqual(factory.queueTypes,[]);
+ g.credits[1]=UNITS.heavy.cost;pulse();assert.deepEqual(barracks.queueTypes,['heavy','heavy']);assert.deepEqual(airfield.queueTypes,[]);assert.equal(barracks.queueCosts[1],UNITS.heavy.cost);
  assert.equal(g.credits[1],0);assert.equal(factory.queueTypes.includes('artillery'),false);
 });
 
@@ -65,7 +75,7 @@ test('production diagnostics distinguish saving for a role, a completed composit
  assert.equal(g.tactical.state.economy.production.facilities[g.bases.find(b=>b.owner===1&&b.kind==='headquarters').id].reason,'composition-complete');
  g.credits[1]=1100;assert.ok(g.recruit(factory.id,'tank'));assert.ok(g.recruit(factory.id,'tank'));pulse();
  assert.equal(g.tactical.state.economy.production.facilities[factory.id].reason,'queue-blocked');
- while(g.count(1)+g.queued(1)<Math.min(36,Math.max(18,Math.floor(g.income(1)/3)+10)))g.spawn(1,{x:barracks.x,y:barracks.y},'infantry');pulse();
+ while(g.count(1)+g.queued(1)<directorArmyTarget(g.income(1)))g.spawn(1,{x:barracks.x,y:barracks.y},'infantry');pulse();
  assert.equal(g.tactical.state.economy.production.reason,'army-cap');
  const loaded=Simulation.load(g.save());assert.deepEqual(loaded.tactical.state.economy.production,g.tactical.state.economy.production);
  const broken=g.save();broken.ai.economy.production.missing=-1;assert.throws(()=>Simulation.load(broken));

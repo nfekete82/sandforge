@@ -128,11 +128,24 @@ test('production: pioneer a fraction beyond factory reach can take a collision-f
 
 test('production: old mixed HQ queues refund unsupported orders once and retain paid workers and existing troops',()=>{
  const g=new Simulation(2026,2);g.aiClock=-1e8;const raw=g.save(),hq=raw.bases[0];delete raw.productionVersion;
- hq.queue=[UNITS.infantry.buildTime,UNITS.engineer.buildTime,UNITS.tank.buildTime];hq.queueTypes=['infantry','engineer','tank'];hq.queueCosts=[100,200,450];hq.production=2;raw.credits[0]=50;
+ hq.queue=[UNITS.infantry.buildTime,UNITS.engineer.buildTime,15];hq.queueTypes=['infantry','engineer','tank'];hq.queueCosts=[100,200,450];hq.production=2;raw.credits[0]=50;
  const loaded=Simulation.load(raw);assert.equal(loaded.credits[0],600);assert.deepEqual(loaded.bases[0].queueTypes,['engineer']);assert.deepEqual(loaded.bases[0].queueCosts,[200]);assert.equal(loaded.bases[0].production,0);assert.equal(loaded.units.length,raw.units.length);
  const again=Simulation.load(loaded.save());assert.equal(again.credits[0],600);assert.equal(again.units.length,raw.units.length);assert.equal(again.save().productionVersion,1);
  const noWorkers=g.save();noWorkers.units=noWorkers.units.filter(u=>u.kind!=='engineer');assert.equal(Simulation.load(noWorkers).units.length,noWorkers.units.length,'loading does not insert free starting workers');
  const corrupt=g.save();corrupt.bases[0].queue=[5];corrupt.bases[0].queueTypes=['infantry'];corrupt.bases[0].queueCosts=[100];assert.throws(()=>Simulation.load(corrupt));
+});
+test('production: a saved 15-second tank build retains its progress and paid cost',()=>{
+ const g=new Simulation(2026,2),hq=g.bases[0];
+ const factory={...hq,id:1300,kind:'factory',hp:BUILDINGS.factory.hp,
+  queue:[15],queueTypes:['tank'],queueCosts:[450],production:11};
+ g.bases.push(factory);
+ const saved=g.save(),loaded=Simulation.load(saved),queue=loaded.bases.find(b=>b.id===factory.id);
+ assert.deepEqual([queue.queue,queue.queueCosts,queue.production],[[15],[450],11]);
+ const restored=Simulation.load(loaded.save()),credit=restored.credits[0];
+ restored.cancel(factory.id);
+ assert.equal(restored.credits[0],credit+450);
+ saved.bases.find(b=>b.id===factory.id).queue[0]=16;
+ assert.throws(()=>Simulation.load(saved));
 });
 test('production: the AI builds a paid barracks from the ordinary start and recruits soldiers there',()=>{
  const g=Simulation.campaign(2026),ledger=[],build=g.build.bind(g),recruit=g.recruit.bind(g);

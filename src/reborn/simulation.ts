@@ -3145,6 +3145,9 @@ export class Simulation {
     const s=migrateTransportRoster(raw) as Save;
     const finite=(n:unknown)=>typeof n==='number'&&Number.isFinite(n);
     const validMatchStatisticsOrLegacy=(data:unknown)=>data===undefined||validMatchStatistics(data);
+    // Earlier saves recorded a 15-second tank queue before the build-time balance change.
+    const validQueueDuration=(duration:number,kind:UnitKind)=>
+      duration===UNITS[kind]?.buildTime||(kind==='tank'&&duration===15);
     const point=(p:Point)=>p&&finite(p.x)&&finite(p.y)&&p.x>=0&&p.y>=0&&p.x<=mapWorldSize(s?.mapVersion??0)&&p.y<=mapWorldSize(s?.mapVersion??0);
     const research= s?.research??[newResearchState(),newResearchState()];
     if(!Array.isArray(research)||research.length!==2||research.some(s=>!validResearchState(s)))
@@ -3202,7 +3205,7 @@ export class Simulation {
           b.siloCharge>SILO_CHARGE_SECONDS||b.kind!=='silo'))||
         (b.interceptorAmmo!==undefined&&(!Number.isInteger(b.interceptorAmmo)||
           b.interceptorAmmo<0||b.interceptorAmmo>INTERCEPTOR_MAX_AMMO||
-          b.kind!=='interceptor'))||!finite(b.hp)||b.hp<0||b.hp>(BUILDINGS[b.kind??'headquarters']?.hp??0)||!Array.isArray(b.queue)||b.queue.length>8||b.queue.some((v,i)=>!finite(v)||v!==UNITS[b.queueTypes?.[i]??'infantry']?.buildTime)||
+          b.kind!=='interceptor'))||!finite(b.hp)||b.hp<0||b.hp>(BUILDINGS[b.kind??'headquarters']?.hp??0)||!Array.isArray(b.queue)||b.queue.length>8||b.queue.some((v,i)=>!validQueueDuration(v,b.queueTypes?.[i]??'infantry'))||
         (b.queueTypes!==undefined&&(!Array.isArray(b.queueTypes)||b.queueTypes.length!==b.queue.length||b.queueTypes.some(k=>!Object.hasOwn(UNITS,k))))||
         (s.productionVersion===1&&b.queue.some((_,i)=>b.queueTypes?.[i]!=='supply'&&
           !UNITS[b.queueTypes?.[i]??'infantry']?.producers.includes(b.kind??'headquarters')))||

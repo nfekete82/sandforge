@@ -5,7 +5,7 @@ import {HIGH_GROUND_SIGHT_MULTIPLIER} from '../dist/src/reborn/rolling-hills.js'
 import {RULES} from '../dist/src/reborn/config.js';
 
 const game=()=>{
- const g=new Simulation(2074,19);
+ const g=new Simulation(2074,23);
  g.highGroundEnabled=false;
  g.world.blocked.fill(0);g.world.opaque.fill(0);
  // Simulate a real, gentle high-ground plateau using the same actual
