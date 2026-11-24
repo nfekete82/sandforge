@@ -122,7 +122,8 @@ test('campaign: Bastion upgrade tiers are canonical on creation and preserve leg
  assert.ok(g.territories.every(t=>t.upgradeLevel===1));
  const legacy=g.save();for(const t of legacy.territories)delete t.upgradeLevel;
  assert.deepEqual(Simulation.load(legacy).territories,g.territories);
- const upgraded=g.save(),owned=upgraded.territories.find(t=>t.owner>=0);
- assert.ok(owned);owned.upgradeLevel=2;
- assert.equal(Simulation.load(upgraded).territories.find(t=>t.id===owned.id).upgradeLevel,2);
+ const forward=g.territories.find(t=>t.owner===-1);
+ assert.ok(forward);forward.owner=0;g.credits[0]=1000;
+ assert.equal(g.upgradeBastion(0,forward.id),true);
+ assert.equal(Simulation.load(g.save()).territories.find(t=>t.id===forward.id).upgradeLevel,2);
 });
