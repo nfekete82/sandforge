@@ -10,7 +10,7 @@ import {createAirfieldServiceYard,disposeAirfieldServiceYard,hideOldAirfieldHang
 import {airfieldLaunchDuration,airfieldLaunchPose,airfieldLaunchLeg} from '../scripts/webgl-airfield-launch-path.js';
 import {applyAirfieldRollup,AIRFIELD_ROLLUP_SLATS,AIRFIELD_ROLLUP_FIRST_Y,AIRFIELD_ROLLUP_STEP} from '../scripts/webgl-airfield-rollup.js';
 
-const root='src/assets/reborn/buildings-3d/';
+const root='dist/src/assets/reborn/buildings-3d/';
 const src=name=>readFileSync('scripts/'+name,'utf8');
 function glb(team){
  const file=readFileSync(root+'airfield-'+team+'.glb');
@@ -121,9 +121,7 @@ test('HUD, gameplay, construction ghost and standard build share the airfield as
  assert.match(hud,/DESERT_BUILDING_KINDS\.includes\(kind\)\|\|kind==='airfield'/);
  assert.match(build,/scripts\/generate-airfield-pbr\.mjs/);
  assert.match(build,/dist\/webgl-airfield-pbr\.js/);
- const beforeAssets=build.indexOf("scripts/generate-airfield-pbr.mjs");
- const copyAssets=build.indexOf("cpSync('src/assets', 'dist/src/assets'");
- assert.ok(beforeAssets>=0&&copyAssets>beforeAssets);
+ assert.match(build,/\['scripts\/generate-airfield-pbr\.mjs',shippedBuildingDir\]/);
 });
 
 test('reusing the existing runway keeps original flight dynamics and save schema',()=>{

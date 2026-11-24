@@ -6,7 +6,7 @@ import {SandforgeProductionGates} from '../scripts/webgl-production-gates.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 
 function glb(kind,owner){
- const file='src/assets/reborn/buildings-3d/'+kind+'-'+owner+'.glb';
+ const file='dist/src/assets/reborn/buildings-3d/'+kind+'-'+owner+'.glb';
  const raw=readFileSync(file);
  assert.equal(raw.toString('ascii',0,4),'glTF',file);
  assert.equal(raw.readUInt32LE(8),raw.length,file);

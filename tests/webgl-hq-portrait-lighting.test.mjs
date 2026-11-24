@@ -78,7 +78,7 @@ test('HUD applies the authored-HQ-only path, real original texture atlas, and in
 });
 
 test('real HQ GLB contains embedded desert PBR maps affected by the correction',()=>{
- const raw=readFileSync('src/assets/reborn/buildings-3d/headquarters-0.glb');
+ const raw=readFileSync('dist/src/assets/reborn/buildings-3d/headquarters-0.glb');
  assert.equal(raw.toString('ascii',0,4),'glTF');
  const j=JSON.parse(raw.toString('utf8',20,20+raw.readUInt32LE(12)));
  for(const materialName of ['SF_OriginalPBR_walls','SF_OriginalPBR_roof','SF_OriginalPBR_canvas']){

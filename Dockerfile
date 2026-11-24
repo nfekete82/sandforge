@@ -1,6 +1,7 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package*.json tsconfig.json index.html animation-lab.html model-preview.html model-3d.html webgl-preview.html ./
+COPY webgl-meshy-factory.html webgl-meshy-buildings.html desert-look-lab.html ./
 COPY src ./src
 COPY legacy ./legacy
 # Copy every runtime WebGL module; selective copies omitted dynamic imports.

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 
-const DIR='src/assets/reborn/buildings-3d/';
+const DIR='src/webgl-assets/buildings-3d/';
 const DIST='dist/src/assets/reborn/buildings-3d/';
 function readGLB(filename,root=DIR){
  const bytes=readFileSync(root+filename);
@@ -56,16 +56,21 @@ test('Bastion, Kaserne and Kommandozentrale all ship in ONE built dist',()=>{
   assert.ok(existsSync(DIST+name),'all seven final model assets must be present: '+name);
 });
 
-test('the standard build syncs authored PBR models before exporting any assets',()=>{
- const source=readFileSync('scripts/build.mjs','utf8');
- const ensure=source.indexOf("scripts/ensure-final-pbr-buildings.mjs");
- const bastion=source.indexOf("scripts/generate-bastion-radar.mjs");
- const copy=source.indexOf("cpSync('src/assets', 'dist/src/assets'");
- assert.ok(ensure>=0&&bastion>ensure&&copy>bastion,
-  'cannot silently build the legacy HQ/barracks while generating new Bastion');
- const script=readFileSync('scripts/ensure-final-pbr-buildings.mjs','utf8');
- assert.match(script,/sandforge-pbr-gesamt-test/);
- assert.match(script,/sandforge-kaserne-prop-polish/);
- assert.match(script,/sandforge-hq-pbr/);
- assert.match(script,/if\(!allGood\(stage\)\)throw Error/);
+test('shipped HQ and barracks surfaces have embedded UV-mapped albedo, normals and roughness',()=>{
+ for(const kind of ['headquarters','barracks'])for(const team of [0,1]){
+  const filename=kind+'-'+team+'.glb';
+  const {json}=readGLB(filename,DIST);
+  for(const mesh of json.meshes)for(const part of mesh.primitives){
+   const material=json.materials[part.material];
+   if(material.emissiveFactor?.some(value=>value>0))continue;
+   const label=filename+' '+material.name;
+   assert.ok(part.attributes.TEXCOORD_0!==undefined,label+' needs UVs');
+   assert.ok(part.attributes.NORMAL!==undefined,label+' needs vertex normals');
+   const pbr=material.pbrMetallicRoughness;
+   for(const map of [pbr?.baseColorTexture,material.normalTexture,pbr?.metallicRoughnessTexture]){
+    assert.ok(map,label+' needs albedo, normal and roughness maps');
+    assert.ok(json.images[json.textures[map.index].source].bufferView!==undefined,label+' needs embedded images');
+   }
+  }
+ }
 });
