@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
+import {readFileSync} from 'node:fs';
 import {attachBastionBeacon,bastionOwnerLight,setBastionBeaconColor,
  detachBastionBeacon,BASTION_BEACON_COLORS} from '../scripts/webgl-bastion-beacon.js';
 
@@ -23,7 +24,7 @@ test('blue, red, and neutral-owned bastions show blue/red/white 3D lights',()=>{
  assert.equal(node.children.length,0);
 });
 test('ownership colour survives income upgrades and 3D source swaps',()=>{
- const battlefield=await import('node:fs').then(fs=>fs.readFileSync('scripts/webgl-battlefield.js','utf8'));
+ const battlefield=readFileSync('scripts/webgl-battlefield.js','utf8');
  assert.match(battlefield,/setBastionBeaconColor\(entry.ownerBeacon,territory.owner\)/);
  assert.match(battlefield,/entry.halo.material.color.set\(bastionOwnerLight\(territory.owner\)\)/);
  assert.match(battlefield,/attachBastionBeacon\(node,t.owner\)/);
