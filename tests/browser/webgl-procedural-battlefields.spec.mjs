@@ -45,7 +45,7 @@ for(const profile of profiles)test.describe(`${profile} full-detail terrain`,()=
    return {version:w.mapVersion,profile:t.profile,valid:w.validation.valid,heightError,range:t.maxHeight-t.minHeight,
     fog:units.every(u=>fog[w.index(u)*4+3]===0),fogMeshes:b.fogNodes.every((m,i)=>m.geometry===b.groundMeshes[i].geometry),
     minimap:miniature[obstacle*4]===104,outline:b.miniViewportCorners.length,
-    rocks:a.scene.getObjectByName('physical-battlefield-rocks')?.geometry.attributes.position.count,
+    duplicateRockSkin:Boolean(a.scene.getObjectByName('physical-battlefield-rocks')),
     oases:a.oases.layout.length,soilCapacity:Math.max(...a.renderer.info.programs.map(p=>p.getUniforms().map.oasisCenters?.size??0)),waters:a.oases.water.map(m=>{
      const p=m.geometry.attributes.position;let error=0;
      for(let i=0;i<p.count;i++)error=Math.max(error,Math.abs(p.getY(i)-a.oases.renderedHeight(p.getX(i)+w.size/2,p.getZ(i)+w.size/2)-.2));return error;
@@ -53,7 +53,8 @@ for(const profile of profiles)test.describe(`${profile} full-detail terrain`,()=
   });
   expect(state.version).toBe(26);expect(state.profile).toBe(profile);expect(state.valid).toBe(true);
   expect(state.heightError).toBeLessThan(.001);expect(state.fog).toBe(true);expect(state.fogMeshes).toBe(true);
-  expect(state.minimap).toBe(true);expect(state.outline).toBe(4);expect(state.rocks).toBeGreaterThan(0);
+  expect(state.minimap).toBe(true);expect(state.outline).toBe(4);
+  expect(state.range).toBeGreaterThan(0);expect(state.duplicateRockSkin).toBe(false);
   expect(state.oases).toBeGreaterThan(0);if(profile==='oasis')expect(state.soilCapacity).toBeGreaterThanOrEqual(state.oases);for(const e of state.waters)expect(e).toBeLessThan(.003);
  });
  test('complete art streaming and full-resolution startup view',async()=>{
