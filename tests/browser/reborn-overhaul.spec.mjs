@@ -37,7 +37,9 @@ test('overhaul: compact real turret heads track and fire from their registered m
   }
   return result;
  });
- for(const item of colors)expect(item.ratio,`${item.kind}/${item.owner} faction area`).toBeGreaterThan(item.kind==='tank'?.02:item.kind==='scout'?.03:.06);
+ // Vehicle insignia occupy less painted area than the faction infantry uniforms.
+ const minimumPaint={tank:.02,scout:.03,bomber:.009};
+ for(const item of colors)expect(item.ratio,`${item.kind}/${item.owner} faction area`).toBeGreaterThan(minimumPaint[item.kind]??.06);
  await page.screenshot({path:'artifacts/reborn/overhaul-turrets.png'});expect(health.errors).toEqual([]);expect(health.assets).toEqual([]);
 });
 

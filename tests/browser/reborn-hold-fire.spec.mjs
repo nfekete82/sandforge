@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 
 test('Position halten UI: no shots at an enemy building or passing enemy, return fire only after a hit',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto('/?debug&seed=2026');
+ await page.goto('/?debug&legacy');
  await page.locator('#loading').waitFor({state:'detached'});
  await page.evaluate(()=>{
   const app=window.__reborn,g=app.game,r=app.renderer;

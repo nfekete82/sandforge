@@ -17,11 +17,11 @@ test('3D starts with the original Sandforge title and enters a real playable cam
  await page.locator('#sf3d-options-save').click();
  await page.locator('#sf3d-new').click();
  await expect(page.locator('#sf3d-new-dialog')).toBeVisible();
- await expect(page.locator('#sf3d-desert-map option')).toHaveCount(4);
+ await expect(page.locator('#sf3d-desert-map option')).toHaveCount(6);
  await page.locator('#sf3d-desert-map').selectOption('desert-strike');
  await page.locator('#sf3d-new-confirm').click();
- await expect(page).toHaveURL(/bastions=8&seed=9999&play=1&lite=1/);
- await expect(page).toHaveURL(/map=desert-strike/);
+ await expect(page).toHaveURL(url=>Object.entries({bastions:'8',seed:'9999',play:'1',
+  lite:'1',map:'desert-strike',balance:'action'}).every(([key,value])=>url.searchParams.get(key)===value));
  await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded===true,{timeout:100000});
  const state=await page.evaluate(()=>({
   actors:window.__sandforgeWebGL.battlefield.units.size,

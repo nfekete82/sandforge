@@ -6,7 +6,7 @@ import {migrateTransportRoster} from './roster-migration.js';
 import {VisionCache} from './vision-cache.js';
 import {generateRollingHills,standsOnHill,HIGH_GROUND_SIGHT_MULTIPLIER,type RollingHill} from './rolling-hills.js';
 import { profiler } from './performance.js';
-import { RULES, WEATHER_RULES, clamp, distance, type Faction, type Owner, type Point, type MapVersion, mapLayout, campaignLayout, mapWorldSize } from './config.js';
+import { RULES, WEATHER_RULES, clamp, distance, type Faction, type Owner, type Point, type MapVersion, mapLayout, campaignLayout, mapWorldSize, supportsEarlyBarracksPreview } from './config.js';
 import {ACTION_BALANCE,balancePresetValid,initialActionCredits,constructionRate,productionRate,groundSpeedRate,type BalancePreset} from './action-balance.js';
 import { World, inside, type Territory } from './world.js';
 import {visibleBasePropColliders} from './vehicle-decor-collision.js';
@@ -3083,7 +3083,7 @@ export class Simulation {
     // instead of making the opponent appear idle until second 25.
     const modernOpening=this.world.mapVersion>=23&&this.time>=3&&!this.needsHeadquarters(1);
     const legacyEarlyOpening=this.tactical.earlyEconomyMode==='barracks-first'&&
-      this.world.mapVersion===11&&this.time>=2;
+      supportsEarlyBarracksPreview(this.world.mapVersion)&&this.time>=2;
     const earlyPaidEconomy=this.tactical.mode==='director'&&
       (modernOpening||legacyEarlyOpening);
     if(this.aiClock>=RULES.aiInterval&&(fullPlan||earlyPaidEconomy)){

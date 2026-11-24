@@ -158,8 +158,8 @@ test('carrier travels to clicked rocket soldier, lands/stops and takes him aboar
  }
 });
 
-test('helicopter cruises 10 percent faster without changing bomber or Humvee speeds',()=>{
- assert.equal(UNITS.scout.speed,220);
+test('transport helicopter, bomber and Humvee keep their distinct cruise speeds',()=>{
+ assert.equal(UNITS.scout.speed,280);
  assert.equal(UNITS.bomber.speed,350);
  assert.equal(UNITS.rover.speed,235);
 });

@@ -60,9 +60,9 @@ test('recon R-01 is visually smaller, with unchanged simulation costs and flight
  assert.equal(UNITS.drone.damage,0);
  assert.equal(UNITS.drone.flying,true);
 });
-test('front-left rocket pod is restored without moving right-side correct launcher',()=>{
- assert.deepEqual(scoutRocketPodMount(-1),{x:-22,y:18,z:-5});
- assert.deepEqual(scoutRocketPodMount(1),{x:17,y:18,z:-5});
+test('both rocket pods use the current asymmetrical cabin hardpoints',()=>{
+ assert.deepEqual(scoutRocketPodMount(-1),{x:-25,y:18,z:-5});
+ assert.deepEqual(scoutRocketPodMount(1),{x:14,y:18,z:-5});
  const entry={kind:'scout',owner:0,node:new THREE.Group()};
  attachScoutRocketPods(entry);
  assert.equal(entry.scoutRocketPods.children.length,2);

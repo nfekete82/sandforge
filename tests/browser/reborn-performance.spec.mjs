@@ -15,7 +15,7 @@ test('performance: profiler requires debug and perf; overlay reports and exports
 });
 
 test('performance: unchanged HUD text and queue DOM survive refresh, selection responds immediately',async({page})=>{
- await page.goto('/?debug&perfTest&seed=2026');await page.locator('#loading').waitFor({state:'detached'});
+ await page.goto('/?debug&perfTest&legacy');await page.locator('#loading').waitFor({state:'detached'});
  const result=await page.evaluate(()=>{
   const a=window.__reborn,g=a.game,u=g.spawn(0,{x:g.bases[0].x+180,y:g.bases[0].y},'scout');g.paused=true;a.renderer.selected=new Set([u.id]);a.refresh();
   document.querySelector('#tab-territories').click();a.refresh();

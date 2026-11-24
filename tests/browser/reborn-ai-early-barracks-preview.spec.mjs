@@ -14,7 +14,7 @@ test('early barracks preview applies to a real bootstrapped four-bastion campaig
    barracks:g.bases.filter(b=>b.owner===1&&b.kind==='barracks').length,
    firstAiPlan:g.tactical.state.lastPlan,credits:g.credits[1],status:g.status};
  });
- expect(result.version).toBe(11);
+ expect(result.version).toBe(15);
  expect(result.startedWithoutHQ).toBe(true,'actual player campaign, not prebuilt AI benchmark');
  expect(result.initially).toBe('barracks-first');
  expect(result.barracks).toBeGreaterThan(0);

@@ -13,3 +13,17 @@ export async function finishOpeningHQ(page){
   g.paused=paused;g.notices=[];a.refresh();
  });
 }
+
+/** Load an archived match through the same IndexedDB store as the player. */
+export async function loadLegacyMatch(page,version=2){
+ await page.evaluate(async version=>{
+  const {Simulation}=await import('/src/reborn/simulation.js');
+  const {saveCampaign}=await import('/src/reborn/storage.js');
+  const a=window.__reborn;
+  await saveCampaign(new Simulation(2026,version));
+  await a.load();
+  if(a.game.world.mapVersion!==version||a.game.bootstrapVersion)
+   throw Error('Could not restore the archived match fixture');
+  a.game.paused=true;a.refresh();
+ },version);
+}

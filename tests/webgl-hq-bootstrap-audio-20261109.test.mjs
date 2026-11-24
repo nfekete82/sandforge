@@ -32,7 +32,7 @@ test('3D HUD retains the existing pioneer-driven manual HQ construction',()=>{
  const ui=read('scripts/webgl-battlefield.js');
  assert.match(ui,/this\.catalogContext\(\)\.engineer/);
  assert.match(ui,/this\.beginPlacement\(kind\)/);
- assert.match(ui,/submitConstruction\(this\.game,kind,p,this\.selected/);
+ assert.match(ui,/submitConstruction\(this\.game,kind,site,this\.selected/);
  assert.match(ui,/this\.placementFacing,event\.shiftKey/);
  assert.doesNotMatch(ui,/data-action="hq-bootstrap"/);
 });

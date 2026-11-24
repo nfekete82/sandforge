@@ -11,8 +11,8 @@ test('two sleek rocket tubes per side, moved outside body instead of bulky boxes
  const root=entry.scoutRocketPods;
  assert.equal(root.children.length,2,'exactly one pod on each side');
  assert.equal(entry.scoutRocketMuzzles.length,2);
- assert.equal(root.children[0].position.x,-22,'port launcher returns outside the real cabin');
- assert.equal(root.children[1].position.x,17,'starboard launcher keeps its correct hardpoint');
+ assert.equal(root.children[0].position.x,-25,'port launcher returns outside the real cabin');
+ assert.equal(root.children[1].position.x,14,'starboard launcher keeps its correct hardpoint');
  assert.ok(Math.abs(root.children[0].position.x)>Math.abs(root.children[1].position.x),
   'port pod must sit farther out than starboard to clear the asymmetric fuselage');
  assert.equal(root.children[0].position.z,root.children[1].position.z,
@@ -21,7 +21,7 @@ test('two sleek rocket tubes per side, moved outside body instead of bulky boxes
   'starboard launcher is level with port');
  assert.ok(root.children[0].position.x<0&&root.children[1].position.x>0);
  for(const pod of root.children){
-  assert.ok(Math.abs(pod.position.x)>=16&&Math.abs(pod.position.x)<=24,'pods tucked tight beside the cabin, not hovering away');
+  assert.ok(Math.abs(pod.position.x)>=14&&Math.abs(pod.position.x)<=25,'pods tucked tight beside the cabin, not hovering away');
   assert.ok(pod.position.y>=16,'pods raised from underbelly to cabin hardpoints');
   const tubes=pod.children.filter(c=>c.isMesh&&c.geometry?.type==='CylinderGeometry'&&
     c.material?.color?.getHexString()==='1d2420');

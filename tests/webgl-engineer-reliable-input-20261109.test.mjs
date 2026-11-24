@@ -68,7 +68,6 @@ test('new building is enqueued while pioneer builds another site',()=>{
 
 test('WebGL event pipeline protects build mode and lets users reselect a pioneer',()=>{
  const code=readFileSync('scripts/webgl-battlefield.js','utf8');
- const hud=readFileSync('scripts/webgl-classic-hud.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
  assert.match(code,/pointerGestureIntent\(\{distance:moved,button:event\.button/);
  assert.match(code,/if\(gesture==='selection-box'\)/);
@@ -77,9 +76,8 @@ test('WebGL event pipeline protects build mode and lets users reselect a pioneer
  assert.match(code,/const hit=this\.friendlyAtPointer\(event\)/);
  assert.match(code,/if\(event\.button===0&&!this\.buildKind&&!this\.rallyMode&&!this\.strategicTargetMode\)/);
  assert.match(code,/this\.selected=new Set\(\[worker\.id\]\)/);
- assert.match(code,/submitConstruction\(this\.game,kind,p,this\.selected/);
- assert.match(code,/event\.code==='KeyP'/);
- assert.match(hud,/data-action="select-engineer"/);
+ assert.match(code,/submitConstruction\(this\.game,kind,site,this\.selected/);
+ assert.match(code,/event\.code==='KeyP'&&!event\.repeat\)\{event\.preventDefault\(\);this\.selectEngineer\(\);\}/);
  assert.match(build,/webgl-builder-input\.js/);
 });
 

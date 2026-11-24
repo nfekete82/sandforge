@@ -5,17 +5,14 @@ import {
  scoutRocketPodMount,attachScoutRocketPods,detachScoutRocketPods
 } from '../scripts/webgl-scout-rocket-pods.js';
 
-test('front view: port stays fixed; right launcher moves inside and forward',()=>{
+test('front view: asymmetric hardpoints match the calibrated helicopter cabin',()=>{
  const port=scoutRocketPodMount(-1);
  const starboard=scoutRocketPodMount(1);
- assert.deepEqual(port,{x:-23,y:18,z:-5},
-  'do not move the user-approved left launcher');
- assert.deepEqual(starboard,{x:17,y:18,z:-5},
-  'right launcher goes 2 units inward and 1 forward from its old position');
- assert.equal(port.z,starboard.z,'front alignment is not a depth illusion');
- assert.equal(port.y,starboard.y,'mounts level with each other');
- assert.ok(starboard.x>=16&&starboard.x<=18,
-  'right pod must stay clear of the cabin but no longer hover outside');
+ assert.deepEqual(port,{x:-25,y:18,z:-5});
+ assert.deepEqual(starboard,{x:14,y:18,z:-5});
+ assert.equal(port.z,starboard.z);
+ assert.equal(port.y,starboard.y);
+ assert.ok(Math.abs(port.x)>Math.abs(starboard.x));
 });
 
 for(const owner of [0,1])test('actual rendered pod and muzzle follow calibrated mounts, owner '+owner,()=>{
@@ -23,8 +20,8 @@ for(const owner of [0,1])test('actual rendered pod and muzzle follow calibrated 
  attachScoutRocketPods(entry);
  try{
   const [left,right]=entry.scoutRocketPods.children;
-  assert.equal(left.position.x,-23);
-  assert.equal(right.position.x,17);
+  assert.equal(left.position.x,-25);
+  assert.equal(right.position.x,14);
   assert.equal(left.position.z,right.position.z);
   assert.equal(left.position.y,right.position.y);
   assert.equal(left.scale.x,-1);

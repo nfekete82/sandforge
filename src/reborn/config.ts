@@ -13,6 +13,8 @@ export const RULES = {
 export type MapVersion=0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22|23|24|25|26;
 export type CampaignSize='small'|'medium'|'large'|'extraLarge';
 export const CAMPAIGN_SIZES:Record<CampaignSize,MapVersion>={small:15,medium:16,large:17,extraLarge:18};
+export const supportsEarlyBarracksPreview=(version:MapVersion):boolean=>
+ version===11||version===CAMPAIGN_SIZES.small;
 export const mapWorldSize=(version:MapVersion):number=>version===15?4160:version===16?4600:version===17?4960:version===18?5260:(version===19||version===23)?6240:(version===20||version===24)?6900:(version===21||version===25)?7440:(version===22||version===26)?7890:version===11?3564:version===12?3920:version===13?4277:version===14?4470:version===7?3240:version===8?3564:version===9?3888:version===10?4064:version===3?3000:version===4?3300:version===5?3600:RULES.worldSize;
 const legacyLayout={columns:6,rows:5,headquarters:[19,5],starts:[[18,19,25],[4,5,11]],spacing:440,incomes:RULES.territoryIncome} as const;
 /** Geometry and starting rules are versioned independently of the save envelope. */

@@ -2,7 +2,7 @@ import {roleBadgeMarkup} from './role-visuals.js';
 import {getVeterancyLevel,sanitizeXp,VETERANCY_NAMES,VETERANCY_THRESHOLDS,veterancyBonuses} from './veterancy.js';
 import { profiler, PerformanceRecorder, setProfiler, mountPerformancePanel } from './performance.js';
 import { QwenGeneral } from './qwen-general.js';
-import { RULES, CAMPAIGN_SIZES, type MapVersion, type CampaignSize } from './config.js';
+import { RULES, CAMPAIGN_SIZES, supportsEarlyBarracksPreview, type MapVersion, type CampaignSize } from './config.js';
 import { Simulation, type Base } from './simulation.js';
 import { Renderer } from './renderer.js';
 import { Input } from './input.js';
@@ -24,7 +24,7 @@ const query=new URLSearchParams(location.search);
 const previewEarlyBarracks=query.get('aiOpening')==='early-barracks';
 /** Explicit local opt-in, never persisted as a hidden difficulty advantage. */
 function applyAiOpeningPreview(game:Simulation):Simulation{
- if(previewEarlyBarracks&&game.world.mapVersion===11)
+ if(previewEarlyBarracks&&supportsEarlyBarracksPreview(game.world.mapVersion))
   game.tactical.earlyEconomyMode='barracks-first';
  return game;
 }
