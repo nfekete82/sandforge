@@ -40,7 +40,14 @@ async function reuseBuildingTextures(data){
 }
 const vehicleNames={rover:'Humvee',tank:'Panzer',artillery:'Raketenwerfer',scout:'Transporthelikopter',bomber:'Bomber'};
 const isVehicle=model=>Object.hasOwn(vehicleNames,model);
-const modelPath=(model,faction)=>model==='infantry'?'/src/assets/reborn/prototype/infantry-'+faction+'.glb':isVehicle(model)?'/src/assets/reborn/animation/'+model+'-'+faction+'.glb':'/src/assets/reborn/buildings-3d/'+model+'-'+faction+'.glb';
+const classicBuildings=new URL(import.meta.url).searchParams.has('classic');
+const modelPath=(model,faction)=>{
+ const root='/src/assets/reborn/',filename=model+'-'+faction+'.glb';
+ if(model==='infantry')return root+'prototype/'+filename;
+ if(isVehicle(model))return root+'animation/'+filename;
+ const gallery=classicBuildings&&model!=='turret'?'classic-gallery/':'';
+ return root+'buildings-3d/'+gallery+filename;
+};
 /** The authored PBR bomber uses full-size aircraft coordinates (19.5 units
  * wingtip-to-wingtip); the model gallery uses a compact 8-unit ground grid.
  * Fit only the gallery instance, not the source GLB or the baked battle sprites.

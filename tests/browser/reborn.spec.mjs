@@ -18,7 +18,7 @@ async function focus(page,p){
  const box=await page.locator('#minimap').boundingBox();await page.mouse.click(box.x+p.x/3762*box.width,box.y+p.y/3762*box.height);
 }
 async function order(page,p,{attack=false,shift=false}={}){
- await focus(page,p);const at=await screen(page,p);if(attack)await page.keyboard.press('a');if(shift)await page.keyboard.down('Shift');
+ await focus(page,p);const at=await screen(page,p);if(attack)await page.keyboard.press('q');if(shift)await page.keyboard.down('Shift');
  await page.mouse.click(at.x,at.y,{button:'right'});if(shift)await page.keyboard.up('Shift');
 }
 async function selectArmy(page){
@@ -70,10 +70,10 @@ test('reborn: minimap drag, anchored zoom, keyboard camera, shift orders, attack
  await start(page);await page.locator('#select-unit').click();
  const p1={x:1400,y:2600},p2={x:1650,y:2600};await order(page,p1);await order(page,p2,{shift:true});
  expect(await page.evaluate(()=>window.__reborn.game.units[0].orders.length)).toBe(2);
- await page.keyboard.press('s');expect(await page.evaluate(()=>window.__reborn.game.units[0].orders.length)).toBe(0);
+ await page.keyboard.press('x');expect(await page.evaluate(()=>window.__reborn.game.units[0].orders.length)).toBe(0);
  const beforeHold=await page.evaluate(()=>window.__reborn.renderer.camera.y);await page.keyboard.down('s');await page.waitForTimeout(350);await page.keyboard.up('s');
  expect(await page.evaluate(()=>window.__reborn.renderer.camera.y)).toBeGreaterThan(beforeHold);
- await page.keyboard.press('a');await expect(page.locator('#hint')).toContainText('ANGRIFFSBEWEGUNG');
+ await page.keyboard.press('q');await expect(page.locator('#hint')).toContainText('ANGRIFFSBEWEGUNG');
  const point=await screen(page,{x:1500,y:2400});await page.mouse.click(point.x,point.y);expect(await page.evaluate(()=>window.__reborn.game.units[0].orders[0].kind)).toBe('attackMove');
  await page.mouse.click(340,400);expect(await page.evaluate(()=>window.__reborn.renderer.selected.size)).toBe(0);
  const before=await page.evaluate(()=>window.__reborn.renderer.camera.x);await page.keyboard.down('ArrowRight');await page.waitForTimeout(200);await page.keyboard.up('ArrowRight');expect(await page.evaluate(()=>window.__reborn.renderer.camera.x)).toBeGreaterThan(before);
@@ -391,7 +391,7 @@ test('atlas models: refined headquarters preserves the edited surfaces and moves
 test('atlas models: all seven building models load in the gallery and radar motion keeps the foundation fixed',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1600,height:1080});await page.goto('/model-3d.html?model=headquarters');await page.waitForFunction(()=>window.__model3D?.current?.getObjectByName('Atlas_headquarters'));
  for(const kind of ['headquarters','bastion','barracks','factory','airfield','generator','turret']){
-  await page.locator('#model').selectOption(kind);await page.waitForFunction(kind=>window.__model3D?.current?.getObjectByName('Atlas_'+kind),kind);await expect(page.locator('#error')).toHaveText('');await expect(page.locator('#download')).toHaveAttribute('href','/src/assets/reborn/buildings-3d/'+kind+'-0.glb');
+  await page.locator('#model').selectOption(kind);await page.waitForFunction(kind=>window.__model3D?.current?.getObjectByName('Atlas_'+kind),kind);await expect(page.locator('#error')).toHaveText('');await expect(page.locator('#download')).toHaveAttribute('href','/src/assets/reborn/buildings-3d/'+(kind==='turret'?'':'classic-gallery/')+kind+'-0.glb');
   const info=await page.evaluate(()=>{const v=window.__model3D;return {clips:v.data.animations.map(c=>c.name),parts:(()=>{let n=0;v.current.traverse(p=>{if(p.isMesh)n++;});return n;})()};});expect(info.parts).toBeGreaterThanOrEqual(14);expect(info.clips).toContain(kind==='turret'?'TurretTraverse':'BeaconPulse');
   if(kind==='turret'){
    const motion=await page.evaluate(()=>{const v=window.__model3D;v.pause();v.play('TurretTraverse');v.mixer.setTime(0);v.current.updateMatrixWorld(true);const head=v.current.getObjectByName('TurretHead'),fixed=v.current.getObjectByName('Atlas_turret'),before=fixed.matrixWorld.toArray(),angle=head.quaternion.toArray();v.mixer.setTime(.5);v.current.updateMatrixWorld(true);return {before,after:fixed.matrixWorld.toArray(),angle,next:head.quaternion.toArray()};});expect(motion.after).toEqual(motion.before);expect(motion.next).not.toEqual(motion.angle);

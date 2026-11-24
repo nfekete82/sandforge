@@ -10,7 +10,7 @@ test('playable game uses PRE-Meshy building designs from 20 Nov midday',()=>{
  assert.match(build,/const BUILDING_ART_REFERENCE='2026-11-20T11:20:39\+01:00'/);
  assert.match(build,/const available=Object.fromEntries\(kinds.map\(kind=>\[kind,false\]\)\)/);
  assert.match(build,/available\.airfieldReference=false/);
- assert.match(build,/cpSync\('src\/webgl-assets\/buildings-3d\/'\+filename,shippedBuildingDir\+'\/'\+filename\)/);
+ assert.match(build,/execFileSync\(process.execPath,\['scripts\/ensure-final-pbr-buildings\.mjs',shippedBuildingDir\]/);
  assert.match(build,/execFileSync\(process.execPath,\['scripts\/generate-factory-pbr\.mjs',shippedBuildingDir\]/);
  assert.doesNotMatch(build,/execFileSync\(process.execPath,\['scripts\/prepare-meshy-factory\.mjs'\]/);
  assert.doesNotMatch(build,/factory-procedural-\$\{team\}\.glb/);

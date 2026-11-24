@@ -29,7 +29,7 @@ test('build routes PBR restoration and all procedural generators to dist',()=>{
  const src=readFileSync('scripts/build.mjs','utf8');
  assert.match(src,/const shippedBuildingDir='dist\/src\/assets\/reborn\/buildings-3d'/);
  assert.ok(src.indexOf("cpSync('src/assets', 'dist/src/assets'")<
-  src.indexOf("cpSync('src/webgl-assets/buildings-3d/'+filename,shippedBuildingDir+'/'+filename)"));
+  src.indexOf("['scripts/ensure-final-pbr-buildings.mjs',shippedBuildingDir]"));
  for(const generator of ['generate-bastion-radar','generate-factory-pbr',
   'generate-energy-core-pbr','generate-airfield-pbr']){
   assert.ok(src.includes("['scripts/"+generator+".mjs',shippedBuildingDir]"),
