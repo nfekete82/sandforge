@@ -68,10 +68,22 @@ test('HQ opening: IndexedDB saves before HQ and during construction reload witho
  await complete(page,id);await page.evaluate(async()=>{const a=window.__reborn;await a.save();await a.load();a.game.paused=true;a.refresh();});
  await expect(page.locator('#radar-offline')).toBeHidden();expect(errors).toEqual([]);
 });
-for(const during of [false,true])test(`HQ opening: no softlock when only pioneer dies ${during?'during construction':'before HQ'}`,async({page})=>{
+for(const during of [false,true])test(`HQ opening: surviving infantry can continue until eliminated when only pioneer dies ${during?'during construction':'before HQ'}`,async({page})=>{
  const errors=await start(page);if(during)await placeHQ(page);
  const state=await page.evaluate(()=>{const a=window.__reborn,g=a.game;g.units.find(u=>u.owner===0&&u.kind==='engineer').hp=0;g.paused=false;g.step();g.paused=true;a.refresh();return {status:g.status,soldiers:g.units.filter(u=>u.owner===0&&u.kind==='infantry').length};});
- expect(state).toEqual({status:'defeat',soldiers:1});await expect(page.locator('#result-dialog')).toBeVisible();await expect(page.locator('#result-copy')).toContainText('Pionier');expect(errors).toEqual([]);
+ // Current elimination rules allow the surviving infantry to continue fighting.
+ expect(state).toEqual({status:'playing',soldiers:1});
+ await expect(page.locator('#result-dialog')).toBeHidden();
+ const finalState=await page.evaluate(()=>{
+  const a=window.__reborn,g=a.game;
+  for(const u of g.units)if(u.owner===0)u.hp=0;
+  for(const b of g.bases)if(b.owner===0)b.hp=0;
+  g.paused=false;g.step();g.paused=true;a.refresh();
+  return g.status;
+ });
+ expect(finalState).toBe('defeat');
+ await expect(page.locator('#result-dialog')).toBeVisible();
+ expect(errors).toEqual([]);
 });
 test('HQ opening: a legacy saved campaign with HQs loads with its normal radar and build menu',async({page})=>{
  const errors=await start(page);
