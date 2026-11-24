@@ -83,7 +83,7 @@ test('tactical: a safer income sector wins over a tower covered objective and re
 });
 
 test('tactical: an impassable flank selects heavier paid production and regrouping instead of repeated lone attacks',()=>{
- const {g,u,target}=fixture();target.point={x:1900,y:1900};const b=tower(g);reveal(g,b);const barracks=addProducer(g,'barracks',1);g.credits[1]=250;const count=g.units.length;force(g);
+ const {g,u,target}=fixture();target.point={x:1900,y:1900};const b=tower(g);reveal(g,b);const barracks=addProducer(g,'barracks',1);g.credits[1]=UNITS.heavy.cost;const count=g.units.length;force(g);
  assert.equal(barracks.queueTypes[0],'heavy');assert.equal(g.credits[1],0);assert.equal(g.units.length,count);assert.notEqual(g.tactical.state.phase,'attack');
  // The target itself is covered, so there is no safe route all the way to the capture point.
  for(let i=0;i<18;i++){g.time+=3;force(g);}assert.notEqual(g.tactical.state.phase,'attack');assert.ok(u.orders[0]?.tactical.mode==='safe');assert.ok(g.tactical.state.rally&&distance(g.tactical.state.rally,b)>600);
