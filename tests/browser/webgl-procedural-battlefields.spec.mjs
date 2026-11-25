@@ -105,6 +105,8 @@ for(const profile of profiles)test.describe(`${profile} full-detail terrain`,()=
 });
 
 test.describe('campaign menu and saved metadata',()=>{
+ // These tests can load two complete campaigns on a software renderer.
+ test.describe.configure({timeout:90000});
  test.use({deviceScaleFactor:Number(process.env.ATLAS_METADATA_DPR??1)});
 test('menu offers all six desert scenarios and starts the selected fixed seed and profile',async({page})=>{
  await preferLite(page);await page.goto('/',{waitUntil:'domcontentloaded'});await page.locator('#sf3d-new').click();

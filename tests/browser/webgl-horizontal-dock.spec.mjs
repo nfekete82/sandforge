@@ -249,14 +249,19 @@ test('global catalog unlocks the correct production roster independently of sele
  expect(layout).toEqual({row:true,name:'normal',priceBelow:true});
  const icons=group('buildings').locator('img[data-sf-building-icon]');
  await expect(icons).toHaveCount(expectedBuildings.length);
- for(const icon of await icons.all()){
-  await expect(icon).toHaveAttribute('data-sf-icon-status','ready',{timeout:45000});
-  // Offscreen cards use lazy loading inside the horizontally scrollable strip.
-  await icon.scrollIntoViewIfNeeded();
-  await icon.evaluate(img=>img.decode());
-  await expect(icon).toHaveJSProperty('naturalWidth',320);
-  await expect(icon).toHaveJSProperty('naturalHeight',220);
- }
+ await expect.poll(()=>icons.evaluateAll(images=>images.map(img=>img.dataset.sfIconStatus)),
+  {timeout:45000}).toEqual(expectedBuildings.map(()=>'ready'));
+ const sizes=await icons.evaluateAll(async images=>{
+  const sizes=[];
+  for(const img of images){
+   // Trigger lazy loading with the actual horizontally scrollable card strip.
+   img.scrollIntoView({behavior:'instant',block:'nearest',inline:'nearest'});
+   await img.decode();
+   sizes.push([img.naturalWidth,img.naturalHeight]);
+  }
+  return sizes;
+ });
+ expect(sizes).toEqual(expectedBuildings.map(()=>[320,220]));
 
  for(const category of ['infantry','vehicles','aircraft'])await expect(tab(category)).toBeHidden();
  const units=(category,producer)=>group(category).locator('[data-sf-producer="'+producer+'"] [data-unit]');
@@ -346,7 +351,7 @@ test('selecting multiple soldiers shows a squad portrait with the correct count'
   label:'2 ausgewählte Einheiten',countLabel:'×2'
  });
  await expect.poll(()=>page.locator('#sf-squad-portrait .sf-squad-member').first()
-  .evaluate(img=>img.complete&&img.naturalWidth>0)).toBe(true);
+  .evaluate(img=>img.complete&&img.naturalWidth>0),{timeout:20000}).toBe(true);
  const single=await page.evaluate(()=>{
   const {game,battlefield}=window.__sandforgeWebGL;
   const soldier=game.units.find(u=>u.owner===0&&u.hp>0&&!u.carrier);

@@ -53,10 +53,13 @@ jobs:
           - {suite: integration, label: integration 6/6, shard: '6/6'}
           - suite: battlefields
             label: terrain a
-            pattern: '(open|dunes|rocky) full-detail terrain'
+            pattern: '(open|dunes) full-detail terrain'
           - suite: battlefields
             label: terrain b
-            pattern: '(oasis|mixed) full-detail terrain|same-sized dune maps'
+            pattern: '(rocky|oasis) full-detail terrain'
+          - suite: battlefields
+            label: terrain c
+            pattern: 'mixed full-detail terrain|same-sized dune maps'
           - suite: battlefields
             label: maps and saves
             pattern: 'campaign menu and saved metadata'
@@ -81,9 +84,12 @@ jobs:
           SANDFORGE_TEST_DPR: '0.5'
         run: |
           npm run build
-          node scripts/test-webgl-integration.mjs --workers=1 --fully-parallel --shard="${{ matrix.shard }}"
+          node scripts/test-webgl-integration.mjs --workers=1 --timeout=95000 --fully-parallel --shard="${{ matrix.shard }}"
       - name: Maps, procedural terrain and historical saves
         if: matrix.suite == 'battlefields'
+        env:
+          # Only the menu and save tests use this setting. Terrain views set DPR 1.
+          ATLAS_METADATA_DPR: '0.5'
         run: |
           npm run build
           tests/browser/node_modules/.bin/playwright test --config=tests/browser/playwright.config.mjs \

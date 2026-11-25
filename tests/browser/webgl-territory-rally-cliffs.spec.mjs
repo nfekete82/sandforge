@@ -1,3 +1,4 @@
+import {rightClickWithCommandPulse} from './webgl-command-fixture.mjs';
 import {test,expect} from '@playwright/test';
 
 const route='/webgl-preview.html?bastions=4&seed=2074&lite=1&pause=1';
@@ -498,7 +499,7 @@ test('3D parity: click a completed base and right-click the map to set rally imm
   await page.mouse.click(fixture.baseClick.x,fixture.baseClick.y);
   expect(await page.evaluate(()=>window.__sandforgeWebGL.battlefield.selectedBase)).toBe(fixture.id);
   expect(await page.evaluate(()=>window.__sandforgeWebGL.battlefield.rallyMode)).toBe(false);
-  await page.mouse.click(fixture.targetClick.x,fixture.targetClick.y,{button:'right'});
+  const pulse=await rightClickWithCommandPulse(page,fixture.targetClick);
   const result=await page.evaluate(id=>{
     const v=window.__sandforgeWebGL,b=v.battlefield;
     const base=v.game.bases.find(x=>x.id===id);
@@ -550,14 +551,14 @@ test('3D parity: model click selects a soldier, RMB on ground issues one movemen
   await page.mouse.click(fixture.unitClick.x,fixture.unitClick.y);
   const selected=await page.evaluate(id=>window.__sandforgeWebGL.battlefield.selected.has(id),fixture.id);
   expect(selected).toBe(true);
-  await page.mouse.click(fixture.targetClick.x,fixture.targetClick.y,{button:'right'});
+  const pulse=await rightClickWithCommandPulse(page,fixture.targetClick);
   const state=await page.evaluate(id=>{
     const v=window.__sandforgeWebGL,u=v.game.units.find(x=>x.id===id);
-    return {kind:u.orders.at(-1)?.kind,pulse:v.battlefield.commandPulse.visible,
+    return {kind:u.orders.at(-1)?.kind,
       message:v.battlefield.panel.querySelector('#sf-message').textContent};
   },fixture.id);
   expect(state.kind).toBe('move');
-  expect(state.pulse).toBe(true);
+  expect(pulse.visible).toBe(true);
   expect(state.message).toContain('Marsch');
 });
 

@@ -1,3 +1,4 @@
+import {rightClickWithCommandPulse} from './webgl-command-fixture.mjs';
 import {buildWebGLFacility,completeWebGLFacility} from './production-fixture.mjs';
 import {test,expect} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
@@ -153,11 +154,7 @@ test('3D RTS: original-style HUD starts live and a real right click moves select
  expect(state.y).toBeGreaterThan(90);
  expect(state.y).toBeLessThan(770);
  await page.locator('[data-action="select-all"]').click();
- await page.mouse.click(state.x,state.y,{button:'right'});
- const pulse=await page.evaluate(()=>{
-  const p=window.__sandforgeWebGL.battlefield.commandPulse;
-  return {visible:p.visible,opacity:p.material.opacity,position:p.position.clone().toArray()};
- });
+ const pulse=await rightClickWithCommandPulse(page,state);
  expect(pulse.visible).toBe(true);
  expect(pulse.opacity).toBeGreaterThan(.3);
  await expect(page.locator('#sf-message')).toContainText('Marsch');
