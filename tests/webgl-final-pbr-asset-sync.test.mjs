@@ -72,14 +72,30 @@ test('standard WebGL build packages all four final PBR sources byte for byte',()
 test('every texturable HQ and barracks surface has embedded UV-mapped PBR',()=>{
  for(const kind of ['headquarters','barracks'])for(const team of [0,1]){
   const name=kind+'-'+team+'.glb';
-  const {json}=readGLB(name);
+  const {bytes,json}=readGLB(name);
+  const bin=bytes.subarray(28+bytes.readUInt32LE(12));
+  const checkedNormals=new Set();
   for(const mesh of json.meshes)for(const primitive of mesh.primitives){
    const material=json.materials[primitive.material];
    const label=name+' '+material.name;
    if(material.emissiveFactor?.some(value=>value>0))continue;
    const pbr=material.pbrMetallicRoughness;
    assert.ok(primitive.attributes.POSITION!==undefined,label+' geometry');
-   assert.ok(primitive.attributes.NORMAL!==undefined,label+' normals');
+   const normalIndex=primitive.attributes.NORMAL;
+   assert.ok(normalIndex!==undefined,label+' normals');
+   if(!checkedNormals.has(normalIndex)){
+    const normal=json.accessors[normalIndex];
+    const view=json.bufferViews[normal.bufferView];
+    const start=(view.byteOffset??0)+(normal.byteOffset??0);
+    assert.equal(normal.componentType,5126,label+' float normals');
+    assert.equal(normal.type,'VEC3',label+' normal vector');
+    for(let i=0;i<normal.count;i++){
+     const at=start+i*(view.byteStride??12);
+     const length=Math.hypot(bin.readFloatLE(at),bin.readFloatLE(at+4),bin.readFloatLE(at+8));
+     assert.ok(Math.abs(length-1)<.015,label+' unit normal at vertex '+i);
+    }
+    checkedNormals.add(normalIndex);
+   }
    for(const map of [pbr?.baseColorTexture,material.normalTexture,pbr?.metallicRoughnessTexture]){
     assert.ok(map,label+' PBR texture missing');
     const image=json.images[json.textures[map.index].source];

@@ -51,8 +51,8 @@ jobs:
           sha256sum --check <<'HASHES'
           5ad36a98f3b9ac75e72825e5b23e33a3fe2958eafe35ab5c99112196486a2ff6  src/release-pbr/barracks-0.glb
           5ad36a98f3b9ac75e72825e5b23e33a3fe2958eafe35ab5c99112196486a2ff6  src/release-pbr/barracks-1.glb
-          d15449fa57da69c965dbffc29468bed1c37f2805324efeaaadf757f7b28efed4  src/release-pbr/headquarters-0.glb
-          b6741c0cde7211413bc2033b251b91036b35ca486c84d57303f2c6ef07af8ddb  src/release-pbr/headquarters-1.glb
+          4559ffecbc2c85c59c026101b91c6740b305ce1510cb25054096a3c56603c567  src/release-pbr/headquarters-0.glb
+          654dda685e8a31268d4877683d91dbc045fc29a1cb1d78b4ca7575c458be414d  src/release-pbr/headquarters-1.glb
           HASHES
           git diff --name-only --no-renames -z "${{ github.event.pull_request.base.sha }}" HEAD > "$RUNNER_TEMP/sandforge-paths"
           while IFS= read -r -d '' file; do
