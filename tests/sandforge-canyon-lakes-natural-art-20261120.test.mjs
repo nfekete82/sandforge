@@ -18,9 +18,8 @@ test('original canyon palettes plus the authored plateau palette remain distinct
  assert.deepEqual(Object.keys(CANYON_GEOLOGY),names);
  assert.equal(new Set(Object.values(CANYON_GEOLOGY).map(g=>g.base)).size,6);
  assert.ok(GEOLOGICAL_RINGS.length>=14,'stepped shelves need real density');
- const gray=CANYON_GEOLOGY['last-stronghold'];
- assert.match(gray.dark,/^#2e3338$/);
- assert.match(CANYON_GEOLOGY['burning-horizon'].base,/^#9b958c$/);
+ assert.equal(CANYON_GEOLOGY['last-stronghold'].dark,'#594635');
+ assert.equal(CANYON_GEOLOGY['burning-horizon'].base,'#b8a084');
 });
 
 test('fractured legacy mesa geometry has no sunken flat-colored polygon skirt',()=>{

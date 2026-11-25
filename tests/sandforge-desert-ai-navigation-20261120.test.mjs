@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
 import '../scripts/webgl-desert-maps.js';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {UNITS} from '../dist/src/reborn/catalog.js';
@@ -30,10 +29,11 @@ test('validated strategy never chooses a blocked or false canyon entrance',()=>{
  assert.equal(original.x,500,'old v4 caller keeps exactly its old heuristic');
 });
 
-for(const m of maps.filter(m=>m.generatorVersion===5&&m.kind!=='open-basin'))test(
- m.name+': every physically drawn gap has at least one verified route from each bank',()=>{
- const g=Simulation.campaign(m.seed,m.mapVersion,m.terrain,m.generatorVersion);
+for(const m of maps.filter(m=>m.id==='broken-empire'||m.id==='last-stronghold'))test(
+ m.name+' (v5): every physically drawn gap has at least one verified route from each bank',()=>{
+ const g=Simulation.campaign(m.seed,m.mapVersion,m.terrain,5);
  const w=g.world,ridge=w.generated.ridges[0];
+ assert.ok(ridge.ramps.length,'the historical fixture must expose a real pass');
  for(const p of ridge.ramps){
   const y=ridgeHeightAtX(ridge,p.x),shift=ridge.width*.5+210;
   const near={x:p.x,y:y-shift},far={x:p.x,y:y+shift};
@@ -54,24 +54,30 @@ for(const m of maps.filter(m=>m.generatorVersion===5&&m.kind!=='open-basin'))tes
  }
 });
 
-test('Burning Horizon retains the proven faster original v4 routes',()=>{
+test('Burning Horizon saves retain their original v4 routes after the v10 map update',()=>{
  const p=maps.find(m=>m.id==='burning-horizon');
- assert.equal(p.generatorVersion,4);
- const game=Simulation.campaign(p.seed,p.mapVersion,p.terrain,p.generatorVersion);
+ assert.equal(p.generatorVersion,10);
+ const game=Simulation.campaign(p.seed,p.mapVersion,p.terrain,4);
  assert.equal(game.world.generatorVersion,4);
  assert.equal(game.world.generated.landscapeKind,'diagonal-ridge');
  assert.equal(game.tactical.ai37Mode,'coordinated');
- assert.equal(Simulation.load(game.save()).world.generatorVersion,4);
+ const restored=Simulation.load(JSON.parse(JSON.stringify(game.save())));
+ assert.equal(restored.world.generatorVersion,4);
+ assert.deepEqual(restored.world.generated.ridges,game.world.generated.ridges);
+ assert.deepEqual(restored.world.blocked,game.world.blocked);
 });
 
 test('backwards compatibility: v4 physical-pass override never changes historical saves',()=>{
- const p=maps.at(-1);
+ const p=maps.find(m=>m.id==='last-stronghold');
  const old=Simulation.campaign(p.seed,p.mapVersion,p.terrain,4);
- assert.equal(old.world.generatorVersion,4);
- const oldPass=old.world.generated.ridges[0].ramps[0];
- assert.ok(Number.isFinite(oldPass.x));
- // The updated pathfinder receives an opt-in callback only for v5.
- const source=readFileSync('src/reborn/world.ts','utf8');
- assert.match(source,/generatorVersion===5&&Number\.isFinite\(maxSlope\)/);
- assert.equal(Simulation.load(old.save()).world.generatorVersion,4);
+ const restored=Simulation.load(old.save());
+ assert.equal(restored.world.generatorVersion,4);
+ const ridge=old.world.generated.ridges[0],pass=ridge.ramps[0];
+ const y=ridgeHeightAtX(ridge,pass.x),shift=ridge.width*.5+210;
+ const near={x:pass.x,y:y-shift},far={x:pass.x,y:y+shift};
+ const route=world=>world.path(near,far,[],clearance(),undefined,true,false,false,slope);
+ const expected=route(old.world);
+ assert.ok(expected.length>0);
+ restored.world.physicalPassAvailable=()=>{throw Error('Historical v4 navigation called the newer pass validator');};
+ assert.deepEqual(route(restored.world),expected);
 });

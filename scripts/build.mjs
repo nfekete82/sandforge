@@ -215,14 +215,12 @@ else{
 // Authored src/assets variants, if present, take precedence.
 execFileSync(process.execPath,['scripts/generate-flame-tank-pbr.mjs',
  'dist/src/assets/reborn/animation'],{stdio:'inherit'});
-// Prefer original fully authored, animated HQ/Barracks PBR worktrees from
-// 20 Nov midday. Their private source GLBs are not necessarily on GitHub;
-// preserve the tracked pre-Meshy fallbacks if no local PBR source is mounted.
-try{
+// The standard build uses the tracked assets on every host. Local art-preview
+// sources must be selected explicitly and pass the same validation as before.
+if(process.env.SANDFORGE_REQUIRE_FINAL_PBR==='1'||[
+ 'SANDFORGE_COMBINED_PBR_SOURCE','SANDFORGE_BARRACKS_SOURCE','SANDFORGE_HQ_SOURCE',
+].some(name=>process.env[name])){
  execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs',shippedBuildingDir],{stdio:'inherit'});
-}catch(error){
- if(process.env.SANDFORGE_REQUIRE_FINAL_PBR==='1')throw error;
- console.warn('Final HQ/Barracks PBR source not mounted. Using tracked pre-Meshy GLBs instead.');
 }
 console.log('Sandforge buildings restored to:',BUILDING_ART_REFERENCE);
 // The Bastion, unlike the authored large HQ/barracks binaries, is fully

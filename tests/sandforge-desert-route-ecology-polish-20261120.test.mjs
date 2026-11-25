@@ -38,7 +38,7 @@ test('natural scenery patches are deterministic, sparse and respect quality budg
 
 test('navigation change is opt-in for modern physical maps, with fallback',()=>{
  const source=readFileSync('src/reborn/world.ts','utf8');
- assert.match(source,/const verifyApproach=allowPartial&&!air&&this\.generatorVersion===5&&/);
+ assert.match(source,/const verifyApproach=allowPartial&&!air&&this\.generatorVersion>=5&&/);
  assert.match(source,/this\.line\(start,near,obstacles,clearance,maxSlope\)/);
  assert.match(source,/this\.physicalPassAvailable\(near,far,clearance,maxSlope\)/);
  assert.match(source,/const pass=directlyReachablePass\?\?/);

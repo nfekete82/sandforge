@@ -5,12 +5,19 @@ import {Simulation} from '../dist/src/reborn/simulation.js';
 import {mapLayout,campaignLayout,RULES} from '../dist/src/reborn/config.js';
 import {UNITS,BUILDINGS,unitKinds} from '../dist/src/reborn/catalog.js';
 import {globalCatalogAvailability} from '../scripts/webgl-global-catalog.js';
+import '../scripts/webgl-desert-maps.js';
 
-test('modern campaigns use 8/12/16 Bastions, with eight selected in both 3D menus',()=>{
+test('modern campaigns use 8/12/16 Bastions, with the eight-Bastion scenario selected by default',()=>{
  const html=readFileSync('webgl-preview.html','utf8');
  assert.match(html,/<select id="bastions"><option value="8" selected>8<\/option>/);
- assert.match(html,/<select id="sf3d-map-size"><option value="8" selected>Standard · 8 Bastionen<\/option>/);
- assert.doesNotMatch(html,/<option value="4">Klein · 4 Bastionen<\/option>/);
+ const chooser=html.match(/<select id="sf3d-desert-map">([\s\S]*?)<\/select>/)?.[1];
+ assert.ok(chooser);
+ const options=[...chooser.matchAll(/<option value="([^"]+)"( selected)?>([^<]+)<\/option>/g)];
+ const presets=globalThis.SandforgeDesertMaps.maps;
+ assert.deepEqual(options.map(([,id])=>id),presets.map(map=>map.id));
+ assert.deepEqual(options.filter(([, ,selected])=>selected).map(([,id])=>id),['desert-strike']);
+ assert.equal(presets[0].bastions,8);
+ assert.deepEqual([...new Set(presets.map(map=>map.bastions))],[8,12,16]);
  for(const [version,count] of [[24,8],[25,12],[26,16]]){
   const layout=mapLayout(version);
   assert.equal(layout.columns*layout.rows,count);

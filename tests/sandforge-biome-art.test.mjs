@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {existsSync,readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {BIOME_STYLES,normalizeBiome,addBiomeVegetation} from '../scripts/webgl-biomes.js';
+import '../scripts/webgl-desert-maps.js';
 
 test('all three biomes have distinct, validated visual palettes',()=>{
  assert.deepEqual(Object.keys(BIOME_STYLES),['desert','snow','jungle']);
@@ -16,15 +17,18 @@ test('all three biomes have distinct, validated visual palettes',()=>{
  for(const name of [null,'','Jungle','../../secret','volcano'])assert.equal(normalizeBiome(name),'desert');
 });
 
-test('WebGL build packages biome renderer and menu selection',()=>{
+test('WebGL build packages the fixed desert menu and supports saved Snow and Jungle visuals',()=>{
  assert.ok(existsSync('dist/webgl-biomes.js'));
  const html=readFileSync('dist/webgl-preview.html','utf8');
  const preview=readFileSync('dist/webgl-preview.js','utf8');
  const menu=readFileSync('dist/webgl-title-menu.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
- assert.match(html,/id="sf3d-biome"/);
- assert.match(html,/<option value="snow">/);
- assert.match(html,/<option value="jungle">/);
+ assert.match(html,/id="sf3d-desert-map"/);
+ assert.doesNotMatch(html,/id="sf3d-biome"/);
+ assert.ok(globalThis.SandforgeDesertMaps.maps.every(map=>map.biome==='desert'));
+ assert.match(menu,/validBiome\(visual\.biome\)/);
+ assert.match(menu,/params\.set\('biome',validBiome\(biome\)\)/);
+ assert.match(preview,/normalizeBiome\(query\.get\('biome'\)\)/);
  assert.match(preview,/addBiomeVegetation\(/);
  assert.match(preview,/biome==='desert'\?sandTexture\(\)/);
  assert.match(preview,/new SandforgeCombatEffects\(\{[^}]*biome/);

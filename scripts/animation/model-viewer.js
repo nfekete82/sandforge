@@ -64,6 +64,7 @@ function fitBomberPreview(model){
  model.updateMatrixWorld(true);
 }
 let kind='infantry',team=0,current=null,currentData=null,mixer=null,action=null,clip='Idle',paused=false,request=0;
+let needsRender=true;
 async function faction(value){team=value;const token=++request,key=kind+':'+value,url=modelPath(kind,value);document.getElementById('status').textContent='Modell wird geladen …';document.getElementById('error').textContent='';let data=cache.get(key);if(!data){data=await loader.loadAsync(url);await reuseBuildingTextures(data);delete data.parser;cache.set(key,data);}if(token!==request)return;
  if(current){mixer?.stopAllAction();mixer?.uncacheRoot(current);scene.remove(current);}current=data.scene;if(kind==='bomber')fitBomberPreview(current);if(['scout','artillery'].includes(kind)&&!current.userData.previewFitted){fitBomberPreview(current);current.userData.previewFitted=true;}currentData=data;scene.add(current);let design;current.traverse(n=>{if(n.isMesh)n.castShadow=n.receiveShadow=true;if(n.userData.atlasDesign)design=n.userData.atlasDesign;});mixer=new T.AnimationMixer(current);action=null;if(data.animations.length)play(kind==='infantry'?(clip==='Operation'||!data.animations.some(c=>c.name===clip)?'Idle':clip):'Operation');else clip='';
  const bounds=new T.Box3().setFromObject(current),extent=bounds.getSize(new T.Vector3()),center=bounds.getCenter(new T.Vector3()),distance=Math.max(.6,extent.x,extent.y,extent.z)*(kind==='infantry'?1.8:2.3);controls.target.copy(center);camera.position.set(center.x+distance*.60,center.y+distance*.43,center.z+distance*.98);controls.minDistance=Math.max(.7,extent.length()*.35);controls.maxDistance=kind==='bomber'?Math.min(distance*3,14):kind==='scout'?Math.min(distance*3,10):distance*3;if(kind==='artillery')controls.maxDistance=Math.min(controls.maxDistance,10);controls.update();
@@ -76,14 +77,26 @@ async function faction(value){team=value;const token=++request,key=kind+':'+valu
  let meshCount=0,triangleCount=0;current.traverse(n=>{if(n.isMesh){meshCount++;triangleCount+=(n.geometry.index?.count??n.geometry.attributes.position.count)/3;}});
  const parts=design?.parts??meshCount,triangles=design?.triangles??triangleCount;
  document.getElementById('status').textContent=`${parts} Bauteile · ${Math.round(triangles).toLocaleString('de-DE')} Dreiecke · ${data.animations.length?data.animations.length+' echte Clips':isVehicle(kind)?'Bewegungsphasen im Spriteatlas':'Keine Animationsclips'} · Modell mit der Maus drehen`;
+ needsRender=true;
 }
-function play(name){clip=name;if(!mixer)return;mixer.stopAllAction();if(name==='Operation'){for(const c of currentData.animations)mixer.clipAction(c).reset().setLoop(T.LoopRepeat,Infinity).play();}else{action=mixer.clipAction(currentData.animations.find(c=>c.name===name));action.reset();action.setLoop(['Death','HitReact','Idle_Shoot'].includes(name)?T.LoopOnce:T.LoopRepeat,Infinity);action.clampWhenFinished=true;action.play();}mixer.update(0);for(const b of document.querySelectorAll('[data-clip]'))b.setAttribute('aria-pressed',String(b.dataset.clip===name));}
+function play(name){clip=name;if(!mixer)return;mixer.stopAllAction();if(name==='Operation'){for(const c of currentData.animations)mixer.clipAction(c).reset().setLoop(T.LoopRepeat,Infinity).play();}else{action=mixer.clipAction(currentData.animations.find(c=>c.name===name));action.reset();action.setLoop(['Death','HitReact','Idle_Shoot'].includes(name)?T.LoopOnce:T.LoopRepeat,Infinity);action.clampWhenFinished=true;action.play();}mixer.update(0);needsRender=true;for(const b of document.querySelectorAll('[data-clip]'))b.setAttribute('aria-pressed',String(b.dataset.clip===name));}
 for(const b of document.querySelectorAll('[data-clip]'))b.onclick=()=>play(b.dataset.clip);for(const [id,t] of [['blue',0],['red',1],['neutral',-1]])document.getElementById(id).onclick=()=>faction(t).catch(fail);
 document.getElementById('model').onchange=event=>{kind=event.target.value;faction(team===-1&&kind!=='bastion'?0:team).catch(fail);};
 document.getElementById('pause').onclick=()=>{paused=!paused;document.getElementById('pause').textContent=paused?'Fortsetzen':'Pause';};
 function fail(error){document.getElementById('error').textContent=String(error);}
-new ResizeObserver(()=>{renderer.setSize(stage.clientWidth,stage.clientHeight,false);camera.aspect=stage.clientWidth/stage.clientHeight;camera.updateProjectionMatrix();}).observe(stage);
-let last=performance.now();renderer.setAnimationLoop(now=>{const dt=Math.min(.05,(now-last)/1000);last=now;if(!paused)mixer?.update(dt);controls.update();renderer.render(scene,camera);});
+new ResizeObserver(()=>{renderer.setSize(stage.clientWidth,stage.clientHeight,false);camera.aspect=stage.clientWidth/stage.clientHeight;camera.updateProjectionMatrix();needsRender=true;}).observe(stage);
+// OrbitControls can still move a paused model. Only submit shadow and scene
+// passes when the model, viewport, animation or camera actually changed.
+controls.addEventListener('change',()=>{needsRender=true;});
+let last=performance.now();
+renderer.setAnimationLoop(now=>{
+ const dt=Math.min(.05,(now-last)/1000);last=now;
+ const animated=!paused&&Boolean(currentData?.animations.length);
+ if(animated)mixer.update(dt);
+ controls.update();
+ if(!animated&&!needsRender)return;
+ renderer.render(scene,camera);needsRender=false;
+});
 window.__model3D={get current(){return current;},get mixer(){return mixer;},get clip(){return clip;},get team(){return team;},get kind(){return kind;},get data(){return currentData;},camera,controls,renderer,render(){renderer.render(scene,camera);},pause(){paused=true;},play};
 const requested=new URL(location.href).searchParams.get('model');if(requested&&Array.from(document.getElementById('model').options).some(o=>o.value===requested)){kind=requested;document.getElementById('model').value=kind;}
 faction(0).catch(fail);

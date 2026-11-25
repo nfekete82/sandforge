@@ -102,5 +102,5 @@ test('Bunker right-click detection is independent of other units overlapping the
  assert.match(source,/UNITS\[u\.kind\]\.group==='Infanterie'/);
  assert.match(source,/this\.game\.boardBunker\(bunker\.id,ids\)/);
  assert.doesNotMatch(source,/const bunker=hit\?\.type==='base'&&hit\.entity\.kind==='bunker'/);
- assert.match(source,/if\(type==='unit'\)\s+entry\.microSurface=enhanceMilitaryMicroPBR/);
+ assert.match(source,/if\(type==='unit'&&entry\.kind!=='bomber'\)\s+entry\.microSurface=enhanceMilitaryMicroPBR/);
 });

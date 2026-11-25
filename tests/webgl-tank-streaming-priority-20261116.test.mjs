@@ -19,14 +19,14 @@ test('real authored combat tank model ships for blue/red factions',()=>{
   assert.ok(names.has('Tank_Gun'),'real tank needs an independent cannon rig');
  }
  assert.match(build,/cpSync\('src\/assets', 'dist\/src\/assets', \{recursive:true\}\)/);
- assert.match(battlefield,/\['rover','tank','artillery','scout','bomber'\]\.includes\(kind\)\?'animation\/'/);
+ assert.match(battlefield,/\['rover','tank','flamer','artillery','scout','bomber'\]\.includes\(kind\)\?'animation\/'/);
 });
 
 test('tank model streams in lite mode with high priority and a bounded error retry',()=>{
- assert.match(battlefield,/const priorityTank=type==='unit'&&entity.kind==='tank'/);
- assert.match(battlefield,/\['medic','rocket','tank'\]\.includes\(entity\.kind\)/);
+ assert.match(battlefield,/const priorityTank=type==='unit'&&\['tank','flamer'\]\.includes\(entity\.kind\)/);
+ assert.match(battlefield,/\['medic','rocket','tank','flamer'\]\.includes\(entity\.kind\)/);
  assert.match(battlefield,/!priorityTank&&this\.loadingCount\+this\.modelQueue\.length>=this\.maxModels/);
- assert.match(battlefield,/\['tank','medic'\]\.includes\(entity\.kind\)/);
+ assert.match(battlefield,/\['tank','flamer','medic'\]\.includes\(entity\.kind\)/);
  assert.match(battlefield,/entry\.modelLoadError=null;entry\.modelLoadRetries=0/);
  assert.match(battlefield,/entry\.modelLoadRetries=\(entry\.modelLoadRetries\?\?0\)\+1/);
  assert.match(battlefield,/entry\.requested=false/);
@@ -42,5 +42,5 @@ test('a transient tank placeholder has genuine desert-armoured tracked silhouett
  assert.match(battlefield,/Tank_MainCannon/);
  assert.match(battlefield,/Tank_MuzzleBrake/);
  assert.match(battlefield,/color:'#9b9176'/);
- assert.match(battlefield,/if\(kind!=='tank'\)for\(const x of \[-22,22\]\)/);
+ assert.match(battlefield,/if\(!\['tank','flamer'\]\.includes\(kind\)\)for\(const x of \[-22,22\]\)/);
 });
