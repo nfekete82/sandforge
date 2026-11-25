@@ -1,14 +1,24 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {Box3} from 'three';
 import {createStrategicBuilding} from '../scripts/webgl-strategic-buildings.js';
 
 test('silo and lab retain their major 3D signatures after static batching',()=>{
  const silo=createStrategicBuilding('silo',0);
  const lab=createStrategicBuilding('research',0);
- assert.ok(silo.getObjectByName('Silo_RocketBody'));
- assert.ok(silo.getObjectByName('Silo_RocketNose'));
- assert.ok(silo.getObjectByName('Silo_RocketStageSeam'));
+ const hull=silo.getObjectByName('Silo_RocketBody');
+ const nose=silo.getObjectByName('Silo_RocketNose');
+ const joint=silo.getObjectByName('Silo_RocketHatchJoint');
+ const opening=silo.getObjectByName('Silo_TerrainOcclusion');
+ assert.ok(hull?.isMesh&&nose?.isMesh&&joint?.isMesh&&opening?.isMesh);
+ const bodyBounds=new Box3().setFromObject(hull);
+ const noseBounds=new Box3().setFromObject(nose);
+ const jointBounds=new Box3().setFromObject(joint);
+ assert.equal(joint.geometry.type,'TorusGeometry');
+ assert.ok(Math.abs(bodyBounds.max.y-noseBounds.min.y)<.01,'nose meets the hull without a gap');
+ assert.ok(Math.abs(jointBounds.min.y-opening.position.y)<.05,'the seal meets the shaft opening');
+ assert.ok(bodyBounds.min.y<opening.position.y&&bodyBounds.max.y>jointBounds.max.y);
  assert.ok(lab.getObjectByName('Research_Radar'));
  assert.ok(lab.getObjectByName('Research_SensorArray'));
  for(const model of [silo,lab]){

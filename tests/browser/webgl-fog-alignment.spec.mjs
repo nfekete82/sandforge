@@ -135,7 +135,9 @@ test('legacy 3D preview URLs retain Sandforge logo, true Fog of War and empty bl
     name:logo?.alt
    },
    fog:b.fogEnabled,visibleOverlay:b.fogNodes.every(n=>n.visible),
-   fogTint:b.fogNodes[0].material.fragmentShader.includes('vec4(0.018,0.023,0.026,a)'),
+   fogTint:b.fogNodes[0].material.fragmentShader.includes(
+    'vec4(mix(vec3(0.018,0.023,0.026),vec3(0.0),bloomMask),a)'),
+   fogAlphaShared:b.fogNodes.every(node=>node.material.uniforms.fogTex.value===b.fogTexture),
    darkBackground:v.scene.background.getHexString(),
    unexploredCells:undiscovered,
    void:{hardVoid:v.visualPerimeter?.hardVoid,
@@ -154,6 +156,7 @@ test('legacy 3D preview URLs retain Sandforge logo, true Fog of War and empty bl
  expect(state.fog).toBe(true);
  expect(state.visibleOverlay).toBe(true);
  expect(state.fogTint).toBe(true);
+ expect(state.fogAlphaShared).toBe(true);
  expect(state.button).toContain('NEBEL AN');
  expect(state.darkBackground).toBe('000000');
  expect(state.unexploredCells).toBeGreaterThan(100);

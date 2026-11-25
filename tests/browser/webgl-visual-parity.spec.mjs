@@ -105,7 +105,7 @@ test('hard-black desert edge contains no off-map geometry, palms or fog leaks',a
  expect(state.unknown).toBe(true);
 });
 
-test('3D buildings receive texture-based fill without brightening sand or soldier materials',async({page})=>{
+test('Legacy buildings receive textured fill while authored PBR, sand and soldiers retain their materials',async({page})=>{
  test.setTimeout(125000);
  await page.setViewportSize({width:1440,height:900});
  await page.goto('/webgl-preview.html?bastions=4&seed=2074&lite=1&pause=1',
@@ -133,7 +133,7 @@ test('3D buildings receive texture-based fill without brightening sand or soldie
   b.sync(true,.06,false,1);
   return {id:base.id,exposure:v.renderer.toneMappingExposure,
    // The procedural placeholder deliberately has a subtle .065 fill.
-   // Loaded PBR building meshes use the stronger textured .22 lift below.
+   // The legacy Bastion GLB uses the stronger textured .22 lift below.
    fallbackLit:fallbackMaterials.length>0&&fallbackMaterials.every(m=>
     m.isMeshStandardMaterial&&m.emissiveIntensity===.065&&
     m.emissive.getHex()===m.color.getHex()),
@@ -151,34 +151,49 @@ test('3D buildings receive texture-based fill without brightening sand or soldie
   return Boolean(b.bases.get(id)?.detail);
  },fixture.id,{timeout:65000});
  const state=await page.evaluate(async id=>{
-  const b=window.__sandforgeWebGL.battlefield;
-  const model=b.bases.get(id).detail;
-  const materials=[];
-  model.traverse(obj=>{
-   if(obj.isMesh){
-    const values=Array.isArray(obj.material)?obj.material:[obj.material];
-    materials.push(...values.filter(m=>m?.isMeshStandardMaterial));
-   }
-  });
-  const original=(await b.getModel(b.asset('headquarters',0,'building'))).scene;
-  const originals=[];
-  original.traverse(obj=>{
-   if(obj.isMesh){
-    const values=Array.isArray(obj.material)?obj.material:[obj.material];
-    originals.push(...values.filter(m=>m?.isMeshStandardMaterial));
-   }
-  });
-  return {modelMaterials:materials.length,
-   colored:materials.every(m=>m.userData.sandforgeBuildingFill===true&&m.emissiveIntensity===.22),
-   textured:materials.filter(m=>m.map).length,
-   mapUsedAsFill:materials.filter(m=>m.map).every(m=>m.emissiveMap===m.map),
-   originalUnchanged:originals.every(m=>!m.userData?.sandforgeBuildingFill)};
+  const {game,battlefield:b}=window.__sandforgeWebGL;
+  const materials=root=>{
+   const list=[];
+   root.traverse(obj=>{
+    if(obj.isMesh)list.push(...[obj.material].flat().filter(m=>m?.isMeshStandardMaterial));
+   });
+   return list;
+  };
+  const hq=b.bases.get(id).detail;
+  const hqSource=(await b.getModel(b.asset('headquarters',0,'building'))).scene;
+  const sourceMaterials=materials(hqSource);
+  const hqMaterials=materials(hq).filter(m=>m.map&&m.normalMap&&m.roughnessMap&&
+   sourceMaterials.some(original=>m.map===original.map&&m.normalMap===original.normalMap&&
+    m.roughnessMap===original.roughnessMap));
+  const native=!!hqSource.getObjectByName('HQ_Static_SF_OriginalPBR_walls');
+  const sector=game.territories.find(t=>t.owner===0);
+  const bastion=b.bastions.get(sector.id);
+  await b.loadBastionModel(bastion,sector.owner);
+  const bastionMaterials=materials(bastion.detail);
+  const template=(await b.getModel('/src/assets/reborn/buildings-3d/bastion-'+sector.owner+'.glb')).scene;
+  const textured=bastionMaterials.filter(m=>m.map);
+  return {modelMaterials:bastionMaterials.length,textured:textured.length,
+   colored:bastionMaterials.every(m=>m.userData.sandforgeBuildingFill===true&&m.emissiveIntensity===.22),
+   mapUsedAsFill:textured.every(m=>m.emissiveMap===m.map),
+   originalUnchanged:materials(template).every(m=>!m.userData.sandforgeBuildingFill),
+   nativeHQ:!!hq.userData.sandforgeOriginalPBR,authoredHQ:native,
+   hqFillMatches:hqMaterials.every(m=>{
+    if(native)return !m.userData.sandforgeBuildingFill;
+    if(m.userData.sandforgeBuildingFill!==true)return false;
+    return m.userData.sandforgeBuildingPBRRole?
+     m.emissiveMap===null&&m.emissiveIntensity===.075:
+     m.emissiveMap===m.map&&m.emissiveIntensity===.22;
+   }),
+   hqSourceMaps:hqMaterials.length};
  },fixture.id);
  expect(state.modelMaterials).toBeGreaterThan(0);
  expect(state.colored).toBe(true);
  expect(state.textured).toBeGreaterThan(0);
  expect(state.mapUsedAsFill).toBe(true);
  expect(state.originalUnchanged).toBe(true);
+ expect(state.nativeHQ).toBe(state.authoredHQ);
+ expect(state.hqFillMatches).toBe(true);
+ expect(state.hqSourceMaps).toBeGreaterThan(0);
 });
 
 test('loaded GLB turret head, real muzzle nodes, flashes and shot traces share one heading',async({page})=>{

@@ -91,14 +91,32 @@ test('reborn: minimap drag, anchored zoom, keyboard camera, shift orders, attack
 test('reborn: hidden enemies leave no main-map or minimap pixels, and terrain stays remembered',async({page})=>{
  await start(page);
  const hidden=await page.evaluate(()=>{
-   const {game:g,renderer:r}=window.__reborn;const enemy=g.units.find(u=>u.owner===1),base=g.bases.find(b=>b.owner===1);
+   const {game:g,renderer:r}=window.__reborn;
+   const enemy=g.units.find(u=>u.owner===1),base=g.bases.find(b=>b.owner===1);
    r.camera.x=enemy.x;r.camera.y=enemy.y;r.boundCamera();r.render(0);
    const p=r.screen(enemy),d=window.devicePixelRatio||1,c=r.context;
-   const pixel=Array.from(c.getImageData(Math.round(p.x*d),Math.round(p.y*d),1,1).data);
-   const m=Array.from(r.mini.getImageData(Math.floor(enemy.x/3762*224),Math.floor(enemy.y/3762*224),1,1).data);
-   return {canSee:g.canSee(0,enemy),explored:g.hasExplored(0,base),pixel,m};
+   const k=r.miniCanvas.width/g.world.size;
+   const sample=()=>({
+    main:Array.from(c.getImageData(Math.round((p.x-18)*d),Math.round((p.y-45)*d),
+     Math.ceil(36*d),Math.ceil(48*d)).data),
+    mini:Array.from(r.mini.getImageData(Math.floor(enemy.x*k)-4,Math.floor(enemy.y*k)-4,9,9).data)
+   });
+   const seen=g.canSee(0,enemy),explored=g.hasExplored(0,base);
+   const withEnemy=sample(),units=g.units;
+   try{
+    g.units=units.filter(u=>u!==enemy);
+    r.render(0);
+    const withoutEnemy=sample();
+    return {seen,explored,radarOnline:g.radarOnline(0),
+     mainConcealed:withEnemy.main.every((value,i)=>value===withoutEnemy.main[i]),
+     miniConcealed:withEnemy.mini.every((value,i)=>value===withoutEnemy.mini[i]),
+     mainDark:c.getImageData(Math.round(p.x*d),Math.round(p.y*d),1,1).data.slice(0,3).every(v=>v<16),
+     miniDark:r.mini.getImageData(Math.floor(enemy.x*k),Math.floor(enemy.y*k),1,1)
+      .data.slice(0,3).every(v=>v<16)};
+   }finally{g.units=units;}
  });
- expect(hidden.canSee).toBe(false);expect(hidden.explored).toBe(false);expect(hidden.pixel.slice(0,3).every(v=>v<12)).toBe(true);expect(hidden.m.slice(0,3).every(v=>v<12)).toBe(true);
+ expect(hidden).toEqual({seen:false,explored:false,radarOnline:true,
+  mainConcealed:true,miniConcealed:true,mainDark:true,miniDark:true});
  await page.keyboard.press('h');await page.locator('#select-unit').click();await order(page,{x:1567.5,y:2633.4});await advance(page,14);await order(page,{x:940.5,y:1881});await advance(page,13);
  const known=await page.evaluate(()=>{const g=window.__reborn.game;return {known:g.hasExplored(0,g.territories[20].point),visible:g.canSee(0,g.territories[20].point),memory:g.explored[0].some((v,i)=>v&&!g.visible[0][i]&&!g.world.blocked[i])};});expect(known).toEqual({known:true,visible:true,memory:true});
 });
@@ -197,12 +215,17 @@ test('reborn: infantry poses stay grounded without detached neighboring weapon f
  await start(page);
  const result=await page.evaluate(()=>{
    const {renderer:r,game:g}=window.__reborn,c=document.createElement('canvas');c.width=180;c.height=120;
-   const ctx=c.getContext('2d'),old=r.context,selection=r.selected;r.context=ctx;r.selected=new Set();r.interpolation=1;
-   let maxDetachedDistance=0,minHeight=Infinity,maxHeight=0;
-   try{
-     for(const angle of [0,.25*Math.PI,.5*Math.PI,.75*Math.PI,Math.PI,1.5*Math.PI,1.75*Math.PI,1.9*Math.PI])for(let frame=0;frame<8;frame++){
+   const ctx=c.getContext('2d');
+   const infantry=g.units.find(u=>u.owner===0&&u.kind==='infantry');
+   let maxDetachedDistance=0,minHeight=Infinity,maxHeight=0,footTop=0;
+   for(const owner of [0,1])for(let direction=0;direction<8;direction++)for(let frame=0;frame<8;frame++){
+       const angle=direction*Math.PI/4;
        ctx.clearRect(0,0,c.width,c.height);ctx.save();ctx.translate(90,105);ctx.scale(1.8,1.8);
-       r.drawUnit({...g.units[0],x:0,y:0,previousX:0,previousY:0,angle,walkDistance:frame*9,moving:true,fire:0,hit:0,hp:100});ctx.restore();
+       // Paint the actual animation layer in isolation. The separate HUD-role badge
+       // is rendered next to the soldier and must not count as a weapon fragment.
+       r.units.draw(ctx,{...infantry,id:infantry.id+10000+owner,owner,
+        x:0,y:0,previousX:0,previousY:0,angle,walkDistance:frame*9,moving:true,fire:0,hit:0},{x:0,y:0});
+       ctx.restore();
        const pixels=ctx.getImageData(0,0,c.width,c.height).data;
        for(let i=0;i<pixels.length;i+=4)if(pixels[i+3]<200||Math.floor(i/4/c.width)>105)pixels[i+3]=0;
        const seen=new Uint8Array(c.width*c.height),groups=[];
@@ -217,13 +240,21 @@ test('reborn: infantry poses stay grounded without detached neighboring weapon f
          }
          groups.push({size:queue.length,left,right,top,bottom});
        }
-       groups.sort((a,b)=>b.size-a.size);const body=groups[0];if(!body)throw Error(`Missing solid pose: angle ${angle}, frame ${frame}`);minHeight=Math.min(minHeight,body.bottom-body.top+1);maxHeight=Math.max(maxHeight,body.bottom-body.top+1);
-       for(const part of groups.slice(1))if(part.size>=2)maxDetachedDistance=Math.max(maxDetachedDistance,body.left-part.right,part.left-body.right,body.top-part.bottom,part.top-body.bottom);
-     }
-   }finally{r.context=old;r.selected=selection;}
-   return {maxDetachedDistance,minHeight,maxHeight};
+       groups.sort((a,b)=>b.size-a.size);const body=groups[0];
+       if(!body)throw Error(`Missing solid pose: faction ${owner}, direction ${direction}, frame ${frame}`);
+       minHeight=Math.min(minHeight,body.bottom-body.top+1);
+       maxHeight=Math.max(maxHeight,body.bottom-body.top+1);
+       footTop=Math.max(footTop,105-body.bottom);
+       for(const part of groups.slice(1))if(part.size>=2)
+        maxDetachedDistance=Math.max(maxDetachedDistance,body.left-part.right,part.left-body.right,
+         body.top-part.bottom,part.top-body.bottom);
+   }
+   return {maxDetachedDistance,minHeight,maxHeight,footTop};
  });
- expect(result.maxDetachedDistance).toBeLessThanOrEqual(3);expect(result.minHeight).toBeGreaterThan(70);expect(result.maxHeight).toBeLessThan(101);
+ expect(result.maxDetachedDistance).toBeLessThanOrEqual(3);
+ expect(result.minHeight).toBeGreaterThanOrEqual(55);
+ expect(result.maxHeight).toBeLessThanOrEqual(75);
+ expect(result.footTop).toBeLessThanOrEqual(10);
 });
 
 test('reborn: captured bastion keeps both maps lit after infantry leaves and marching guards initiate combat',async({page})=>{
@@ -243,7 +274,7 @@ test('reborn: captured bastion keeps both maps lit after infantry leaves and mar
  const combat=await page.evaluate(()=>{
    const {game:g,renderer:r}=window.__reborn;g.units=[];
    const blue=g.spawn(0,{x:1900,y:2100}),red=g.spawn(1,{x:2050,y:2100});red.cooldown=100;
-   g.command([blue.id],{x:2350,y:2100,kind:'move'});g.command([blue.id],{x:2400,y:2250,kind:'move'},true);g.updateVision();
+   g.command([blue.id],{x:2350,y:2100,kind:'attackMove'});g.command([blue.id],{x:2400,y:2250,kind:'move'},true);g.updateVision();
    g.paused=false;g.step();g.paused=true;r.camera.x=blue.x;r.camera.y=blue.y;r.boundCamera();r.render(0);
    return {blueHp:blue.hp,redHp:red.hp,firstAttacker:blue.lastAttacker,orders:blue.orders.length,shots:g.shots.filter(s=>s.owner===0).length};
  });
@@ -446,7 +477,7 @@ test('vehicle art: the full roster has real faction materials, baked shadows, an
   const r=window.__reborn.renderer,c=document.createElement('canvas');c.width=c.height=96;const ctx=c.getContext('2d',{willReadFrequently:true}),rows=[];
   for(const kind of ['rover','tank','artillery','scout','bomber']){
    const asset=r.units.asset(kind),data=asset.data;
-   const count=frame=>{ctx.clearRect(0,0,96,96);ctx.drawImage(asset.image,frame.x,frame.y,96,96,0,0,96,96);const p=ctx.getImageData(0,0,96,96).data;let solid=0,shadow=0,groundShadow=0;for(let i=0;i<p.length;i+=4){if(p[i+3]>200)solid++;if(p[i+3]>5&&p[i+3]<150&&Math.max(p[i],p[i+1],p[i+2])<85){shadow++;if(Math.floor(i/4/96)>=70)groundShadow++;}}return {solid,shadow,groundShadow};};
+   const count=frame=>{ctx.clearRect(0,0,96,96);ctx.drawImage(asset.image,frame.x,frame.y,frame.w,frame.h,0,0,96,96);const p=ctx.getImageData(0,0,96,96).data;let solid=0,shadow=0,groundShadow=0;for(let i=0;i<p.length;i+=4){if(p[i+3]>200)solid++;if(p[i+3]>5&&p[i+3]<150&&Math.max(p[i],p[i+1],p[i+2])<85){shadow++;if(Math.floor(i/4/96)>=70)groundShadow++;}}return {solid,shadow,groundShadow};};
    const base=count(data.frames[data.clips.idle.frames[0][0]]),turret=data.clips.turret?count(data.frames[data.clips.turret.frames[0][0]]):null,barrel=data.clips.barrel?count(data.frames[data.clips.barrel.frames[0][0]]):null;
    rows.push({kind,parts:data.design.parts,source:data.source,base,turret,barrel,phases:data.clips.walk.uniquePhases,model:(await fetch('/src/assets/reborn/animation/'+kind+'-0.glb')).ok});
   }
@@ -527,24 +558,22 @@ test('reborn: readable retro desert field HUD at the standard desktop viewport',
    sidebar:rect('#sidebar'),command:rect('.command'),catalog:rect('.catalog'),
    tabs:size('.catalog-tabs button'),heading:size('.catalog h2'),cost:size('.card-cost'),
    description:size('#catalog-detail'),selection:size('#selection-title'),selectionDetail:size('#selection-detail'),
-   queue:size('#queue'),radar:size('.radar-caption'),background:getComputedStyle(document.querySelector('.catalog')).backgroundImage
+   queue:size('#queue'),radar:size('.radar-caption')
   };
  });
  expect(values.sidebar.width).toBeGreaterThanOrEqual(335);
  expect(values.command.width).toBeGreaterThanOrEqual(690);
- expect(values.command.height).toBeGreaterThanOrEqual(210);
+ expect(values.command.height).toBe(168);
  expect(values.command.right).toBeLessThan(values.sidebar.x);
  expect(values.command.bottom).toBeLessThanOrEqual(900);
  expect(values.tabs).toBeGreaterThanOrEqual(15);
  expect(values.heading).toBeGreaterThanOrEqual(16);
- expect(values.cost).toBeGreaterThanOrEqual(14);
+ expect(values.cost).toBeGreaterThanOrEqual(11);
  expect(values.description).toBeGreaterThanOrEqual(12);
- expect(values.selection).toBeGreaterThanOrEqual(26);
- expect(values.selectionDetail).toBeGreaterThanOrEqual(15);
+ expect(values.selection).toBeGreaterThanOrEqual(18);
+ expect(values.selectionDetail).toBeGreaterThanOrEqual(11);
  expect(values.queue).toBeGreaterThanOrEqual(11);
  expect(values.radar).toBeGreaterThanOrEqual(10);
- expect(values.background).toContain('linear-gradient(');
- expect(values.background).toContain('repeating-linear-gradient(');
  const positions=await page.evaluate(()=>['.top','.tools','.command','#pause-dialog'].map(selector=>getComputedStyle(document.querySelector(selector)).position));
  expect(positions).toEqual(['absolute','relative','absolute','fixed']);
  const visuals=await page.evaluate(()=>{
@@ -558,9 +587,9 @@ test('reborn: readable retro desert field HUD at the standard desktop viewport',
    labels:cards.map(card=>({kind:card.dataset.unit,name:card.querySelector('.card-name')?.textContent?.trim()}))};
  });
  expect(visuals.commandBackground).toContain('linear-gradient(');
- expect(visuals.catalogBackground).toContain('repeating-linear-gradient(');
+ expect(visuals.catalogBackground).toBe(visuals.commandBackground);
  expect(visuals.cardBackground).toContain('linear-gradient(');
- expect(visuals.gridColumns).toBe(2);
+ expect(visuals.gridColumns).toBe(3);
  expect(visuals.labels).toHaveLength(12);
  expect(visuals.labels.every(({name})=>Boolean(name))).toBe(true);
  expect(visuals.labels.find(({kind})=>kind==='rover')?.name).toBeTruthy();

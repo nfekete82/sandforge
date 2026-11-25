@@ -124,7 +124,7 @@ export class SandforgeBattlefield {
   this.commandPulse.userData={visualOnly:true,nonPlayable:true,commandPulse:true};
   this.commandPulse.rotation.x=-Math.PI/2;
   this.commandPulse.renderOrder=1013;this.commandPulse.visible=false;
-  this.commandPulseTime=.7;this.scene.add(this.commandPulse);
+  this.scene.add(this.commandPulse);
   this.miniLast=0;this.uiLast=0;this.fogLast=0;
   this.fogEnabled=true;this.selectedRings=new Map();this.animations=new Map();
   this.presentation=new SandforgeActorPresentation(scene,camera,game);
@@ -3021,12 +3021,11 @@ export class SandforgeBattlefield {
   this.commandPulse.material.color.set(attack?'#ffbd76':'#7ce7ef');
   this.commandPulse.scale.setScalar(.72);
   this.commandPulse.material.opacity=.9;
-  this.commandPulseTime=0;this.commandPulse.visible=true;
+  this.commandPulseStartedAt=performance.now();this.commandPulse.visible=true;
  }
- updateCommandPulse(dt){
+ updateCommandPulse(now){
   if(!this.commandPulse.visible)return;
-  this.commandPulseTime+=Math.max(0,dt);
-  const t=Math.min(1,this.commandPulseTime/.65);
+  const t=THREE.MathUtils.clamp((now-this.commandPulseStartedAt)/650,0,1);
   this.commandPulse.scale.setScalar(.72+t*.78);
   this.commandPulse.material.opacity=.9*(1-t)*(1-t);
   if(t>=1)this.commandPulse.visible=false;

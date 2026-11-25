@@ -30,23 +30,58 @@ test('performance: unchanged HUD text and queue DOM survive refresh, selection r
 test('performance: optimized layered sprites match original Canvas pixels and preserve caller state',async({page})=>{
  await page.goto('/?debug&perfTest&seed=2026');await page.locator('#loading').waitFor({state:'detached'});
  const results=await page.evaluate(async()=>{
-  const a=window.__reborn,{unitVisualLift}=await import('/src/reborn/unit-presentation.js'),out=[];
-  // Reference is the original save/restore implementation, including corpse filters.
-  function reference(presentation,c,v,p){c.save();c.imageSmoothingEnabled=v.asset.data.cell[0]>=144;const at={x:p.x,y:p.y-unitVisualLift(v.unit)};
+  const a=window.__reborn,out=[];
+  const {unitVisualLift,groundVehiclePose,rocketWheelPhase}=await import('/src/reborn/unit-presentation.js');
+  const {unitArtScale}=await import('/src/reborn/visual-scale.js');
+  // Independent Canvas state isolation around the current layered sprite pose.
+  function reference(presentation,c,v,p){
+   c.save();
+   c.imageSmoothingEnabled=v.asset.data.cell[0]>=144;
+   if(['scout','artillery','tank','rover'].includes(v.unit.kind))c.imageSmoothingQuality='high';
    const ground=v.asset.groundShadow;
-   if(ground)c.drawImage(ground.image,p.x+ground.offsetX-ground.width/2,p.y+ground.offsetY-ground.height/2,ground.width,ground.height);
+   if(ground)c.drawImage(ground.image,p.x+ground.offsetX-ground.width/2,
+    p.y+ground.offsetY-ground.height/2,ground.width,ground.height);
    else if(v.asset.shadow)presentation.drawFrame(c,v,v.frame,p,{x:0,y:0},v.asset.shadow);
    if(v.dead&&!v.asset.data.clips.death)c.filter='grayscale(1) brightness(.5)';
-   presentation.drawFrame(c,v,v.frame,at);
-   if(v.asset.data.clips.turret){presentation.drawFrame(c,v,v.anim.frame('turret',v.turretAngle),at);if(v.asset.data.clips.barrel){const recoil=v.unit.fire>0?Math.sin(v.unit.fire/.18*Math.PI)*2.5:0;presentation.drawFrame(c,v,v.anim.frame('barrel',v.turretAngle),at,{x:-Math.cos(v.turretAngle)*recoil,y:-Math.sin(v.turretAngle)*recoil*.65});}}
+   const suspension=v.rocket??v.chassis;
+   const ride=suspension&&groundVehiclePose(v.unit.kind,v.unit.walkDistance,v.unit.moving,
+    suspension.speed,suspension.turn,suspension.acceleration,suspension.shotAge,suspension.idleAge);
+   const pivot={x:p.x,y:p.y-unitVisualLift(v.unit)+(ride?.heave??0)};
+   if(ride){
+    c.translate(p.x,p.y);c.rotate(ride.roll);c.transform(1,ride.pitch,0,1,0,0);c.translate(-p.x,-p.y);
+   }
+   presentation.drawFrame(c,v,v.frame,pivot);
+   const frames=v.asset.data.clips.walk?.frames[v.anim.direction];
+   if(suspension&&v.anim.state==='walk'&&v.unit.moving&&frames?.length>1){
+    const phase=rocketWheelPhase(v.unit.walkDistance,v.asset.data.stride,frames.length);
+    const strength=v.rocket?.18:v.unit.kind==='tank'?.16:.20;
+    c.save();
+    c.globalAlpha*=phase.blend*strength;
+    presentation.drawFrame(c,v,v.asset.data.frames[frames[phase.next]],pivot);
+    c.restore();
+   }
+   if(v.asset.data.clips.turret)presentation.drawFrame(c,v,v.anim.frame('turret',v.turretAngle),pivot);
+   if(v.asset.data.clips.barrel){
+    const recoil=v.rocket?Math.max(0,ride?.recoil??0)+Math.max(0,v.unit.fire)*8:
+     v.unit.fire>0?Math.sin(v.unit.fire/.18*Math.PI)*2.5:0;
+    if(v.rocket){
+     const y=pivot.y-24*unitArtScale(v.unit.kind);
+     c.translate(pivot.x,y);c.rotate(-(ride?.recoil??0)*.0025);c.translate(-pivot.x,-y);
+    }
+    presentation.drawFrame(c,v,v.anim.frame('barrel',v.turretAngle),pivot,
+     {x:-Math.cos(v.turretAngle)*recoil,y:-Math.sin(v.turretAngle)*recoil*.6-recoil*.38});
+   }
    c.restore();
   }
-  for(const kind of ['infantry','heavy','medic','engineer','rover','tank','artillery','scout','bomber'])for(const scale of [.6,1,1.7]){
-   const u=a.game.spawn(0,{x:1000,y:1000},kind);u.angle=.8;u.fire=.09;a.renderer.units.update([u],0,()=>true);const view=a.renderer.units.inspect(u.id);
+  for(const kind of ['infantry','heavy','medic','engineer','rover','tank','artillery','scout','bomber'])for(const scale of [.6,1,1.7])for(const moving of [false,true]){
+   const u=a.game.spawn(0,{x:1000,y:1000},kind);u.angle=.8;u.fire=.09;u.moving=moving;u.walkDistance=17;
+   a.renderer.units.update([u],.05,()=>true);const view=a.renderer.units.inspect(u.id);
    for(const dead of [false,true]){view.dead=dead;const canvases=[document.createElement('canvas'),document.createElement('canvas')];for(const canvas of canvases){canvas.width=canvas.height=320;const c=canvas.getContext('2d');c.translate(160,250);c.scale(scale,scale);c.globalAlpha=.7;}
     const [expected,actual]=canvases.map(c=>c.getContext('2d'));reference(a.renderer.units,expected,view,{x:0,y:0});a.renderer.units.drawView(actual,view,{x:0,y:0});
     const x=expected.getImageData(0,0,320,320).data,y=actual.getImageData(0,0,320,320).data;let different=0;for(let i=0;i<x.length;i++)if(x[i]!==y[i])different++;
-    out.push({kind,scale,dead,different,state:actual.imageSmoothingEnabled===true&&actual.filter==='none'&&actual.globalAlpha===expected.globalAlpha});
+    out.push({kind,scale,moving,dead,different,state:actual.imageSmoothingEnabled===expected.imageSmoothingEnabled&&
+     actual.imageSmoothingQuality===expected.imageSmoothingQuality&&actual.filter===expected.filter&&
+     String(actual.getTransform())===String(expected.getTransform())&&actual.globalAlpha===expected.globalAlpha});
    }
   }return out;
  });

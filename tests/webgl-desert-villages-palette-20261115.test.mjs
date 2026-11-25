@@ -104,15 +104,15 @@ test('sun-bleached desert is only slightly lighter, existing gameplay buildings 
  const preview=readFileSync('scripts/webgl-preview.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
  assert.match(preview,/sandGold=new THREE\.Color\(desertStyle\.duneBase\)/);
- assert.equal(desertStyle.duneBase,'#d9bb92');
+ assert.equal(desertStyle.duneBase,'#ddc6a5');
  assert.match(preview,/sandLight=new THREE\.Color\(desertStyle\.duneHighlight\)/);
- assert.equal(desertStyle.duneHighlight,'#ebd4b1');
+ assert.equal(desertStyle.duneHighlight,'#eee0be');
  assert.match(preview,/riverSediment=new THREE\.Color\(desertStyle\.drySediment\)/);
- assert.equal(desertStyle.drySediment,'#bda78a');
+ assert.equal(desertStyle.drySediment,'#c2b49d');
  assert.match(preview,/const subtleSandLift=new THREE\.Color\(desertStyle\.warmLift\)/);
- assert.equal(desertStyle.warmLift,'#ead2a6');
- assert.match(preview,/if\(biome==='desert'\)vertexColor\.lerp\(subtleSandLift,desertStyle\.warmLiftStrength\)/);
- assert.equal(desertStyle.warmLiftStrength,.12);
+ assert.equal(desertStyle.warmLift,'#e7d9bd');
+ assert.match(preview,/if\(biome==='desert'&&!desertRegion\)vertexColor\.lerp\(subtleSandLift,desertStyle\.warmLiftStrength\)/);
+ assert.equal(desertStyle.warmLiftStrength,.09);
  assert.match(preview,/if\(spacious&&biome==='desert'&&normalMap\)normalMap\.repeat\.set\(6\.5,6\.5\)/);
  assert.ok(preview.includes("renderer.toneMappingExposure=biome==='desert'?(spacious?.96:1.00)"),
   'do not change renderer exposure / building brightness');

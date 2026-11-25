@@ -42,7 +42,55 @@ Der Standardlauf mit Loopback-Zugriff und der erweiterte WebGL-Lauf schreiben na
 
 - Die WebGL-Befehlsleiste zeigt den Sammelpunkt für ausgewählte, fertige eigene Produktionsgebäude wieder an. Das WebGL-Logo führt zur veröffentlichten Classic-Route. Sechs gezielte WebGL-Tests und fünf Einstiegstests bestehen.
 - Vollständiger Standard-Node-Lauf mit Loopback-Zugriff: 2.511 bestanden, 47 fehlgeschlagen, drei vorhandene Skips. Der Lauf liegt in `/tmp/sf18-node-head-40375420.log`. Die 47 Fehler umfassen 13 Assertions auf lokal vorhandene, finale HQ-/Kasernengeometrie sowie weitere aktive Render- und historisch gewachsene Regressionen. Die Asset-Tests bleiben aktiv.
-- Classic aus dem vorgesehenen Testverzeichnis: 116 von 125 bestanden. Der erweiterte WebGL-Sammellauf bestand 162 von 231 Tests. Getrennte Profile bestanden sieben Classic-Titeltests und sämtliche 61 prozeduralen WebGL-Kartentests. Der WebGL-Sammellauf umfasst historische Meshy-Vorschauen, deren separater Build die nicht mitgelieferte optimierte Factory-GLB voraussetzt.
+- Classic aus dem vorgesehenen Testverzeichnis: 116 von 125 bestanden. Der erweiterte WebGL-Sammellauf bestand 162 von 231 Tests. Getrennte Profile bestanden sieben Classic-Titeltests und sämtliche 61 prozeduralen WebGL-Kartentests. Der separate Meshy-Vorschaubuild verarbeitet die eingecheckte optimierte Factory-GLB. Zwei von drei separat ausgeführten Meshy-Factory-Browsertests bestanden.
 - Standardbuild, Docker-Build und HTTP-Smoke für WebGL, Classic, Atlas und HQ-Asset sowie Gebäude- und Animationsaudit sind erfolgreich. Die Auditberichte prüfen 15 Gebäude-GLBs, 109 PNGs, acht lizenzierte Originalmodelle und 18 aktive Animationsatlanten.
 - GitHub meldet für `40375420` 21 von 23 erfolgreichen Workflows. `Build and simulation tests` und `Sandforge Tactical AI 3.0 - learning and overrun` bleiben rot.
 - Das Dateischutzmuster für GLB, GLTF und verworfene Klippenshader ist aktiv. Die 13 lokalen GLB-Änderungen im ursprünglichen Checkout bleiben erhalten. Release-Tag und Verifikation des gemergten `main` stehen weiter aus.
+
+## Abschlussprüfung des Code-Stands `360baa56`
+
+Im frischen Standard-Checkout bestanden 2.535 von 2.561 Node- und Simulationstests. 23 schlugen fehl und drei vorhandene Skips wurden vom Test-Runner gemeldet. Die Bytewerte der vier HQ- und Kasernenmodelle stimmen zwischen dem isolierten Standardbuild und Docker überein. Docker-Build, alle veröffentlichten HTTP-Einstiege, Gebäude- und Animationsaudit sowie der Browserstart des Atlas-Archivs waren erfolgreich.
+
+| Offene Node-Gruppe | Anzahl | Ursache |
+| --- | ---: | --- |
+| Finale HQ- und Kasernen-PBR-Modelle | 13 | Der lokale Autorenbuild enthält die geprüften Binärquellen. Der Standardbuild nutzt die eingecheckten Modelle und verfehlt die Assertions auf die finale Geometrie. Der explizite Autorenbuild bestand 20 gezielte Tests. |
+| Wüstengelände und Oberflächen | 8 | Abweichende Farb-, Geröll-, Polygon- und Materialassertions zwischen den früheren Szenen und den aktiven Terrain-Pfaden. |
+| Strategische Gebäudemodelle | 2 | Geometrie- und Silhouettenassertions für Forschungszentrum und Silo. |
+
+Die neun offenen Classic-Browserfälle betreffen vier HUD- und Katalogprüfungen, drei Sprite- und Canvas-Referenzen sowie zwei Sicht- und Bastionsfälle. Der vollständige Classic-Lauf wurde aus `tests/browser` wiederholt, damit alle relativen Screenshot-Pfade aufgelöst werden. Die gültigen Logs sind `/tmp/sf18-clean-final-node.log`, `/tmp/sf18-classic-complete.log`, `/tmp/sf18-clean-final-webgl.log`, `/tmp/sf18-procedural.log`, `/tmp/sf18-docker-smoke-head-360baa56.log` und `/tmp/sf18-archive-smoke.log`.
+
+Die vollständige WebGL-Integration bestand 64 von 82 Tests. Die 18 offenen Fälle betreffen HUD und Produktion, Bauanimation und Ton, Gelände und Nebel, Bewegungseffekte und zwei Spielstartprüfungen. Die 17 Node-Vorprüfungen der WebGL-Integration und alle 61 prozeduralen Browsertests bestanden.
+
+Die GitHub-CI für `360baa56` meldet unter Node 22 dieselben 23 Fehler, 2.535 bestandene Tests und drei vorhandene Skips. Classic-Shard 1 meldete 29 bestandene und drei fehlgeschlagene Tests. Shard 2 meldete 30 bestandene und einen fehlgeschlagenen Test. Die Hauptverzweigung steht auf `c8180d8d`. Merge, Nachprüfung des gemergten `main` und Release-Tag stehen aus. [GitHub-CI-Lauf](https://github.com/nfekete82/sandforge/actions/runs/45656617980)
+
+## Fortsetzung ab 360baa56 am 25. November 2026
+
+- PR #497 steht auf `360baa56`. Main steht auf `c8180d8d`.
+- Zehn Node-Fehler außerhalb der PBR-Modellprüfung waren veraltete Erwartungen an den Wüstenboden, das Forschungszentrum und das Raketensilo. Die gezielte Prüfung der sieben betroffenen Testdateien besteht mit 25 von 25 Tests.
+- Die geprüften PBR-Branches enthalten dieselben älteren GLB-Dateien wie der PR. Die vier finalen lokalen Dateien sind erhalten. Es wurde kein freigegebenes, versioniertes Release- oder CI-Artefakt für diese Modelle gefunden.
+- Die Classic- und WebGL-Regressionen werden gegen den Standard-Build geprüft.
+
+### Regressionen und Standardbuild
+
+- Die WebGL-Zielmarkierung lief mit der Simulationszeit und blieb in der taktischen Pause sichtbar. Sie blendet jetzt 650 ms nach dem Klick aus. Die Browserprüfung misst die sofortige Reaktion auf den echten Rechtsklick und das Ausblenden bei pausierter Simulation.
+- Die neun Classic-Regressionen betrafen kompakte HUD- und Katalogregeln, die Pixelreferenz für Fahrzeugaufhängung und Reifenzwischenphasen, HD-Atlaszuschnitte, das separate Rollenabzeichen der Infanterie, die Nebelabtastung und den heute erforderlichen Angriffsmarsch. Canvas-Pixelparität, verdeckte Gegner und Bastionskampf werden weiterhin anhand der gerenderten Szene und des tatsächlichen Spielzustands geprüft.
+- Die WebGL-Browserprüfungen verwenden die realen Produktionsfreigaben und den Sektorzugriff des HUD, zusammengefasste Gelände- und Nebelgeometrie, die Boden-zu-Dach-Bauphasen der geladenen GLB, den heutigen Fraktionsfarbwert und den aktuellen Materialpfad für jedes geprüfte Modell.
+- GitHub-Branches, Releases, passende Actions-Artefakte und die konfigurierten CI-Variablen und Secret-Namen haben keine freigegebene Quelle ergeben. Die Paketliste erfordert den Token-Scope `read:packages`, den der vorhandene Zugang nicht hat. Der Git-Diff gegen `main` ist frei von geschützten Asset- und Klippendateien.
+
+| Prüfung dieses Stands | Ergebnis |
+| --- | --- |
+| Node und Simulation | 2.545 bestanden, 13 fehlgeschlagen, drei vorhandene Skips. Alle 13 Fehler prüfen die finalen HQ-/Kasernen-GLBs. |
+| Classic-Browser | 125 von 125 bestanden. |
+| Prozedurale WebGL-Karten | 61 von 61 bestanden. |
+| WebGL-Integration | 82 von 82 bestanden. |
+| Explizite lokale Autorenmodelle | 20 gezielte Node-Tests und zwei zusätzliche WebGL-Prüfungen bestanden. |
+| Vorprüfungen der WebGL-Integration | 17 von 17 bestanden. |
+| Standard- und Classic-Build | Bestanden. |
+| Gebäude- und Animationsaudit | 15 GLBs, 109 PNGs, acht lizenzierte Modelle und 18 Animationsatlanten geprüft. |
+| Docker-Build und HTTP-Smoke | Bestanden. Spielstart, Classic, WebGL, Atlas-Archiv und GLB-Routen liefern HTTP 200. Die vier GLBs stimmen bei lokalem Standardbuild und Docker bytegenau überein. |
+
+Vollständige Logs dieses Stands liegen unter `/tmp/sf18-resume-node-full.log`, `/tmp/sf18-resume-classic-full.log`, `/tmp/sf18-resume-webgl-full.log`, `/tmp/sf18-resume-procedural.log`, `/tmp/sf18-resume-asset-audit.log` und `/tmp/sf18-resume-docker-smoke.log`.
+
+### Freigabestatus
+
+`package.json` und Lockdatei stehen auf `1.8.0`. Voraussetzung für Merge, die Verifikation von `main` und das Tag `v1.8.0` ist eine freigegebene, versionierte und für CI lesbare Quelle der vier finalen GLBs. Die Browser- und Simulationskorrekturen werden in [PR #497](https://github.com/nfekete82/sandforge/pull/497) geprüft.

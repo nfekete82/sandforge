@@ -1,3 +1,4 @@
+import {buildWebGLFacility,completeWebGLFacility} from './production-fixture.mjs';
 import {test,expect} from '@playwright/test';
 
 // The WebGL catalog now reflects the selected actor, just like a classic RTS.
@@ -56,39 +57,49 @@ test('3D original-style blueprint: translucent ghost, live site validation and R
  expect(errors).toEqual([]);
 });
 
-test('3D construction: foundations, columns, rails and roof appear by actual build progress',async({page})=>{
+test('3D construction: shared height planes reveal the structure from the ground up',async({page})=>{
  test.setTimeout(120000);
  await page.setViewportSize({width:1440,height:900});
  await page.goto('/webgl-preview.html?bastions=4&seed=2074&lite=1&pause=1',{waitUntil:'domcontentloaded'});
  await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded===true,{timeout:95000});
- const stages=await page.evaluate(()=>{
-  const a=window.__sandforgeWebGL,g=a.game,b=a.battlefield;
-  const site=g.headquartersCandidates(0).find(p=>g.buildError(0,'headquarters',p)===null);
-  if(!site)throw Error('No legal site for a new HQ');
-  const building=g.build(0,'headquarters',site);
-  if(!building)throw Error('HQ construction rejected');
+ const id=await buildWebGLFacility(page,'headquarters');
+ await page.waitForFunction(id=>Boolean(window.__sandforgeWebGL.battlefield.bases.get(id)?.detail),
+  id,{timeout:65000});
+ const stages=await page.evaluate(id=>{
+  const {game:g,battlefield:b}=window.__sandforgeWebGL;
+  const building=g.bases.find(base=>base.id===id);
   const capture=(fraction)=>{
    building.buildRemaining=(1-fraction)*20;
    b.sync(true,.06,false,1);
    const e=b.bases.get(building.id),c=e?.construction;
-   if(!c)throw Error('Missing staged 3D construction');
-   return {progress:fraction,post:c.columns[0].scale.y,
-    top:c.roof.visible,rail0:c.rails[0].meshes[0].visible,
-    rail1:c.rails[1].meshes[0].visible,
-    clipped:c.materials.length>0&&c.materials.every(m=>m.clippingPlanes?.[0]===c.clip),
+   const stage=c?.stages.get('building');
+   if(!stage||stage.root!==e.detail)throw Error('Missing authored construction stage');
+   let meshCount=0,clipped=true;
+   stage.root.traverse(mesh=>{
+    if(!mesh.isMesh||!mesh.visible)return;
+    meshCount++;
+    clipped&&=[mesh.material].flat().every(m=>m.clippingPlanes?.[0]===stage.plane&&m.clipShadows);
+   });
+   return {height:(stage.plane.constant-stage.bottom)/(stage.top-stage.bottom),
+    downward:stage.plane.normal.y===-1,clipped:meshCount>0&&clipped,
     label:c.lastLabel,labelWidth:c.label.scale.x,labelHeight:c.label.scale.y,
     labelOpacity:c.label.material.opacity,
-    // Compare identical world-space altitudes: billboard must float ABOVE
-    // the HP bar, not overlap it when the authored GLB is swapped in.
     clearance:c.label.position.y-(e.modelHeight?
      Math.max(e.presentation.bar.altitude,e.modelHeight+5):e.presentation.bar.altitude)};
   };
-  const phases=[.1,.42,.82].map(capture);
+  const phases=[.12,.42,.82].map(capture);
   building.buildRemaining=0;building.hp=1200;b.sync(true,.06,false,1);
   const e=b.bases.get(building.id);
   return {phases,finished:e.construction===null,scale:e.node.scale.y,
-   completed:g.hasHeadquarters(0)};
- });
+   completed:g.hasHeadquarters(0),clippingRestored:(()=>{
+    let restored=true;
+    e.node.traverse(node=>{
+     if(!node.isMesh)return;
+     restored&&=[node.material].flat().every(mat=>!mat.clippingPlanes?.length);
+    });
+    return restored;
+   })()};
+ },id);
  const [early,middle,late]=stages.phases;
  expect(early.clipped).toBe(true);
  expect(early.labelWidth).toBeLessThanOrEqual(85);
@@ -96,13 +107,12 @@ test('3D construction: foundations, columns, rails and roof appear by actual bui
  expect(early.labelOpacity).toBeLessThanOrEqual(.9);
  for(const phase of [early,middle,late])
   expect(phase.clearance).toBeGreaterThanOrEqual(44);
- expect(early.top).toBe(false);
- expect(early.rail0).toBe(false);
- expect(middle.post).toBeGreaterThan(early.post);
- expect(middle.rail0).toBe(true);
- expect(middle.rail1).toBe(false);
- expect(late.rail1).toBe(true);
- expect(late.top).toBe(true);
+ for(const phase of stages.phases)expect(phase.downward&&phase.clipped).toBe(true);
+ expect(early.height).toBeCloseTo(.02/.87,5);
+ expect(middle.height).toBeCloseTo(.32/.87,5);
+ expect(late.height).toBeCloseTo(.72/.87,5);
+ expect(stages.phases.map(p=>p.label)).toEqual([2,8,16]);
+ expect(stages.clippingRestored).toBe(true);
  expect(stages.completed).toBe(true);
  expect(stages.finished).toBe(true);
  expect(stages.scale).toBe(1);
@@ -122,12 +132,20 @@ test('3D audio and HUD: clicks enabled by user gesture, complete unit text, zoom
  expect(before.minZoom).toBeCloseTo(.46,2);
  expect(before.vision).toBeCloseTo(1.30,2);
  expect(before.audioEnabled).toBe(true);
- // Unit sprites remain present in the DOM but only the selected producer can show them.
+ await expect(page.locator('[data-unit="infantry"]')).toHaveCount(0);
+ const hq=await buildWebGLFacility(page,'headquarters');
+ await completeWebGLFacility(page,hq);
+ const barracks=await buildWebGLFacility(page,'barracks');
+ await completeWebGLFacility(page,barracks);
+ const factory=await buildWebGLFacility(page,'factory');
+ await completeWebGLFacility(page,factory);
+ await page.locator('#sf-tabs [data-tab="infantry"]').click();
  const soldier=page.locator('[data-unit="infantry"] .card-name');
  await expect(soldier).toHaveText('Infanteriesoldat');
  // All 3D unit-card names now occupy one line, with the price below.
  // Keep the entire accessible name in the DOM; only visual overflow clips.
  expect(await soldier.evaluate(el=>getComputedStyle(el).whiteSpace)).toBe('nowrap');
+ await page.locator('#sf-tabs [data-tab="vehicles"]').click();
  const artillery=page.locator('[data-unit="artillery"]');
  await expect(artillery.locator('.card-name')).toHaveText('Raketenwerfer');
  expect(await artillery.locator('.card-name').evaluate(el=>getComputedStyle(el).whiteSpace)).toBe('nowrap');
@@ -173,7 +191,7 @@ test('Audio resumes after suspension; locked production stays legible; interrupt
  await page.evaluate(()=>window.__sandforgeWebGL.sound.context.suspend());
  await page.waitForFunction(()=>window.__sandforgeWebGL.sound.context.state==='suspended');
  // The next real pointer interaction is a permitted autoplay-unlock gesture.
- await page.locator('#sf-classic-root .catalog-tabs [data-tab="territories"]').first().click();
+ await page.locator('[data-action="sectors"]').click();
  await page.waitForFunction(()=>window.__sandforgeWebGL.sound.context.state==='running',{timeout:15000});
  const recovered=await page.evaluate(()=>{
   const a=window.__sandforgeWebGL,g=a.game,repair=a.constructionRecovery;
@@ -217,10 +235,12 @@ test('3D placement overlay is drawn in a separate foreground pass after black fo
     return meshes.length>0&&meshes.every(node=>{
       const materials=Array.isArray(node.material)?node.material:[node.material];
       return materials.length>0&&materials.every(m=>
-        m?.transparent===true&&m.depthTest===false&&m.depthWrite===false
+        m?.transparent===true&&m.opacity<1&&m.depthWrite===false&&
+        (!m.userData.sandforgePreviewMaterial||m.depthTest===true)
       );
     });
    })(),
+   tintedMeshes:ghost.userData.previewTintMaterials.length,
    stage:a.renderer.domElement.width};
  });
  expect(result.ghostVisible).toBe(true);
@@ -228,6 +248,7 @@ test('3D placement overlay is drawn in a separate foreground pass after black fo
  expect(result.absentFromWorld).toBe(true);
  expect(result.lightCount).toBeGreaterThanOrEqual(2);
  expect(result.transparent).toBe(true);
+ expect(result.tintedMeshes).toBeGreaterThan(0);
  expect(result.stage).toBeGreaterThan(400);
  expect(errors).toEqual([]);
 });

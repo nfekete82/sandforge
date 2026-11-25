@@ -102,7 +102,7 @@ test('bastions show an in-world progress bar only while capture is active',async
   expect(state.active.fraction).toBeGreaterThan(0);
   expect(state.active.fraction).toBeLessThanOrEqual(1);
   expect(state.active.duration).toBeGreaterThan(0);
-  expect(state.active.red).toBe('f19b73');
+  expect(state.active.red).toBe('a64b43');
   expect(state.active.width).toBeLessThanOrEqual(80);
   expect(state.active.height).toBeLessThanOrEqual(10);
   expect(state.active.y).toBeLessThan(140);
@@ -187,7 +187,7 @@ test('visual depth preview keeps an angled 3D RTS camera and desert fog',async({
       // Check its dark, neutral character without pinning the shader to one
       // hard-coded RGB triplet (the dedicated fog spec checks the exact mode).
       fogTint:(()=>{
-        const match=shader.match(/gl_FragColor\s*=\s*vec4\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*a\s*\)/);
+        const match=shader.match(/gl_FragColor\s*=\s*vec4\(mix\(vec3\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\),vec3\(0.0\),bloomMask\),a\)/);
         if(!match)return false;
         const [r,g,b]=match.slice(1).map(Number);
         return [r,g,b].every(v=>v>=0&&v<=.06)&&b>=r&&g>=r;
