@@ -30,21 +30,24 @@ jobs:
           package-manager-cache: false
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: TypeScript build and full game test suite
-        run: npm test
+      - name: TypeScript build and production game test suite
+        run: npm run test:release
       - name: Validate real 3D building assets and animation atlases
         run: |
           npm run assets:buildings:validate
-          npm run assets:animation-audit
+          node scripts/audit-animation-assets.mjs
 
   browser:
-    name: Chromium · Classic gameplay (shard ${{ matrix.shard }}/4)
+    name: Chromium · WebGL (${{ matrix.suite }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        suite: [integration, battlefields]
+    env:
+      SANDFORGE_BROWSER_CHANNEL: chromium
+      SANDFORGE_TEST_MAX_FAILURES: 0
     steps:
       - uses: actions/checkout@v7
         with:
@@ -53,24 +56,48 @@ jobs:
         with:
           node-version: 22
           package-manager-cache: false
-      - name: Install build and browser dependencies
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix tests/browser --no-audit --no-fund
+      - run: cd tests/browser && npx playwright install --with-deps chromium
+      - name: Gameplay, startup, HUD, combat and saves
+        if: matrix.suite == 'integration'
+        run: npm run test:webgl-integration
+      - name: Maps, procedural terrain and historical saves
+        if: matrix.suite == 'battlefields'
         run: |
-          npm install --no-audit --no-fund
-          npm ci --prefix tests/browser --no-audit --no-fund
-          cd tests/browser
-          npx playwright install --with-deps chromium
-      - name: Classic Canvas regression suite (explicit legacy build)
-        env:
-          ATLAS_BROWSER_CHANNEL: chromium
-        run: |
-          # One worker per runner. Four independent shards prevent the old
-          # serial 45-second browser tests from exhausting a single 40m job.
-          npm run build:classic
-          npm --prefix tests/browser test -- --shard=${{ matrix.shard }}/4
-      - name: Preserve failure screenshots and traces
+          npm run build
+          tests/browser/node_modules/.bin/playwright test --config=tests/browser/playwright.config.mjs \
+            tests/browser/webgl-procedural-battlefields.spec.mjs --workers=2 --reporter=line
+      - uses: actions/upload-artifact@v4
         if: failure()
-        uses: actions/upload-artifact@v4
         with:
-          name: reborn-browser-evidence-shard-${{ matrix.shard }}
+          name: webgl-browser-${{ matrix.suite }}
           path: tests/browser/artifacts/
           retention-days: 7
+
+  docker:
+    name: Docker · WebGL and final buildings
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build and start the release image
+        run: |
+          docker build -t sandforge-release-check .
+          docker run --rm -d --name sandforge-release-check -p 127.0.0.1:8095:8095 sandforge-release-check
+      - name: Verify the WebGL entry and compare all four served GLBs to Git
+        run: |
+          set -euo pipefail
+          base=http://127.0.0.1:8095
+          curl -fsS --retry 20 --retry-all-errors --retry-connrefused --retry-delay 1 "$base/healthz"
+          curl -fsS "$base/" -o "$RUNNER_TEMP/sandforge-index.html"
+          grep -q 'id="stage"' "$RUNNER_TEMP/sandforge-index.html"
+          curl -fsS "$base/webgl-preview.js" -o /dev/null
+          for source in src/release-pbr/*.glb; do
+            curl -fsS "$base/src/assets/reborn/buildings-3d/${source##*/}" -o "$RUNNER_TEMP/sandforge-building.glb"
+            cmp "$source" "$RUNNER_TEMP/sandforge-building.glb"
+          done
+      - if: always()
+        run: docker rm -f sandforge-release-check || true

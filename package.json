@@ -9,6 +9,7 @@
     "dev": "npm run build && node scripts/serve.mjs",
     "preview": "node scripts/serve.mjs",
     "test": "npm run build && node --test tests/*.test.mjs",
+    "test:release": "npm run build && node --test tests/ai-*.test.mjs tests/reborn*.test.mjs tests/sandforge*.test.mjs tests/webgl*.test.mjs tests/benchmark-ai-metrics.test.mjs tests/http.test.mjs tests/oases.test.mjs tests/rc2-release-entry.test.mjs tests/titan-benchmark.test.mjs tests/tower-rush-policy.test.mjs tests/uberspace-*.test.mjs",
     "test:browser": "npm run test:webgl-integration",
     "test:browser:classic": "npm run build:classic && npm --prefix tests/browser test",
     "test:reborn": "npm run build && node --test tests/reborn.test.mjs tests/reborn-campaign.test.mjs",

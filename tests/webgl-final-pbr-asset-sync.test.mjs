@@ -62,3 +62,30 @@ test('the standard build syncs authored PBR models in the staged distribution',(
  assert.match(script,/sandforge-hq-pbr/);
  assert.match(script,/if\(!allGood\(stage\)\)throw Error/);
 });
+test('standard WebGL build packages all four final PBR sources byte for byte',()=>{
+ for(const kind of ['headquarters','barracks'])for(const team of [0,1]){
+  const name=kind+'-'+team+'.glb';
+  assert.deepEqual(readGLB(name).bytes,readGLB(name,'src/release-pbr/').bytes,name);
+ }
+});
+
+test('every texturable HQ and barracks surface has embedded UV-mapped PBR',()=>{
+ for(const kind of ['headquarters','barracks'])for(const team of [0,1]){
+  const name=kind+'-'+team+'.glb';
+  const {json}=readGLB(name);
+  for(const mesh of json.meshes)for(const primitive of mesh.primitives){
+   const material=json.materials[primitive.material];
+   const label=name+' '+material.name;
+   if(material.emissiveFactor?.some(value=>value>0))continue;
+   const pbr=material.pbrMetallicRoughness;
+   assert.ok(primitive.attributes.POSITION!==undefined,label+' geometry');
+   assert.ok(primitive.attributes.NORMAL!==undefined,label+' normals');
+   for(const map of [pbr?.baseColorTexture,material.normalTexture,pbr?.metallicRoughnessTexture]){
+    assert.ok(map,label+' PBR texture missing');
+    const image=json.images[json.textures[map.index].source];
+    assert.ok(image.bufferView!==undefined&&!image.uri,label+' texture must be embedded');
+    assert.ok(primitive.attributes['TEXCOORD_'+(map.texCoord??0)]!==undefined,label+' texture UVs');
+   }
+  }
+ }
+});

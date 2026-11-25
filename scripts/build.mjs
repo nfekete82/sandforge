@@ -45,6 +45,7 @@ const kinds=['barracks','airfield','bastion','bunker','headquarters','generator'
 // 2026-11-20 11:20 CET, BEFORE evening Meshy building replacements.
 // Preserve newer game/AI/maps but never load experimental HQ/barracks,
 // bunker, airfield, Bastion or generator skins from the 21 Nov work.
+const finalBuildingFiles=['barracks-0.glb','barracks-1.glb','headquarters-0.glb','headquarters-1.glb'];
 const BUILDING_ART_REFERENCE='2026-11-20T11:20:39+01:00';
 const available=Object.fromEntries(kinds.map(kind=>[kind,false]));
 available.airfieldReference=false;
@@ -215,12 +216,14 @@ else{
 // Authored src/assets variants, if present, take precedence.
 execFileSync(process.execPath,['scripts/generate-flame-tank-pbr.mjs',
  'dist/src/assets/reborn/animation'],{stdio:'inherit'});
-// The standard build uses the tracked assets on every host. Local art-preview
-// sources must be selected explicitly and pass the same validation as before.
+// The four final 3D models are independent of the original Canvas atlas masters.
+// Only explicit authoring builds use the local PBR installer.
 if(process.env.SANDFORGE_REQUIRE_FINAL_PBR==='1'||[
  'SANDFORGE_COMBINED_PBR_SOURCE','SANDFORGE_BARRACKS_SOURCE','SANDFORGE_HQ_SOURCE',
 ].some(name=>process.env[name])){
  execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs',shippedBuildingDir],{stdio:'inherit'});
+}else{
+ for(const name of finalBuildingFiles)cpSync('src/release-pbr/'+name,shippedBuildingDir+'/'+name);
 }
 console.log('Sandforge buildings restored to:',BUILDING_ART_REFERENCE);
 // The Bastion, unlike the authored large HQ/barracks binaries, is fully

@@ -3,6 +3,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - src/release-pbr/**
       - src/reborn/action-balance.ts
       - src/reborn/simulation.ts
       - src/reborn/tactical-ai.ts
@@ -46,12 +47,22 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --no-tags origin "${{ github.event.pull_request.base.sha }}"
-          if git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD |
-            grep -E '(\.glb$|\.gltf$|webgl-desert-cliff-ground-pbr|webgl-raised-mesa-cliffs\.js$)'; then
-            echo 'Action release must not bundle rejected cliff geometry or GLBs' >&2
-            exit 1
-          fi
-          echo 'No rejected cliff renderers or GLB changes'
+          # The four pinned 1.8 WebGL assets are the only approved additions.
+          sha256sum --check <<'HASHES'
+          5ad36a98f3b9ac75e72825e5b23e33a3fe2958eafe35ab5c99112196486a2ff6  src/release-pbr/barracks-0.glb
+          5ad36a98f3b9ac75e72825e5b23e33a3fe2958eafe35ab5c99112196486a2ff6  src/release-pbr/barracks-1.glb
+          d15449fa57da69c965dbffc29468bed1c37f2805324efeaaadf757f7b28efed4  src/release-pbr/headquarters-0.glb
+          b6741c0cde7211413bc2033b251b91036b35ca486c84d57303f2c6ef07af8ddb  src/release-pbr/headquarters-1.glb
+          HASHES
+          git diff --name-only --no-renames -z "${{ github.event.pull_request.base.sha }}" HEAD > "$RUNNER_TEMP/sandforge-paths"
+          while IFS= read -r -d '' file; do
+            case "$file" in
+              src/release-pbr/barracks-[01].glb|src/release-pbr/headquarters-[01].glb) ;;
+              *.glb|*.gltf|*webgl-desert-cliff-ground-pbr*|*webgl-raised-mesa-cliffs.js)
+                echo "Protected asset or cliff renderer changed: $file" >&2
+                exit 1 ;;
+            esac
+          done < "$RUNNER_TEMP/sandforge-paths"
   action-map-pacing:
     name: "${{ matrix.map }} · 180 seconds Classic vs Action"
     needs: action-regressions

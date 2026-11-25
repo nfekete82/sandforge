@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {existsSync,readFileSync} from 'node:fs';
+import {readFileSync} from 'node:fs';
 
 const source=readFileSync('scripts/webgl-battlefield.js','utf8');
-const glbPath='src/assets/reborn/buildings-3d/headquarters-0.glb';
+const packaged='dist/src/assets/reborn/buildings-3d/';
 
 function metadata(path){
  const buffer=readFileSync(path);
@@ -25,11 +25,9 @@ test('new HQ radar pivots are animated instead of adding fallback radar geometry
  assert.match(source,/mesh\.castShadow=true;mesh\.receiveShadow=true/);
 });
 
-test('HQ PBR GLB is real, UV-textured, and retains independent opening doors',t=>{
- const json=metadata(glbPath);
+test('HQ PBR GLB is real, UV-textured, and retains independent opening doors',()=>{
+ const json=metadata(packaged+'headquarters-0.glb');
  const nodeNames=new Set(json.nodes.map(node=>node.name));
- if(!nodeNames.has('HQ_Radar_01_LargeDish_Rotor'))
-  return t.skip('Install the HQ PBR GLB into the test worktree first');
  for(const name of [
   'HQ_Radar_01_LargeDish_Rotor',
   'HQ_Radar_02_PhasedArray_Rotor',
@@ -47,11 +45,9 @@ test('HQ PBR GLB is real, UV-textured, and retains independent opening doors',t=
  assert.ok(json.meshes.some(x=>x.primitives.some(p=>p.attributes.TEXCOORD_0!==undefined)));
  assert.ok(json.meshes.every(x=>x.primitives.every(p=>p.attributes.POSITION!==undefined)));
 });
-test('both HQ team assets use the same geometry and preserve team selection',t=>{
+test('both HQ team assets use the same geometry and preserve team selection',()=>{
  const filenames=['headquarters-0.glb','headquarters-1.glb'];
- const all=filenames.map(x=>metadata('src/assets/reborn/buildings-3d/'+x));
- if(!all[0].nodes.some(x=>x.name==='HQ_Radar_02_PhasedArray_Rotor'))
-  return t.skip('HQ PBR models not yet copied to both team asset slots');
+ const all=filenames.map(x=>metadata(packaged+x));
  assert.deepEqual(all.map(x=>x.meshes.length),[43,43],
   '35 original HQ meshes + three rear PBR vent batches + five dome surfaces');
  for(const g of all)assert.ok(g.materials.some(m=>m.name?.startsWith('HQ_PBR_')));

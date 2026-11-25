@@ -15,6 +15,8 @@ const maxFailures=process.env.SANDFORGE_TEST_MAX_FAILURES??'3';
 if(!/^(0|[1-9][0-9]*)$/.test(maxFailures))
  throw new Error('SANDFORGE_TEST_MAX_FAILURES must be an integer >= 0');
 const specs=[
+  'tests/browser/webgl-default-entry.spec.mjs',
+  'tests/browser/webgl-elimination-victory-banner-20261108.spec.mjs',
   'tests/browser/webgl-fog-alignment.spec.mjs',
   'tests/browser/webgl-territory-rally-cliffs.spec.mjs',
   'tests/browser/webgl-playable.spec.mjs',
