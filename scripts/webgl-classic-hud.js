@@ -10,7 +10,7 @@ export function installClassicHud(){
  panel.id='sf-classic-root';
  panel.innerHTML=`
 <header class="top hud frame" aria-label="Sandforge Ressourcen">
- <a class="wordmark" href="/" title="Zur klassischen Sandforge-Version">
+ <a class="wordmark" href="/classic.html" title="Zur klassischen Sandforge-Version">
   <img class="sandforge-logo sandforge-hud-logo" src="/src/assets/reborn/sandforge-logo-transparent.webp" alt="Sandforge: Bastion Wars" decoding="async">
  </a>
  <div class="resources">

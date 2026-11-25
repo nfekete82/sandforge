@@ -15,8 +15,8 @@ function model(name='Helicopter_Fuselage',materialName='camo'){
  return {scene,mesh,base,texture};
 }
 test('blue and red teams subtly tint the actual PBR material, preserving camouflage texture',()=>{
- assert.equal(FACTION_COLORS[0],'#347c9c');
- assert.equal(FACTION_COLORS[1],'#af5449');
+ assert.equal(FACTION_COLORS[0],'#2c6799');
+ assert.equal(FACTION_COLORS[1],'#a64b43');
  for(const type of ['unit','building']){
   for(const kind of type==='unit'
    ?['scout','bomber','rover','tank','infantry','medic','heavy','engineer','artillery']

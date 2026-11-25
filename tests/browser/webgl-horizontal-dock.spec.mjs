@@ -141,7 +141,7 @@ test('lite infantry visual scale is reduced without changing unit collision radi
  expect(result.kind).toBe('infantry');
  // Deliberately downsized infantry in 3D: the engine collision footprint
  // and authoritative movement remain unchanged.
- expect(result.scale).toBeCloseTo(.56,3);
+ expect(result.scale).toBeCloseTo(.38,3);
  expect(result.sameUnit).toBe(true);
  expect(result.radius).toBe(true);
 });
@@ -308,14 +308,16 @@ test('selecting a completed HQ trains the pioneer in that exact building queue',
   const base=game.build(0,'headquarters',site);
   if(!base)throw Error('Could not build HQ fixture');
   base.buildRemaining=0;base.hp=1200;
+  game.updateVision();
+  battlefield.sync(true,.06,false,1);
   battlefield.selected.clear();battlefield.selectedBase=base.id;
-  battlefield.sync(true,.06,false,1);battlefield.drawInterface();
+  battlefield.drawInterface();
   return base.id;
  });
- await expect(page.locator('#sf-tabs button[data-tab="units"]')).toBeVisible();
- await expect(page.locator('#sf-tabs button[data-tab="buildings"]')).toBeHidden();
- await expect(page.locator('[data-sf-producer="headquarters"]')).toBeVisible();
- await expect(page.locator('[data-sf-producer="barracks"]')).toBeHidden();
+ await expect(page.locator('#sf-tabs button[data-tab="buildings"]')).toBeVisible();
+ await page.locator('#sf-tabs button[data-tab="infantry"]').click();
+ await expect(page.locator('[data-sf-producer="headquarters"] [data-unit="engineer"]')).toBeVisible();
+ await expect(page.locator('[data-sf-producer="barracks"]')).toHaveCount(0);
  await page.locator('[data-unit="engineer"]').click();
  const result=await page.evaluate(id=>{
   const {game,battlefield}=window.__sandforgeWebGL;
@@ -327,7 +329,7 @@ test('selecting a completed HQ trains the pioneer in that exact building queue',
  expect(result.queue).toContain('engineer');
  expect(result.selectedBase).toBe(buildingId);
  expect(result.notice).toContain('in Auftrag');
- expect(result.context).toBe('units');
+ expect(result.context).toBe('infantry');
 });
 
 test('selecting multiple soldiers shows a squad portrait with the correct count',async({page})=>{

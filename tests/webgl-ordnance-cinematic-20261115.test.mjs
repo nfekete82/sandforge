@@ -43,7 +43,7 @@ test('all graphic missiles come from authoritative persisted Simulation.missiles
  assert.match(fx,/if\(!this\.game\.canSee\(0,\{x,y:z\}\)\)continue/);
  assert.match(fx,/this\.particle\(this\.smoke/);
  assert.match(fx,/const profile=ordnanceVisualProfile\(missile,sourceKind\)/);
- assert.match(fx,/const fires=strong\?\(weaponKind==='bomb'\?14:11\):6/);
+ assert.match(fx,/const fires=budget\(light\?3:strong\?\(weaponKind==='bomb'\?14:11\):6\)/);
  assert.doesNotMatch(fx,/this\.game\.strike\(/);
  assert.doesNotMatch(sim,/rocketStreaks|bombFinsA|ORDNANCE_VISUALS/);
  assert.match(build,/cpSync\('scripts\/webgl-ordnance-profile\.js','dist\/webgl-ordnance-profile\.js'\)/);

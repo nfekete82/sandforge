@@ -32,8 +32,9 @@ test('3D campaign parity: black fog, engineer HQ bootstrap and blocked productio
  expect(initial.cameraDistance).toBeLessThan(100);
  expect(initial.minZoom).toBeCloseTo(.46,2);
  expect(initial.maxZoom).toBeLessThanOrEqual(3.5);
- await expect(page.locator('[data-unit="infantry"]')).toBeDisabled();
- await expect(page.locator('#sf-tabs button[data-tab="buildings"]')).toBeHidden();
+ await expect(page.locator('[data-unit="infantry"]')).toHaveCount(0);
+ await expect(page.locator('#sf-tabs button[data-tab="buildings"]')).toBeVisible();
+ await expect(page.locator('#sf-tabs button[data-tab="infantry"]')).toBeHidden();
  await page.evaluate(()=>{
   const {game,battlefield}=window.__sandforgeWebGL;
   const worker=game.units.find(u=>u.owner===0&&u.kind==='engineer');
@@ -63,13 +64,16 @@ test('3D campaign parity: black fog, engineer HQ bootstrap and blocked productio
   const {game,battlefield}=window.__sandforgeWebGL;
   const base=game.bases.find(b=>b.id===id);
   base.buildRemaining=0;base.hp=800;
-  game.updateVision();battlefield.sync(true);
+  game.updateVision();battlefield.sync(true);battlefield.drawInterface();
   return {hq:game.hasHeadquarters(0),newAllowed:!document.querySelector('[data-build="barracks"]').disabled,
-   infantryLocked:document.querySelector('[data-unit="infantry"]').disabled};
+   rifleCard:document.querySelector('[data-unit="infantry"]')!==null};
  },built.id);
  expect(completion.hq).toBe(true);
  expect(completion.newAllowed).toBe(true);
- expect(completion.infantryLocked).toBe(true); // Kaserne has not been built.
+ expect(completion.rifleCard).toBe(false); // Kaserne has not been built.
+ await page.locator('#sf-tabs button[data-tab="infantry"]').click();
+ await expect(page.locator('[data-sf-producer="headquarters"] [data-unit="engineer"]')).toBeEnabled();
+ await expect(page.locator('[data-unit="infantry"]')).toHaveCount(0);
  expect(errors).toEqual([]);
 });
 

@@ -77,8 +77,9 @@ test('original 3D factory exit and queued tank/Humvee/rocket-truck rollout were 
  const battlefield=readFileSync('scripts/webgl-battlefield.js','utf8');
  const service=readFileSync('scripts/webgl-factory-service.js','utf8');
  assert.match(gate,/getObjectByName\('FactoryRollupDoor'\)/);
- assert.match(gate,/const outside=infantry\?new THREE\.Vector3/);
- assert.match(battlefield,/createFactoryServiceYard\(\)/);
- assert.match(battlefield,/updateFactoryServiceYard\(entry,b,this\.game\.units,this\.game\.time\)/);
+ assert.match(gate,/const outside=gate\.meshyShutter\?[\s\S]*?gate\.openBay\?new THREE\.Vector3\(\.18,\.16,3\.45\)/);
+ assert.match(gate,/if\(!gate\.meshyShutter&&!gate\.meshyInfantry\)root\.localToWorld\(outside\)/);
+ assert.doesNotMatch(battlefield,/createFactoryServiceYard\(\)|updateFactoryServiceYard\(/,
+  'retired automated factory repair bays must stay out of the real battlefield');
  assert.doesNotMatch(service,/FactoryServiceDoorLeft|FactoryServiceDoorRight|FactoryRepairGarageRoof|FactorySideWorkshopWall/);
 });

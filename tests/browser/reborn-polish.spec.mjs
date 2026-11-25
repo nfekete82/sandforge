@@ -9,7 +9,7 @@ test('polish: live rifle bursts use warm muzzle sockets and short travelling tra
  const errors=await start(page);await page.locator('#sound').click();await page.locator('#audio-test').click();await page.locator('#audio-close').click();
  const state=await page.evaluate(async()=>{
   const {game:g,renderer:r,audio:a}=window.__reborn;await a.unlock();g.units=[];
-  const u=g.spawn(0,{x:1900,y:2100}),e=g.spawn(1,{x:2050,y:2100},'tank');e.cooldown=100;g.stop([u.id,e.id],true);g.updateVision();r.camera={x:1970,y:2100,zoom:2};r.boundCamera();r.selected.clear();r.render(0);
+  const u=g.spawn(0,{x:1900,y:2100}),e=g.spawn(1,{x:2050,y:2100},'tank');e.cooldown=100;g.stop([e.id],true);g.stop([u.id],true,true);g.updateVision();r.camera={x:1970,y:2100,zoom:2};r.boundCamera();r.selected.clear();r.render(0);
   a.update(g,r);const before=a.played.rifle,events=[];let muzzleError=Infinity;g.paused=false;
   for(let i=0;i<5;i++){g.step();a.update(g,r);r.render(.05);if(i===0){const muzzle=r.units.muzzleFor(u),flash=r.units.particles.items.find(p=>p.color==='#fff0bb');muzzleError=flash?Math.hypot(flash.x-muzzle.x,flash.y-muzzle.y):Infinity;}events.push(g.shots.filter(s=>s.source===u.id).length);}
   const played=a.played.rifle-before,traces=r.units.particles.items.filter(p=>p.trace).map(p=>({x:p.x,y:p.y,vx:p.vx,vy:p.vy,age:p.age}));
@@ -31,7 +31,7 @@ test('polish: live rifle bursts use warm muzzle sockets and short travelling tra
   return {before,zero,replay,offscreen,unseen};
  });
  expect(new Set(Object.values(suppressed)).size).toBe(1);
- await page.locator('#sound').click();await page.locator('#audio-volume').fill('25');await expect(page.locator('#audio-level')).toHaveText('25 %');await page.locator('#particles-enabled').uncheck();
+ await page.keyboard.press('Escape');await page.locator('#options').click();await page.locator('#audio-volume').fill('25');await expect(page.locator('#audio-level')).toHaveText('25 %');await page.locator('#particles-enabled').uncheck();
  expect(await page.evaluate(()=>({volume:window.__reborn.audio.volume,particles:window.__reborn.renderer.units.particles.enabled}))).toEqual({volume:.25,particles:false});expect(errors).toEqual([]);
 });
 
@@ -40,7 +40,7 @@ test('polish: real dual turret barrels, distinct synthesized weapon signals and 
  const result=await page.evaluate(async()=>{
   const {game:g,renderer:r,audio:a}=window.__reborn;await a.unlock();g.units=[];
   const b={...g.bases[0],id:1300,x:1900,y:2100,kind:'turret',hp:650,radius:30,queue:[],queueTypes:[],cooldown:0,turretAngle:Math.PI};g.bases.push(b);
-  const e=g.spawn(1,{x:2280,y:2100},'tank');e.cooldown=100;g.stop([e.id],true);g.updateVision();r.camera={x:2030,y:2100,zoom:1.7};r.boundCamera();r.selectedBase=b.id;r.render(0);a.update(g,r);const before=a.played.turret;
+  const e=g.spawn(1,{x:2280,y:2100},'tank'),initialHp=e.hp;e.cooldown=100;g.stop([e.id],true);g.updateVision();r.camera={x:2030,y:2100,zoom:1.7};r.boundCamera();r.selectedBase=b.id;r.render(0);a.update(g,r);const before=a.played.turret;
   g.paused=false;g.step();const early=g.shots.length;
   for(let i=0;i<35&&g.shots.filter(s=>s.source===b.id).length<4;i++){g.step();a.update(g,r);r.render(.05);}
   const shots=g.shots.filter(s=>s.source===b.id),played=a.played.turret-before;g.paused=true;a.update(g,r);r.render(0);
@@ -52,7 +52,7 @@ test('polish: real dual turret barrels, distinct synthesized weapon signals and 
   a.setEnabled(true);a.setVolume(1);g.shots=[];g.paused=false;
   for(let i=0;i<100;i++)g.shots.push({from:{x:1900,y:2082},to:{x:2050,y:2077},groundFrom:{x:1900,y:2100},groundTo:{x:2050,y:2100},owner:0,life:.5,hit:true,weapon:'turret',at:g.time});
   a.update(g,r);const cap={voices:a.activeVoices,peak:a.peakVoices,limit:a.voiceLimit,dropped:a.droppedVoices};g.paused=true;a.update(g,r);
-  return {early,barrels:shots.map(s=>s.barrel),muzzles:shots.map(s=>s.from),damage:620-e.hp,played,signals,cap};
+  return {early,barrels:shots.map(s=>s.barrel),muzzles:shots.map(s=>s.from),damage:initialHp-e.hp,played,signals,cap};
  });
  expect(result.early).toBe(0);expect(result.barrels).toEqual([0,1,0,1]);expect(result.muzzles[0]).not.toEqual(result.muzzles[1]);expect(result.muzzles[0]).toEqual(result.muzzles[2]);expect(result.damage).toBe(24);expect(result.played).toBe(4);
  for(const signal of Object.values(result.signals)){expect(signal.energy).toBeGreaterThan(.01);expect(signal.peak).toBeLessThan(1);expect(signal.tail).toBe(0);}

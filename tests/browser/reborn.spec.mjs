@@ -1,4 +1,5 @@
 import {provideFacilities} from './production-fixture.mjs';
+import {finishOpeningHQ,loadLegacyMatch} from './hq-bootstrap-fixture.mjs';
 import {test,expect} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 const evidence=new URL('../../docs/reborn/',import.meta.url).pathname;
@@ -74,7 +75,8 @@ test('reborn: minimap drag, anchored zoom, keyboard camera, shift orders, attack
  const beforeHold=await page.evaluate(()=>window.__reborn.renderer.camera.y);await page.keyboard.down('s');await page.waitForTimeout(350);await page.keyboard.up('s');
  expect(await page.evaluate(()=>window.__reborn.renderer.camera.y)).toBeGreaterThan(beforeHold);
  await page.keyboard.press('q');await expect(page.locator('#hint')).toContainText('ANGRIFFSBEWEGUNG');
- const point=await screen(page,{x:1500,y:2400});await page.mouse.click(point.x,point.y);expect(await page.evaluate(()=>window.__reborn.game.units[0].orders[0].kind)).toBe('attackMove');
+ const target={x:1500,y:2400};await focus(page,target);
+ const point=await screen(page,target);await page.mouse.click(point.x,point.y);expect(await page.evaluate(()=>window.__reborn.game.units[0].orders[0].kind)).toBe('attackMove');
  await page.mouse.click(340,400);expect(await page.evaluate(()=>window.__reborn.renderer.selected.size)).toBe(0);
  const before=await page.evaluate(()=>window.__reborn.renderer.camera.x);await page.keyboard.down('ArrowRight');await page.waitForTimeout(200);await page.keyboard.up('ArrowRight');expect(await page.evaluate(()=>window.__reborn.renderer.camera.x)).toBeGreaterThan(before);
  const mini=await page.locator('#minimap').boundingBox();await page.mouse.move(mini.x+mini.width*.3,mini.y+mini.height*.3);await page.mouse.down();await page.mouse.move(mini.x+mini.width*.65,mini.y+mini.height*.55,{steps:8});await page.mouse.up();
@@ -129,7 +131,7 @@ test('reborn: finer terrain, directional animation, grounded drawing and automat
   const {game:g,renderer:r}=window.__reborn;
   const atlas=r.units.asset('infantry').image;const temp=document.createElement('canvas');temp.width=atlas.width;temp.height=atlas.height;const tc=temp.getContext('2d');tc.drawImage(atlas,0,0);
   const pixels=tc.getImageData(0,0,temp.width,temp.height).data;let clear=0,opaque=0;for(let i=3;i<pixels.length;i+=4){if(pixels[i]===0)clear++;if(pixels[i]>250)opaque++;}
-  g.units=[];const blue=g.spawn(0,{x:1900,y:2100}),red=g.spawn(1,{x:2050,y:2100});g.command([blue.id],{x:2350,y:2100,kind:'move'});g.updateVision();g.paused=false;g.step();g.step();g.paused=true;
+  g.units=[];const blue=g.spawn(0,{x:1900,y:2100}),red=g.spawn(1,{x:2050,y:2100});g.command([blue.id],{x:2350,y:2100,kind:'attackMove'});g.updateVision();g.paused=false;g.step();g.step();g.paused=true;
   r.camera.x=blue.x;r.camera.y=blue.y;r.boundCamera();r.selected=new Set([blue.id]);r.render(0);
   const sample=()=>{const p=r.screen(blue),d=Math.min(2,devicePixelRatio||1);return Array.from(r.context.getImageData(Math.floor((p.x-40)*d),Math.floor((p.y-66)*d),Math.ceil(80*d),Math.ceil(70*d)).data);};
   blue.fire=0;blue.hit=0;r.units.clear();blue.moving=true;blue.walkDistance=0;r.render(0);const first=sample();blue.walkDistance=36;r.render(0);const second=sample();
@@ -137,9 +139,9 @@ test('reborn: finer terrain, directional animation, grounded drawing and automat
   let groundFills=0,groundShadows=0;const fill=r.context.fill,ellipse=r.context.ellipse,begin=r.context.beginPath;
   let oval=false;r.context.beginPath=function(){oval=false;return begin.call(this);};r.context.ellipse=function(...args){oval=true;return ellipse.apply(this,args);};r.context.fill=function(...args){if(oval)groundFills++;if(this.shadowBlur>0)groundShadows++;return fill.apply(this,args);};
   r.render(0);r.context.fill=fill;r.context.ellipse=ellipse;r.context.beginPath=begin;
-  return {blueHp:blue.hp,redHp:red.hp,orders:blue.orders.length,angle:blue.angle,changed,groundFills,groundShadows,clear,opaque,pixels:atlas.width*atlas.height,terrain:r.terrain.src,grid:g.world.blocked.length};
+  return {blueHp:blue.hp,redHp:red.hp,orders:blue.orders.length,hold:blue.hold,changed,groundFills,groundShadows,clear,opaque,pixels:atlas.width*atlas.height,terrain:r.terrain.src,grid:g.world.blocked.length};
  });
- expect(result.blueHp).toBeLessThan(100);expect(result.redHp).toBeLessThan(100);expect(result.orders).toBe(1);
+ expect(result.blueHp).toBeLessThan(100);expect(result.redHp).toBeLessThan(100);expect(result.orders).toBe(0);expect(result.hold).toBe(true);
  expect(result.changed).toBeGreaterThan(100);expect(result.groundFills).toBe(0);expect(result.groundShadows).toBe(0);
  expect(result.clear/result.pixels).toBeGreaterThan(.35);expect(result.opaque/result.pixels).toBeGreaterThan(.04);expect(result.terrain).toContain('desert-fine.png');expect(result.grid).toBe(240*240);
  await page.screenshot({path:evidence+'polish-combat.png'});
@@ -252,13 +254,13 @@ test('reborn: captured bastion keeps both maps lit after infantry leaves and mar
 
 test('reborn: unit-focused HUD stays compact at bottom left and trains heavy infantry in a finished barracks',async({page})=>{
  await start(page,3434,1790);await provideFacilities(page,['barracks']);await page.locator('#select-unit').click();
- await expect(page.locator('[data-unit]')).toHaveCount(9);await expect(page.locator('.catalog-tabs button')).toHaveCount(2);
+ await expect(page.locator('#catalog-units .catalog-card')).toHaveCount(12);await expect(page.locator('.catalog-tabs button')).toHaveCount(2);
  await expect(page.locator('#tab-buildings, [data-building], #build-shortcut')).toHaveCount(0);
  await page.keyboard.press('b');expect(await page.evaluate(()=>window.__reborn.renderer.placement)).toBe(null);
- const panel=await page.locator('.command').boundingBox();expect(panel.x).toBeLessThanOrEqual(12);expect(panel.width).toBeLessThanOrEqual(700);expect(panel.height).toBeLessThanOrEqual(216);expect(1790-panel.y-panel.height).toBeLessThanOrEqual(12);
+ const panel=await page.locator('.command').boundingBox();expect(panel.x).toBeLessThanOrEqual(12);expect(panel.width).toBeLessThanOrEqual(820);expect(panel.height).toBeLessThanOrEqual(168);expect(1790-panel.y-panel.height).toBeLessThanOrEqual(12);
  await expect(page.locator('.command #production')).toHaveCount(0);await expect(page.locator('#sidebar #production')).toBeVisible();
  await expect(page.locator('[data-unit="heavy"]')).toBeEnabled();await page.locator('[data-unit="heavy"]').click();
- await expect(page.locator('#credits')).toHaveText('250');await expect(page.locator('#queue')).toContainText('1 IM AUFTRAG');
+ await expect(page.locator('#credits')).toHaveText('200');await expect(page.locator('#queue')).toContainText('1 IM AUFTRAG');
  await page.screenshot({path:evidence+'unit-focus-wide.png'});await advance(page,9);
  expect(await page.evaluate(()=>window.__reborn.game.units.some(u=>u.kind==='heavy'&&u.hp===420))).toBe(true);
  await page.setViewportSize({width:800,height:650});await page.locator('#select-unit').click();await expect(page.locator('#select-unit')).toBeInViewport();await expect(page.locator('#attack')).toBeInViewport();await expect(page.locator('#recruit')).toBeInViewport();
@@ -422,18 +424,20 @@ test('campaign: real new-game input generates a different reachable map and save
 
 test('combat: approaching enemies receive immediate fire and a second attacker does not steal the first target',async({page})=>{
  await page.setViewportSize({width:1500,height:1000});await page.goto('/?debug&seed=2026');await page.locator('#loading').waitFor({state:'detached'});
+ await loadLegacyMatch(page);
  const first=await page.evaluate(()=>{
   const {game:g,renderer:r}=window.__reborn;g.paused=false;g.aiClock=-1e8;g.units=[];
   const p=g.territories[g.bases[0].territory].point,blue=g.spawn(0,p,'heavy'),a=g.spawn(1,{x:p.x+120,y:p.y}),b=g.spawn(1,{x:p.x+155,y:p.y});
-  g.command([blue.id],{x:p.x+300,y:p.y,kind:'move'});g.command([blue.id],{x:p.x+400,y:p.y+50,kind:'move'},true);
   g.visible[0].fill(0);g.step();g.paused=true;r.selected.add(blue.id);r.camera.x=p.x+100;r.camera.y=p.y-60;r.camera.zoom=1.5;g.updateVision();r.render(.05);
   return {blue:blue.id,first:a.id,second:b.id,target:blue.combatTarget,attacker:blue.lastAttacker,hp:[a.hp,b.hp]};
  });
- expect(first.target).toBe(first.first);expect(first.attacker).toBe(first.second);expect(first.hp).toEqual([60,100]);
+ expect(first.target).toBe(first.first);expect(first.attacker).toBe(first.second);expect(first.hp).toEqual([70,100]);
  await advance(page,.2);
+ expect(await page.evaluate(()=>window.__reborn.game.units.find(u=>u.owner===0).combatTarget)).toBe(first.first);
+ await advance(page,1);
  const next=await page.evaluate(()=>{const g=window.__reborn.game;return {survivors:g.units.filter(u=>u.owner===1).map(u=>u.id),hp:g.units.find(u=>u.owner===1).hp,blue:g.units.find(u=>u.owner===0).hp,orders:g.units.find(u=>u.owner===0).orders.length};});
- expect(next.survivors).toEqual([first.second]);expect(next.hp).toBe(100);expect(next.blue).toBeGreaterThan(0);expect(next.orders).toBe(2);
- await advance(page,1);expect(await page.evaluate(()=>window.__reborn.game.units.find(u=>u.owner===1).hp)).toBeLessThan(100);
+ expect(next.survivors).toEqual([first.second]);expect(next.hp).toBe(100);expect(next.blue).toBeGreaterThan(0);expect(next.orders).toBe(0);
+ await advance(page,1.25);expect(await page.evaluate(()=>window.__reborn.game.units.find(u=>u.owner===1).hp)).toBeLessThan(100);
  await page.screenshot({path:evidence+'target-focus.png'});
 });
 
@@ -453,6 +457,7 @@ test('vehicle art: the full roster has real faction materials, baked shadows, an
 
 test('visual polish: fine sand relief and a quiet HUD preserve usable production and compact selection',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1500,height:1000});await page.goto('/?debug&seed=2026');await page.locator('#loading').waitFor({state:'detached'});
+ await loadLegacyMatch(page);
  const art=await page.evaluate(()=>{
   const {game:g,renderer:r}=window.__reborn;g.paused=true;r.home();r.render(0);const p=g.territories[g.bases[0].territory].point,ctx=r.terrainSurface.getContext('2d',{willReadFrequently:true}),data=ctx.getImageData(p.x-100,p.y-100,200,200).data;let sum=0,squares=0;
   for(let i=0;i<data.length;i+=4){const l=data[i]*.299+data[i+1]*.587+data[i+2]*.114;sum+=l;squares+=l*l;}
@@ -467,6 +472,7 @@ test('visual polish: fine sand relief and a quiet HUD preserve usable production
 
 test('combat presentation: simultaneous hits never hide return-fire poses or delay the real weapon cadence',async({page})=>{
  await page.setViewportSize({width:1500,height:1000});await page.goto('/?debug&seed=2026');await page.locator('#loading').waitFor({state:'detached'});
+ await loadLegacyMatch(page);
  const result=await page.evaluate(()=>{
   const {game:g,renderer:r}=window.__reborn;g.units=[];g.aiClock=-1e8;g.paused=false;const site=g.territories[g.bases[0].territory].point,p={x:site.x+50,y:site.y+95},blue=g.spawn(0,p,'heavy');
   g.spawn(1,{x:p.x+120,y:p.y},'tank');g.spawn(1,{x:p.x+155,y:p.y},'tank');g.updateVision();r.units.clear();r.selected.add(blue.id);r.camera.x=p.x+80;r.camera.y=p.y-45;r.camera.zoom=1.65;
@@ -489,6 +495,7 @@ test('combat presentation: simultaneous hits never hide return-fire poses or del
 
 test('capture: a real two-unit drag selection captures after clicking the mast, body or label at different zoom levels',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1500,height:1000});await page.goto('/?debug&seed=2026');await page.locator('#loading').waitFor({state:'detached'});
+ await finishOpeningHQ(page);
  for(const [zoom,part] of [[1,'mast'],[1.65,'body'],[.7,'label']]){
   const setup=await page.evaluate(({zoom,part})=>{
    const {game:g,renderer:r}=window.__reborn;g.paused=true;g.aiClock=-1e8;g.units=[];const t=g.territories[8];t.owner=-1;t.capturing=-1;t.progress=0;
@@ -554,7 +561,7 @@ test('reborn: readable retro desert field HUD at the standard desktop viewport',
  expect(visuals.catalogBackground).toContain('repeating-linear-gradient(');
  expect(visuals.cardBackground).toContain('linear-gradient(');
  expect(visuals.gridColumns).toBe(2);
- expect(visuals.labels).toHaveLength(10);
+ expect(visuals.labels).toHaveLength(12);
  expect(visuals.labels.every(({name})=>Boolean(name))).toBe(true);
  expect(visuals.labels.find(({kind})=>kind==='rover')?.name).toBeTruthy();
  await expect(page.locator('#tab-units')).toBeVisible();
@@ -565,7 +572,8 @@ test('reborn: readable retro desert field HUD at the standard desktop viewport',
 test('reborn: unit portraits use subtle desert texture, aligned single-line name and cost; minimap compass stays uncluttered',async({page})=>{
  for(const [width,height] of [[1200,900],[760,770]]){
   await start(page,width,height);
-  await expect(page.locator('#catalog-units .catalog-card')).toHaveCount(10);
+  await provideFacilities(page,['barracks','factory','airfield']);
+  await expect(page.locator('#catalog-units .catalog-card')).toHaveCount(12);
   await expect(page.locator('.compass.north,.compass.south')).toHaveCount(0);
   const report=await page.locator('#catalog-units .catalog-card').evaluateAll(cards=>cards.map(card=>{
    const name=card.querySelector('.card-name'),cost=card.querySelector('.card-cost'),meta=card.querySelector('.card-meta');

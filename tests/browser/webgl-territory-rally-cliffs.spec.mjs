@@ -53,9 +53,10 @@ test('a completed production building exposes a rally command and Escape cancels
     if(!building)return false;
     building.buildRemaining=0;
     building.hp=1200;
+    g.updateVision();
+    b.sync(true,.06,false,1);
     b.selected.clear();
     b.selectedBase=building.id;
-    b.sync(true,.06,false,1);
     b.drawInterface();
     return true;
   });

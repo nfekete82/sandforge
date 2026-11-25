@@ -1980,8 +1980,7 @@ export class SandforgeBattlefield {
     }
    }
    if(action==='rally'){
-    const base=this.game.bases.find(b=>b.id===this.selectedBase&&b.owner===0&&b.hp>0&&b.buildRemaining<=0);
-    if(base){this.rallyMode=!this.rallyMode;this.clearPlacement();this.attackMode=false;
+    if(this.catalogContext().producer){this.rallyMode=!this.rallyMode;this.clearPlacement();this.attackMode=false;
      this.message(this.rallyMode?'Linksklick auf Gelände: Sammelpunkt setzen · Escape: Abbruch':'Sammelpunkt-Modus beendet');
      this.drawInterface();}
    }
@@ -2402,11 +2401,7 @@ export class SandforgeBattlefield {
     .map(b=>b.territory),
    playing:g.status==='playing'
   });
-  const rallyButton=view.querySelector('#sf-rally');
-  if(rallyButton){
-   rallyButton.hidden=!base||base.owner!==0||base.buildRemaining>0;
-   rallyButton.setAttribute('aria-pressed',String(this.rallyMode));
-  }
+  view.querySelector('#sf-rally')?.setAttribute('aria-pressed',String(this.rallyMode));
   const rally=base?.rally;
   this.rallyMarker.visible=Boolean(rally&&base.owner===0);
   if(this.rallyMarker.visible)this.rallyMarker.position.copy(this.pos(rally.x,rally.y,this.heightAt(rally.x,rally.y)+5));
@@ -2589,7 +2584,8 @@ export class SandforgeBattlefield {
     button.hidden=a!=='bastion-upgrade';
    }else if(buildingSelected){
     button.hidden=!ownBuilding||
-     (a!=='demolish'&&!(a==='missile-target'&&base.kind==='silo')&&
+     (a!=='demolish'&&!(a==='rally'&&context.producer)&&
+      !(a==='missile-target'&&base.kind==='silo')&&
       !(a==='interceptor-rearm'&&base.kind==='interceptor')&&
       !(a==='gate-upgrade'&&base.kind==='wall'&&base.buildRemaining<=0));
    }else if(chosen.length)button.hidden=!FIELD_UNIT_COMMANDS.includes(a);

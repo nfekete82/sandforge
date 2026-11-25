@@ -22,12 +22,14 @@ const geometryOptions=()=>({
  biome:'desert'
 });
 
-test('v3 sand roads are one vertex-alpha mesh with feathered sides, not two stacked bands',()=>{
+test('desert tire marks are one vertex-alpha mesh with feathered sides and no Bastion guides',()=>{
  const setup=geometryOptions();
  const meshes=createLandscapeMeshes(setup);
- const roads=meshes.filter(m=>m.userData.roadNetwork);
+ assert.ok(!meshes.some(m=>m.userData.roadNetwork));
+ const roads=meshes.filter(m=>m.userData.unconnectedTrackRemnants);
  assert.equal(roads.length,1);
  const mesh=roads[0],attr=mesh.geometry.getAttribute('color');
+ assert.equal(mesh.userData.noBastionGuidance,true);
  assert.equal(attr.itemSize,4,'RGBA needed for physically fading road edges');
  assert.ok(mesh.material.transparent);
  assert.equal(mesh.material.depthWrite,false);
@@ -36,9 +38,9 @@ test('v3 sand roads are one vertex-alpha mesh with feathered sides, not two stac
  let zeros=0,intermediate=0,max=0;
  for(let i=0;i<attr.count;i++){
   const alpha=attr.getW(i);
-  assert.ok(alpha>=0&&alpha<=.3,`road alpha out of range: ${alpha}`);
+  assert.ok(alpha>=0&&alpha<=.18,`tire mark alpha out of range: ${alpha}`);
   if(alpha<.001)zeros++;
-  if(alpha>.07&&alpha<.3)intermediate++;
+  if(alpha>.07&&alpha<.18)intermediate++;
   max=Math.max(max,alpha);
  }
  assert.ok(max>.13,'visible subtle road wear');
@@ -61,7 +63,7 @@ test('v3 rock formations are connected low-poly hills, with real smooth gaps and
   const x=positions.getX(i)+setup.size/2;
   const z=positions.getZ(i)+setup.size/2;
   const rise=positions.getY(i)-setup.heightAt(x,z);
-  assert.ok(Number.isFinite(rise)&&rise>=0&&rise<160);
+  assert.ok(Number.isFinite(rise)&&rise>=0&&rise<setup.ridges[0].height*1.5);
   maxRise=Math.max(maxRise,rise);
   if(Math.abs(x-1120)<95&&rise>15)highInPass++;
   if(Math.hypot(x-350,z-500)<220&&rise>15)highInBuildPad++;
@@ -78,7 +80,9 @@ test('new cliffs reuse the existing Sandforge sandstone PBR atlas and fractured 
  assert.equal(ridge.material.map,atlas.map);
  assert.equal(ridge.material.normalMap,atlas.normalMap);
  assert.equal(ridge.material.roughnessMap,atlas.roughnessMap);
- assert.equal(ridge.material.flatShading,true,'weathered sandstone must be faceted');
+ const normals=ridge.geometry.getAttribute('normal');
+ assert.equal(normals.count,ridge.geometry.getAttribute('position').count);
+ assert.ok(normals.array.every(Number.isFinite),'stratified rock faces keep usable normals');
  assert.equal(ridge.geometry.getAttribute('uv').itemSize,2);
  assert.equal(ridge.geometry.getAttribute('uv').count,
    ridge.geometry.getAttribute('position').count);

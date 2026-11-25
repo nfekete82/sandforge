@@ -52,7 +52,10 @@ test('support HUD: real worker placement, cancellation, two completed buildings,
   await advance(page,25);expect(await page.evaluate(kind=>window.__reborn.game.bases.find(b=>b.kind===kind).buildRemaining,kind)).toBe(0);
  }
  const b=await page.evaluate(()=>{const b=window.__reborn.game.bases.find(b=>b.kind==='barracks');return {id:b.id,x:b.x,y:b.y-40};});await center(page,b);await clickWorld(page,b);
- await expect(page.locator('#selection-title')).toHaveText('Kaserne');await expect(page.locator('[data-context-unit]')).toHaveCount(3);
+ await expect(page.locator('#selection-title')).toHaveText('Kaserne');
+ const commands=page.locator('[data-context-unit]');
+ await expect(commands).toHaveCount(4);
+ expect(await commands.evaluateAll(nodes=>nodes.map(node=>node.dataset.contextUnit))).toEqual(['infantry','medic','heavy','rocket']);
  await page.locator('[data-context-unit="medic"]').click();const rally={x:b.x+160,y:b.y+150};await clickWorld(page,rally,'right');await advance(page,8);
  expect(await page.evaluate(id=>{const g=window.__reborn.game,b=g.bases.find(b=>b.id===id);return {queue:b.queue.length,medics:g.units.filter(u=>u.kind==='medic').length,rally:!!b.rally};},b.id)).toEqual({queue:0,medics:1,rally:true});
  const repair=await page.evaluate(id=>{const api=window.__reborn,g=api.game,b=g.bases.find(b=>b.id===id),w=g.units.find(u=>u.kind==='engineer');b.hp=400;api.renderer.camera.x=(w.x+b.x)/2;api.renderer.camera.y=(w.y+b.y)/2;api.renderer.boundCamera();api.renderer.render(0);return {worker:{x:w.x,y:w.y-18},building:{x:b.x,y:b.y-35}};},b.id);

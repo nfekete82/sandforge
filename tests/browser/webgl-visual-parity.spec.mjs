@@ -40,7 +40,7 @@ test('3D HP bar is bright green at 100%, decreases smoothly and turns yellow/red
  expect(result.lowBar.color).toBe('#ed5146');
  expect(result.lowBar.width).toBeLessThan(result.halfBar.width);
  expect(result.buildingShadows).toBe(result.structures);
- expect(result.defaultMode).toBe('all');
+ expect(result.defaultMode).toBe('smart');
  expect(result.mode).toBe('all');
  expect(errors).toEqual([]);
 });
@@ -272,6 +272,9 @@ test('live HP stays visible above FOW for full-health friendlies without leaking
   battlefield.sync(true,0,false,1);
   const friendly=game.units.find(u=>u.owner===0&&u.hp>0);
   const entry=battlefield.units.get(friendly.id);
+  const smart={mode:battlefield.presentation.showHealth,visible:entry.presentation.bar.root.visible};
+  battlefield.presentation.setHealthMode('all');
+  battlefield.sync(true,0,false,1);
   const initial={mode:battlefield.presentation.showHealth,
    visible:entry.presentation.bar.root.visible,
    depthTest:entry.presentation.bar.fill.material.depthTest,
@@ -291,8 +294,9 @@ test('live HP stays visible above FOW for full-health friendlies without leaking
   const restored=entry.presentation.bar.root.visible;
   battlefield.presentation.setHealthMode('off');
   battlefield.sync(true,0,false,1);
-  return {initial,unseen,culled,restored,off:entry.presentation.bar.root.visible};
+  return {smart,initial,unseen,culled,restored,off:entry.presentation.bar.root.visible};
  });
+ expect(result.smart).toEqual({mode:'smart',visible:false});
  expect(result.initial.mode).toBe('all');
  expect(result.initial.visible).toBe(true);
  expect(result.initial.depthTest).toBe(false);
