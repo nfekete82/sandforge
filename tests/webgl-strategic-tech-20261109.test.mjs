@@ -226,13 +226,15 @@ test('new strategy HUD, original 3D buildings and missile visuals all ship in We
  const preview=readFileSync('scripts/webgl-preview.js','utf8');
  const model=readFileSync('scripts/webgl-strategic-buildings.js','utf8');
  const animation=readFileSync('scripts/webgl-strategic-effects.js','utf8');
+ const researchDeck=readFileSync('scripts/webgl-research-deck.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
- assert.match(field,/this\.game\.startResearch\(0,upgrade\)/);
+ assert.match(field,/this\.game\.startResearch\(0,kind\)/);
  assert.match(field,/this\.game\.launchStrategicMissile\(0,p\)/);
  assert.match(field,/this\.game\.rearmInterceptor\(this\.selectedBase\)/);
- assert.match(field,/canResearchUpgrade\(techState,kind\)/);
- assert.match(field,/createStrategicBuilding\(kind,owner\)/);
- assert.match(hud,/data-tab="research"/);
+ assert.match(field,/this\.researchDeck\?\.update\(\{\s*base:clickedLab\?base:null,state:techState/);
+ assert.match(researchDeck,/researchDeckTechStatus\(state,kind,upgrades,credits,online,playing\)/);
+ assert.match(field,/createStrategicBuilding\(kind,owner,gateSpan\)/);
+ assert.match(field,/this\.researchDeckRequestedFor=hit\.entity\.kind==='research'\?hit\.entity\.id:null/);
  assert.match(hud,/data-action="missile-target"/);
  assert.match(hud,/data-action="interceptor-rearm"/);
  assert.match(icons,/strategicBuildingIcon/);
@@ -241,7 +243,7 @@ test('new strategy HUD, original 3D buildings and missile visuals all ship in We
  assert.match(animation,/Strategic_Scorched_Ground/);
  assert.match(animation,/this\.sound\?\.announceStrategicLaunch/);
  assert.match(preview,/new SandforgeStrategicEffects/);
- for(const name of ['webgl-strategic-buildings','webgl-strategic-effects']){
+ for(const name of ['webgl-strategic-buildings','webgl-strategic-effects','webgl-research-deck']){
   assert.ok(build.includes("scripts/"+name+".js"));
   assert.ok(existsSync('dist/'+name+'.js'));
  }

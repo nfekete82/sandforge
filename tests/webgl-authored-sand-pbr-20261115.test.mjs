@@ -21,7 +21,10 @@ test('authored, portable 512² wind-ripple albedo is a genuine WebP binary and s
 test('albedo and derived normal/roughness share one UV orientation and correct color space',()=>{
  const src=readFileSync('scripts/webgl-sand-pbr.js','utf8');
  assert.match(src,/ctx\.drawImage\(image,0,0,size,size\)/);
- assert.match(src,/const phase=t\*\(42\*x\/size\+7\*y\/size\)/);
+ assert.match(src,/const pick=\(x,y\)=>lum\[\(\(y\+size\)%size\)\*size\+\(\(x\+size\)%size\)\]/);
+ assert.match(src,/const dX=\(pick\(x\+2,y\)-pick\(x-2,y\)\)/);
+ assert.match(src,/const dY=\(pick\(x,y\+2\)-pick\(x,y-2\)\)/);
+ assert.doesNotMatch(src,/const phase=t\*\(42\*x\/size/,'normal maps must not reintroduce repeated directional banding');
  assert.match(src,/tex\.wrapS=tex\.wrapT=THREE\.RepeatWrapping/);
  assert.match(src,/albedo\.colorSpace=THREE\.SRGBColorSpace/);
  assert.match(src,/normal:make\(normal,THREE\.NoColorSpace\)/);
@@ -36,7 +39,9 @@ test('3D desert only: same scene material, normal/surface detail, and unmodified
  const preview=readFileSync('scripts/webgl-preview.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
  const sim=readFileSync('src/reborn/simulation.ts','utf8');
- assert.match(preview,/if\(biome==='desert'&&terrain\.battlefield\)\{\s*installDesertSandPBR\(material,renderer\)/);
+ assert.match(preview,/if\(biome==='desert'&&terrain\.battlefield\)\{\s*installDesertRegionalPBR\(material,renderer,desertRegion\?\.id\)/);
+ const regional=readFileSync('scripts/webgl-desert-ground-pbr.js','utf8');
+ assert.match(regional,/if\(!region\?\.ground\)\{\s*return installDesertSandPBR\(material,renderer\)/);
  assert.match(preview,/vertexColor\.lerp\(new THREE\.Color\(desertStyle\.authoredSandVertex\),desertStyle\.authoredSandVertexBlend\)/);
  assert.match(preview,/const mesh=new THREE\.Mesh\(geometry,material\)/);
  assert.match(preview,/mesh\.receiveShadow=true;mesh\.userData\.terrain=true/);

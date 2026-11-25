@@ -76,13 +76,15 @@ test('contact texture alpha is soft and wall shading fades downwards',()=>{
   'ground contact should be wide and shallow around sandbags');
 });
 
-test('only barracks major yard props cast real sun shadows',()=>{
+test('major HQ and barracks yard props cast real sun shadows while thin fences remain shadow-free',()=>{
  const barracks=createBuildingYard('barracks',160);
  const crate=barracks.getObjectByName('CrateBody');
  const post=barracks.getObjectByName('BarracksWireFencePosts');
  assert.ok(crate?.castShadow,'large supply crate should cast an actual shadow');
  assert.ok(post&&!post.castShadow,'thin fence posts must not add aliasing');
  const headquarters=createBuildingYard('headquarters',160);
- assert.equal(headquarters.getObjectByName('CrateBody').castShadow,false,
-  'all other buildings stay unchanged');
+ assert.equal(headquarters.getObjectByName('CrateBody').castShadow,true);
+ assert.equal(headquarters.getObjectByName('BarracksWireFencePosts').castShadow,false);
+ const factory=createBuildingYard('factory',160);
+ assert.equal(factory.getObjectByName('CrateBody').castShadow,false);
 });

@@ -108,8 +108,8 @@ test('modern-only rendering, tighter photographic repeat and unchanged GLB/build
  const prev=readFileSync('scripts/webgl-preview.js','utf8');
  const sand=readFileSync('scripts/webgl-sand-pbr.js','utf8');
  const build=readFileSync('scripts/build.mjs','utf8');
- assert.match(prev,/x\/\(spacious&&biome==='desert'\?900:spacious\?2200:1500\)/);
- assert.match(prev,/z\/\(spacious&&biome==='desert'\?900:spacious\?2200:1500\)/);
+ assert.match(prev,/const uvSpan=desertRegion\?\.uvMeters\?\?\(spacious&&biome==='desert'\?900:spacious\?2200:1500\)/);
+ assert.match(prev,/uv\[k\*2\]=x\/uvSpan;\s*uv\[k\*2\+1\]=z\/uvSpan/);
  assert.match(prev,/if\(biome==='desert'&&terrain\.battlefield\)/);
  assert.match(sand,/installDesertSurfaceDetail\(material,renderer\)/);
  assert.match(build,/cpSync\('scripts\/webgl-sand-surface-detail\.js','dist\/webgl-sand-surface-detail\.js'\)/);

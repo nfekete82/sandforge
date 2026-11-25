@@ -126,7 +126,8 @@ test('terrain Sand PBR masks wind, dunes and grain on original terrain mesh only
 test('sand update is visual-only: gameplay terrain generation and building PBR stay intact',()=>{
  const base=txt('scripts/webgl-preview.js');
  assert.match(base,/if\(biome==='desert'&&terrain\.battlefield\)\{/);
- assert.match(base,/installDesertSandPBR\(material,renderer\)/);
+ assert.match(base,/installDesertRegionalPBR\(material,renderer,desertRegion\?\.id\)/);
+ assert.match(txt('scripts/webgl-desert-ground-pbr.js'),/return installDesertSandPBR\(material,renderer\)/);
  assert.match(base,/const chunks=4,segments=56,patch=size\/chunks/);
  assert.match(base,/normalMap,normalScale:new THREE\.Vector2/);
  const pbr=txt('scripts/webgl-sand-pbr.js');

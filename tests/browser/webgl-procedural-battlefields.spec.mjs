@@ -106,13 +106,18 @@ for(const profile of profiles)test.describe(`${profile} full-detail terrain`,()=
 
 test.describe('campaign menu and saved metadata',()=>{
  test.use({deviceScaleFactor:Number(process.env.ATLAS_METADATA_DPR??1)});
-test('menu offers all profiles and starts the explicitly seeded selection',async({page})=>{
+test('menu offers all six desert scenarios and starts the selected fixed seed and profile',async({page})=>{
  await preferLite(page);await page.goto('/',{waitUntil:'domcontentloaded'});await page.locator('#sf3d-new').click();
- expect(await page.locator('#sf3d-terrain option').count()).toBe(6);
- await page.locator('#sf3d-map-size').selectOption('4');await page.locator('#sf3d-terrain').selectOption('dunes');
- await page.locator('#sf3d-seed').fill('0');await page.locator('#sf3d-new-confirm').click();
+ const selector=page.locator('#sf3d-desert-map');
+ expect(await selector.locator('option').evaluateAll(nodes=>nodes.map(node=>node.value))).toEqual([
+  'desert-strike','broken-empire','burning-horizon','last-stronghold','plateau-crossroads','mesa-highlands'
+ ]);
+ await selector.selectOption('burning-horizon');await page.locator('#sf3d-new-confirm').click();
  await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded);
- expect(await page.evaluate(()=>({seed:window.__sandforgeWebGL.game.seed,profile:window.__sandforgeWebGL.terrain.battlefield.profile}))).toEqual({seed:0,profile:'dunes'});
+ expect(await page.evaluate(()=>{
+  const a=window.__sandforgeWebGL;
+  return {seed:a.game.seed,profile:a.terrain.battlefield.profile,version:a.game.world.generatorVersion,scenario:a.desertMapId};
+ })).toEqual({seed:1907,profile:'dunes',version:10,scenario:'burning-horizon'});
 });
 test('selected profile and complete geometry survive save and menu resume',async({page})=>{
  await preferLite(page);await ready(page,'/?bastions=4&seed=0&terrain=dunes&pause=1&lite=1');
@@ -121,13 +126,21 @@ test('selected profile and complete geometry survive save and menu resume',async
  const restored=await page.evaluate(()=>{const a=window.__sandforgeWebGL;return {seed:a.game.seed,profile:a.terrain.battlefield.profile,heights:Array.from(a.terrain.battlefield.heights),blocked:Array.from(a.game.world.blocked)};});
  expect(restored).toEqual(initial);
 });
-test('two real new menu games with blank seeds use different random seeds',async({page})=>{
- await preferLite(page);const seeds=[];
+test('two real new menu games on the same scenario reproduce the seed and terrain',async({page})=>{
+ await preferLite(page);const matches=[];
  for(let i=0;i<2;i++){
-  await page.goto('/',{waitUntil:'domcontentloaded'});await page.locator('#sf3d-new').click();await page.locator('#sf3d-map-size').selectOption('4');await page.locator('#sf3d-new-confirm').click();
-  await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded);seeds.push(await page.evaluate(()=>window.__sandforgeWebGL.game.seed));
+  await page.goto('/',{waitUntil:'domcontentloaded'});await page.locator('#sf3d-new').click();
+  await expect(page.locator('#sf3d-desert-map')).toHaveValue('desert-strike');
+  await page.locator('#sf3d-new-confirm').click();
+  await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded);
+  matches.push(await page.evaluate(()=>{
+   const a=window.__sandforgeWebGL;
+   return {seed:a.game.seed,sites:a.terrain.sites,heights:Array.from(a.terrain.battlefield.heights)};
+  }));
  }
- expect(seeds[0]).not.toBe(seeds[1]);
+ expect(matches[0].seed).toBe(9999);
+ expect(matches[0].sites).toHaveLength(8);
+ expect(matches[1]).toEqual(matches[0]);
 });
 for(const [i,count] of [4,8,12,16].entries())test(`${count} bastions and start orientation ${i} reach the browser`,async({page})=>{
  await ready(page,`/?bastions=${count}&seed=${i}&terrain=dunes&pause=1&lite=1`);

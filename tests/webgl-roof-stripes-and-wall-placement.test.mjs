@@ -81,7 +81,7 @@ test('rocket portrait receives neutral light while all original PBR unit rigs re
  assert.match(portrait,/infantryCard\?'#f8fbfd'/);
  assert.match(portrait,/infantryCard\?'#f6faff'/);
  assert.match(portrait,/infantryCard\?'#d5e8f4'/);
- assert.match(portrait,/attachRocketLauncherToInfantry\(model,0\)/);
+ assert.match(portrait,/kind==='rocket'\)attachRocketLauncherToInfantry\(model,owner\)/);
  assert.match(portrait,/renderModelPortrait\(model,renderer,\{width:192,height:132,infantryCard:true\}\)/);
  const battlefield=readFileSync('scripts/webgl-battlefield.js','utf8');
  assert.match(battlefield,/attachRocketLauncherToInfantry\(model,entry\.owner\)/);

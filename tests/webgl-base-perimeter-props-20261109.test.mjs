@@ -13,10 +13,10 @@ const count=(root,name)=>{
 test('all major bases get supply crates and visible security lamps; small turrets stay clear',()=>{
  assert.deepEqual(YARD_DECOR_KINDS,[
   'headquarters','barracks','factory','research','silo','interceptor',
-  'airfield','generator'
+  'generator'
  ]);
  for(const kind of YARD_DECOR_KINDS){
-  const width=kind==='airfield'?320:kind==='generator'?112:180;
+  const width=kind==='generator'?112:180;
   const yard=createBuildingYard(kind,width);
   assert.equal(yard?.name,'sf-yard-'+kind);
   assert.equal(yard.userData.nonPlayable,true);
@@ -32,30 +32,38 @@ test('all major bases get supply crates and visible security lamps; small turret
   assert.equal(yard.parent,null);
  }
  assert.equal(createBuildingYard('turret',72),null);
+ assert.equal(createBuildingYard('airfield',218),null,'the airfield apron remains clear');
 });
 
 test('large sites use three batched fence meshes, with wire bracing and an open frontage',()=>{
- for(const kind of ['headquarters','barracks','factory','research','silo','interceptor']){
+ for(const kind of ['headquarters','barracks','factory','research','silo','interceptor','generator']){
   const width=220,yard=createBuildingYard(kind,width);
   const site=yard.getObjectByName('BasePerimeter_'+kind);
-  const posts=site.getObjectByName('YardFencePosts');
-  const rails=site.getObjectByName('YardFenceRails');
-  const wires=site.getObjectByName('YardFenceMesh');
+  const wireOnly=kind!=='interceptor';
+  const posts=site.getObjectByName(wireOnly?'BarracksWireFencePosts':'YardFencePosts');
+  const rails=site.getObjectByName(wireOnly?'BarracksWireFenceStrands':'YardFenceRails');
+  const wires=site.getObjectByName(wireOnly?'BarracksWireFenceBarbs':'YardFenceMesh');
   assert.equal(posts?.isInstancedMesh,true,kind+' has a single batched post draw call');
   assert.equal(rails?.isInstancedMesh,true,kind+' has a single batched rail draw call');
   assert.equal(wires?.isInstancedMesh,true,kind+' has a single batched wire draw call');
   assert.equal(posts.count,site.userData.fencePosts);
-  assert.equal(rails.count,site.userData.fenceRails);
-  assert.equal(wires.count,site.userData.fenceWires);
-  assert.ok(posts.count>=12&&rails.count>=posts.count);
-  assert.ok(wires.count>=2*posts.count-4);
+  if(wireOnly){
+   assert.equal(rails.count+wires.count,site.userData.fenceWires);
+   assert.equal(site.userData.fenceRails,0);
+  }else{
+   assert.equal(rails.count,site.userData.fenceRails);
+   assert.equal(wires.count,site.userData.fenceWires);
+  }
+  assert.ok(posts.count>=12&&rails.count>=posts.count&&wires.count>=2*posts.count-4);
   // No fence sections span the positive-Z doorway/spawn passage.
   const matrix=posts.matrix.clone();
+  const bounds=site.userData[kind+'FenceBounds'];
+  const front=bounds?.front??width*.28,gateHalf=bounds?.gateHalf??width*(wireOnly?.23:.64);
   for(let i=0;i<posts.count;i++){
    posts.getMatrixAt(i,matrix);
-   assert.ok(matrix.elements[14]<=width*.28+.001);
-   if(matrix.elements[14]>width*.25){
-    assert.ok(Math.abs(matrix.elements[12])>=width*.64,
+   assert.ok(matrix.elements[14]<=front+.001);
+   if(matrix.elements[14]>front-1){
+    assert.ok(Math.abs(matrix.elements[12])>=gateHalf-.001,
      'front posts must remain on the two side flanks, not across the door');
    }
   }
@@ -64,14 +72,6 @@ test('large sites use three batched fence meshes, with wire bracing and an open 
   assert.equal(yard.parent,null);
   // Geometry disposal stays instance-owned; module materials are shared.
   assert.ok(before.isBufferGeometry);
- }
- for(const kind of ['airfield','generator']){
-  const site=createBuildingYard(kind,kind==='airfield'?320:112);
-  assert.equal(count(site,'YardFencePosts'),0,
-   'runway and small energy-core work areas must remain open');
-  assert.equal(count(site,'YardFenceRails'),0);
-  assert.equal(count(site,'YardFenceMesh'),0);
-  disposeBuildingYard(site);
  }
 });
 
@@ -101,15 +101,16 @@ test('yard remains presentation-only, built once, with existing safe teardown an
 });
 
 
-test('site dressing does not cast shadow or participate in recursive selection raycasts',()=>{
+test('site dressing casts shadows only for major props and never participates in recursive selection raycasts',()=>{
  const yard=createBuildingYard('headquarters',225);
  const decor=yard.getObjectByName('BasePerimeter_headquarters');
  let checked=0;
  decor.traverse(object=>{
   if(!object.isMesh)return;
   checked++;
-  assert.equal(object.castShadow,false,object.name);
-  assert.equal(object.receiveShadow,false,object.name);
+  const major=/^(CrateBody|CrateLid|SupplyPallet|BarrelShell|LampPost|LampHead)$/.test(object.name);
+  assert.equal(object.castShadow,major,object.name);
+  assert.equal(object.receiveShadow,major,object.name);
   // A cast ray from the top should never select the decorative mesh.
   const raycastCalls=[];
   object.raycast({ray:{}},raycastCalls);
