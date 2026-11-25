@@ -230,7 +230,8 @@ test('lite mode still requests original detailed PBR building model, and ruins r
 
 
 test('global catalog unlocks the correct production roster independently of selection',async({page})=>{
- test.setTimeout(115000);
+ // Software Chromium needs extra time to decode all icons and click through every producer tab.
+ test.setTimeout(150000);
  await load(page);
  const group=kind=>page.locator('#sf-actions [data-sf-group="'+kind+'"]');
  const tab=kind=>page.locator('#sf-tabs [data-tab="'+kind+'"]');
