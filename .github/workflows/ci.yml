@@ -38,13 +38,28 @@ jobs:
           node scripts/audit-animation-assets.mjs
 
   browser:
-    name: Chromium · WebGL (${{ matrix.suite }})
+    name: Chromium · WebGL (${{ matrix.label }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        suite: [integration, battlefields]
+        include:
+          - {suite: integration, label: integration 1/6, shard: '1/6'}
+          - {suite: integration, label: integration 2/6, shard: '2/6'}
+          - {suite: integration, label: integration 3/6, shard: '3/6'}
+          - {suite: integration, label: integration 4/6, shard: '4/6'}
+          - {suite: integration, label: integration 5/6, shard: '5/6'}
+          - {suite: integration, label: integration 6/6, shard: '6/6'}
+          - suite: battlefields
+            label: terrain a
+            pattern: '(open|dunes|rocky) full-detail terrain'
+          - suite: battlefields
+            label: terrain b
+            pattern: '(oasis|mixed) full-detail terrain|same-sized dune maps'
+          - suite: battlefields
+            label: maps and saves
+            pattern: 'campaign menu and saved metadata'
     env:
       SANDFORGE_BROWSER_CHANNEL: chromium
       SANDFORGE_TEST_MAX_FAILURES: 0
@@ -61,17 +76,22 @@ jobs:
       - run: cd tests/browser && npx playwright install --with-deps chromium
       - name: Gameplay, startup, HUD, combat and saves
         if: matrix.suite == 'integration'
-        run: npm run test:webgl-integration
+        env:
+          # Preserve viewport geometry and real WebGL on software renderers.
+          SANDFORGE_TEST_DPR: '0.5'
+        run: |
+          npm run build
+          node scripts/test-webgl-integration.mjs --workers=1 --fully-parallel --shard="${{ matrix.shard }}"
       - name: Maps, procedural terrain and historical saves
         if: matrix.suite == 'battlefields'
         run: |
           npm run build
           tests/browser/node_modules/.bin/playwright test --config=tests/browser/playwright.config.mjs \
-            tests/browser/webgl-procedural-battlefields.spec.mjs --workers=2 --reporter=line
+            tests/browser/webgl-procedural-battlefields.spec.mjs --grep "${{ matrix.pattern }}" --workers=1 --reporter=line
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: webgl-browser-${{ matrix.suite }}
+          name: webgl-browser-${{ strategy.job-index }}
           path: tests/browser/artifacts/
           retention-days: 7
 

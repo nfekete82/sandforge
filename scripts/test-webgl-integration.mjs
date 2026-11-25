@@ -76,7 +76,8 @@ try{
     stdio:['ignore','inherit','inherit']
   });
   await ready(port,server);
-  tests=spawn(playwright,['test','--config='+config,...specs,'--workers=2','--max-failures='+maxFailures,'--reporter=line'],{
+  tests=spawn(playwright,['test','--config='+config,...specs,'--workers=2',
+    '--max-failures='+maxFailures,'--reporter=line',...process.argv.slice(2)],{
     cwd:root,
     env:{...process.env,SANDFORGE_BASE_URL:base,ATLAS_BASE_URL:base},
     stdio:'inherit'

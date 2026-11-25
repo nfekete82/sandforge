@@ -54,6 +54,8 @@ test('full-width HUD unifies radar, catalog, production and commands in one dock
   battlefield.selected=new Set([engineer.id]);battlefield.selectedBase=null; battlefield.drawInterface();
  });
  await page.locator('#sf-tabs button[data-tab="buildings"]').click();
+ // Exercise the wider Linux fallback as well as the installed condensed font.
+ await page.addStyleTag({content:'#sf-classic-root{--display:Arial, sans-serif}'});
  const after=await page.evaluate(()=>{
   const elements=[...document.querySelectorAll(
    '#sf-actions .sf-group[data-sf-group="buildings"] .catalog-card')];
