@@ -8,8 +8,52 @@ async function actors(page,kinds){return page.evaluate(kinds=>{const a=window.__
 
 test('compact UI: square complete radar, horizontal tabs and eight queue slots in one row across screen sizes',async({page})=>{
  const errors=await start(page);fs.mkdirSync(evidence,{recursive:true});const rows=[];
- for(const [width,height] of [[1440,1000],[1200,900],[900,700],[620,740],[390,740]]){await page.setViewportSize({width,height});const r=await page.evaluate(()=>{const box=s=>{const b=document.querySelector(s).getBoundingClientRect();return {x:b.x,y:b.y,width:b.width,height:b.height,right:b.right};};const mini=box('#minimap'),tabs=[...document.querySelectorAll('.catalog-tabs button')].map(b=>{const icon=b.querySelector('[data-icon]').getBoundingClientRect(),label=b.querySelector('span:last-child').getBoundingClientRect();return {height:b.getBoundingClientRect().height,fits:label.right<=b.getBoundingClientRect().right+.1&&icon.left>=b.getBoundingClientRect().left-.1,horizontal:icon.right<=label.left+1&&Math.abs(icon.y+icon.height/2-label.y-label.height/2)<2};}),queue=[...document.querySelectorAll('#queue-slots button')].map(b=>b.getBoundingClientRect().top),style=getComputedStyle(document.querySelector('#minimap'));return {radar:box('.radar'),mini,tabs,queue,side:box('#sidebar'),world:box('#world'),body:document.body.scrollWidth,inner:innerWidth,border:style.borderLeftWidth,queueOverflow:getComputedStyle(document.querySelector('#queue-slots')).overflowX};});
-  expect(Math.abs(r.mini.width-r.mini.height)).toBeLessThan(.1);expect(r.border).toBe('0px');expect(r.tabs.every(t=>t.horizontal&&t.fits&&t.height>=52&&t.height<=64)).toBe(true);expect(r.queue).toHaveLength(8);expect(new Set(r.queue.map(y=>Math.round(y))).size).toBe(1);expect(r.body).toBeLessThanOrEqual(r.inner);expect(r.world.right).toBeLessThanOrEqual(r.side.x+.1);expect(['auto','scroll']).toContain(r.queueOverflow);const pioneer=page.locator('.catalog-card[data-unit="engineer"]');
+ for(const [width,height] of [[1440,1000],[1200,900],[900,700],[620,740],[390,740]]){
+  await page.setViewportSize({width,height});
+  const r=await page.evaluate(()=>{
+   const box=s=>{
+    const b=document.querySelector(s).getBoundingClientRect();
+    return {x:b.x,y:b.y,width:b.width,height:b.height,right:b.right};
+   };
+   const buttons=[...document.querySelectorAll('.catalog-tabs button')];
+   const measureTabs=()=>buttons.map(button=>{
+    const bounds=button.getBoundingClientRect();
+    const icon=button.querySelector('[data-icon]').getBoundingClientRect();
+    const label=button.querySelector('span:last-child');
+    const labelBox=label.getBoundingClientRect();
+    const text=document.createRange();text.selectNodeContents(label);
+    const lines=[...text.getClientRects()];
+    return {height:bounds.height,lines:lines.length,
+     fits:icon.left>=bounds.left-.1&&lines.every(line=>
+      line.left>=bounds.left-.1&&line.right<=bounds.right+.1&&
+      line.top>=bounds.top&&line.bottom<=bounds.bottom),
+     horizontal:icon.right<=labelBox.left+1&&
+      Math.abs(icon.y+icon.height/2-labelBox.y-labelBox.height/2)<2};
+   });
+   const tabs=measureTabs();
+   let fallbackTabs=[];
+   if(innerWidth<=620){
+    for(const button of buttons)button.style.fontFamily='Arial, sans-serif';
+    fallbackTabs=measureTabs();
+    for(const button of buttons)button.style.removeProperty('font-family');
+   }
+   const queue=[...document.querySelectorAll('#queue-slots button')].map(b=>b.getBoundingClientRect().top);
+   return {radar:box('.radar'),mini:box('#minimap'),tabs,fallbackTabs,queue,side:box('#sidebar'),
+    world:box('#world'),body:document.body.scrollWidth,inner:innerWidth,
+    border:getComputedStyle(document.querySelector('#minimap')).borderLeftWidth,
+    queueOverflow:getComputedStyle(document.querySelector('#queue-slots')).overflowX};
+  });
+  expect(Math.abs(r.mini.width-r.mini.height)).toBeLessThan(.1);
+  expect(r.border).toBe('0px');
+  expect([...r.tabs,...r.fallbackTabs].filter(tab=>
+   !tab.horizontal||!tab.fits||tab.height<52||tab.height>64||tab.lines<1||tab.lines>2),
+  `Catalog tabs at ${width}px`).toEqual([]);
+  expect(r.queue).toHaveLength(8);
+  expect(new Set(r.queue.map(y=>Math.round(y))).size).toBe(1);
+  expect(r.body).toBeLessThanOrEqual(r.inner);
+  expect(r.world.right).toBeLessThanOrEqual(r.side.x+.1);
+  expect(['auto','scroll']).toContain(r.queueOverflow);
+  const pioneer=page.locator('.catalog-card[data-unit="engineer"]');
   const preview=await pioneer.evaluate(card=>{const image=card.querySelector('img'),meta=card.querySelector('.card-meta'),name=card.querySelector('.card-name'),cost=card.querySelector('.card-cost'),c=card.getBoundingClientRect(),i=image.getBoundingClientRect(),m=meta.getBoundingClientRect(),n=name.getBoundingClientRect(),p=cost.getBoundingClientRect();return {width:c.width,height:c.height,imageHeight:i.height,fit:getComputedStyle(image).objectFit,complete:image.complete&&image.naturalWidth>0,imageFits:i.bottom<=m.top+.1,labelsFit:n.right<=p.left&&p.right<=c.right&&m.bottom<=c.bottom,text:name.textContent,price:cost.textContent};});
   expect(preview.width).toBeLessThanOrEqual(width<=1000?104:128);expect(preview.height).toBe(width<=620?72:width<=1000?94:106);expect(preview.imageHeight).toBeLessThan(preview.height-23);expect(preview.fit).toBe('contain');expect(preview.complete&&preview.imageFits&&preview.labelsFit).toBe(true);expect(preview.text).toBe('Pionier');expect(preview.price).toBe('200');
   expect(await page.locator('#catalog-units .catalog-card').evaluateAll(cards=>cards.every(card=>getComputedStyle(card).height===getComputedStyle(document.querySelector('[data-unit=engineer]')).height&&getComputedStyle(card.querySelector('img')).objectFit==='contain'))).toBe(true);

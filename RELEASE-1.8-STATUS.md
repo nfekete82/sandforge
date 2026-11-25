@@ -94,3 +94,9 @@ Vollständige Logs dieses Stands liegen unter `/tmp/sf18-resume-node-full.log`, 
 ### Freigabestatus
 
 `package.json` und Lockdatei stehen auf `1.8.0`. Voraussetzung für Merge, die Verifikation von `main` und das Tag `v1.8.0` ist eine freigegebene, versionierte und für CI lesbare Quelle der vier finalen GLBs. Die Browser- und Simulationskorrekturen werden in [PR #497](https://github.com/nfekete82/sandforge/pull/497) geprüft.
+
+### Nachprüfung auf GitHub
+
+- Die Node-22-Jobs `Build and simulation tests` und `Sandforge Tactical AI 3.0` bestätigten 2.545 bestandene Tests und dieselben 13 GLB-Fehler. Der GitHub-Asset-Schutz bestand. [Hauptworkflow](https://github.com/nfekete82/sandforge/actions/runs/45662363681)
+- Der Classic-Trace zeigte bei 620 Pixeln überstehende Katalogbeschriftungen mit der Linux-Ersatzschrift. Das Classic-Layout hält Schrift, Symbol und Textgrenzen jetzt innerhalb der Schaltflächen. Der Regressionstest misst die tatsächlichen Textflächen einschließlich einer breiteren Ersatzschrift. Die gezielten Classic-Layout- und Katalogtests bestanden mit 13 von 13 Tests.
+- Der Modellgalerietest erreichte unter Software-WebGL beim Aufzeichnen der dritten Vollbildaufnahme sein altes Zeitlimit. Der Test synchronisiert den Modellwechsel und misst das tatsächliche Anhalten der Animation. Die Bild- und Videoaufzeichnung bleibt Bestandteil der Prüfung. Der gezielte Test bestand.
