@@ -1,5 +1,7 @@
 # Asset-Umfang des Release-Entwurfs 1.9.0
 
+> Historische Asset-Dokumentation vom 24.10.2026. Aktueller Abnahmestand: [Sandforge 1.8](../../RELEASE-1.8-STATUS.md).
+
 Der bereits umfangreiche lokale Entwicklungsstand wurde erhalten. Diese Übersicht beschreibt den vorgesehenen Gesamtumfang und unterscheidet ihn vom abschließenden Qualitätsdurchgang am 24.10.2026. Keine HQ-/Bastion-Quelle wurde bei diesem Qualitätsdurchgang neu exportiert oder überschrieben.
 
 | Verzeichnis | Enthaltene Änderungen / Nachweis |

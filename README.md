@@ -6,9 +6,18 @@
 
 **Taktisches 3D-Wüsten-RTS · Basenbau · KI · Bastionen · Forschung · Langstreckenraketen**
 
+[English documentation](README.en.md) · [Release Notes 1.8.0](docs/releases/v1.8.0-de.md) · [CI](https://github.com/nfekete82/sandforge/actions)
+
 </div>
 
+![WebGL-Spielszene auf Desert Strike](docs/qa/visual3-20261123/main-desert-strike.png)
+*Ingame-Aufnahme aus der WebGL-Entwicklung vom 23.11.2026.*
+
 ## Sandforge 1.8
+
+Der Release-Kandidat wurde in [PR #497](https://github.com/nfekete82/sandforge/pull/497) gemergt. Die [abschließende CI auf main](https://github.com/nfekete82/sandforge/actions/runs/45768425191) ist erfolgreich. Der Versions-Tag und der GitHub-Release werden separat veröffentlicht.
+
+**Highlights:** Basenbau, Gebietseroberung, zwölf produzierbare Einheiten, KI-Gegner, Forschung, Luftunterstützung, sechs Karten im Spielmenü, lokale Spielstände und deutsche Funkmeldungen.
 
 WebGL/Three.js ist die Standardoberfläche unter `/`. Die gemeinsame Reborn-Simulation unterstützt die Regelprofile Classic und Action und lädt Spielstände der unterstützten Kartengenerationen. Die Canvas-Oberfläche bleibt unter `/classic.html` erreichbar. Atlas Dominion liegt als separates Archiv unter `/legacy/index.html`.
 
@@ -37,12 +46,12 @@ Canvas-Paketierer vollständig auf WebGL und seine Module umgestellt und
 abgenommen ist. `deploy:uberspace:check` und der bestehende Rollback bleiben
 weiterhin verfügbar; **kein ungeprüfter 3D-Upload auf Uberspace**.
 
-[RC2-Abnahme und Checkliste](docs/releases/webgl-rc2-20261106.md) ·
+[Historische RC2-Abnahme und Checkliste](docs/releases/webgl-rc2-20261106.md) ·
 [WebGL-Migrationshistorie](docs/webgl-3d-release-plan.md) ·
 [CI-Stresstests](https://github.com/nfekete82/sandforge/pull/236).
 
 
-Lokales Wüsten-RTS mit zehn Einheitentypen, eroberbaren Bastionen und einer gegnerischen Armee aus Infanterie, Fahrzeugen und Luftunterstützung. Neue Kampagnen haben 16 Bastionen und je zwei blaue und rote Startsektoren. Alte Spielstände mit 30 Bastionen und ihren ursprünglichen Startgebieten bleiben ladbar.
+Lokales Wüsten-RTS mit zwölf produzierbaren Einheitentypen, eroberbaren Bastionen und einer gegnerischen Armee aus Infanterie, Fahrzeugen und Luftunterstützung. Neue Kampagnen haben 16 Bastionen und je zwei blaue und rote Startsektoren. Alte Spielstände mit 30 Bastionen und ihren ursprünglichen Startgebieten bleiben ladbar.
 
 [Änderungsprotokoll](CHANGELOG.md) und [Veröffentlichungsschritte](docs/releases/RELEASE.md). Die deutschen Stimmen A, B und C wurden anhand der Hörproben vom Eigentümer freigegeben und für alle 47 Meldungen aktiviert.
 
@@ -63,11 +72,11 @@ npm run dev
 - Rechtsklick bewegt oder greift sichtbare Gegner an. Shift hängt Befehle an. **A** aktiviert Angriffsbewegung, **S** hält die Position. Nach einem Gefecht setzen Einheiten ihren Auftrag fort.
 - WASD/Pfeile und der Spielfeldrand bewegen die Kamera. Mausrad zoomt am Zeiger; Radar klicken/ziehen verschiebt den Ausschnitt. **H** zeigt das Hauptquartier, **T** die Sektorgrenzen.
 - Im 3D-Spiel verbindet das untere, bildschirmbreite HUD Minikarte, Einheiten-/Gebäudekatalog, Forschung, Produktion und Befehle. Die klassische Canvas-Version nutzt weiter ihre bisherige Seitenleiste. Der Kartenrand bleibt für Befehle und Bau erreichbar.
-- Jede Fraktion startet mit einem Pionier und einem Infanteriesoldaten. Das Hauptquartier bildet ausschließlich Pioniere aus. Erst eine fertiggestellte Kaserne schaltet Infanteriesoldaten, Sanitäter und schwere Infanterie frei; Fahrzeugfabrik und Flugfeld schalten Fahrzeuge beziehungsweise Luftunterstützung frei. Der Einheitenkatalog zeigt nur die durch vorhandene fertige Gebäude verfügbaren Typen. Kosten, Produktionszeit, Warteschlange und Kapazität gelten weiterhin. Ein Klick auf einen belegten Produktionsplatz storniert genau diesen Auftrag mit Kostenerstattung. Details zu Freischaltung und alten Spielständen: [Produktionsgebäude](docs/reborn-production.md).
+- Jede Fraktion startet mit einem Pionier und einem Infanteriesoldaten. Das Hauptquartier bildet Pioniere und R-01-Aufklärungsdrohnen aus. Erst eine fertiggestellte Kaserne schaltet Infanteriesoldaten, Sanitäter, schwere Infanterie und Raketenwerfer-Soldaten frei; Fahrzeugfabrik und Flugfeld schalten Fahrzeuge beziehungsweise Luftunterstützung frei. Der Einheitenkatalog zeigt nur die durch vorhandene fertige Gebäude verfügbaren Typen. Kosten, Produktionszeit, Warteschlange und Kapazität gelten weiterhin. Ein Klick auf einen belegten Produktionsplatz storniert genau diesen Auftrag mit Kostenerstattung. Details zu Freischaltung und alten Spielständen: [Produktionsgebäude](docs/reborn-production.md).
 - Pionier auswählen und im Baukatalog eine Anlage platzieren. Sie muss in erkundetem, freiem und erreichbarem Gebiet liegen; der Arbeiter muss sie tatsächlich erreichen und errichten. Rechtsklick auf eine eigene beschädigte Anlage repariert sie.
 - Sanitäter heilen verletzte eigene Infanterie in 70 M Umkreis mit insgesamt 12 LP/s, auf mehrere Patienten verteilt. Ohne Beschuss regenerieren sie sich nach einer Wartezeit langsam selbst. Gruppenbefehle halten sie hinter der Front.
 - Soldaten auswählen und den Transporthelikopter rechtsklicken, oder den Heli auswählen und eine eigene Infanteriegruppe rechtsklicken. Er landet zur Aufnahme von höchstens zehn Infanteristen und startet anschließend. **Ausladen** wählt einen sicheren Landeplatz; danach hebt er wieder ab. Passagiere und laufende Transportphasen werden gespeichert.
-- Angrenzende Bastionen acht Sekunden im Einnahmeradius halten. Feinde unterbrechen die Einnahme. Eigene Bastionen geben 320 M Sicht; nach Verlust endet diese Sicht. Ein Rechtsklick auf Mast, Sockel oder Beschriftung führt zum Einnahmepunkt. Fluggeräte können im aktuellen Spiel ebenfalls sichern; transportierte Passagiere zählen während des Transports nicht separat.
+- Angrenzende Bastionen acht Sekunden im Einnahmeradius halten. Feinde unterbrechen die Einnahme. Eigene Bastionen geben 320 M Sicht; nach Verlust endet diese Sicht. Ein Rechtsklick auf Mast, Sockel oder Beschriftung führt zum Einnahmepunkt. Nicht jedes Fluggerät kann Bastionen sichern (die R-01 beispielsweise nicht); transportierte Passagiere zählen während des Transports nicht separat.
 - Felsen begrenzen Bodensicht und Schusslinien. Geschütztürme haben 600 M Reichweite und 750 M Sicht. Der Raketenwerfer reicht mit 680 M und 830 M Sicht darüber hinaus.
 - Einkommen kommt alle zehn Simulationssekunden. **Leertaste** pausiert taktisch; Zahnrad oder Esc ohne Auswahl öffnet das Menü. **F5/F9** speichern/laden lokal in IndexedDB. Vor einem Neuladen speichern; bestehende Spielstände werden nicht gelöscht.
 - Sieg: das gegnerische Hauptquartier zerstören und seinen Kontrollpunkt sowie alle roten Startsektoren sichern. Niederlage: keine eigene Produktionsstätte und keine eigene Truppe mehr.
@@ -77,11 +86,13 @@ npm run dev
 | Infanteriesoldat | 100 | Beweglicher Schütze mit Dreiersalven |
 | Sanitäter | 175 | Flächenheilung und Versorgung hinter der Front |
 | Pionier | 200 | Gebäude bauen und reparieren |
-| Schwere Infanterie | 250 | 420 LP, stark gegen Infanterie; weniger Schaden gegen Panzerung |
+| Schwere Infanterie | 300 | 420 LP, stark gegen Infanterie; weniger Schaden gegen Panzerung |
+| Raketenwerfer-Soldat | 375 | Panzer- und Flugabwehr |
 | Humvee | 350 | Schnelle Aufklärung und Flanken |
 | Kampfpanzer | 550 | Gepanzerte Frontunterstützung |
 | Flammenpanzer | 500 | Gezielt treffsicherer Flammenstrahl gegen Infanterie (245 M); schwach gegen Fahrzeuge und Mauern |
 | Raketenwerfer | 600 | Schwerer 6×6-Lkw mit sechs Werferrohren, fliegenden Raketen und Flächenschaden |
+| R-01 Aufklärungsdrohne | 50 | Schnelle, unbewaffnete Aufklärung |
 | Transporthelikopter | 600 | Aufklärung, zehn Passagiere und defensive Maschinengewehre |
 | Bomber | 1000 | Schwere Feuerkraft gegen Bodenziele |
 
@@ -112,17 +123,17 @@ python3 scripts/audit-radio-bank.py src/assets/reborn/voices
 
 Chrome ist voreingestellt; `SANDFORGE_BROWSER_CHANNEL=chromium` verwendet Playwright Chromium. `SANDFORGE_BASE_URL` prüft einen bereits laufenden Server. `SANDFORGE_TEST_DPR` steuert die Test-Pixeldichte. Die alten `ATLAS_*`-Variablen bleiben als Kompatibilitäts-Fallbacks nutzbar. Zusätzlich verfügbar: `npm run typecheck`, `npm run test:reborn`, `npm run test:animation`, `npm run assets:animation-audit` und `npm run test:ai-defense`.
 
-[WebGL-Integration 09.11.2026: 17/17 + 72/72 PASS](docs/qa/webgl-integration-20261109-3f30e379.md) · [Älterer Release-Prüfbericht](docs/qa/release-2026-10-24.md) · [Ältere Prüfungen und Bilder](docs/reborn/QA.md) · [Änderungsprotokoll](CHANGELOG.md)
+[Historische WebGL-Integration 09.11.2026: 17/17 + 72/72 PASS](docs/qa/webgl-integration-20261109-3f30e379.md) · [Älterer Release-Prüfbericht](docs/qa/release-2026-10-24.md) · [Ältere Prüfungen und Bilder](docs/reborn/QA.md) · [Änderungsprotokoll](CHANGELOG.md)
 
 ## Technik, Grafik und Quellen
 
-TypeScript, Canvas 2D, 20 Simulationsschritte pro Sekunde, A*, räumliche Buckets und IndexedDB. Spielwerte stehen in `src/reborn/config.ts` und `src/reborn/catalog.ts`. Das Hauptspiel benötigt keine zusätzliche Laufzeitbibliothek. Three.js rendert das aktuelle WebGL-Spiel und die 3D-Galerie; die klassische Canvas-Variante bleibt separat verfügbar.
+TypeScript, Three.js/WebGL und ein archivierter Canvas-2D-Renderer, 20 Simulationsschritte pro Sekunde, A*, räumliche Buckets und IndexedDB. Spielwerte stehen in `src/reborn/config.ts` und `src/reborn/catalog.ts`. Three.js rendert das aktuelle WebGL-Spiel und die 3D-Galerie; die klassische Canvas-Variante bleibt separat verfügbar.
 
 Die vier Infanterierollen teilen die freigegebene Legionär-Grundrüstung mit eigenen Details und echten Idle-/Walk-/Attack-/Hit-/Death-Clips. Sechs Fahrzeugmodelle besitzen Fraktionsmaterialien, Schatten und Rad-/Ketten-/Rotorphasen. Geschütztürme verwenden eine feste Basis und einen unabhängig drehbaren Kopf mit zwei Mündungen. Die überarbeiteten HQ- und Bastion-Quelldateien sind unter `tools/building-sources/` mit Prüfsummen dokumentiert.
 
 [Animationslabor](http://127.0.0.1:8095/animation-lab.html) · [3D-Galerie und GLB-Downloads](http://127.0.0.1:8095/model-3d.html?model=headquarters) · [Sprite-Vergleich](http://127.0.0.1:8095/model-preview.html). Maus und Tastatur bilden die vollständige Steuerung; es gibt kein eigenes Touch- oder Mehrspielersystem.
 
-[Asset-Änderungen des Releases](docs/releases/ASSETS-v1.9.0.md) · [Drittanbieter und Rechte](THIRD_PARTY_NOTICES.md) · [Historische Grafikquellen](docs/reborn/ART_ASSETS.md) · [Animationsquellen](tools/animation-sources/manifest.json) · [Architektur](docs/reborn/ARCHITECTURE.md). Ältere Dokumente beschreiben teilweise frühere Entwicklungsstände; maßgeblich für dieses Release sind die aktuellen Release-Unterlagen.
+[Historische Asset-Übersicht (24.10.2026)](docs/releases/ASSETS-v1.9.0.md) · [Drittanbieter und Rechte](THIRD_PARTY_NOTICES.md) · [Historische Grafikquellen](docs/reborn/ART_ASSETS.md) · [Animationsquellen](tools/animation-sources/manifest.json) · [Architektur](docs/reborn/ARCHITECTURE.md). Ältere Dokumente beschreiben teilweise frühere Entwicklungsstände; maßgeblich für dieses Release sind die aktuellen Release-Unterlagen.
 
 Die frühere Europaversion bleibt unter **http://127.0.0.1:8095/legacy/index.html** erreichbar; ihre Quellen und Dokumentation unter [legacy/README.md](legacy/README.md) bleiben erhalten.
 
