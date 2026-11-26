@@ -4,7 +4,7 @@ import {readFileSync,copyFileSync,mkdtempSync,rmSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-const DIR='src/assets/reborn/buildings-3d/';
+const DIR='dist/src/assets/reborn/buildings-3d/';
 function load(path){
  const b=readFileSync(path);
  assert.equal(b.toString('ascii',0,4),'glTF');

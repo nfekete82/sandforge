@@ -2,7 +2,7 @@ import {roleBadgeMarkup} from './role-visuals.js';
 import {getVeterancyLevel,sanitizeXp,VETERANCY_NAMES,VETERANCY_THRESHOLDS,veterancyBonuses} from './veterancy.js';
 import { profiler, PerformanceRecorder, setProfiler, mountPerformancePanel } from './performance.js';
 import { QwenGeneral } from './qwen-general.js';
-import { RULES, mapLayout, campaignLayout, CAMPAIGN_SIZES, type MapVersion, type CampaignSize } from './config.js';
+import { RULES, CAMPAIGN_SIZES, supportsEarlyBarracksPreview, type MapVersion, type CampaignSize } from './config.js';
 import { Simulation, type Base } from './simulation.js';
 import { Renderer } from './renderer.js';
 import { Input } from './input.js';
@@ -24,7 +24,7 @@ const query=new URLSearchParams(location.search);
 const previewEarlyBarracks=query.get('aiOpening')==='early-barracks';
 /** Explicit local opt-in, never persisted as a hidden difficulty advantage. */
 function applyAiOpeningPreview(game:Simulation):Simulation{
- if(previewEarlyBarracks&&game.world.mapVersion===11)
+ if(previewEarlyBarracks&&supportsEarlyBarracksPreview(game.world.mapVersion))
   game.tactical.earlyEconomyMode='barracks-first';
  return game;
 }
@@ -195,7 +195,7 @@ function refreshMeasured():void{
  const base=contextBase(),production=productionBase(),first=selected[0],spec=first?unitSpec(first):undefined;
  el('selection-panel').hidden=!selected.length&&!base;
  setText('production-title',production?`${buildingSpec(production).name} · PRODUKTION`:'PRODUKTION');
- setText('campaign-goal',game.needsHeadquarters(0)?'Errichte ein Hauptquartier an einem beliebigen freien Standort auf der Karte.':`Erkunde das Schlachtfeld. Sichere alle ${campaignLayout(game.world.mapVersion,game.seed).starts[1].length} roten Startgebiete und erobere das feindliche Hauptquartier, um zu gewinnen. Zerstöre es zuerst und sichere anschließend seinen Kontrollpunkt.`);
+ setText('campaign-goal',game.needsHeadquarters(0)?'Errichte ein Hauptquartier an einem beliebigen freien Standort auf der Karte.':'Sichere Bastionen für mehr Einkommen. Zerstöre alle feindlichen Gebäude, um zu gewinnen.');
  setText('credits',Math.floor(game.credits[0]).toLocaleString('de-DE'));setText('income',`+${game.income(0)}`);setHtml('capacity',`${game.count(0)} <em>/ ${RULES.capacity}</em>`);
  setText('territories',radarOnline?`${game.territories.filter(t=>t.owner===0).length} / ${game.territories.length}`:'— / —');setText('clock',timestamp());setText('exploration',radarOnline?`${Math.round(game.explored[0].reduce((n,v)=>n+v,0)/game.explored[0].length*100)} % ERKUNDET`:'KEIN SIGNAL');
  const title=selected.length?(selected.length===1?spec!.name:`${selected.length} Einheiten`):base?(base.kind==='headquarters'?'Hauptquartier':buildingSpec(base).name):'';
@@ -316,7 +316,14 @@ function refreshMeasured():void{
       game.units.filter(u=>u.owner===1&&u.hp>0).reduce((n,u)=>n+u.hp,0));
    }
    if(!query.has('debug')&&readAiLearningPreference())saveAiLearningProfile(game.tactical.state.experience);
-   resultShown=true;closeDialogs();setPause(true);setText('result-title',game.status==='victory'?'Sandforge gesichert.':'Die Legion ist gefallen.');setText('result-copy',game.status==='victory'?(game.needsHeadquarters(1)&&!game.units.some(u=>u.owner===1&&u.kind==='engineer'&&u.hp>0)?'Der Gegner hat kein Hauptquartier und keinen Pionier mehr. Sein Basisaufbau ist beendet.':`Das feindliche Hauptquartier und seine ${mapLayout(game.world.mapVersion).starts[1].length} Startgebiete sind unter deiner Kontrolle.`):game.needsHeadquarters(0)?'Kein Hauptquartier und kein einsatzfähiger Pionier mehr. Deine Basis kann nicht aufgebaut werden.':'Deine Produktionsstätten und Truppen wurden vernichtet.');el<HTMLDialogElement>('result-dialog').showModal();}
+   resultShown=true;closeDialogs();setPause(true);
+   const won=game.status==='victory';
+   setText('result-title',won?'Sandforge gesichert.':'Die Legion ist gefallen.');
+   setText('result-copy',won
+    ?(game.hadBuildings[1]?'Das letzte feindliche Gebäude wurde zerstört.':'Die feindliche Armee wurde vernichtet.')
+    :(game.hadBuildings[0]?'Dein letztes Gebäude wurde zerstört.':'Deine Armee wurde vernichtet.'));
+   el<HTMLDialogElement>('result-dialog').showModal();
+ }
 }
 async function save():Promise<void>{if(busy)return;busy=true;try{syncCampaignHistory(true);await saveCampaign(game);if(!query.has('debug')&&readAiLearningPreference())saveAiLearningProfile(game.tactical.state.experience);notify('Kampagne lokal gespeichert.');}catch(e){notify((e as Error).message);}finally{busy=false;}}
 async function load():Promise<void>{if(busy)return;busy=true;try{const loaded=await loadCampaign();retireCampaignHistory();hasEnteredCampaign=true;closeDialogs();game=applyAiOpeningPreview(loaded);

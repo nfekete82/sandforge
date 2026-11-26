@@ -1,14 +1,18 @@
 import {test,expect} from '@playwright/test';
+import {finishOpeningHQ} from './hq-bootstrap-fixture.mjs';
 
 test('enemy hit triggers exactly one Captain warning and a five-second red minimap pulse',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('/?debug&seed=2026&map=medium');
  await page.locator('#loading').waitFor({state:'detached'});
+ await finishOpeningHQ(page);
  const state=await page.evaluate(()=>{
-  const a=window.__reborn,g=a.game,r=a.renderer;
+  const g=window.__reborn.game;
   g.aiClock=-1e8;
   const u=g.spawn(0,{x:1750,y:1900},'infantry');
   const enemy=g.spawn(1,{x:1850,y:1950},'infantry');
+  // Keep the warning loop live while isolating this hit from automatic retaliation.
+  enemy.cooldown=u.cooldown=60;
   g.strike(enemy,u,8);
   return {id:u.id,x:u.x,y:u.y,enemyX:enemy.x,sequence:g.attackAlerts.sequence,
     marker:g.attackAlerts.lastAlert,saveField:Object.hasOwn(g.save(),'attackAlerts')};
@@ -20,6 +24,7 @@ test('enemy hit triggers exactly one Captain warning and a five-second red minim
  await expect(page.locator('#notices .notice').last()).toContainText('Captain, wir werden angegriffen!');
  const visible=await page.evaluate(()=>{
    const g=window.__reborn.game,r=window.__reborn.renderer;
+   g.paused=true;
    r.render(0);
    const marker=g.attackAlerts.visible(g.time)[0];
    const x=marker.x*r.miniCanvas.width/g.world.size,y=marker.y*r.miniCanvas.width/g.world.size;
@@ -28,7 +33,12 @@ test('enemy hit triggers exactly one Captain warning and a five-second red minim
  });
  expect(visible.markers).toBe(1);
  expect(visible.red).toBeGreaterThan(visible.green);
- await page.evaluate(()=>{const g=window.__reborn.game;g.time+=6;window.__reborn.renderer.render(0);});
- expect(await page.evaluate(()=>window.__reborn.game.attackAlerts.visible(window.__reborn.game.time).length)).toBe(0);
+ const expired=await page.evaluate(alertAt=>{
+  const {game,renderer}=window.__reborn;
+  game.time=alertAt+6;
+  renderer.render(0);
+  return {active:game.attackAlerts.visible(game.time).length,sequence:game.attackAlerts.sequence};
+ },state.marker.at);
+ expect(expired).toEqual({active:0,sequence:1});
  expect(errors).toEqual([]);
 });

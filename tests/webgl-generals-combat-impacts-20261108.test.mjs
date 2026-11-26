@@ -65,7 +65,8 @@ test('VFX uses existing bounded GPU pools with surface-aware bursts and visible-
  assert.match(vfx,/const height=impactGround\+\(armored\?impactHeight\(shot\):7\)/);
  assert.match(vfx,/this\.particle\(this\.dust[\s\S]*?impactGround\+3/);
  assert.match(vfx,/this\.game\.canSee\(0,\{x:p\.x,y:p\.y\}\)/);
- assert.match(vfx,/if\(\+\+emitted>=6\)break/);
+ assert.match(vfx,/if\(emitted>=6\)continue/);
+ assert.match(vfx,/if\(live\)live\.add\(u\.id\);[\s\S]*?if\(emitted>=6\)continue/);
  assert.match(vfx,/this\.particle\(this\.debris/);
  assert.match(field,/tracerWindow\(shot\)/);
  assert.doesNotMatch(field,/shot\.owner===0\?\[\.55,\.89,1\]/);

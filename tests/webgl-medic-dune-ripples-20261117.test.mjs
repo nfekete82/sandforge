@@ -61,7 +61,8 @@ test('seamless wind-ripple PBR remains on one terrain mesh and has bounded costs
  const shader=txt('scripts/webgl-sand-surface-detail.js');
  assert.match(shader,/sfDesertRipples/);
  assert.doesNotMatch(shader,/new THREE\.Mesh\(/);
- assert.match(txt('scripts/webgl-preview.js'),/installDesertSandPBR\(material,renderer\)/);
+ assert.match(txt('scripts/webgl-preview.js'),/installDesertRegionalPBR\(material,renderer,desertRegion\?\.id\)/);
+ assert.match(txt('scripts/webgl-desert-ground-pbr.js'),/return installDesertSandPBR\(material,renderer\)/);
 });
 test('extra small dunes use the authoritative navigation heightfield, stay reproducible and walkable',()=>{
  const a=generateMap(82314,23,'dunes').battlefield;

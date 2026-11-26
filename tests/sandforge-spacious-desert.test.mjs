@@ -48,9 +48,9 @@ test('visual scaling keeps infantry smaller than vehicles with current render-on
  // Current deliberately smaller infantry and larger tanks/bombers.
  // These constants are renderer presentation values, not gameplay radii.
  const expected={
-  infantry:0.56,medic:0.56,engineer:0.56,
-  heavy:0.58,rover:1.34,
-  artillery:1.42,tank:1.44,bomber:1.03
+  infantry:0.38,medic:0.38,engineer:0.38,rocket:0.38,
+  heavy:0.37,rover:1.04,
+  artillery:1.42,tank:1.16,flamer:1.10,bomber:1.03
  };
  for(const [kind,scale] of Object.entries(expected))
   assert.equal(visualUnitScale(kind),scale,kind+' visual scale changed');

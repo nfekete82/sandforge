@@ -11,6 +11,7 @@ test('RC2 default entry serves real WebGL; classic remains a separate URL',()=>{
  const webgl=process.env.SANDFORGE_RENDERER!=='classic';
  const index=read('dist/index.html'),classic=read('dist/classic.html');
  assert.match(classic,/<canvas id="world"/);
+ assert.match(read('dist/webgl-classic-hud.js'),/<a class="wordmark" href="\/classic\.html"/);
  assert.ok(existsSync('dist/webgl-preview.html'));
  if(webgl){
   assert.match(index,/<div id="stage"/);

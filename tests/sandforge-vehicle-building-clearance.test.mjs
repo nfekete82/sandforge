@@ -25,10 +25,10 @@ test('factory: tank spawns outside nearby visually large HQ and never crosses it
  const g=new Simulation(2026,4);clearWorld(g);
  const factory={...g.bases[0],id:1700,x:1700,y:1700,kind:'factory',radius:BUILDINGS.factory.radius,buildRemaining:0,hp:BUILDINGS.factory.hp,queue:[0],queueTypes:['tank'],production:0,rally:{x:2210,y:1470}};
  const hq={...g.bases[1],owner:0,id:1701,x:1890,y:1570,kind:'headquarters',radius:BUILDINGS.headquarters.radius,buildRemaining:0,hp:BUILDINGS.headquarters.hp,queue:[],queueTypes:[],production:0,rally:null};
- g.bases=[factory,hq];g.units=[];
- // Keep a distant opposing observer so the normal elimination rule does not
- // freeze the simulated tank immediately after production.
- const observer=g.spawn(1,{x:300,y:300},'infantry');g.stop([observer.id],true);
+ // Keep the opponent's headquarters outside the test route. Its destruction
+ // would finish the match even with surviving enemy infantry.
+ const redHeadquarters=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
+ g.bases=[factory,hq,redHeadquarters];g.units=[];
  g.tactical.plan=()=>{};
  g.step();
  const tank=g.units.find(u=>u.kind==='tank'&&u.owner===0);

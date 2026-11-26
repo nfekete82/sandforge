@@ -22,9 +22,20 @@ for(const map of maps)test(map.name+': fixed terrain props, real 3D shapes, no p
   count=Object.keys(w.generated).length;
  const opts={world:w,terrain:t,seed:g.seed,mapId:map.id};
  const planned=planBurnedSedans(opts);
- assert.equal(planned.length,BURNED_SEDAN_COUNTS[map.id],map.name+' expected complete prop family');
+ const expected=BURNED_SEDAN_COUNTS[map.id]??0;
+ assert.equal(planned.length,expected,map.name+' expected scenario prop family');
  assert.deepEqual(planned,planBurnedSedans(opts),'fixed seeds must also freeze decor');
  const lite=planBurnedSedans({...opts,lowQuality:true});
+ if(!expected){
+  assert.deepEqual(lite,[]);
+  const scene=new THREE.Scene(),art=createBurnedSedanWrecks({...opts,scene});
+  assert.deepEqual(art.placements,[]);
+  assert.equal(art.drawCalls,0);
+  assert.equal(scene.children.length,0);
+  assert.deepEqual(w.blocked,blocked);
+  assert.equal(JSON.stringify(g.save()),originalSave);
+  return;
+ }
  assert.ok(lite.length<=planned.length&&lite.length>=2);
  for(const p of planned){
   assert.ok(p.scale>=.79&&p.scale<.97,'sedan is visibly smaller without losing detached debris');

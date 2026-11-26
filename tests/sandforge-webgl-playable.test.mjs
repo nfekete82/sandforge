@@ -2,10 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {existsSync,readFileSync} from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
-import {BUILDINGS,UNITS} from '../dist/src/reborn/catalog.js';
+import {BUILDINGS,unitKinds} from '../dist/src/reborn/catalog.js';
 import {SandforgeConstructionRecovery} from '../dist/webgl-construction-recovery.js';
 import {createStrategicBuilding,isStrategicBuilding,STRATEGIC_BUILDING_KINDS} from '../scripts/webgl-strategic-buildings.js';
 import {createRocketInfantry} from '../scripts/webgl-rocket-infantry.js';
+import {createReconDrone} from '../scripts/webgl-recon-drone.js';
 
 test('Canyon v15-v18: 3D campaign saves remain reloadable without changing simulation',()=>{
  for(const version of [15,16,17,18]){
@@ -22,7 +23,7 @@ test('Canyon v15-v18: 3D campaign saves remain reloadable without changing simul
 });
 
 test('all combat GLBs and standard structures exist; strategic facilities use actual procedural 3D models',()=>{
- for(const kind of Object.keys(UNITS))for(const team of [0,1]){
+ for(const kind of unitKinds)for(const team of [0,1]){
   // The rocket soldier is a real authored Three.js mesh, not a GLB file.
   if(kind==='rocket'){
    const model=createRocketInfantry(team);
@@ -30,7 +31,13 @@ test('all combat GLBs and standard structures exist; strategic facilities use ac
    assert.ok(model.children.some(child=>child.isMesh));
    continue;
   }
-  const folder=['tank','rover','artillery','scout','bomber'].includes(kind)?'animation':'prototype';
+  if(kind==='drone'){
+   const model=createReconDrone(team);
+   assert.equal(model.name,'Sandforge_R01_Recon_Drone');
+   for(let rotor=0;rotor<4;rotor++)assert.ok(model.getObjectByName('R01_Rotor_'+rotor));
+   continue;
+  }
+  const folder=['tank','rover','artillery','scout','bomber','flamer'].includes(kind)?'animation':'prototype';
   const path='dist/src/assets/reborn/'+folder+'/'+kind+'-'+team+'.glb';
   assert.ok(existsSync(path),'missing 3D unit model '+path);
  }
@@ -111,13 +118,20 @@ test('WebGL RTS menu v2: isolated tabs and real 192x132 unit sprite portraits',(
  assert.match(css,/data-tab="units"/);
  assert.match(css,/data-tab="buildings"/);
  assert.match(css,/data-tab="territories"/);
- for(const kind of Object.keys(UNITS)){
-  // Rocket HUD art is generated from the same PBR 3D soldier at runtime.
+ for(const kind of unitKinds){
   if(kind==='rocket'){
-   assert.match(js,/createRocketInfantry\(0\)/);
+   assert.match(js,/kind==='rocket'\)attachRocketLauncherToInfantry\(model,owner\)/);
    continue;
   }
-  const folder=kind==='medic'?'prototype':'animation';
+  if(kind==='drone'){
+   assert.match(js,/createReconDrone\(0\)/);
+   continue;
+  }
+  if(kind==='flamer'){
+   assert.match(js,/loadAsync\('\/src\/assets\/reborn\/animation\/flamer-0\.glb'\)/);
+   continue;
+  }
+  const folder=['infantry','engineer','medic','heavy'].includes(kind)?'prototype':'animation';
   const root='dist/src/assets/reborn/'+folder+'/'+kind+'-0';
   assert.ok(existsSync(root+'.png'),kind+' sprite missing');
   assert.ok(existsSync(root+'.json'),kind+' frames missing');
@@ -163,7 +177,7 @@ test('3D and classic campaign share HQ-first economy, save flags and unit produc
 test('3D Fog is black until discovery and zoom is constrained like the classic RTS',()=>{
  const preview=readFileSync('dist/webgl-preview.js','utf8');
  const adapter=readFileSync('dist/webgl-battlefield.js','utf8');
- assert.match(preview,/Simulation\.campaign\(seed,sizes\[bastions\]\)/);
+ assert.match(preview,/Simulation\.campaign\(seed,sizes\[bastions\],profile,generatorVersion\)/);
  assert.match(preview,/controls\.minZoom=wideView\?\.42:\.46;controls\.maxZoom=3\.5/);
  assert.match(preview,/cameraRay\.setFromCamera\(c,camera\)/);
  assert.match(preview,/cameraGroundPlane/);

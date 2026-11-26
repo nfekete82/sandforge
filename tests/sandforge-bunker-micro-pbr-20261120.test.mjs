@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {readFileSync} from 'node:fs';
 import {BUILDINGS} from '../dist/src/reborn/catalog.js';
 import {createDefensiveBunker} from '../scripts/webgl-strategic-buildings.js';
-import {FORTIFIED_BUNKER_REVISION,BUNKER_VISUAL_PORT_COUNT,updateBunkerFlagWind}
+import {createFortifiedBunker,FORTIFIED_BUNKER_REVISION,BUNKER_VISUAL_PORT_COUNT,updateBunkerFlagWind}
  from '../scripts/webgl-fortified-bunker.js';
 import {MILITARY_MICRO_PBR_REVISION,militarySurfaceRole,enhanceMilitaryMicroPBR}
  from '../scripts/webgl-military-micro-pbr.js';
@@ -16,7 +16,7 @@ test('authored bunker keeps FIVE genuine recessed ports, a proper roof, one real
  assert.equal(BUILDINGS.bunker.width,155);
  assert.equal(BUILDINGS.bunker.hp,1500);
  for(const owner of [0,1]){
-  const b=createDefensiveBunker(owner);
+  const b=createFortifiedBunker(owner);
   assert.equal(b.userData.visualRevision,FORTIFIED_BUNKER_REVISION);
   assert.equal(b.userData.bunkerFiringPorts,5);
   for(let i=1;i<=8;i++){
@@ -58,7 +58,7 @@ test('authored bunker keeps FIVE genuine recessed ports, a proper roof, one real
  }
 });
 test('blue and red flags use distinct true team-coloured cloth texture',()=>{
- const a=createDefensiveBunker(0),b=createDefensiveBunker(1);
+ const a=createFortifiedBunker(0),b=createFortifiedBunker(1);
  const l=a.children.find(m=>m.userData?.bunkerFlag).material.map;
  const r=b.children.find(m=>m.userData?.bunkerFlag).material.map;
  assert.notEqual(l,r);
@@ -113,5 +113,12 @@ test('build/renderer use actual improved PBR on authored GLB vehicles/buildings 
  assert.match(build,/webgl-fortified-bunker\.js/);
  assert.match(build,/webgl-military-micro-pbr\.js/);
  assert.match(readFileSync('scripts/webgl-strategic-buildings.js','utf8'),
-  /return createFortifiedBunker\(owner\)/);
+  /if\(kind==='bunker'\)return createDefensiveBunker\(owner\)/);
+ for(const owner of [0,1]){
+  const active=createDefensiveBunker(owner);
+  assert.equal(active.userData.bunkerFiringPorts,5);
+  const marker=active.getObjectByName('Bunker_FactionMarker');
+  assert.ok(marker?.isMesh);
+  assert.equal('#'+marker.material.color.getHexString(),owner===0?'#2c6799':'#a64b43');
+ }
 });

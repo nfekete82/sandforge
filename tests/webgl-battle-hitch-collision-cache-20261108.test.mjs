@@ -40,9 +40,8 @@ test('destroyed base invalidates cached collision footprints immediately',()=>{
 
 test('separation uses one shared infantry/vehicle collider array, not one per pair',()=>{
  const source=readFileSync('src/reborn/simulation.ts','utf8');
- assert.match(source,/const separationInfantry=\[\.\.\.separationBuildings,\.\.\.separationInfantryFacade,\.\.\.separationTowers\]/);
- assert.match(source,/const separationVehicles=\[\.\.\.separationBuildings,\.\.\.separationVisual,\.\.\.separationDecor,\.\.\.separationTowers\]/);
- assert.match(source,/const colliders=unitSpec\(a\)\.group==='Fahrzeuge'\?separationVehicles:/);
+ assert.match(source,/const separation=this\.movingColliders\(\)\.byOwner;\s*for\(const u/);
+ assert.match(source,/const faction=separation\[a\.owner\];\s*const colliders=unitSpec\(a\)\.group==='Fahrzeuge'\?faction\.vehicle:\s*unitSpec\(a\)\.flying\?faction\.buildings:faction\.infantry/);
  assert.match(source,/this\.movementCollision=undefined;target\.hp=0/);
 });
 

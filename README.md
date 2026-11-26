@@ -8,14 +8,11 @@
 
 </div>
 
-> **Entwicklungsversion:** Der WebGL-Integrationslauf auf Commit [`3f30e379`](https://github.com/nfekete82/sandforge/commit/3f30e379cdf864a53fde96fce97a7d4790fdc7d6) ist am **09.11.2026 mit 17/17 Node- und 72/72 Chromium-Tests bestanden**. Die aktuelle 3D-Codebasis liegt weiter auf gestapelten Draft-PRs und ist **noch nicht in `main` integriert oder produktiv freigegeben**. Nach dem Formations-/Kollisionsfix wurden auf Commit [`36419e1b`](https://github.com/nfekete82/sandforge/commit/36419e1b4b9fb14f42a8de7e0437f4c9e9a0ea7a) **1.356/1.357 Node-Tests bestanden (0 Fehler, 1 Skip)** sowie nochmals **17/17 WebGL-Node- und 72/72 Chromium-Tests**. Der übersprungene Test benötigt optionale lokale Premium-Binärassets. Separate Classic-, Langzeit-, CI- und Deployment-Abnahmen bleiben offen. [WebGL-Prüfprotokoll](docs/qa/webgl-integration-20261109-3f30e379.md) · [Node-Regressionsbericht](docs/qa/full-node-regression-20261109.md).
+## Sandforge 1.8
 
-## WebGL 3D RC2 — Standard-Spieloberfläche (Entwicklung)
+WebGL/Three.js ist die Standardoberfläche unter `/`. Die gemeinsame Reborn-Simulation unterstützt die Regelprofile Classic und Action und lädt Spielstände der unterstützten Kartengenerationen. Die Canvas-Oberfläche bleibt unter `/classic.html` erreichbar. Atlas Dominion liegt als separates Archiv unter `/legacy/index.html`.
 
-Im RC2-Branch startet **Sandforge WebGL/Three.js standardmäßig unter `/`**.
-Die alte Canvas-Version bleibt ausschließlich unter `/classic.html` für
-Spielstands- und Regressionstests erreichbar. Am laufenden Produktionscontainer
-auf Port 8095 ändert dieser Entwicklungsbranch nichts.
+Die Release-CI prüft die WebGL-Oberfläche, die gemeinsame Simulation, Karten und Spielstände, Assets sowie das Docker-Abbild. Der eigenständige [Classic-Canvas-Workflow](.github/workflows/sandforge-classic-archive.yml) lässt sich bei Bedarf starten. Der [Release-Status](RELEASE-1.8-STATUS.md) dokumentiert den Prüfumfang.
 
 ```sh
 npm ci
@@ -47,7 +44,7 @@ weiterhin verfügbar; **kein ungeprüfter 3D-Upload auf Uberspace**.
 
 Lokales Wüsten-RTS mit zehn Einheitentypen, eroberbaren Bastionen und einer gegnerischen Armee aus Infanterie, Fahrzeugen und Luftunterstützung. Neue Kampagnen haben 16 Bastionen und je zwei blaue und rote Startsektoren. Alte Spielstände mit 30 Bastionen und ihren ursprünglichen Startgebieten bleiben ladbar.
 
-Der lokale Entwicklungsstand trägt weiterhin **1.8.0**; als nächste Version ist **1.9.0** vorgeschlagen. [Release-Entwurf](docs/releases/v1.9.0-de.md), [Prüfbericht](docs/qa/release-2026-10-24.md) und [sichere Veröffentlichungsschritte](docs/releases/RELEASE.md). Die deutschen Stimmen A, B und C wurden anhand der Hörproben vom Eigentümer freigegeben und für alle 47 Meldungen aktiviert.
+[Änderungsprotokoll](CHANGELOG.md) und [Veröffentlichungsschritte](docs/releases/RELEASE.md). Die deutschen Stimmen A, B und C wurden anhand der Hörproben vom Eigentümer freigegeben und für alle 47 Meldungen aktiviert.
 
 **Projektidentität:** Das Spiel heißt **Sandforge: Bastion Wars**, npm-Paket und Docker-Service heißen `sandforge`. Das GitHub-Repository wurde inzwischen zu `nfekete82/sandforge` umbenannt; alle bestehenden Pull Requests und die Projekt-Historie bleiben erhalten. Die Anleitung [Sandforge-Projektumbenennung](docs/SANDFORGE-RENAME.md) enthält sichere Umstellung, Befehle und Kompatibilitätsregeln. Spielstandskennungen bleiben unverändert.
 
@@ -106,9 +103,10 @@ Die drei fiktiven deutschen Stimmen A, B und C aus Qwen3-TTS VoiceDesign und Bas
 
 ```sh
 npm run build
-npm test                    # vollständige Node-Suite, einschließlich Archiv und HTTP
+npm run test:release         # produktionsrelevante Node-Suite und Standardbuild
+npm test                     # zusätzlich historische Node-Regressionen
 npm ci --prefix tests/browser
-npm run test:browser         # WebGL-Integration: 17 Node- + 72 Chromium-Fälle (Stand 09.11.2026)
+npm run test:browser         # WebGL-Integration in Chromium
 python3 scripts/audit-radio-bank.py src/assets/reborn/voices
 ```
 

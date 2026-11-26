@@ -41,6 +41,8 @@ test('real WebGL does not prematurely win and displays large centered endgame ba
  await expect(debrief.locator('.sf3d-debrief-facts')).toContainText('Ø Gebietskontrolle');
  await expect(debrief.locator('.sf3d-debrief-toggle')).toHaveAttribute('aria-expanded','true');
  await expect(page.locator('#sf3d-simulation-state')).toBeHidden();
+ await overlay.locator('.sf3d-match-result-panel')
+  .evaluate(panel=>Promise.all(panel.getAnimations().map(animation=>animation.finished)));
  const measured=await page.evaluate(()=>{
   const root=document.querySelector('#sf3d-match-result');
   const panel=root.querySelector('.sf3d-match-result-panel');

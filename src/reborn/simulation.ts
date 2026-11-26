@@ -6,7 +6,7 @@ import {migrateTransportRoster} from './roster-migration.js';
 import {VisionCache} from './vision-cache.js';
 import {generateRollingHills,standsOnHill,HIGH_GROUND_SIGHT_MULTIPLIER,type RollingHill} from './rolling-hills.js';
 import { profiler } from './performance.js';
-import { RULES, WEATHER_RULES, clamp, distance, type Faction, type Owner, type Point, type MapVersion, mapLayout, campaignLayout, mapWorldSize } from './config.js';
+import { RULES, WEATHER_RULES, clamp, distance, type Faction, type Owner, type Point, type MapVersion, mapLayout, campaignLayout, mapWorldSize, supportsEarlyBarracksPreview } from './config.js';
 import {ACTION_BALANCE,balancePresetValid,initialActionCredits,constructionRate,productionRate,groundSpeedRate,type BalancePreset} from './action-balance.js';
 import { World, inside, type Territory } from './world.js';
 import {visibleBasePropColliders} from './vehicle-decor-collision.js';
@@ -19,7 +19,7 @@ import {segmentDistance} from './world-generation.js';
 import {canCaptureSector,captureSeconds,capturePresenceRadius} from './territory-warfare.js';
 import { UNITS, BUILDINGS, TANK_MG, canAttack, weaponDamage, unitSpec, buildingSpec, unitKinds, MAX_GENERATORS_PER_FACTION, type UnitKind, type BuildingKind } from './catalog.js';
 import {angleDifference,turnTowards} from './sprite-animator.js';
-import {newMatchStatistics,countDeployed,countProduced,countIncome,validMatchStatistics,type MatchStatistics} from './match-statistics.js';
+import {newMatchStatistics,countDeployed,countProduced,countIncome,validMatchStatistics,normalizeMatchStatistics,type MatchStatistics} from './match-statistics.js';
 import {turretPivot,turretMuzzles} from './turret.js';
 import {Transports,type TransportState} from './transports.js';
 import {BUNKER_CAPACITY,bunkerApproach,bunkerCanBoard,bunkerGarrisonedUnits,bunkerTargetRange,bunkerExitPoints,validBunkerGarrisons} from './bunker-garrison.js';
@@ -738,6 +738,8 @@ export class Simulation {
   /** The original constructor remains a deterministic legacy fixture/save reader. */
   constructor(seed=2026,mapVersion:MapVersion=0,weatherEnabled=false,bootstrap=false,profile?:TerrainProfile,generatorVersion:BattlefieldGeneratorVersion=BATTLEFIELD_GENERATOR) {
     this.bootstrapVersion=bootstrap?1:undefined;this.seed=seed;this.weather=new Weather(seed,weatherEnabled);this.world=new World(seed,mapVersion,profile,0,generatorVersion);this.territories=this.world.territories(seed);
+    // Match load()'s canonical tier for newly created and legacy Bastions.
+    for(const territory of this.territories)territory.upgradeLevel=1;
     if(mapVersion>=3)this.credits=[950,950];
     this.hills=mapVersion>=23?[]:generateRollingHills(seed,mapVersion,this.world.size,
       this.world.generated?.sites??[],this.world.generated?.ruins??[]);
@@ -746,7 +748,7 @@ export class Simulation {
       const territory=layout.headquarters[owner];
       const t=this.territories[territory],site=mapVersion>=23?battlefieldStart(t.point,this.world.size):mapVersion>=2?{x:t.point.x+(owner===0?-260:260),y:t.point.y+(owner===0?165:-165)}:mapVersion===1?{x:t.point.x-165,y:t.point.y+45}:t.point,p=this.world.clearSite(site,RULES.headquarters.radius)!;
       this.startRegions.push({center:{...p},radius:Math.min(600,this.world.size/6)});
-      if(!bootstrap)this.bases.push({id:1000+owner,owner,kind:'headquarters',...p,hp:RULES.headquarters.hp,territory,queue:[],queueTypes:[],production:0,buildRemaining:0,cooldown:0,rally:null,radius:RULES.headquarters.radius});
+      if(!bootstrap)this.bases.push({id:1000+owner,owner,kind:'headquarters',...p,hp:RULES.headquarters.hp,territory,queue:[],queueTypes:[],queueCosts:[],production:0,buildRemaining:0,cooldown:0,rally:null,radius:RULES.headquarters.radius});
       if(mapVersion===0)t.point=this.world.nearest({x:p.x+165,y:p.y-45},this.obstacles())!;
       const sign=mapVersion>=2&&owner===1?-1:1;
       this.spawn(owner,this.world.nearest({x:p.x+140*sign,y:p.y+100*sign},this.obstacles())!);
@@ -1074,7 +1076,7 @@ export class Simulation {
     if(!territory){this.notices.push('Bauplatz liegt außerhalb eines Sektors.');return null;}
     let id=1000;while(this.bases.some(b=>b.id===id)||this.units.some(u=>u.id===id))id++;
     const instant=owner===0&&this.testMode;
-    const b:Base={id,owner,kind,...p,hp:instant?spec.hp:spec.hp*.25,territory:territory.id,radius:spec.radius,queue:[],queueTypes:[],production:0,buildRemaining:instant?0:spec.buildTime,cooldown:0,rally:null,
+    const b:Base={id,owner,kind,...p,hp:instant?spec.hp:spec.hp*.25,territory:territory.id,radius:spec.radius,queue:[],queueTypes:[],queueCosts:[],production:0,buildRemaining:instant?0:spec.buildTime,cooldown:0,rally:null,
       ...(kind==='silo'?{siloCharge:SILO_CHARGE_SECONDS}:{}),
       ...(kind==='interceptor'?{interceptorAmmo:INTERCEPTOR_MAX_AMMO}:{}),
       ...(facing!==0?{facing}:{}),
@@ -3081,7 +3083,7 @@ export class Simulation {
     // instead of making the opponent appear idle until second 25.
     const modernOpening=this.world.mapVersion>=23&&this.time>=3&&!this.needsHeadquarters(1);
     const legacyEarlyOpening=this.tactical.earlyEconomyMode==='barracks-first'&&
-      this.world.mapVersion===11&&this.time>=2;
+      supportsEarlyBarracksPreview(this.world.mapVersion)&&this.time>=2;
     const earlyPaidEconomy=this.tactical.mode==='director'&&
       (modernOpening||legacyEarlyOpening);
     if(this.aiClock>=RULES.aiInterval&&(fullPlan||earlyPaidEconomy)){
@@ -3143,6 +3145,9 @@ export class Simulation {
     const s=migrateTransportRoster(raw) as Save;
     const finite=(n:unknown)=>typeof n==='number'&&Number.isFinite(n);
     const validMatchStatisticsOrLegacy=(data:unknown)=>data===undefined||validMatchStatistics(data);
+    // Earlier saves recorded a 15-second tank queue before the build-time balance change.
+    const validQueueDuration=(duration:number,kind:UnitKind)=>
+      duration===UNITS[kind]?.buildTime||(kind==='tank'&&duration===15);
     const point=(p:Point)=>p&&finite(p.x)&&finite(p.y)&&p.x>=0&&p.y>=0&&p.x<=mapWorldSize(s?.mapVersion??0)&&p.y<=mapWorldSize(s?.mapVersion??0);
     const research= s?.research??[newResearchState(),newResearchState()];
     if(!Array.isArray(research)||research.length!==2||research.some(s=>!validResearchState(s)))
@@ -3200,7 +3205,7 @@ export class Simulation {
           b.siloCharge>SILO_CHARGE_SECONDS||b.kind!=='silo'))||
         (b.interceptorAmmo!==undefined&&(!Number.isInteger(b.interceptorAmmo)||
           b.interceptorAmmo<0||b.interceptorAmmo>INTERCEPTOR_MAX_AMMO||
-          b.kind!=='interceptor'))||!finite(b.hp)||b.hp<0||b.hp>(BUILDINGS[b.kind??'headquarters']?.hp??0)||!Array.isArray(b.queue)||b.queue.length>8||b.queue.some((v,i)=>!finite(v)||v!==UNITS[b.queueTypes?.[i]??'infantry']?.buildTime)||
+          b.kind!=='interceptor'))||!finite(b.hp)||b.hp<0||b.hp>(BUILDINGS[b.kind??'headquarters']?.hp??0)||!Array.isArray(b.queue)||b.queue.length>8||b.queue.some((v,i)=>!validQueueDuration(v,b.queueTypes?.[i]??'infantry'))||
         (b.queueTypes!==undefined&&(!Array.isArray(b.queueTypes)||b.queueTypes.length!==b.queue.length||b.queueTypes.some(k=>!Object.hasOwn(UNITS,k))))||
         (s.productionVersion===1&&b.queue.some((_,i)=>b.queueTypes?.[i]!=='supply'&&
           !UNITS[b.queueTypes?.[i]??'infantry']?.producers.includes(b.kind??'headquarters')))||
@@ -3215,12 +3220,8 @@ export class Simulation {
     game.actionScan=s.actionScan?structuredClone(s.actionScan):null;
     game.research=structuredClone(research) as [ResearchState,ResearchState];
     game.stats=s.stats?structuredClone(s.stats):newMatchStatistics();
-    // v1 match statistics predate the rocket specialist. Supply its zero count
-    // once when loading a legitimate old save, or subsequent production would
-    // increment undefined and corrupt the score counter.
-    for(const faction of game.stats.factions){
-      faction.deployedUnits.rocket??=0;faction.deployedUnits.supply??=0;
-    }
+    // Fill missing counters from legitimate historical saves, never reset recorded counts.
+    normalizeMatchStatistics(game.stats);
     if(!s.stats){game.stats.partial=true;for(const u of s.units){if(u.hp>0){const f=game.stats.factions[u.owner];f.deployedUnits[u.kind??'infantry']++;f.peakArmy+=0;}}for(const owner of [0,1] as const)game.stats.factions[owner].peakArmy=s.units.filter(u=>u.owner===owner&&u.hp>0).length;}
     game.nextId=Math.max(1,Number.isSafeInteger(s.nextId)?s.nextId:1,...s.units.map(u=>u.id+1),...(s.ai?.losses??[]).map(l=>l.id+1));game.credits=[...s.credits];game.incomeClock=s.incomeClock;
     game.bases=structuredClone(s.bases).map(b=>({...b,kind:b.kind??'headquarters',...(isWallLike(b.kind)?{}:game.world.clearSite(b,buildingSpec(b).radius)),radius:buildingSpec(b).radius,...(b.queueCosts?{}:b.queue.length?{queueCosts:b.queue.map((_,i)=>{const k=b.queueTypes?.[i]??'infantry';return !s.supportVersion&&k==='engineer'?150:UNITS[k].cost;})}:{}),queueTypes:b.queueTypes??b.queue.map(()=>'infantry'),buildRemaining:b.buildRemaining??0,cooldown:b.cooldown??0,
@@ -3261,9 +3262,10 @@ export class Simulation {
       game.notices.push('Nachschubtransporter entfernt · '+(retired.filter(u=>u.owner===0).length*UNITS.supply.cost)+' Credits erstattet.');
     game.units=structuredClone(s.units.filter(u=>u.kind!=='supply')).map(u=>{
       const p=u.carrier||unitSpec(u).flying?{x:u.x,y:u.y}:game.world.nearest({x:u.x,y:u.y},[...game.obstacles(),...(unitSpec(u).group==='Infanterie'?infantryStructureColliders(game.obstacles()):vehicleStructureColliders(game.obstacles()))],[],undefined,Math.max(0,unitSpec(u).radius-10))??u;
+      // Retired service state must be absent, not reintroduced as undefined keys on load.
+      delete u.supply;delete u.factoryService;delete u.autoFactoryRepair;
       return {...u,xp:sanitizeXp(u.xp),kind:u.kind??'infantry',...(!s.rosterVersion&&u.kind==='heavy'?{hp:u.hp/190*UNITS.heavy.hp}:!s.rosterVersion&&u.kind==='scout'?{hp:u.hp/160*UNITS.scout.hp}:{}),...p,path:[],repath:0,hit:0,fire:0,previousX:p.x,previousY:p.y,
         angle:u.angle??(u.facing<0?Math.PI:0),walkDistance:u.walkDistance??0,lastAttacker:u.lastAttacker??null,defendUntil:u.defendUntil??0,
-        supply:undefined,factoryService:undefined,autoFactoryRepair:undefined,
         combatTarget:Number.isInteger(u.combatTarget)?u.combatTarget:null,
         pursuitOrigin:u.pursuitOrigin??null};
     });

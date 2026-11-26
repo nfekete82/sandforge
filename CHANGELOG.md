@@ -1,8 +1,11 @@
 # Änderungsprotokoll
 
-## Unveröffentlicht — vorgeschlagen: 1.9.0
+## 1.8.0
 
-Der lokale Paketstand ist weiterhin 1.8.0. Es wurden keine Release-Tags angelegt. Diese Änderungen sind ein Release-Entwurf. Die drei deutschen Stimmtypen sind vom Eigentümer anhand der Vergleichsproben freigegeben und alle 47 Clips aktiviert.
+- WebGL validiert Start, Kampagnen, Regelprofile, HUD und Spielstände mit Chromium. Classic Canvas und Atlas bleiben als separat aufrufbare Archive verfügbar.
+- Standardbuild und Docker verpacken die finalen PBR-Modelle von HQ und Kaserne für beide Fraktionen aus Git.
+- Kosten bereits bezahlter Produktionsaufträge und historische Einheitenstatistiken bleiben beim Speichern und Laden erhalten. Die Stabilisierung korrigiert außerdem die WebGL-Sammelpunktsteuerung und das Ausblenden von Zielmarkierungen in der taktischen Pause.
+- Der Eigentümer hat die drei deutschen Stimmtypen anhand der Vergleichsproben freigegeben. Alle 47 Clips sind aktiv.
 
 - Neun aktive Einheitentypen mit eigenen Rollen: Sanitäter, Bauarbeiter, verstärkte schwere Infanterie sowie Fahrzeuge und Luftunterstützung.
 - Artillerie zum Raketenwerfer mit 680 M Reichweite, 830 M Sicht, sichtbaren Flugkörpern und Flächenschaden umgebaut.

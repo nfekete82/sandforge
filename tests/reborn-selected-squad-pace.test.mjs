@@ -9,6 +9,8 @@ function fixture(){
  g.units=[];g.bases=[];
  g.world.blocked.fill(0);g.world.opaque.fill(0);
  g.status='playing';g.paused=false;
+ // Reset persisted base history when replacing the entire starting roster.
+ g.hadBuildings=[false,false];
  // An isolated movement fixture still needs one remote opposing survivor:
  // the current elimination rule stops the match once a faction is extinct.
  const observer=g.spawn(1,{x:300,y:300},'infantry');g.stop([observer.id],true);
@@ -35,6 +37,7 @@ test('selected infantry, heavy, support and armor share one ground march roster'
  for(let i=0;i<40;i++){
   const previous=new Map(squad.map(u=>[u.id,{x:u.x,y:u.y,walk:u.walkDistance}]));
   g.step(.05);
+  assert.equal(g.status,'playing','movement fixture must remain active');
   for(const u of squad){
    const p=previous.get(u.id);
    const displacement=Math.hypot(u.x-p.x,u.y-p.y);

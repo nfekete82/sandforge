@@ -30,21 +30,42 @@ jobs:
           package-manager-cache: false
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: TypeScript build and full game test suite
-        run: npm test
+      - name: TypeScript build and production game test suite
+        run: npm run test:release
       - name: Validate real 3D building assets and animation atlases
         run: |
           npm run assets:buildings:validate
-          npm run assets:animation-audit
+          node scripts/audit-animation-assets.mjs
 
   browser:
-    name: Chromium · Classic gameplay (shard ${{ matrix.shard }}/4)
+    name: Chromium · WebGL (${{ matrix.label }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        include:
+          - {suite: integration, label: integration 1/6, shard: '1/6'}
+          - {suite: integration, label: integration 2/6, shard: '2/6'}
+          - {suite: integration, label: integration 3/6, shard: '3/6'}
+          - {suite: integration, label: integration 4/6, shard: '4/6'}
+          - {suite: integration, label: integration 5/6, shard: '5/6'}
+          - {suite: integration, label: integration 6/6, shard: '6/6'}
+          - suite: battlefields
+            label: terrain a
+            pattern: '(open|dunes) full-detail terrain'
+          - suite: battlefields
+            label: terrain b
+            pattern: '(rocky|oasis) full-detail terrain'
+          - suite: battlefields
+            label: terrain c
+            pattern: 'mixed full-detail terrain|same-sized dune maps'
+          - suite: battlefields
+            label: maps and saves
+            pattern: 'campaign menu and saved metadata'
+    env:
+      SANDFORGE_BROWSER_CHANNEL: chromium
+      SANDFORGE_TEST_MAX_FAILURES: 0
     steps:
       - uses: actions/checkout@v7
         with:
@@ -53,24 +74,56 @@ jobs:
         with:
           node-version: 22
           package-manager-cache: false
-      - name: Install build and browser dependencies
-        run: |
-          npm install --no-audit --no-fund
-          npm ci --prefix tests/browser --no-audit --no-fund
-          cd tests/browser
-          npx playwright install --with-deps chromium
-      - name: Classic Canvas regression suite (explicit legacy build)
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --prefix tests/browser --no-audit --no-fund
+      - run: cd tests/browser && npx playwright install --with-deps chromium
+      - name: Gameplay, startup, HUD, combat and saves
+        if: matrix.suite == 'integration'
         env:
-          ATLAS_BROWSER_CHANNEL: chromium
+          # Preserve viewport geometry and real WebGL on software renderers.
+          SANDFORGE_TEST_DPR: '0.5'
         run: |
-          # One worker per runner. Four independent shards prevent the old
-          # serial 45-second browser tests from exhausting a single 40m job.
-          npm run build:classic
-          npm --prefix tests/browser test -- --shard=${{ matrix.shard }}/4
-      - name: Preserve failure screenshots and traces
+          npm run build
+          node scripts/test-webgl-integration.mjs --workers=1 --timeout=95000 --fully-parallel --shard="${{ matrix.shard }}"
+      - name: Maps, procedural terrain and historical saves
+        if: matrix.suite == 'battlefields'
+        env:
+          # Only the menu and save tests use this setting. Terrain views set DPR 1.
+          ATLAS_METADATA_DPR: '0.5'
+        run: |
+          npm run build
+          tests/browser/node_modules/.bin/playwright test --config=tests/browser/playwright.config.mjs \
+            tests/browser/webgl-procedural-battlefields.spec.mjs --grep "${{ matrix.pattern }}" --workers=1 --reporter=line
+      - uses: actions/upload-artifact@v4
         if: failure()
-        uses: actions/upload-artifact@v4
         with:
-          name: reborn-browser-evidence-shard-${{ matrix.shard }}
+          name: webgl-browser-${{ strategy.job-index }}
           path: tests/browser/artifacts/
           retention-days: 7
+
+  docker:
+    name: Docker · WebGL and final buildings
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build and start the release image
+        run: |
+          docker build -t sandforge-release-check .
+          docker run --rm -d --name sandforge-release-check -p 127.0.0.1:8095:8095 sandforge-release-check
+      - name: Verify the WebGL entry and compare all four served GLBs to Git
+        run: |
+          set -euo pipefail
+          base=http://127.0.0.1:8095
+          curl -fsS --retry 20 --retry-all-errors --retry-connrefused --retry-delay 1 "$base/healthz"
+          curl -fsS "$base/" -o "$RUNNER_TEMP/sandforge-index.html"
+          grep -q 'id="stage"' "$RUNNER_TEMP/sandforge-index.html"
+          curl -fsS "$base/webgl-preview.js" -o /dev/null
+          for source in src/release-pbr/*.glb; do
+            curl -fsS "$base/src/assets/reborn/buildings-3d/${source##*/}" -o "$RUNNER_TEMP/sandforge-building.glb"
+            cmp "$source" "$RUNNER_TEMP/sandforge-building.glb"
+          done
+      - if: always()
+        run: docker rm -f sandforge-release-check || true

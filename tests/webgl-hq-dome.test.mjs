@@ -15,7 +15,7 @@ function glb(file){
  assert.equal(b.toString('ascii',16,20),'JSON');
  return JSON.parse(b.toString('utf8',20,20+jlen));
 }
-const PATH='src/assets/reborn/buildings-3d/';
+const PATH='dist/src/assets/reborn/buildings-3d/';
 test('both PBR HQ GLBs have the same textured command dome without losing animation pivots',()=>{
  for(const owner of [0,1]){
   const doc=glb(PATH+'headquarters-'+owner+'.glb');

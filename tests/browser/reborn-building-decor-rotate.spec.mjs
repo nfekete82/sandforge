@@ -26,7 +26,7 @@ test('construction: R and the HUD switch mirrored façade without changing terra
  await page.locator('#build-mode').click();
  await page.locator('[data-build="turret"]').click();
  await expect(page.locator('#rotate-building')).toBeVisible();
- await expect(page.locator('#hint')).toContainText('R: GEBÄUDE DREHEN');
+ await expect(page.locator('#hint')).toContainText('R: DREHEN');
  // The build hint is also drawn beside the cursor, not just in the lower HUD.
  const source=await page.evaluate(async()=>{
    const response=await fetch('/src/reborn/renderer.js');

@@ -4,6 +4,8 @@ import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {generateCanyonFeatures,canyonRuinBlocked}
  from '../dist/src/reborn/canyon-front.js';
+import {mapLayout,mapWorldSize} from '../dist/src/reborn/config.js';
+import {generateMap} from '../dist/src/reborn/world-generation.js';
 import {isSmallRuin,makeSmallRuinFragments,SMALL_RUIN_REVISION}
  from '../scripts/webgl-ruin-fragments.js';
 
@@ -126,7 +128,11 @@ test('v19–v22 seeded spacious Canyon geometry stays on the old full-house gene
   'historic 3D ruins remain their original building size');
  assert.ok(legacyWide.ruins.every(r=>r.width>=108));
  assert.ok(legacyWide.ruins.every(r=>!isSmallRuin(r)));
- const gen=file('src/reborn/world-generation.ts');
- assert.match(gen,/const canyon=!modern&&version>=15\?generateCanyonFeatures\(seed,size,cols,rows,sites,corridors\)/,
-  'legacy call must not opt into the new fragmentation');
+ for(const version of [19,20,21,22]){
+  const seed=2074,legacy=generateMap(seed,version);
+  const layout=mapLayout(version);
+  const full=generateCanyonFeatures(seed,mapWorldSize(version),layout.columns,layout.rows,legacy.sites,legacy.corridors);
+  assert.ok(full.ruins.length>0);
+  assert.deepEqual(legacy.ruins,full.ruins,'v'+version+' retains the full-size legacy ruins');
+ }
 });

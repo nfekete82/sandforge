@@ -117,7 +117,7 @@ test('real WebGL invokes loss reporting after simulation and writes a HUD notice
  const audio=readFileSync('src/reborn/audio.ts','utf8');
  assert.match(source,/sound\.reportUnitLosses\(game\)/);
  assert.match(source,/battlefield\.message\(lost===1\?'Einheit verloren'/);
- assert.match(source,/if\(running\)\{\s*accumulator=/);
+ assert.match(source,/if\(running\)\{[\s\S]*?game\.step\(\.05\);[\s\S]*?const lost=running\?sound\.reportUnitLosses\(game\):0;/);
  assert.match(audio,/this\.unitLosses\.reset\(g\.units,g\.time\)/);
  assert.match(audio,/new SpeechSynthesisUtterance\('Einheit verloren'\)/);
  assert.match(audio,/a\.currentTime-this\.lastLossSignal<2\.8/);

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {MESHY_STRUCTURE_ASSETS} from '../scripts/webgl-meshy-asset-flags.js';
+import {createBuildingYard,disposeBuildingYard} from '../scripts/webgl-building-yard.js';
 import {meshyStructurePath,prepareMeshyStructure,meshyLocalBounds,SANDFORGE_INDUSTRIAL_PALETTE,MESHY_HQ_ENGINEER_DOOR,removeHeadquartersEmblemMeshes,meshHeadquartersDoor,setMeshyHeadquartersDoorOpen,MESHY_HQ_EXPERIMENTAL_SHADER}
  from '../scripts/webgl-meshy-structure.js';
 
@@ -44,7 +45,7 @@ test('factory exposes only the actual roll-up shutter and shrunk tank proportion
  const scale=readFileSync('scripts/webgl-scale.js','utf8');
  assert.doesNotMatch(gates,/new THREE.BoxGeometry\(\.018,\.28,\.57\)/);
  assert.match(gates,/meshyShutter:true/);
- assert.match(scale,/if\(kind==='tank'\)return 1\.23/);
+ assert.match(scale,/if\(kind==='tank'\)return 1\.16/);
 });
 test('existing Energiekern income, HP and prices remain untouched',()=>{
  const catalog=readFileSync('src/reborn/catalog.ts','utf8');
@@ -85,19 +86,30 @@ test('measured local infantry exits stay just outside the physical GLB at any sc
  assert.equal(repeat,true);
  assert.equal(building.children.filter(n=>n.name==='SF_Meshy_InfantryRolloutStart').length,1);
 });
-test('single industrial palette and exact reference photo for modern command HQ',()=>{
+test('optional command HQ gallery retains its exact reference and the standard build keeps the approved skins',async()=>{
  assert.equal(SANDFORGE_INDUSTRIAL_PALETTE.blue,'#1b508d');
  const workflow=readFileSync('.github/workflows/meshy-structures-import-20261121.yml','utf8');
  assert.match(workflow,/01a1fd66-536b-71d0-9d5a-74afd948e7f9/);
  const build=readFileSync('scripts/build.mjs','utf8');
- assert.match(build,/installedMeshy/);
+ const {MESHY_STRUCTURE_ASSETS:shipped}=await import('../dist/webgl-meshy-asset-flags.js');
+ assert.deepEqual(shipped,{barracks:false,airfield:false,bastion:false,bunker:false,headquarters:false,generator:false,airfieldReference:false});
  assert.match(build,/meshy-structures/);
 });
 
-test('HQ has NO side camo tent; other camo yards keep their own decor',()=>{
- const source=readFileSync('scripts/webgl-building-yard.js','utf8');
- assert.match(source,/CAMO_NET_BUILDING_KINDS=Object\.freeze\(\['barracks','research'\]\)/);
- assert.doesNotMatch(source,/CAMO_NET_BUILDING_KINDS=Object\.freeze\(\['headquarters'/);
+test('the restored HQ, barracks and research yards retain their textured camouflage nets',()=>{
+ for(const kind of ['headquarters','barracks','research','factory']){
+  const yard=createBuildingYard(kind,180);
+  try{
+   const net=yard.getObjectByName('PartialCamouflageMesh');
+   if(kind==='factory')assert.equal(net,undefined);
+   else{
+    assert.ok(net?.geometry.getAttribute('uv'));
+    assert.equal(net.material.map?.colorSpace,THREE.SRGBColorSpace);
+    assert.ok(net.material.normalMap?.isTexture);
+    assert.ok(net.material.roughnessMap?.isTexture);
+   }
+  }finally{disposeBuildingYard(yard);}
+ }
 });
 test('vehicle factory and HQ both receive final identical Sandforge PBR-grade shader',()=>{
  const gameplay=readFileSync('scripts/webgl-battlefield.js','utf8');
@@ -234,11 +246,11 @@ test('HQ door hinges really open, with no freestanding garage or shader cutout',
 test('engineer keeps verified exit while experimental HQ cutout is disabled',()=>{
  const producer=readFileSync('scripts/webgl-production-gates.js','utf8');
  assert.equal(MESHY_HQ_EXPERIMENTAL_SHADER,false);
- assert.match(producer,/meshHeadquartersDoor\\(entry.detail\\)/);
+ assert.match(producer,/meshHeadquartersDoor\(entry\.detail\)/);
  assert.match(producer,/openBay:!meshHQDoor/);
  assert.match(producer,/meshyInfantry:true,meshyStart,meshyExit/);
- assert.match(producer,/gate\\.meshyInfantry\\?gate\\.meshyExit\\.getWorldPosition/);
- assert.match(producer,/state.directFoot\\|\\|gate.openBay\\|\\|gate.meshyShutter\\|\\|gate.meshyInfantry/);
+ assert.match(producer,/gate\.meshyInfantry\?gate\.meshyExit\.getWorldPosition/);
+ assert.match(producer,/state\.directFoot\|\|gate\.openBay\|\|gate\.meshyShutter\|\|gate\.meshyInfantry/);
 });
 test('radar remains independent of HQ shader fallback',()=>{
  const style=readFileSync('scripts/webgl-meshy-structure.js','utf8');

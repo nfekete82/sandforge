@@ -16,7 +16,7 @@ test('radio: local speech decodes, real mouse commands speak immediately, groups
  await expect.poll(()=>page.evaluate(()=>window.__reborn.audio.radio.active)).toBe(0);await page.waitForTimeout(1000);
  const before=await page.evaluate(()=>{const a=window.__reborn;for(let i=0;i<9;i++)a.game.spawn(0,{x:1900+i*25,y:2140});a.renderer.selected=new Set(a.game.units.map(u=>u.id));a.refresh();return a.audio.radio.stats.started;});
  await clickWorld(page,{x:2300,y:2290},'right');expect(await page.evaluate(()=>window.__reborn.audio.radio.stats.started)).toBe(before+1);
- const groupClip=await page.evaluate(()=>window.__reborn.audio.radio.lastClip.id);await page.waitForTimeout(230);await page.keyboard.press('a');await clickWorld(page,{x:2260,y:2320});
+ const groupClip=await page.evaluate(()=>window.__reborn.audio.radio.lastClip.id);await page.waitForTimeout(230);await page.keyboard.press('q');await clickWorld(page,{x:2260,y:2320});
  expect(await page.evaluate(()=>({started:window.__reborn.audio.radio.stats.started,active:window.__reborn.audio.radio.active,group:window.__reborn.audio.radio.lastClip.group}))).toEqual({started:before+2,active:1,group:'attack'});
  expect(await page.evaluate(()=>window.__reborn.audio.radio.stats.interrupted)).toBeGreaterThan(0);expect(await page.evaluate(()=>window.__reborn.audio.radio.lastClip.id)).not.toBe(groupClip);
  const immediate=await page.evaluate(()=>{const a=window.__reborn;a.audio.radio.reset();const before=a.audio.radio.stats.started,t=performance.now();a.input.order({x:2400,y:2400});return {count:a.audio.radio.stats.started-before,latency:performance.now()-t};});expect(immediate.count).toBe(1);expect(immediate.latency).toBeLessThan(50);

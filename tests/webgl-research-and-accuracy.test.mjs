@@ -111,7 +111,7 @@ test('WebGL rifle misses deal zero damage and produce actual sand miss shots',()
  assert.ok(misses>30&&misses<70,'25% deterministic misses over 200 rounds');
  assert.ok(target.hp<hp);
  const simSource=src('src/reborn/simulation.ts');
- assert.match(simSource,/if\(this\.stageWebGLProduction&&\(unitShooter\|\|weapon==='turret'\)\)/);
+ assert.match(simSource,/if\(weapon!=='flame'&&this\.stageWebGLProduction&&\(unitShooter\|\|weapon==='turret'\)\)/);
  assert.match(simSource,/for\(const target of missile\.miss\?\[\]:\[/);
  assert.match(simSource,/\(m\.miss!==undefined&&typeof m\.miss!=='boolean'\)/,
   'missed projectiles validate in persisted save files');

@@ -1,6 +1,6 @@
 import { profiler } from './performance.js';
 import type { SectorChoice, StrategicBrief } from './qwen-plan.js';
-import {RULES,distance,clamp,type Point} from './config.js';
+import {RULES,distance,clamp,supportsEarlyBarracksPreview,type Point} from './config.js';
 import {UNITS,unitSpec,buildingSpec,canAttack,type UnitKind} from './catalog.js';
 import {developArmy,validEconomy,type EconomyState} from './army-economy.js';
 import {selectObservedCounterTarget} from './ai-counter-doctrine.js';
@@ -2284,7 +2284,7 @@ export class TacticalAI {
  openingEconomy():void{
   const g=this.g;
   const modernOpening=g.world.mapVersion>=23&&g.time>=3;
-  const legacyEarlyOpening=g.world.mapVersion===11&&
+  const legacyEarlyOpening=supportsEarlyBarracksPreview(g.world.mapVersion)&&
    this.earlyEconomyMode==='barracks-first'&&g.time>=2;
   if(this.mode!=='director'||(!modernOpening&&!legacyEarlyOpening)
    ||g.time>=(g.balancePreset==='action'?65:RULES.aiOpeningDelay)

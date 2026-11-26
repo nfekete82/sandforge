@@ -1,4 +1,4 @@
-import {unitKinds,type UnitKind} from './catalog.js';
+import {UNITS,unitKinds,type UnitKind} from './catalog.js';
 import type {Faction} from './config.js';
 
 /** Authoritative counts independent of spending, score and graphics. */
@@ -10,7 +10,13 @@ export interface FactionStatistics {
  peakArmy:number;
 }
 export interface MatchStatistics {version:1;partial?:boolean;factions:[FactionStatistics,FactionStatistics]}
-const zero=():Record<UnitKind,number>=>Object.fromEntries(unitKinds.map(k=>[k,0])) as Record<UnitKind,number>;
+// Statistics retain retired unit kinds even when they are no longer recruitable.
+const statisticsKinds=Object.keys(UNITS) as UnitKind[];
+const legacyOptionalKinds=new Set<UnitKind>(['rocket','supply','drone','flamer']);
+const zero=():Record<UnitKind,number>=>Object.fromEntries(statisticsKinds.map(k=>[k,0])) as Record<UnitKind,number>;
+export function normalizeMatchStatistics(s:MatchStatistics):void{
+ for(const f of s.factions)for(const k of statisticsKinds)f.deployedUnits[k]??=0;
+}
 const faction=():FactionStatistics=>({earnedCredits:0,peakIncome:0,producedUnits:0,deployedUnits:zero(),peakArmy:0});
 export const newMatchStatistics=():MatchStatistics=>({version:1,factions:[faction(),faction()]});
 export const countDeployed=(s:MatchStatistics,owner:Faction,kind:UnitKind,concurrent:number):void=>{
@@ -22,7 +28,7 @@ export const countIncome=(s:MatchStatistics,owner:Faction,credits:number):void=>
  const record=s.factions[owner];record.earnedCredits+=credits;record.peakIncome=Math.max(record.peakIncome,credits);
 };
 export const mostDeployed=(stat:FactionStatistics):{kind:UnitKind;count:number}|null=>{
- const entries=unitKinds.map(kind=>({kind,count:stat.deployedUnits[kind]}))
+ const entries=unitKinds.map(kind=>({kind,count:stat.deployedUnits[kind]??0}))
   .sort((a,b)=>b.count-a.count||unitKinds.indexOf(a.kind)-unitKinds.indexOf(b.kind));
  return entries[0]?.count?entries[0]:null;
 };
@@ -33,6 +39,6 @@ export function validMatchStatistics(s:unknown):s is MatchStatistics{
  return data.version===1&&(data.partial===undefined||typeof data.partial==='boolean')&&Array.isArray(data.factions)&&data.factions.length===2&&
  data.factions.every(f=>f&&safe(f.earnedCredits)&&safe(f.peakIncome)&&safe(f.producedUnits)&&safe(f.peakArmy)&&
    f.peakArmy<=96&&f.peakIncome<=f.earnedCredits&&f.deployedUnits&&typeof f.deployedUnits==='object'&&
-   unitKinds.every(k=>(k==='rocket'||k==='supply')&&f.deployedUnits[k]===undefined||safe(f.deployedUnits[k]))&&
-   f.producedUnits<=unitKinds.reduce((n,k)=>n+(f.deployedUnits[k]??0),0));
+   statisticsKinds.every(k=>(legacyOptionalKinds.has(k)&&f.deployedUnits[k]===undefined)||safe(f.deployedUnits[k]))&&
+   f.producedUnits<=statisticsKinds.reduce((n,k)=>n+(f.deployedUnits[k]??0),0));
 }

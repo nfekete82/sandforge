@@ -9,7 +9,7 @@ assert.match(source,/export const FACTORY_SAWTOOTH_BAYS=3;/);
 assert.match(source,/export const FACTORY_SAWTOOTH_ROOF_REVISION/);
 
 function glb(owner){
- const bin=readFileSync('src/assets/reborn/buildings-3d/factory-'+owner+'.glb');
+ const bin=readFileSync('dist/src/assets/reborn/buildings-3d/factory-'+owner+'.glb');
  assert.equal(bin.toString('utf8',0,4),'glTF');
  assert.equal(bin.readUInt32LE(4),2);
  assert.equal(bin.readUInt32LE(8),bin.length);

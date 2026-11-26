@@ -8,7 +8,7 @@ import {createBuildingYard,disposeBuildingYard} from '../scripts/webgl-building-
 
 const src=p=>readFileSync(p,'utf8');
 function energyGlb(owner){
- const buf=readFileSync('src/assets/reborn/buildings-3d/generator-'+owner+'.glb');
+ const buf=readFileSync('dist/src/assets/reborn/buildings-3d/generator-'+owner+'.glb');
  assert.equal(buf.toString('ascii',0,4),'glTF');
  assert.equal(buf.readUInt32LE(4),2);
  assert.equal(buf.readUInt32LE(8),buf.length);
@@ -71,9 +71,7 @@ test('HUD, placement ghost and real game all use the authored faction assets',()
  const scene=src('scripts/webgl-battlefield.js');
  const portrait=src('scripts/webgl-portraits.js');
  assert.match(build,/scripts\/generate-energy-core-pbr\.mjs/);
- assert.ok(build.indexOf('generate-energy-core-pbr.mjs')<
-  build.indexOf("cpSync('src/assets', 'dist/src/assets'"),
-  'always generate actual GLBs BEFORE dist asset export');
+ assert.match(build,/\['scripts\/generate-energy-core-pbr\.mjs',shippedBuildingDir\]/);
  assert.match(scene,/entry\.kind==='generator'&&model\.getObjectByName\('SF_EnergyCore_PBR_Housing'\)/);
  assert.match(scene,/model\.userData\.sandforgeOriginalPBR=true/);
  assert.match(portrait,/kind==='generator'\)\&\&renderer/);

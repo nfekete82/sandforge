@@ -83,20 +83,20 @@ test('defensive misses use visible sand dents and dust, not explosion or extra G
 test('defensive turret shrinks 12% in gameplay, fallback and build ghost only',()=>{
  assert.equal(TURRET_VISUAL_SCALE,.88);
  assert.equal(visualBuildingScale('turret'),.88);
- assert.equal(visualBuildingScale('headquarters'),1);
- assert.equal(visualBuildingScale('barracks'),1);
- assert.equal(visualUnitScale('infantry'),.42,
-  'soldier stature must remain unchanged beside the smaller tower');
+ assert.equal(visualBuildingScale('headquarters'),.92);
+ assert.equal(visualBuildingScale('barracks'),1.10);
+ assert.equal(visualUnitScale('infantry'),.38,
+  'soldier stature follows the independently calibrated infantry scale');
  const bounds={x:110,y:100,z:92},width=120;
  const oldTurret=Math.min(width/110,MODEL_HEIGHTS.turret/100);
  const newTurret=calibratedScale('turret','building',bounds,width);
  assert.ok(Math.abs(newTurret-oldTurret*.88)<1e-10,
   'authored turret must shrink AFTER GLB width/height normalization');
  assert.equal(calibratedScale('barracks','building',bounds,width),
-  Math.min(width/110,MODEL_HEIGHTS.barracks/100),
-  'other buildings retain their previous art scale');
+  Math.min(width/110,MODEL_HEIGHTS.barracks/100)*1.10,
+  'barracks use their own recorded visual calibration');
  const battle=readFileSync('scripts/webgl-battlefield.js','utf8');
- assert.match(battle,/if\(type==='building'&&kind==='turret'\)\s*group\.scale\.setScalar\(visualBuildingScale\(kind\)\)/,
+ assert.match(battle,/if\(type==='building'&&\['turret','factory','headquarters','barracks'\]\.includes\(kind\)\)\s*group\.scale\.setScalar\(visualBuildingScale\(kind\)\)/,
   'lite fallback and placement ghost must match the 88% authored turret');
  assert.match(battle,/const scale=calibratedScale\(entry\.kind,type,dims,desired\)/,
   'completed GLB must use the shared normalization scale');

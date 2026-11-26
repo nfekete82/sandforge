@@ -8,10 +8,10 @@ import {selectedInfantryForTransport,selectedLoadedTransports} from '../scripts/
 import {visualUnitScale,unitVisualYaw,unitRenderAltitude} from '../scripts/webgl-scale.js';
 
 test('3D scale and bomber orientation are presentation-only',()=>{
- assert.equal(visualUnitScale('tank'),1.44);
+ assert.equal(visualUnitScale('tank'),1.16); // Current factory-door calibrated hull scale.
  assert.equal(visualUnitScale('scout'),1.34);
- for(const kind of ['infantry','medic','engineer'])assert.equal(visualUnitScale(kind),.56);
- assert.equal(visualUnitScale('heavy'),.58);
+ for(const kind of ['infantry','medic','engineer'])assert.equal(visualUnitScale(kind),.38);
+ assert.equal(visualUnitScale('heavy'),.37);
  assert.equal(visualUnitScale('bomber'),1.03);
  for(const angle of [0,Math.PI/3,Math.PI,Math.PI*1.5]){
   assert.ok(Math.abs(unitVisualYaw('bomber',angle)-unitVisualYaw('scout',angle)-Math.PI)<1e-9);
@@ -59,18 +59,20 @@ test('3D can board and unload both Humvee and ten-seat helicopter',()=>{
  assert.deepEqual(selectedLoadedTransports([loaded],new Set([71])),[]);
  assert.deepEqual(selectedLoadedTransports([{...loaded,transport:{cargo:[]}}],new Set([70])),[]);
  const src=readFileSync(new URL('../scripts/webgl-battlefield.js',import.meta.url),'utf8');
- const hud=readFileSync(new URL('../scripts/webgl-classic-hud.js',import.meta.url),'utf8');
  assert.match(src,/\['rover','scout'\]\.includes\(u\.kind\)/);
  assert.match(src,/kind:'board',target:carrier\.id,x:carrier\.x,y:carrier\.y/);
  assert.match(src,/this\.game\.transports\.unload\(carrier\.id,point\)/);
  assert.match(src,/unitRenderAltitude\(u\.kind,u\.flightHeight\?\?1\)/);
- assert.match(hud,/Transporthubschrauber ausladen/);
+ assert.match(src,/data-action="unload" title="Alle Passagiere ausladen \(U\)"/);
+ assert.match(src,/data-passenger-id=/,'individual disembarkation remains available');
 });
 
 test('real 20Hz ten-seat helicopter lands, loads, lifts off, lands and unloads',()=>{
  const g=new Simulation(2074,4);g.aiClock=1e8;g.units=[];g.bases=[];
  g.world.blocked.fill(0);g.world.opaque.fill(0);g.status='playing';g.paused=false;
- // The simulation now stops when every opposing unit/building is gone.
+ // This is a fresh HQ-less transport scenario, not a destroyed-base match.
+ g.hadBuildings=[false,false];
+ // The simulation still stops if either army is eliminated.
  const observer=g.spawn(1,{x:300,y:300},'infantry');g.stop([observer.id],true);
  g.tactical.plan=()=>{};
  const heli=g.spawn(0,{x:1800,y:2000},'scout');
@@ -82,6 +84,7 @@ test('real 20Hz ten-seat helicopter lands, loads, lifts off, lands and unloads',
  let loading=false,takeoff=false,cruising=false,landed=false;
  for(let i=0;i<600;i++){
   g.step(.05);
+  assert.equal(g.status,'playing','transport fixture must not terminate the match');
   const t=heli.transport;
   if(t?.phase==='landing')landed=true;
   if(t?.phase==='loading'){loading=true;assert.equal(heli.flightHeight,0);}
@@ -101,6 +104,7 @@ test('real 20Hz ten-seat helicopter lands, loads, lifts off, lands and unloads',
  let unloading=false,landedAgain=false,tookOffAgain=false,finished=false;
  for(let i=0;i<600;i++){
   g.step(.05);
+  assert.equal(g.status,'playing','transport fixture must not terminate the match');
   const t=heli.transport;
   if(t?.phase==='landing')landedAgain=true;
   if(t?.phase==='unloading'){unloading=true;assert.equal(heli.flightHeight,0);}

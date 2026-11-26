@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {FACTION_BLUE,FACTION_RED} from '../scripts/sandforge-faction-palette.js';
 
 function glb(owner){
- const buffer=readFileSync('src/assets/reborn/buildings-3d/factory-'+owner+'.glb');
+ const buffer=readFileSync('dist/src/assets/reborn/buildings-3d/factory-'+owner+'.glb');
  assert.equal(buffer.toString('ascii',0,4),'glTF');
  const length=buffer.readUInt32LE(12),doc=JSON.parse(buffer.toString('utf8',20,20+length));
  return {buffer,doc,offset:28+length};
@@ -23,69 +23,50 @@ function positionBounds(asset,name){
  const m=asset.doc.meshes[n.mesh],a=asset.doc.accessors[m.primitives[0].attributes.POSITION];
  return {min:a.min,max:a.max,count:a.count};
 }
-test('factory reference has full angular pitched hangar roof, raised machinery wing and two proper exhaust towers',()=>{
+test('factory reference has sloping metal bays, clerestory glazing and rooftop machinery',()=>{
  for(const owner of [0,1]){
   const asset=glb(owner),{doc,buffer}=asset;
-  assert.equal(doc.asset.generator,'sandforge-industrial-reference-factory-v3-20261120');
-  assert.ok(buffer.length<18_000_000,'a game asset must stay compact');
-  const nodeNames=new Set(doc.nodes.map(n=>n.name));
-  for(const name of ['SF_Factory_PBR_OpenBay','SF_Factory_PBR_ReferenceHangar_v3',
-   'SF_Factory_PBR_roof','SF_Factory_PBR_stack','SF_Factory_PBR_roof_glazing',
-   'SF_Factory_PBR_hazard_white','SF_Factory_PBR_hazard_rust',
-   'SF_Factory_PBR_metal_cladding','SF_Factory_PBR_camo',
-   'SF_Factory_PBR_vent','SF_Factory_PBR_team']){
-    assert.ok(nodeNames.has(name),'missing original industrial detail '+name);
-  }
-  assert.ok(!nodeNames.has('FactoryRollupDoor'),'no blocking door in open hangar');
-  const roof=positionBounds(asset,'SF_Factory_PBR_roof');
-  assert.ok(roof.max[1]>3.10&&roof.min[1]<2.60,'roof slopes, not a flat cuboid');
-  assert.ok(roof.count>100,'authentic roof is panelled with actual 3D surfaces');
-  assert.ok(positionBounds(asset,'SF_Factory_PBR_roof_glazing').count>=48);
-  const stacks=positionBounds(asset,'SF_Factory_PBR_stack');
-  assert.ok(stacks.max[1]>5.5,'two tall technical stacks must be visible');
-  assert.ok(stacks.count>=60);
-  assert.ok(positionBounds(asset,'SF_Factory_PBR_hazard_white').count>=18);
-  assert.ok(positionBounds(asset,'SF_Factory_PBR_hazard_rust').count>=18);
-  assert.ok(doc.meshes.length<=38,'static architecture merged by PBR material, no tiny-mesh drawcall explosion');
+  assert.equal(doc.asset.generator,'factory-three-bay-sawtooth-pbr-20261121');
+  assert.ok(buffer.length<3_000_000,'the gameplay GLB stays compact');
+  const roof=positionBounds(asset,'SF_Factory_PBR_roof_metal');
+  assert.ok(roof.max[1]>3.2&&roof.min[1]<2.65);
+  assert.equal(roof.count,18);
+  assert.equal(positionBounds(asset,'SF_Factory_PBR_roof_glass').count,108);
+  const exhaust=positionBounds(asset,'SF_Factory_PBR_vent');
+  assert.ok(exhaust.max[1]>3.8&&exhaust.count>=180);
+  assert.ok(positionBounds(asset,'SF_Factory_PBR_warning').count>=72);
+  assert.ok(doc.meshes.length<=38,'the architecture is batched by material');
  }
 });
-test('factory embeds authored 1024 roof PBR and proper normal/metallic roughness maps rather than painted placeholders',()=>{
+test('factory embeds color, normals and metallic roughness for its detailed roof surfaces',()=>{
  for(const owner of [0,1]){
   const asset=glb(owner),{doc}=asset;
-  const names=['roof','camo','concrete','metal_cladding','stack','vent'];
-  for(const name of names){
+  for(const name of ['roof','roof_metal','roof_trim','roof_glass']){
    const mat=doc.materials.find(m=>m.name==='Sandforge_Factory_'+name);
    assert.ok(mat,name+' exists');
    const pbr=mat.pbrMetallicRoughness;
-   assert.ok(pbr.baseColorTexture,'colored albedo '+name);
-   assert.ok(pbr.metallicRoughnessTexture,'gltf ORM '+name);
-   assert.ok(mat.normalTexture,'real baked high-frequency relief '+name);
-   const albedo=pngResolution(asset,pbr.baseColorTexture.index);
-   const normal=pngResolution(asset,mat.normalTexture.index);
-   const rough=pngResolution(asset,pbr.metallicRoughnessTexture.index);
-   if(name==='roof')assert.deepEqual(albedo,{width:1024,height:1024});
-   if(name==='camo'||name==='concrete'||name==='metal_cladding')
-    assert.ok(albedo.width>=512,'main external PBR must be at least 512px');
-   assert.ok(normal.width>=256&&rough.width>=256);
+   assert.deepEqual(pngResolution(asset,pbr.baseColorTexture.index),{width:512,height:512});
+   assert.deepEqual(pngResolution(asset,mat.normalTexture.index),{width:256,height:256});
+   assert.deepEqual(pngResolution(asset,pbr.metallicRoughnessTexture.index),{width:256,height:256});
   }
+  const camo=doc.materials.find(m=>m.name==='Sandforge_Factory_camo');
+  assert.deepEqual(pngResolution(asset,camo.pbrMetallicRoughness.baseColorTexture.index),{width:512,height:512});
   const team=doc.materials.find(m=>m.name==='Sandforge_Factory_team');
-  const roofTeam=doc.materials.find(m=>m.name==='Sandforge_Factory_roof_team');
-  for(const m of [team,roofTeam])
-   assert.ok(m.extensions?.KHR_materials_unlit,'crisp color-coded roof bands');
+  assert.ok(team.extensions?.KHR_materials_unlit,'original faction markings stay crisp');
   assert.deepEqual([FACTION_BLUE,FACTION_RED],['#2c6799','#a64b43']);
  }
 });
-test('hall exit stays physically open for vehicles, facade star plates stay beside the doorway',()=>{
- const src=readFileSync('scripts/generate-factory-pbr.mjs','utf8');
- const gate=readFileSync('scripts/webgl-production-gates.js','utf8');
+test('facade star plates are outside the animated shutter and live rendering preserves authored PBR',()=>{
+ for(const owner of [0,1]){
+  const asset=glb(owner);
+  const shutter=positionBounds(asset,'FactoryRollupDoor');
+  const stars=positionBounds(asset,'SF_Factory_PBR_white');
+  assert.ok(stars.min[0]<shutter.min[0]&&stars.max[0]>shutter.max[0]);
+  assert.ok(stars.min[2]>shutter.max[2]);
+ }
  const battle=readFileSync('scripts/webgl-battlefield.js','utf8');
  const portraits=readFileSync('scripts/webgl-portraits.js','utf8');
- assert.match(src,/roofSystem\(\);[\s\S]*factoryUtilityWing\(\);[\s\S]*openFactoryApron\(\)/);
- assert.match(src,/[-]2\.00,2\.24/,'flags placed outside open exit');
- assert.match(src,/from the screenshot|match the distinctive reference silhouette/i);
- assert.match(gate,/if\(gate\.openBay\)return/);
- assert.match(gate,/const driveStart=gate\.openBay\?0/);
- assert.match(battle,/!model\.getObjectByName\('SF_Factory_PBR_ReferenceHangar_v3'\)/,
-  'runtime must not overwrite the authored albedo/normal/ORM');
- assert.match(portraits,/!referenceFactory/,'HUD portrait must preserve new authored PBR too');
+ assert.match(battle,/entry\.kind==='factory'&&model\.getObjectByName\('SF_Factory_PBR_roof'\)&&[\s\S]*?getObjectByName\('FactoryRollupDoor'\)\)\)[\s\S]*?sandforgeOriginalPBR=true/);
+ assert.match(portraits,/const authoredFactory=kind==='factory'/);
+ assert.match(portraits,/authoredFactory\|\|authoredAirfield\|\|authoredGenerator/);
 });

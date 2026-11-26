@@ -23,7 +23,7 @@ test('buildings PBR: all factions load embedded physical surfaces in the actual 
    expect(info.textures).toBe(3);expect(info.surfaces.length).toBeGreaterThan(14);
    for(const id of info.sourceIds)sharedSources.add(id);
    for(const surface of info.surfaces){expect(surface.size).toEqual([2048,2048]);expect(surface.normal&&surface.packed&&surface.uv).toBe(true);}
-   await expect(page.locator('#error')).toHaveText('');await expect(page.locator('#download')).toHaveAttribute('href',`/src/assets/reborn/buildings-3d/${kind}-${team}.glb`);
+   await expect(page.locator('#error')).toHaveText('');await expect(page.locator('#download')).toHaveAttribute('href',`/src/assets/reborn/buildings-3d/${kind==='turret'?'':'classic-gallery/'}${kind}-${team}.glb`);
    if(kind==='headquarters'&&team===0||kind==='airfield'&&team===0||kind==='turret'&&team===1||team===-1)await page.screenshot({path:evidence+`pbr-gallery-${kind}-${team}.png`,fullPage:true});
   }
  }

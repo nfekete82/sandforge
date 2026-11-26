@@ -11,8 +11,9 @@
  *   2. Original authored Barracks/HQ source worktrees, then reapply the
  *      three deterministic HQ upgrades to COPIES in a staging directory.
  *
- * Optional: SANDFORGE_COMBINED_PBR_SOURCE / SANDFORGE_BARRACKS_SOURCE /
- *           SANDFORGE_HQ_SOURCE override the three default paths.
+ * Call with SANDFORGE_COMBINED_PBR_SOURCE or both SANDFORGE_BARRACKS_SOURCE
+ * and SANDFORGE_HQ_SOURCE to select explicit authoring inputs. With no
+ * explicit source, the standalone authoring command uses local defaults.
  */
 import {copyFileSync,existsSync,mkdtempSync,readFileSync,renameSync,rmSync,statSync} from 'node:fs';
 import {tmpdir,homedir} from 'node:os';
@@ -22,11 +23,15 @@ import {execFileSync} from 'node:child_process';
 const root=process.cwd(),rel='src/assets/reborn/buildings-3d';
 // Build supplies its dist destination; standalone authoring keeps its existing default.
 const destination=resolve(process.argv[2]||join(root,rel));
-const home=homedir();
-const source=(env,defaultName)=>resolve(process.env[env]||join(home,'Projects',defaultName));
-const combined=source('SANDFORGE_COMBINED_PBR_SOURCE','sandforge-pbr-gesamt-test');
-const barracks=source('SANDFORGE_BARRACKS_SOURCE','sandforge-kaserne-prop-polish');
-const hq=source('SANDFORGE_HQ_SOURCE','sandforge-hq-pbr');
+const explicitCombined=process.env.SANDFORGE_COMBINED_PBR_SOURCE;
+const explicitBarracks=process.env.SANDFORGE_BARRACKS_SOURCE;
+const explicitHQ=process.env.SANDFORGE_HQ_SOURCE;
+const useDefaultSources=!(explicitCombined||explicitBarracks||explicitHQ);
+const source=(explicit,defaultName)=>explicit?resolve(explicit):
+ useDefaultSources?join(homedir(),'Projects',defaultName):null;
+const combined=source(explicitCombined,'sandforge-pbr-gesamt-test');
+const barracks=source(explicitBarracks,'sandforge-kaserne-prop-polish');
+const hq=source(explicitHQ,'sandforge-hq-pbr');
 const names=['barracks-0.glb','barracks-1.glb','headquarters-0.glb','headquarters-1.glb'];
 const nodeNames=doc=>new Set(doc.nodes?.map(n=>n.name)||[]);
 function glb(file){
@@ -63,10 +68,14 @@ if(allGood(destination)){
 }
 const stage=mkdtempSync(join(tmpdir(),'sandforge-final-pbr-'));
 try{
- if(allGood(join(combined,rel))){
+ if(combined&&allGood(join(combined,rel))){
   console.log('Copying 4 final PBR GLBs from combined worktree: '+combined);
   for(const n of names)copyFileSync(join(combined,rel,n),join(stage,n));
  }else{
+  if(!barracks||!hq){
+   throw Error(combined?'Incomplete final PBR set: '+combined:
+    'Select both SANDFORGE_BARRACKS_SOURCE and SANDFORGE_HQ_SOURCE.');
+  }
   console.log('Rebuilding final PBR buildings from authored worktrees.');
   for(const owner of [0,1]){
    const bp=join(barracks,rel,'barracks-'+owner+'.glb');
@@ -108,6 +117,6 @@ try{
 }catch(error){
  console.error('Sandforge will NOT silently return to the old buildings.');
  console.error(error.message);
- console.error('Required local sources: '+combined+' OR '+barracks+' and '+hq);
+ if(useDefaultSources)console.error('Required local sources: '+combined+' OR '+barracks+' and '+hq);
  process.exitCode=1;
 }finally{rmSync(stage,{recursive:true,force:true});}

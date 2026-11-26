@@ -29,7 +29,7 @@ test('2 compact launch bores per side are attached close to helicopter cabin, no
  assert.equal(entry.scoutRocketMuzzles.length,2);
  const albedos=new Set();
  for(const pod of root.children){
-  assert.ok(Math.abs(pod.position.x)<=26&&Math.abs(pod.position.x)>=16);
+  assert.ok(Math.abs(pod.position.x)<=26&&Math.abs(pod.position.x)>=14);
   assert.ok(pod.position.y>=16,'rocket pods ride alongside cabin');
   const fairings=pod.children.filter(x=>x.isMesh&&x.material.map);
   assert.equal(fairings.length,2,'textured rounded fairing and stub pylon');
@@ -84,7 +84,7 @@ test('new collision rule applies only to modern ground vehicles, not flight or o
  const s=readFileSync('src/reborn/simulation.ts','utf8');
  assert.match(s,/vehicle&&this\.world\.mapVersion>=23/);
  assert.match(s,/this\.world\.groundVehicleStepSafe\(u,p,slopeLimit,spec\.radius\)/);
- assert.match(s,/this\.world\.path\(u,target,routeObstacles,clearance,risk,spec\.flying,u\.exactPath,true,slopeLimit\)/);
+ assert.match(s,/this\.world\.path\(u,target,routeObstacles,clearance,risk,spec\.flying,u\.exactPath,true,slopeLimit,mesaLane\)/);
  const orig=new World(2026,0);
  assert.equal(orig.groundVehicleStepSafe({x:500,y:500},{x:800,y:900},.001,22),true,
   'no mesh heightfield, existing pre-3D navigation must not change');

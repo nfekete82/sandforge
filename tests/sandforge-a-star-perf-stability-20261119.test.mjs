@@ -66,7 +66,7 @@ test('bounded A* performance does not allocate full 57,600-cell clear buffers pe
  assert.match(source,/seen:new Uint32Array\(n\),walkEpoch:new Uint32Array\(n\)/);
  assert.match(source,/const cellCost=\(i:number\)=>seen\[i\]===epoch/);
  assert.doesNotMatch(source,/costs\.fill\(Infinity\);prev\.fill\(-1\);closed\.fill\(0\)/);
- assert.match(source,/allowPartial,maxSlope\);\}/);
+ assert.match(source,/allowPartial,maxSlope,mesaLane\);\}/);
 });
 
 test('stability: repeated measured path queries do not grow the workspace each tick',()=>{

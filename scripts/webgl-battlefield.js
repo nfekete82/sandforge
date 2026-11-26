@@ -124,7 +124,7 @@ export class SandforgeBattlefield {
   this.commandPulse.userData={visualOnly:true,nonPlayable:true,commandPulse:true};
   this.commandPulse.rotation.x=-Math.PI/2;
   this.commandPulse.renderOrder=1013;this.commandPulse.visible=false;
-  this.commandPulseTime=.7;this.scene.add(this.commandPulse);
+  this.scene.add(this.commandPulse);
   this.miniLast=0;this.uiLast=0;this.fogLast=0;
   this.fogEnabled=true;this.selectedRings=new Map();this.animations=new Map();
   this.presentation=new SandforgeActorPresentation(scene,camera,game);
@@ -989,7 +989,7 @@ export class SandforgeBattlefield {
    if(kind==='barracks'&&!model.userData.sandforgeOriginalPBR)finishBarracksDesertPalette(model);
    if(!model.userData.sandforgeOriginalPBR)
     finishDesertBuildingMaterials(model,kind);
-   model.visible=!(kind==='airfield'&&model.getObjectByName('SF_Airfield_PBR_Root')); // no duplicate hangar
+   model.visible=kind!=='airfield'; // service yard is the only airfield geometry
    group.remove(placeholder);disposeActorPlaceholder(placeholder);
    group.userData.previewPlaceholder=null;group.userData.previewDetail=model;
    group.add(model);
@@ -1980,8 +1980,7 @@ export class SandforgeBattlefield {
     }
    }
    if(action==='rally'){
-    const base=this.game.bases.find(b=>b.id===this.selectedBase&&b.owner===0&&b.hp>0&&b.buildRemaining<=0);
-    if(base){this.rallyMode=!this.rallyMode;this.clearPlacement();this.attackMode=false;
+    if(this.catalogContext().producer){this.rallyMode=!this.rallyMode;this.clearPlacement();this.attackMode=false;
      this.message(this.rallyMode?'Linksklick auf Gelände: Sammelpunkt setzen · Escape: Abbruch':'Sammelpunkt-Modus beendet');
      this.drawInterface();}
    }
@@ -2402,11 +2401,7 @@ export class SandforgeBattlefield {
     .map(b=>b.territory),
    playing:g.status==='playing'
   });
-  const rallyButton=view.querySelector('#sf-rally');
-  if(rallyButton){
-   rallyButton.hidden=!base||base.owner!==0||base.buildRemaining>0;
-   rallyButton.setAttribute('aria-pressed',String(this.rallyMode));
-  }
+  view.querySelector('#sf-rally')?.setAttribute('aria-pressed',String(this.rallyMode));
   const rally=base?.rally;
   this.rallyMarker.visible=Boolean(rally&&base.owner===0);
   if(this.rallyMarker.visible)this.rallyMarker.position.copy(this.pos(rally.x,rally.y,this.heightAt(rally.x,rally.y)+5));
@@ -2589,7 +2584,8 @@ export class SandforgeBattlefield {
     button.hidden=a!=='bastion-upgrade';
    }else if(buildingSelected){
     button.hidden=!ownBuilding||
-     (a!=='demolish'&&!(a==='missile-target'&&base.kind==='silo')&&
+     (a!=='demolish'&&!(a==='rally'&&context.producer)&&
+      !(a==='missile-target'&&base.kind==='silo')&&
       !(a==='interceptor-rearm'&&base.kind==='interceptor')&&
       !(a==='gate-upgrade'&&base.kind==='wall'&&base.buildRemaining<=0));
    }else if(chosen.length)button.hidden=!FIELD_UNIT_COMMANDS.includes(a);
@@ -3025,12 +3021,11 @@ export class SandforgeBattlefield {
   this.commandPulse.material.color.set(attack?'#ffbd76':'#7ce7ef');
   this.commandPulse.scale.setScalar(.72);
   this.commandPulse.material.opacity=.9;
-  this.commandPulseTime=0;this.commandPulse.visible=true;
+  this.commandPulseStartedAt=performance.now();this.commandPulse.visible=true;
  }
- updateCommandPulse(dt){
+ updateCommandPulse(now){
   if(!this.commandPulse.visible)return;
-  this.commandPulseTime+=Math.max(0,dt);
-  const t=Math.min(1,this.commandPulseTime/.65);
+  const t=THREE.MathUtils.clamp((now-this.commandPulseStartedAt)/650,0,1);
   this.commandPulse.scale.setScalar(.72+t*.78);
   this.commandPulse.material.opacity=.9*(1-t)*(1-t);
   if(t>=1)this.commandPulse.visible=false;
@@ -3182,10 +3177,12 @@ export class SandforgeBattlefield {
   if(event.button===2&&this.buildKind){
    this.clearPlacement();this.message('Bauplatzwahl abgebrochen');this.drawInterface();return;
   }
+  const clickedEnemy=event.button===2&&this.selected.size
+   ?this.enemyAtPointer(event):null;
   // Simulation supports four Humvee seats and ten helicopter seats.
   // An RMB hit on either owned carrier boards selected infantry before terrain movement.
   // Board BEFORE the terrain ray and other click commands.
-  if(event.button===2&&this.selected.size&&!this.attackMode&&this.selectedBase===null){
+  if(event.button===2&&this.selected.size&&!clickedEnemy&&!this.attackMode&&this.selectedBase===null){
    // Aim at the bunker itself, not the nearer soldier/flag/empty slot
    // that can occlude its ray hit. AABBs include authored non-pickable PBR
    // bunker geometry while the existing hard 5-seat simulation is untouched.
@@ -3214,7 +3211,7 @@ export class SandforgeBattlefield {
   // Carrier-first pickup: with ONE helicopter or Humvee selected, RMB on a
   // friendly soldier sends the vehicle/aircraft to THEM (not vice versa).
   // Keep this before terrain, maintenance hitboxes and normal unit orders.
-  if(event.button===2&&this.selected.size&&!this.attackMode&&
+  if(event.button===2&&this.selected.size&&!clickedEnemy&&!this.attackMode&&
      !this.rallyMode&&!this.strategicTargetMode&&this.selectedBase===null){
    const friendly=this.friendlyAtPointer(event);
    const passenger=friendly?.type==='unit'?friendly.entity:null;
@@ -3237,8 +3234,7 @@ export class SandforgeBattlefield {
   // infantry unit standing on our runway therefore triggered a LAND/REPAIR
   // order and intercepted the ATTACK click. Resolve a visible enemy FIRST.
   // Only enemy-free clicks may be interpreted as hangar/workshop requests.
-  const clickedEnemy=event.button===2&&this.selected.size
-   ?this.enemyAtPointer(event):null;
+
   // Aircraft may still use the hangar. A right-click by ground vehicles
   // is an ordinary move/attack order: only Pioniere can repair vehicles.
   // Soldiers, attack-move, strategic targeting and transport boarding retain

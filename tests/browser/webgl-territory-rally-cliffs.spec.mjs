@@ -1,3 +1,4 @@
+import {rightClickWithCommandPulse} from './webgl-command-fixture.mjs';
 import {test,expect} from '@playwright/test';
 
 const route='/webgl-preview.html?bastions=4&seed=2074&lite=1&pause=1';
@@ -53,9 +54,10 @@ test('a completed production building exposes a rally command and Escape cancels
     if(!building)return false;
     building.buildRemaining=0;
     building.hp=1200;
+    g.updateVision();
+    b.sync(true,.06,false,1);
     b.selected.clear();
     b.selectedBase=building.id;
-    b.sync(true,.06,false,1);
     b.drawInterface();
     return true;
   });
@@ -101,7 +103,7 @@ test('bastions show an in-world progress bar only while capture is active',async
   expect(state.active.fraction).toBeGreaterThan(0);
   expect(state.active.fraction).toBeLessThanOrEqual(1);
   expect(state.active.duration).toBeGreaterThan(0);
-  expect(state.active.red).toBe('f19b73');
+  expect(state.active.red).toBe('a64b43');
   expect(state.active.width).toBeLessThanOrEqual(80);
   expect(state.active.height).toBeLessThanOrEqual(10);
   expect(state.active.y).toBeLessThan(140);
@@ -186,7 +188,7 @@ test('visual depth preview keeps an angled 3D RTS camera and desert fog',async({
       // Check its dark, neutral character without pinning the shader to one
       // hard-coded RGB triplet (the dedicated fog spec checks the exact mode).
       fogTint:(()=>{
-        const match=shader.match(/gl_FragColor\s*=\s*vec4\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*a\s*\)/);
+        const match=shader.match(/gl_FragColor\s*=\s*vec4\(mix\(vec3\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\),vec3\(0.0\),bloomMask\),a\)/);
         if(!match)return false;
         const [r,g,b]=match.slice(1).map(Number);
         return [r,g,b].every(v=>v>=0&&v<=.06)&&b>=r&&g>=r;
@@ -497,7 +499,7 @@ test('3D parity: click a completed base and right-click the map to set rally imm
   await page.mouse.click(fixture.baseClick.x,fixture.baseClick.y);
   expect(await page.evaluate(()=>window.__sandforgeWebGL.battlefield.selectedBase)).toBe(fixture.id);
   expect(await page.evaluate(()=>window.__sandforgeWebGL.battlefield.rallyMode)).toBe(false);
-  await page.mouse.click(fixture.targetClick.x,fixture.targetClick.y,{button:'right'});
+  const pulse=await rightClickWithCommandPulse(page,fixture.targetClick);
   const result=await page.evaluate(id=>{
     const v=window.__sandforgeWebGL,b=v.battlefield;
     const base=v.game.bases.find(x=>x.id===id);
@@ -549,14 +551,14 @@ test('3D parity: model click selects a soldier, RMB on ground issues one movemen
   await page.mouse.click(fixture.unitClick.x,fixture.unitClick.y);
   const selected=await page.evaluate(id=>window.__sandforgeWebGL.battlefield.selected.has(id),fixture.id);
   expect(selected).toBe(true);
-  await page.mouse.click(fixture.targetClick.x,fixture.targetClick.y,{button:'right'});
+  const pulse=await rightClickWithCommandPulse(page,fixture.targetClick);
   const state=await page.evaluate(id=>{
     const v=window.__sandforgeWebGL,u=v.game.units.find(x=>x.id===id);
-    return {kind:u.orders.at(-1)?.kind,pulse:v.battlefield.commandPulse.visible,
+    return {kind:u.orders.at(-1)?.kind,
       message:v.battlefield.panel.querySelector('#sf-message').textContent};
   },fixture.id);
   expect(state.kind).toBe('move');
-  expect(state.pulse).toBe(true);
+  expect(pulse.visible).toBe(true);
   expect(state.message).toContain('Marsch');
 });
 

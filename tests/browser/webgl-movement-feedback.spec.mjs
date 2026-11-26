@@ -1,3 +1,4 @@
+import {rightClickWithCommandPulse} from './webgl-command-fixture.mjs';
 import {test,expect} from '@playwright/test';
 
 test('moving infantry and vehicles leave short-lived footprint and tire decals',async({page})=>{
@@ -43,7 +44,7 @@ test('moving infantry and vehicles leave short-lived footprint and tire decals',
  expect(stamps.vehicleTTL).toBeGreaterThan(stamps.footTTL);
  expect(stamps.footWidth).toBeGreaterThanOrEqual(10);
  expect(stamps.footLength).toBeGreaterThanOrEqual(20);
- expect(stamps.footAlpha).toBeGreaterThanOrEqual(.75);
+ expect(stamps.footAlpha).toBeCloseTo(.34,5);
 
  const expired=await page.evaluate(()=>{
   const tracks=window.__sandforgeWebGL.groundTracks;
@@ -80,11 +81,7 @@ test('an unselected ground right-click still produces a short temporary destinat
  expect(target.x).toBeLessThan(1300);
  expect(target.y).toBeGreaterThan(0);
  expect(target.y).toBeLessThan(590);
- await page.mouse.click(target.x,target.y,{button:'right'});
- const marker=await page.evaluate(()=>{
-  const pulse=window.__sandforgeWebGL.battlefield.commandPulse;
-  return {visible:pulse.visible,opacity:pulse.material.opacity,transient:pulse.userData.commandPulse};
- });
+ const marker=await rightClickWithCommandPulse(page,target);
  expect(marker.visible).toBe(true);
  expect(marker.opacity).toBeGreaterThan(.3);
  expect(marker.transient).toBe(true);

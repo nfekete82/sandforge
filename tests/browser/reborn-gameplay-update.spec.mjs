@@ -25,17 +25,32 @@ for(const dpr of [1,2])test(`gameplay UI: 14px shared Retina role circles, compl
  expect(errors).toEqual([]);
  }finally{await context.close();}
 });
-test('gameplay: storm HUD, fog, frozen animation and quiet reusable wind respect pause, saves and reduced motion',async({page})=>{
- const errors=await start(page);await page.setViewportSize({width:1440,height:900});await page.mouse.click(500,300);
+test('gameplay: historical storm HUD respects fog and pause, and live reload restores clear weather',async({page})=>{
+ const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.setViewportSize({width:1440,height:900});await page.goto('/?debug&legacy');
+ await page.locator('#loading').waitFor({state:'detached'});await page.mouse.click(500,300);
  const state=await page.evaluate(async()=>{
-  const a=window.__reborn,g=a.game;await a.audio.unlock();a.audio.ambience=true;g.units=[];const u=g.spawn(0,{x:1900,y:1900},'tank'),enemy=g.spawn(1,{x:2140,y:1900});u.hold=true;enemy.cooldown=1e8;a.renderer.selected=new Set([u.id]);a.renderer.selectedBase=null;a.renderer.camera.x=2000;a.renderer.camera.y=1900;a.renderer.boundCamera();g.updateVision();
+  const {Weather}=await import('/src/reborn/weather.js');
+  const a=window.__reborn,g=a.game;await a.audio.unlock();
+  g.paused=true;g.aiClock=-1e8;g.world.blocked.fill(0);g.world.opaque.fill(0);
+  // The historical presentation is still renderable. Live save/load always
+  // restores the current clear-weather rules, including for older saves.
+  g.weather=new Weather(g.seed,true);
+  g.units=[];const u=g.spawn(0,{x:1900,y:1900},'tank'),enemy=g.spawn(1,{x:2140,y:1900});u.hold=true;enemy.cooldown=1e8;a.renderer.selected=new Set([u.id]);a.renderer.selectedBase=null;a.renderer.camera.x=2000;a.renderer.camera.y=1900;a.renderer.boundCamera();g.updateVision();
   const before=g.canSee(0,enemy),warning=g.weather.endsAt;g.time=warning-.05;g.paused=false;g.step();g.paused=true;a.refresh();const warningText=document.querySelector('#weather-status').textContent;
   g.time=g.weather.endsAt-.05;g.paused=false;g.step();g.paused=true;a.refresh();a.renderer.render(0);const during=g.canSee(0,enemy);
   const c=a.renderer.context,first=c.getImageData(0,0,32,32).data.slice();a.renderer.render(1);const second=c.getImageData(0,0,32,32).data;const frozen=first.every((v,i)=>v===second[i]);
-  const wind=a.audio.wind;await a.save();await a.load();a.game.paused=true;a.refresh();a.audio.update(a.game,a.renderer);const gain=a.audio.wind.gain.value;
-  return {before,during,warningText,frozen,phase:a.game.weather.phase,xp:a.game.units.find(v=>v.id===u.id).xp,sameWind:wind===a.audio.wind,gain};
+  const phase=g.weather.phase,stormText=document.querySelector('#weather-status').textContent;
+  await a.save();await a.load();a.game.paused=true;a.refresh();
+  return {before,during,warningText,frozen,phase,stormText,loadedPhase:a.game.weather.phase,
+   loadedVision:a.game.canSee(0,enemy),loadedUnits:a.game.units.map(v=>v.id),unitId:u.id,
+   windAllocated:Boolean(a.audio.wind)};
  });
- expect(state.before).toBe(true);expect(state.during).toBe(false);expect(state.warningText).toContain('STURMWARNUNG');expect(state.phase).toBe('SANDSTORM');expect(state.frozen).toBe(true);expect(state.sameWind).toBe(true);await expect(page.locator('#weather-status')).toContainText('SANDSTURM');
- await page.evaluate(()=>{const a=window.__reborn;a.game.time+=8;a.game.weather.update(a.game.time);a.renderer.units.particles.enabled=false;a.renderer.render(0);});await page.screenshot({path:`${evidence}/storm-static.png`});
+ expect(state.before).toBe(true);expect(state.during).toBe(false);expect(state.warningText).toContain('STURMWARNUNG');expect(state.phase).toBe('SANDSTORM');expect(state.stormText).toContain('SANDSTURM');expect(state.frozen).toBe(true);
+ expect(state.loadedPhase).toBe('CLEAR');expect(state.loadedVision).toBe(true);expect(state.loadedUnits).toContain(state.unitId);
+ expect(state.windAllocated).toBe(false);
+ await expect(page.locator('#notices')).toContainText('Kampagne geladen');
+ await expect(page.locator('#weather-status')).toBeHidden();
+ await page.screenshot({path:`${evidence}/clear-weather-restored.png`});
  await page.emulateMedia({reducedMotion:'reduce'});await page.reload();await page.locator('#loading').waitFor({state:'detached'});expect(await page.evaluate(()=>window.__reborn.renderer.reducedMotion)).toBe(true);expect(errors).toEqual([]);
 });

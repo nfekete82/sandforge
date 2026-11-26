@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {readFileSync,existsSync} from 'node:fs';
-import {desertWadiCenter,desertWadiSample,cinematicSandSample,addDesertWashStones}
+import {desertWadiCenter,desertWadiSample,cinematicSandSample,desertRidgeGroundShade,addDesertWashStones}
  from '../scripts/webgl-desert-art.js';
 import {cameraEdgeReach,cameraBlackOverscan,snapToPlayableEdge}
  from '../scripts/webgl-map-edges.js';
@@ -20,7 +20,7 @@ test('golden dune shading and winding dry riverbed are deterministic and bounded
   assert.equal(far.strength,0);
   const render=cinematicSandSample({x,z:center,size,seed,profile:'dunes',height:28,slope:.07});
   assert.ok(render.wadi>.45&&render.wadi<=1);
-  assert.ok(render.shade>=.81&&render.shade<=1.03);
+  assert.ok(render.shade>=.874-1e-12&&render.shade<=1.036+1e-12);
   assert.ok(render.rock>=0&&render.rock<=1);
   assert.deepEqual(render,cinematicSandSample({x,z:center,size,seed,profile:'dunes',height:28,slope:.07}));
  }
@@ -32,15 +32,15 @@ test('dry-wash pebbles are deterministic, batched, clickable-through and strictl
  const size=4160,seed=2074;
  const meshes=[];
  const scene={add(mesh){meshes.push(mesh);}};
- const world={generated:{battlefield:{profile:'dunes'}},index(){return 0;},blocked:new Uint8Array(1)};
+ const world={mapVersion:22,generated:{battlefield:{profile:'dunes'}},index(){return 0;},blocked:new Uint8Array(1)};
  const options={scene,world,size,seed,heightAt:()=>5,sites:[{x:2000,y:2200}],lowQuality:false};
  const first=addDesertWashStones(options);
  assert.ok(first?.isInstancedMesh);
  assert.equal(first.name,'visual-desert-dry-wash-pebbles');
- assert.equal(first.count,480);
+ assert.equal(first.count,60);
  assert.equal(first.userData.nonPlayable,true);
  assert.equal(first.castShadow,false);
- assert.equal(first.raycast.toString(),'()=>{}');
+ const raycaster=new THREE.Raycaster(new THREE.Vector3(0,100,0),new THREE.Vector3(0,-1,0));
  assert.equal(meshes.length,1,'single GPU draw call');
  const sampled=new THREE.Matrix4();
  const positions=[];
@@ -52,6 +52,8 @@ test('dry-wash pebbles are deterministic, batched, clickable-through and strictl
   assert.ok(Math.abs(z-desertWadiCenter(x,size,seed))<165);
   assert.ok(Math.hypot(x-2000,z-2200)>=190);
  }
+ raycaster.ray.origin.set(positions[0][0]-size/2,100,positions[0][1]-size/2);
+ assert.deepEqual(raycaster.intersectObject(first),[]);
  const second=addDesertWashStones({...options,scene:{add(){}}});
  const mat2=new THREE.Matrix4();
  for(let i=0;i<second.count;i++){
@@ -60,8 +62,9 @@ test('dry-wash pebbles are deterministic, batched, clickable-through and strictl
   assert.ok(Math.abs(mat2.elements[14]-(positions[i][1]-size/2))<.001);
  }
  const lite=addDesertWashStones({...options,scene:{add(){}},lowQuality:true});
- assert.equal(lite.count,140,'bounded lite mode');
+ assert.equal(lite.count,25,'bounded lite mode');
  assert.equal(addDesertWashStones({...options,world:{...world,generated:{}}}),null);
+ assert.equal(addDesertWashStones({...options,world:{...world,mapVersion:23}}),null);
 });
 
 test('hard-black maps can be viewed from several hundred units OUTSIDE their playable edge',()=>{
@@ -88,7 +91,11 @@ test('reference-inspired shader palette and cliffs only affect render assets and
  assert.match(src,/cinematicSandSample\(\{x,z,size,seed,profile:terrain\.battlefield\.profile,slope,height:h\}\)/);
  assert.match(src,/addDesertWashStones\(\{scene,world,size,seed,heightAt,/);
  assert.match(src,/sandstone-strata-v1\.png/);
- assert.match(src,/const rings=\[1\.02,\.985,\.94,\.88,\.82,\.75,\.67,\.56,\.41\]/);
+ assert.match(src,/if\(nativeDesertRidgeShade\)\s*vertexColor\.multiplyScalar\(desertRidgeGroundShade\(slope,h\)\)/);
+ assert.match(src,/ridges:nativeDesertRidgeShade\?\[\]:terrain\.ridges/);
+ assert.match(src,/generatorVersion>=7&&!nativeDesertRidgeShade/);
+ assert.equal(desertRidgeGroundShade(0,0),1);
+ assert.ok(desertRidgeGroundShade(.32,85)<desertRidgeGroundShade(.07,85));
  assert.match(src,/textureScale:spacious\?2200:1500,hardVoid:spacious/);
  assert.match(cliff,/visual-inland-palm-grove/);
  assert.match(build,/cpSync\('scripts\/webgl-desert-art\.js','dist\/webgl-desert-art\.js'\)/);
@@ -99,4 +106,7 @@ test('reference-inspired shader palette and cliffs only affect render assets and
  assert.equal(modern.world.mapVersion,23);
  assert.equal(old.world.generated.battlefield,undefined);
  assert.ok(modern.world.generated.battlefield);
+ const reloaded=Simulation.load(JSON.parse(JSON.stringify(old.save())));
+ assert.deepEqual(reloaded.world.generated,old.world.generated);
+ assert.deepEqual(reloaded.world.blocked,old.world.blocked);
 });

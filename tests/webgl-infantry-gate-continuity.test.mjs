@@ -98,7 +98,9 @@ test('only foot units get the continuous direct path; factory rollouts remain in
  const source=readFileSync('scripts/webgl-production-gates.js','utf8');
  assert.match(source,/const directFoot=infantry&&turn<\.72/);
  assert.match(source,/const duration=directFoot\?/);
- assert.match(source,/if\(state\.directFoot\)/);
- assert.match(source,/if\(\(gate\.kind==='barracks'\|\|gate\.kind==='headquarters'\)&&!state\.released\)/);
+ assert.match(source,/if\(state\.directFoot\|\|gate\.openBay\|\|gate\.meshyShutter\|\|gate\.meshyInfantry\)/);
+ assert.match(source,/if\(!state\.released\)\{[\s\S]*?state\.released=true/);
+ assert.match(source,/if\(fraction>=1\)\{[\s\S]*?game\.cancelProductionDeparture\?\.\(event\.unitId\)/);
+ assert.match(source,/directRollout\?Math\.max\(2\.0,length\/vehicleSpeed\)/);
  assert.match(source,/const safeDistance=infantry\?24:48/);
 });

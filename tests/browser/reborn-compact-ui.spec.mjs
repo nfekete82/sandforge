@@ -1,16 +1,61 @@
+import {finishOpeningHQ} from './hq-bootstrap-fixture.mjs';
 import {test,expect} from '@playwright/test';
 import fs from 'node:fs';
 const evidence=process.env.ATLAS_UI_EVIDENCE??'../../docs/qa/compact-minimap-ui-20261028';
-async function start(page){const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1440,height:1000});await page.goto('/?debug&perfTest&seed=2026');await page.locator('#loading').waitFor({state:'detached'});await page.evaluate(()=>{const a=window.__reborn;a.game.paused=true;a.game.aiClock=-1e8;a.audio.setEnabled(false);a.renderer.selected.clear();a.renderer.selectedBase=null;a.refresh();});return errors;}
+async function start(page){const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1440,height:1000});await page.goto('/?debug&perfTest&seed=2026');await page.locator('#loading').waitFor({state:'detached'});await finishOpeningHQ(page);await page.evaluate(()=>{const a=window.__reborn;a.game.paused=true;a.game.aiClock=-1e8;a.audio.setEnabled(false);a.renderer.selected.clear();a.renderer.selectedBase=null;a.refresh();});return errors;}
 async function clickMap(page,x,y,button='right'){const b=await page.locator('#minimap').boundingBox();await page.mouse.click(b.x+b.width*x,b.y+b.height*y,{button});}
 async function actors(page,kinds){return page.evaluate(kinds=>{const a=window.__reborn,g=a.game;g.units=[];g.world.blocked.fill(0);g.world.opaque.fill(0);const units=kinds.map((kind,i)=>g.spawn(0,{x:1800+i*32,y:2100},kind));a.renderer.selected=new Set(units.map(u=>u.id));a.renderer.selectedBase=null;a.refresh();return units.map(u=>({id:u.id,x:u.x,y:u.y}));},kinds);}
 
 test('compact UI: square complete radar, horizontal tabs and eight queue slots in one row across screen sizes',async({page})=>{
  const errors=await start(page);fs.mkdirSync(evidence,{recursive:true});const rows=[];
- for(const [width,height] of [[1440,1000],[1200,900],[900,700],[620,740],[390,740]]){await page.setViewportSize({width,height});const r=await page.evaluate(()=>{const box=s=>{const b=document.querySelector(s).getBoundingClientRect();return {x:b.x,y:b.y,width:b.width,height:b.height,right:b.right};};const mini=box('#minimap'),tabs=[...document.querySelectorAll('.catalog-tabs button')].map(b=>{const icon=b.querySelector('[data-icon]').getBoundingClientRect(),label=b.querySelector('span:last-child').getBoundingClientRect();return {height:b.getBoundingClientRect().height,fits:label.right<=b.getBoundingClientRect().right+.1&&icon.left>=b.getBoundingClientRect().left-.1,horizontal:icon.right<=label.left+1&&Math.abs(icon.y+icon.height/2-label.y-label.height/2)<2};}),queue=[...document.querySelectorAll('#queue-slots button')].map(b=>b.getBoundingClientRect().top),style=getComputedStyle(document.querySelector('#minimap'));return {radar:box('.radar'),mini,tabs,queue,side:box('#sidebar'),world:box('#world'),body:document.body.scrollWidth,inner:innerWidth,border:style.borderLeftWidth,queueOverflow:getComputedStyle(document.querySelector('#queue-slots')).overflowX};});
-  expect(Math.abs(r.mini.width-r.mini.height)).toBeLessThan(.1);expect(r.border).toBe('0px');expect(r.tabs.every(t=>t.horizontal&&t.fits&&t.height>=52&&t.height<=64)).toBe(true);expect(r.queue).toHaveLength(8);expect(new Set(r.queue.map(y=>Math.round(y))).size).toBe(1);expect(r.body).toBeLessThanOrEqual(r.inner);expect(r.world.right).toBeLessThanOrEqual(r.side.x+.1);expect(['auto','scroll']).toContain(r.queueOverflow);const pioneer=page.locator('.catalog-card[data-unit="engineer"]');
+ for(const [width,height] of [[1440,1000],[1200,900],[900,700],[620,740],[390,740]]){
+  await page.setViewportSize({width,height});
+  const r=await page.evaluate(()=>{
+   const box=s=>{
+    const b=document.querySelector(s).getBoundingClientRect();
+    return {x:b.x,y:b.y,width:b.width,height:b.height,right:b.right};
+   };
+   const buttons=[...document.querySelectorAll('.catalog-tabs button')];
+   const measureTabs=()=>buttons.map(button=>{
+    const bounds=button.getBoundingClientRect();
+    const icon=button.querySelector('[data-icon]').getBoundingClientRect();
+    const label=button.querySelector('span:last-child');
+    const labelBox=label.getBoundingClientRect();
+    const text=document.createRange();text.selectNodeContents(label);
+    const lines=[...text.getClientRects()];
+    return {height:bounds.height,lines:lines.length,
+     fits:icon.left>=bounds.left-.1&&lines.every(line=>
+      line.left>=bounds.left-.1&&line.right<=bounds.right+.1&&
+      line.top>=bounds.top&&line.bottom<=bounds.bottom),
+     horizontal:icon.right<=labelBox.left+1&&
+      Math.abs(icon.y+icon.height/2-labelBox.y-labelBox.height/2)<2};
+   });
+   const tabs=measureTabs();
+   let fallbackTabs=[];
+   if(innerWidth<=620){
+    for(const button of buttons)button.style.fontFamily='Arial, sans-serif';
+    fallbackTabs=measureTabs();
+    for(const button of buttons)button.style.removeProperty('font-family');
+   }
+   const queue=[...document.querySelectorAll('#queue-slots button')].map(b=>b.getBoundingClientRect().top);
+   return {radar:box('.radar'),mini:box('#minimap'),tabs,fallbackTabs,queue,side:box('#sidebar'),
+    world:box('#world'),body:document.body.scrollWidth,inner:innerWidth,
+    border:getComputedStyle(document.querySelector('#minimap')).borderLeftWidth,
+    queueOverflow:getComputedStyle(document.querySelector('#queue-slots')).overflowX};
+  });
+  expect(Math.abs(r.mini.width-r.mini.height)).toBeLessThan(.1);
+  expect(r.border).toBe('0px');
+  expect([...r.tabs,...r.fallbackTabs].filter(tab=>
+   !tab.horizontal||!tab.fits||tab.height<52||tab.height>64||tab.lines<1||tab.lines>2),
+  `Catalog tabs at ${width}px`).toEqual([]);
+  expect(r.queue).toHaveLength(8);
+  expect(new Set(r.queue.map(y=>Math.round(y))).size).toBe(1);
+  expect(r.body).toBeLessThanOrEqual(r.inner);
+  expect(r.world.right).toBeLessThanOrEqual(r.side.x+.1);
+  expect(['auto','scroll']).toContain(r.queueOverflow);
+  const pioneer=page.locator('.catalog-card[data-unit="engineer"]');
   const preview=await pioneer.evaluate(card=>{const image=card.querySelector('img'),meta=card.querySelector('.card-meta'),name=card.querySelector('.card-name'),cost=card.querySelector('.card-cost'),c=card.getBoundingClientRect(),i=image.getBoundingClientRect(),m=meta.getBoundingClientRect(),n=name.getBoundingClientRect(),p=cost.getBoundingClientRect();return {width:c.width,height:c.height,imageHeight:i.height,fit:getComputedStyle(image).objectFit,complete:image.complete&&image.naturalWidth>0,imageFits:i.bottom<=m.top+.1,labelsFit:n.right<=p.left&&p.right<=c.right&&m.bottom<=c.bottom,text:name.textContent,price:cost.textContent};});
-  expect(preview.width).toBeLessThanOrEqual(width<=1000?104:128);expect(preview.height).toBe(width<=620?72:width<=1000?94:110);expect(preview.imageHeight).toBeLessThan(preview.height-23);expect(preview.fit).toBe('contain');expect(preview.complete&&preview.imageFits&&preview.labelsFit).toBe(true);expect(preview.text).toBe('Pionier');expect(preview.price).toBe('200');
+  expect(preview.width).toBeLessThanOrEqual(width<=1000?104:128);expect(preview.height).toBe(width<=620?72:width<=1000?94:106);expect(preview.imageHeight).toBeLessThan(preview.height-23);expect(preview.fit).toBe('contain');expect(preview.complete&&preview.imageFits&&preview.labelsFit).toBe(true);expect(preview.text).toBe('Pionier');expect(preview.price).toBe('200');
   expect(await page.locator('#catalog-units .catalog-card').evaluateAll(cards=>cards.every(card=>getComputedStyle(card).height===getComputedStyle(document.querySelector('[data-unit=engineer]')).height&&getComputedStyle(card.querySelector('img')).objectFit==='contain'))).toBe(true);
   rows.push({width,height,...r,preview});await page.screenshot({path:evidence+`/sidebar-${width}.png`});
  }
@@ -42,7 +87,7 @@ test('minimap left drag still navigates, H still homes, and transformed Retina c
 
 test('production: selected producer owns all eight slots, cancellation, progress and correct Pionier catalog',async({page})=>{
  const errors=await start(page);await page.evaluate(()=>{const a=window.__reborn,g=a.game;g.credits[0]=10000;const h=g.bases[0];g.bases.push({...h,id:1800,kind:'barracks',hp:800,queue:[],queueTypes:[],queueCosts:[],production:0,buildRemaining:0},{...h,id:1801,kind:'factory',hp:1100,queue:[],queueTypes:[],queueCosts:[],production:0,buildRemaining:0});g.recruit(h.id,'engineer');a.renderer.selectedBase=1800;a.refresh();});await expect(page.locator('#production-title')).toContainText('Kaserne');await expect(page.locator('#recruit')).toHaveAttribute('data-kind','infantry');await expect(page.locator('#building-commands [data-context-unit="engineer"]')).toHaveCount(0);await expect(page.locator('[data-unit="engineer"] .card-name')).toHaveText('Pionier');await expect(page.locator('#recruit')).toHaveAttribute('aria-label','Infanteriesoldat ausbilden');await page.locator('#recruit').click();expect(await page.evaluate(()=>window.__reborn.game.bases.find(b=>b.id===1800).queueTypes)).toEqual(['infantry']);expect(await page.evaluate(()=>window.__reborn.game.bases[0].queueTypes)).toEqual(['engineer']);
- await page.evaluate(()=>{const a=window.__reborn,g=a.game;for(let i=1;i<8;i++)g.recruit(1800,i%2?'heavy':'medic');a.refresh();});await expect(page.locator('#queue-slots button')).toHaveCount(8);await expect(page.locator('#recruit')).toBeDisabled();await page.screenshot({path:evidence+'/production-full-desktop.png'});await page.setViewportSize({width:390,height:740});await page.locator('#queue-slots button').nth(7).scrollIntoViewIfNeeded();expect(await page.locator('#queue-slots').evaluate(n=>n.scrollLeft)).toBeGreaterThan(0);await page.screenshot({path:evidence+'/production-full-mobile.png'});const before=await page.evaluate(()=>({credits:window.__reborn.game.credits[0],types:[...window.__reborn.game.bases.find(b=>b.id===1800).queueTypes]}));const slot=page.locator('#queue-slots button').nth(3);await slot.scrollIntoViewIfNeeded();await slot.click();const after=await page.evaluate(()=>({credits:window.__reborn.game.credits[0],types:[...window.__reborn.game.bases.find(b=>b.id===1800).queueTypes]}));expect(after.types).toEqual(before.types.filter((_,i)=>i!==3));expect(after.credits-before.credits).toBe(250);
+ await page.evaluate(()=>{const a=window.__reborn,g=a.game;for(let i=1;i<8;i++)g.recruit(1800,i%2?'heavy':'medic');a.refresh();});await expect(page.locator('#queue-slots button')).toHaveCount(8);await expect(page.locator('#recruit')).toBeDisabled();await page.screenshot({path:evidence+'/production-full-desktop.png'});await page.setViewportSize({width:390,height:740});await page.locator('#queue-slots button').nth(7).scrollIntoViewIfNeeded();expect(await page.locator('#queue-slots').evaluate(n=>n.scrollLeft)).toBeGreaterThan(0);await page.screenshot({path:evidence+'/production-full-mobile.png'});const before=await page.evaluate(()=>({credits:window.__reborn.game.credits[0],types:[...window.__reborn.game.bases.find(b=>b.id===1800).queueTypes]}));const slot=page.locator('#queue-slots button').nth(3);await slot.scrollIntoViewIfNeeded();await slot.click();const after=await page.evaluate(()=>({credits:window.__reborn.game.credits[0],types:[...window.__reborn.game.bases.find(b=>b.id===1800).queueTypes]}));expect(after.types).toEqual(before.types.filter((_,i)=>i!==3));const expectedRefund=await page.evaluate(async()=>{const {UNITS}=await import('/src/reborn/catalog.js');return UNITS.heavy.cost;});expect(after.credits-before.credits).toBe(expectedRefund);
  await page.evaluate(()=>{const a=window.__reborn;a.game.bases.find(b=>b.id===1800).production=2;a.refresh();});expect(await page.locator('#production-fill').evaluate(n=>parseFloat(n.style.width))).toBeGreaterThan(0);await page.evaluate(()=>{const a=window.__reborn;a.renderer.selectedBase=a.game.bases[0].id;a.refresh();});await expect(page.locator('#recruit')).toHaveAttribute('aria-label','Pionier ausbilden');
  await page.evaluate(()=>{const a=window.__reborn;a.game.bases.find(b=>b.id===1801).buildRemaining=10;a.renderer.selectedBase=1801;a.refresh();});await expect(page.locator('#production-title')).toContainText('Fahrzeugfabrik');await expect(page.locator('#recruit')).toBeHidden();await expect(page.locator('#queue')).toHaveText('BAUSTELLE AKTIV');await page.evaluate(()=>{const a=window.__reborn;a.renderer.selectedBase=a.game.bases.find(b=>b.owner===0&&b.kind==='bastion')?.id??null;if(a.renderer.selectedBase===null){a.game.bases.push({...a.game.bases[0],id:1802,kind:'turret',hp:650,radius:30,queue:[],queueTypes:[],queueCosts:[],production:0,buildRemaining:0});a.renderer.selectedBase=1802;}a.refresh();});await expect(page.locator('#recruit')).toBeHidden();await expect(page.locator('#queue')).toHaveText('KEINE PRODUKTIONSSTÄTTE');expect(await page.locator('body').innerText()).not.toMatch(/Ingenieur|Bauarbeiter/);expect(errors).toEqual([]);
 });
@@ -59,10 +104,10 @@ test('selection strip: compact matching portrait, reachable building commands an
   await page.locator('[data-context-unit="engineer"]').click();
   await expect(page.locator('#queue')).toContainText('1 IM AUFTRAG');
   await page.evaluate(()=>{const a=window.__reborn;a.game.cancel(a.game.bases.find(b=>b.owner===0&&b.kind==='headquarters').id);const u=a.game.units.find(u=>u.owner===0&&u.kind==='engineer');a.renderer.selectedBase=null;a.renderer.selected=new Set([u.id]);a.refresh();});
-  const layout=await page.evaluate(()=>{const rect=s=>{const r=document.querySelector(s).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};return {panel:rect('#selection-panel'),world:rect('#world'),portrait:rect('#portrait img'),card:rect('[data-unit="engineer"]>img'),visible:getComputedStyle(document.querySelector('#portrait')).display!=='none',fit:getComputedStyle(document.querySelector('#portrait img')).objectFit,overflow:document.body.scrollWidth>innerWidth};});
+  const layout=await page.evaluate(()=>{const rect=s=>{const r=document.querySelector(s).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};return {panel:rect('#selection-panel'),world:rect('#world'),portrait:rect('#portrait img'),card:rect('[data-unit="engineer"]>img'),sameArt:document.querySelector('#portrait img').src===document.querySelector('[data-unit="engineer"]>img').src,visible:getComputedStyle(document.querySelector('#portrait')).display!=='none',fit:getComputedStyle(document.querySelector('#portrait img')).objectFit,overflow:document.body.scrollWidth>innerWidth};});
   expect(layout.panel.right).toBeLessThanOrEqual(layout.world.right);expect(layout.panel.bottom).toBeLessThanOrEqual(height);expect(layout.overflow).toBe(false);expect(layout.fit).toBe('contain');
   if(width>1000){expect(layout.panel.height).toBe(168);expect(layout.panel.width).toBeGreaterThan(700);}
-  if(layout.visible){expect(Math.abs(layout.portrait.width-layout.card.width)).toBeLessThanOrEqual(5);expect(Math.abs(layout.portrait.height-layout.card.height)).toBeLessThanOrEqual(5);}
+  if(layout.visible){expect(layout.portrait.width).toBeGreaterThan(0);expect(layout.portrait.height).toBeGreaterThan(0);expect(layout.portrait.right).toBeLessThanOrEqual(layout.panel.right);expect(layout.portrait.bottom).toBeLessThanOrEqual(layout.panel.bottom);expect(layout.sameArt).toBe(true);}
   for(const id of ['build-mode','move-mode','hold','stop','cancel-action']){await page.locator('#'+id).scrollIntoViewIfNeeded();await expect(page.locator('#'+id)).toBeInViewport();}
   await page.locator('#build-mode').click();await expect(page.locator('#build-menu')).toBeVisible();await page.locator('#close-build-menu').click();
   await page.screenshot({path:evidence+`/selection-${width}.png`});

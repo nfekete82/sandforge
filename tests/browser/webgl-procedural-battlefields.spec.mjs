@@ -21,10 +21,10 @@ async function centerView(page,zoom,rotated=false){
  await page.waitForTimeout(200);
 }
 // Software WebGL can spend several seconds capturing one full-detail frame.
-// Keep each independent view under the unchanged 45s test budget and share
-// only its already-loaded, paused scene. A failure remains a failing profile.
+// Keep separate checks for each view and share the already-loaded paused scene.
+// Full-resolution frames and pointer actions can exceed 45s in software Chromium.
 for(const profile of profiles)test.describe(`${profile} full-detail terrain`,()=>{
- test.describe.configure({mode:'serial'});
+ test.describe.configure({mode:'serial',timeout:90000});
  let page,context;const errors=[];
  test.beforeAll(async({browser},info)=>{
   context=await browser.newContext({baseURL:info.project.use.baseURL,deviceScaleFactor:1,viewport:{width:1440,height:900}});
@@ -45,7 +45,7 @@ for(const profile of profiles)test.describe(`${profile} full-detail terrain`,()=
    return {version:w.mapVersion,profile:t.profile,valid:w.validation.valid,heightError,range:t.maxHeight-t.minHeight,
     fog:units.every(u=>fog[w.index(u)*4+3]===0),fogMeshes:b.fogNodes.every((m,i)=>m.geometry===b.groundMeshes[i].geometry),
     minimap:miniature[obstacle*4]===104,outline:b.miniViewportCorners.length,
-    rocks:a.scene.getObjectByName('physical-battlefield-rocks')?.geometry.attributes.position.count,
+    duplicateRockSkin:Boolean(a.scene.getObjectByName('physical-battlefield-rocks')),
     oases:a.oases.layout.length,soilCapacity:Math.max(...a.renderer.info.programs.map(p=>p.getUniforms().map.oasisCenters?.size??0)),waters:a.oases.water.map(m=>{
      const p=m.geometry.attributes.position;let error=0;
      for(let i=0;i<p.count;i++)error=Math.max(error,Math.abs(p.getY(i)-a.oases.renderedHeight(p.getX(i)+w.size/2,p.getZ(i)+w.size/2)-.2));return error;
@@ -53,7 +53,8 @@ for(const profile of profiles)test.describe(`${profile} full-detail terrain`,()=
   });
   expect(state.version).toBe(26);expect(state.profile).toBe(profile);expect(state.valid).toBe(true);
   expect(state.heightError).toBeLessThan(.001);expect(state.fog).toBe(true);expect(state.fogMeshes).toBe(true);
-  expect(state.minimap).toBe(true);expect(state.outline).toBe(4);expect(state.rocks).toBeGreaterThan(0);
+  expect(state.minimap).toBe(true);expect(state.outline).toBe(4);
+  expect(state.range).toBeGreaterThan(0);expect(state.duplicateRockSkin).toBe(false);
   expect(state.oases).toBeGreaterThan(0);if(profile==='oasis')expect(state.soilCapacity).toBeGreaterThanOrEqual(state.oases);for(const e of state.waters)expect(e).toBeLessThan(.003);
  });
  test('complete art streaming and full-resolution startup view',async()=>{
@@ -69,8 +70,9 @@ for(const profile of profiles)test.describe(`${profile} full-detail terrain`,()=
  test('rotation control changes camera',async()=>{
   await centerView(page,'min');
   const before=await page.evaluate(()=>window.__sandforgeWebGL.camera.position.toArray());
-  await page.locator('#rotate-right').click();await page.waitForTimeout(200);
-  expect(await page.evaluate(()=>window.__sandforgeWebGL.camera.position.toArray())).not.toEqual(before);
+  await page.locator('#rotate-right').click();
+  await expect.poll(()=>page.evaluate(()=>window.__sandforgeWebGL.camera.position.toArray()),
+   {timeout:15000}).not.toEqual(before);
  });
  test('rotated camera full-resolution view',async()=>{
   await page.screenshot({path:test.info().outputPath(`${profile}-rotated.png`)});
@@ -104,14 +106,21 @@ for(const profile of profiles)test.describe(`${profile} full-detail terrain`,()=
 });
 
 test.describe('campaign menu and saved metadata',()=>{
+ // These tests can load two complete campaigns on a software renderer.
+ test.describe.configure({timeout:90000});
  test.use({deviceScaleFactor:Number(process.env.ATLAS_METADATA_DPR??1)});
-test('menu offers all profiles and starts the explicitly seeded selection',async({page})=>{
+test('menu offers all six desert scenarios and starts the selected fixed seed and profile',async({page})=>{
  await preferLite(page);await page.goto('/',{waitUntil:'domcontentloaded'});await page.locator('#sf3d-new').click();
- expect(await page.locator('#sf3d-terrain option').count()).toBe(6);
- await page.locator('#sf3d-map-size').selectOption('4');await page.locator('#sf3d-terrain').selectOption('dunes');
- await page.locator('#sf3d-seed').fill('0');await page.locator('#sf3d-new-confirm').click();
+ const selector=page.locator('#sf3d-desert-map');
+ expect(await selector.locator('option').evaluateAll(nodes=>nodes.map(node=>node.value))).toEqual([
+  'desert-strike','broken-empire','burning-horizon','last-stronghold','plateau-crossroads','mesa-highlands'
+ ]);
+ await selector.selectOption('burning-horizon');await page.locator('#sf3d-new-confirm').click();
  await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded);
- expect(await page.evaluate(()=>({seed:window.__sandforgeWebGL.game.seed,profile:window.__sandforgeWebGL.terrain.battlefield.profile}))).toEqual({seed:0,profile:'dunes'});
+ expect(await page.evaluate(()=>{
+  const a=window.__sandforgeWebGL;
+  return {seed:a.game.seed,profile:a.terrain.battlefield.profile,version:a.game.world.generatorVersion,scenario:a.desertMapId};
+ })).toEqual({seed:1907,profile:'dunes',version:10,scenario:'burning-horizon'});
 });
 test('selected profile and complete geometry survive save and menu resume',async({page})=>{
  await preferLite(page);await ready(page,'/?bastions=4&seed=0&terrain=dunes&pause=1&lite=1');
@@ -120,13 +129,21 @@ test('selected profile and complete geometry survive save and menu resume',async
  const restored=await page.evaluate(()=>{const a=window.__sandforgeWebGL;return {seed:a.game.seed,profile:a.terrain.battlefield.profile,heights:Array.from(a.terrain.battlefield.heights),blocked:Array.from(a.game.world.blocked)};});
  expect(restored).toEqual(initial);
 });
-test('two real new menu games with blank seeds use different random seeds',async({page})=>{
- await preferLite(page);const seeds=[];
+test('two real new menu games on the same scenario reproduce the seed and terrain',async({page})=>{
+ await preferLite(page);const matches=[];
  for(let i=0;i<2;i++){
-  await page.goto('/',{waitUntil:'domcontentloaded'});await page.locator('#sf3d-new').click();await page.locator('#sf3d-map-size').selectOption('4');await page.locator('#sf3d-new-confirm').click();
-  await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded);seeds.push(await page.evaluate(()=>window.__sandforgeWebGL.game.seed));
+  await page.goto('/',{waitUntil:'domcontentloaded'});await page.locator('#sf3d-new').click();
+  await expect(page.locator('#sf3d-desert-map')).toHaveValue('desert-strike');
+  await page.locator('#sf3d-new-confirm').click();
+  await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded);
+  matches.push(await page.evaluate(()=>{
+   const a=window.__sandforgeWebGL;
+   return {seed:a.game.seed,sites:a.terrain.sites,heights:Array.from(a.terrain.battlefield.heights)};
+  }));
  }
- expect(seeds[0]).not.toBe(seeds[1]);
+ expect(matches[0].seed).toBe(9999);
+ expect(matches[0].sites).toHaveLength(8);
+ expect(matches[1]).toEqual(matches[0]);
 });
 for(const [i,count] of [4,8,12,16].entries())test(`${count} bastions and start orientation ${i} reach the browser`,async({page})=>{
  await ready(page,`/?bastions=${count}&seed=${i}&terrain=dunes&pause=1&lite=1`);

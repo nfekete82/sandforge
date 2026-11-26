@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import * as THREE from 'three';
 import {installOfflineCanvas} from '../scripts/animation/offline-canvas.mjs';
 import {buildAtlasBuilding} from '../scripts/animation/atlas-buildings.js';
+import {BUILDINGS} from '../dist/src/reborn/catalog.js';
 
 test('expanded airfield has an actual longer 3D footprint, arched hangar, ATC and runway',()=>{
  installOfflineCanvas();
@@ -23,9 +24,9 @@ test('expanded airfield has an actual longer 3D footprint, arched hangar, ATC an
  }
 });
 
-test('enlarged airfield graphics are baked and the simulation footprint matches',()=>{
- const source=fs.readFileSync(new URL('../src/reborn/catalog.ts',import.meta.url),'utf8');
- assert.match(source,/airfield:\{name:'Flugfeld'.*radius:105,width:280,/);
+test('Classic airfield artwork retains its baked details and the compact field airfield has the current footprint',()=>{
+ assert.equal(BUILDINGS.airfield.radius,91);
+ assert.equal(BUILDINGS.airfield.width,218);
  for(const team of [0,1]){
   const meta=JSON.parse(fs.readFileSync(new URL('../src/assets/reborn/buildings-3d/airfield-'+team+'.json',import.meta.url)));
   assert.ok(meta.design.sourceGeometry.parts>100,'airfield GLB must be rebuilt from expanded source');

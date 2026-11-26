@@ -69,5 +69,5 @@ test('live PBR models skip legacy shader and are polished exactly as in gameplay
  assert.match(src,/if\(kind==='barracks'\)finishBarracksDesertPalette\(model\)/,
   'legacy barracks still retain previous fallback, only final PBR skips it');
  const world=readFileSync('scripts/webgl-battlefield.js','utf8');
- assert.match(world,/if\(type==='building'&&entry\.kind==='barracks'\)polishBarracksProps\(model\)/);
+ assert.match(world,/if\(type==='building'&&entry\.kind==='barracks'&&!hasMeshySkin\)polishBarracksProps\(model\)/);
 });

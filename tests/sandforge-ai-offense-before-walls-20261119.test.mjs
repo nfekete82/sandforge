@@ -39,12 +39,17 @@ test('the real director buys affordable soldiers before reserving entire factory
  const barracks=addProducer(g,'barracks',1),factory=addProducer(g,'factory',1);
  seedCompletedGenerators(g);
  g.units=g.units.filter(u=>u.owner===0||u.kind==='engineer');
- for(let i=0;i<5;i++)g.spawn(1,{x:hq.x+75+(i%3)*22,y:hq.y+120+Math.floor(i/3)*27},'infantry');
+ // An operational factory reserves its first tank once four rifle troops
+ // cover the front. Exercise the shortfall below that screen size.
+ for(let i=0;i<3;i++)g.spawn(1,{x:hq.x+75+i*22,y:hq.y+120},'infantry');
  const army=g.units.filter(u=>u.owner===1&&u.hp>0&&!u.carrier);
+ const before=g.credits[1];
  developArmy(g,g.tactical.state,army,()=>0);
  assert.ok(barracks.queueTypes.some(kind=>kind==='infantry'||kind==='heavy'),
   'affordable frontline soldier must not be blocked by first expensive vehicle');
- assert.ok(g.credits[1]>=0,'all reinforcements are paid');
+ const paid=g.bases.filter(b=>b.owner===1).flatMap(b=>b.queueCosts??[]).reduce((a,b)=>a+b,0);
+ assert.ok(paid>0&&g.credits[1]>=0,'all reinforcements are paid');
+ assert.equal(g.credits[1],before-paid);
  assert.equal(factory.queueTypes.includes('tank'),false);
  assert.equal(g.tactical.state.economy?.production?.facilities[barracks.id]?.reason,'produced');
 });

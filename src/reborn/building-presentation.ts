@@ -10,6 +10,20 @@ export interface BuildingAtlas {version:1;kind:StructureKind;team:Owner;design:{
 export interface BuildingSprite {image:HTMLImageElement;x:number;y:number;w:number;h:number;center:number;foot:number;bodyWidth:number;bodyHeight:number}
 interface Loaded {data:BuildingAtlas;body:HTMLImageElement;activity:HTMLImageElement|null;beacon:HTMLImageElement|null;sweep:HTMLImageElement|null;turret:HTMLImageElement|null;construction:Layer|null;constructionImage:HTMLImageElement|null;sprite:BuildingSprite}
 const kinds:StructureKind[]=['headquarters','bastion','barracks','factory','airfield','generator','turret'];
+/** Canvas is a legacy renderer: newer structures have dedicated WebGL GLBs,
+ * but no baked Canvas atlas. Reuse the closest existing team-specific atlas
+ * rather than crashing at startup or when loading a newer save.
+ * This is presentation only; never substitute the simulation building kind.
+ */
+export function classicBuildingAtlasKind(kind:StructureKind):StructureKind {
+ switch(kind){
+  case 'research': return 'headquarters';
+  case 'silo': case 'interceptor': return 'generator';
+  case 'wall': case 'wallGate': return 'barracks';
+  case 'bunker': return 'turret';
+  default: return kind;
+ }
+}
 export class BuildingPresentation {
  private assets=new Map<string,Loaded>();
  async load():Promise<void>{await Promise.all(kinds.flatMap(kind=>(kind==='bastion'?[0,1,-1]:[0,1]).map(async team=>{
@@ -21,7 +35,7 @@ export class BuildingPresentation {
   const [body,activity,beacon,sweep,turret,constructionImage]=await Promise.all([image(data.body.image),image(data.activity?.image??null),image(data.beacon?.image??null),image(data.sweep?.image??null),image(data.turret?.image??null),image(construction?.image??null)]),b=data.body;
   this.assets.set(kind+team,{data,body:body!,activity,beacon,sweep,turret,construction,constructionImage,sprite:{image:body!,x:0,y:0,w:b.width,h:b.height,center:b.pivot[0],foot:b.pivot[1],bodyWidth:b.solidBounds.w,bodyHeight:b.pivot[1]-b.top}});
  })));}
- asset(kind:StructureKind,owner:Owner):Loaded{return this.assets.get(kind+(kind==='bastion'?owner:owner===0?0:1))!;}
+ asset(kind:StructureKind,owner:Owner):Loaded{const atlas=classicBuildingAtlasKind(kind);return this.assets.get(atlas+(atlas==='bastion'?owner:owner===0?0:1))!;}
  sprite(kind:StructureKind,owner:Owner):BuildingSprite{return this.asset(kind,owner).sprite;}
  /** Each construction frame is baked from the real textured 3D building parts. */
  drawConstruction(c:CanvasRenderingContext2D,kind:BuildingKind,owner:Owner,p:Point,width:number,progress:number,alpha=1):boolean{

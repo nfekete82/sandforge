@@ -35,7 +35,7 @@ function fixture({credits=500,loaded=true,status='playing',running=true}={}){
    this.testMode=true;this.credits[0]=1_000_000_000;return true;
   }};
  const runtime={loaded,simulationRunning:running,game,battlefield:{drawInterface(){refreshed++;}}};
- const window={__sandforgeWebGL:runtime};
+ const window=Object.assign(new FakeElement(),{__sandforgeWebGL:runtime});
  const location={search:'',pathname:'/webgl-preview.html',assign(){}};
  const localStorage={getItem:()=>null,setItem(){}};
  get('simulation').addEventListener('click',()=>{runtime.simulationRunning=!runtime.simulationRunning;});

@@ -23,7 +23,8 @@ test('Humvee recon carrier is faster than ordinary units, armed and restricted t
  assert.equal(transportCapacity('rover'),4);
  assert.equal(transportCapacity('scout'),10);
  assert.equal(transportCapacity('tank'),0);
- assert.ok(UNITS.rover.speed>UNITS.scout.speed);
+ assert.ok(UNITS.scout.speed>UNITS.rover.speed);
+ assert.ok(UNITS.rover.speed>UNITS.tank.speed);
  assert.ok(UNITS.rover.speed>UNITS.infantry.speed);
  assert.ok(UNITS.rover.range>=200);
  assert.ok(UNITS.rover.cooldown<1);

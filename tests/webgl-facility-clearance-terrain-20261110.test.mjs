@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {Simulation} from '../dist/src/reborn/simulation.js';
 import {sitesVisuallyOverlap,siteNearBastion,siteExceedsMap,siteTerrainCompatible} from '../dist/src/reborn/construction-spacing.js';
+import {serviceFootprintContains} from '../scripts/webgl-maintenance-input.js';
 import {chooseConstructionCrew} from '../scripts/webgl-builder-input.js';
 import {createAirfieldServiceYard,conformAirfieldSurface,hideOldAirfieldHangar,disposeAirfieldServiceYard} from '../scripts/webgl-airfield-service.js';
 
@@ -11,13 +12,23 @@ const point=(x,y)=>({x,y});
 
 test('new and finished airfield footprints cannot overlap neighbors or bastions',()=>{
  const p=point(2000,2000);
- assert.ok(sitesVisuallyOverlap('airfield',p,0,'generator',point(2132,2355),0),
-  'an object on the far runway must be rejected');
+ const yard=createAirfieldServiceYard();
+ const runway=yard.getObjectByName('AirfieldExtendedRunway');
+ yard.updateMatrixWorld(true);
+ const edge=new THREE.Box3().setFromObject(runway);
+ const end=point(p.x+(edge.min.x+edge.max.x)/2,p.y+edge.max.z-1);
+ assert.ok(sitesVisuallyOverlap('airfield',p,0,'generator',end,0),
+  'an object on the actual runway end must be rejected');
+ assert.ok(serviceFootprintContains({kind:'airfield',...p,facing:0},end),
+  'the full rendered runway is a valid aircraft maintenance target');
+ assert.ok(siteExceedsMap('airfield',point(1000,3500-edge.max.z+1),0,3500));
+ assert.equal(serviceFootprintContains({kind:'airfield',...p,facing:0},point(end.x,end.y+90)),false);
+ disposeAirfieldServiceYard({airfieldServiceYard:yard});
  assert.ok(sitesVisuallyOverlap('factory',p,0,'barracks',point(1850,2130),0),
   'roofed repair garages count as factory footprint');
- assert.ok(siteNearBastion('airfield',p,0,point(2132,2360)),
+ assert.ok(siteNearBastion('airfield',p,0,point(2106,2226)),
   'a control point cannot be hidden below the strip');
- assert.ok(siteNearBastion('airfield',p,2,point(2350,1868)),
+ assert.ok(siteNearBastion('airfield',p,2,point(2226,1894)),
   'rotating the runway changes its clearance');
  assert.equal(siteNearBastion('airfield',p,0,point(2800,2800)),false);
  assert.equal(sitesVisuallyOverlap('airfield',p,0,'factory',point(3100,3100),0),false);
@@ -50,7 +61,7 @@ test('two pioneers build in parallel instead of queuing behind a busy builder',(
  assert.deepEqual(chooseConstructionCrew([alsoBusy,busy]),
   {workers:[busy],append:true});
  const src=readFileSync(new URL('../scripts/webgl-battlefield.js',import.meta.url),'utf8');
- assert.match(src,/submitConstruction\(this\.game,kind,p,this\.selected/);
+ assert.match(src,/submitConstruction\(this\.game,kind,site,this\.selected/);
  assert.match(src,/this\.game\.buildError\(0,this\.buildKind,p,this\.placementFacing\)/);
 });
 
@@ -85,8 +96,10 @@ test('Atlas-prefixed old GLB tower and taxiway are hidden in both build modes',(
   o.name=name;model.add(o);return o;
  });
  const entry={detail:model};hideOldAirfieldHangar(entry);
- for(const child of parts.slice(0,-1))assert.equal(child.visible,false,child.name);
- assert.equal(parts.at(-1).visible,true,'unrelated meshes remain visible');
+ assert.equal(model.visible,false,'entire duplicate GLB is hidden, even when asset names differ');
+ assert.ok(parts.every(child=>child.visible),'individual mesh visibility is preserved for shared assets');
+ const next=new THREE.Group();entry.detail=next;hideOldAirfieldHangar(entry);
+ assert.equal(next.visible,false,'async replacement must also be hidden');
  assert.equal(entry.airfieldOldHidden,true);
  for(const part of parts){part.geometry.dispose();part.material.dispose();}
 });
@@ -119,7 +132,7 @@ test('building remains possible after a vehicle factory or airfield is completed
  assert.match(ui,/const available=globalCatalogAvailability\(g\)/,
   'selected actors do not control global tab unlocks');
  assert.match(ui,/this\.catalogSelectionKey=selectionKey/);
- assert.match(ui,/submitConstruction\(this\.game,kind,p,this\.selected/,
+ assert.match(ui,/submitConstruction\(this\.game,kind,site,this\.selected/,
   'live build click must use fallback construction crew');
  assert.match(ui,/this\.panel\.dataset\.tab='buildings'/,
   'after airfield build the user stays on the buildings tab');
@@ -154,7 +167,7 @@ test('rigid hangars and regular foundations reject steep ridges under any corner
  const flat={walkable:()=>true,terrainHeight:()=>0,terrainSlope:()=>0};
  assert.equal(siteTerrainCompatible('airfield',p,0,flat),true);
  assert.equal(siteTerrainCompatible('barracks',p,0,flat),true);
- const hill={...flat,terrainHeight:(x,z)=>x<p.x-235?39:0};
+ const hill={...flat,terrainHeight:(x,z)=>x<p.x-145?39:0};
  assert.equal(siteTerrainCompatible('airfield',p,0,hill),false,
   'control tower / left hangar may not be sunk in a cliff');
  const blocked={...flat,walkable:q=>q.x>p.x+50};

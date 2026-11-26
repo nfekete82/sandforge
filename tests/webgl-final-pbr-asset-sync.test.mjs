@@ -1,11 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
-import {createHash} from 'node:crypto';
 
-const DIR='src/assets/reborn/buildings-3d/';
 const DIST='dist/src/assets/reborn/buildings-3d/';
-function readGLB(filename,root=DIR){
+function readGLB(filename,root=DIST){
  const bytes=readFileSync(root+filename);
  assert.equal(bytes.toString('ascii',0,4),'glTF',filename);
  assert.equal(bytes.readUInt32LE(8),bytes.length,filename);
@@ -13,7 +11,6 @@ function readGLB(filename,root=DIR){
  assert.equal(bytes.toString('ascii',16,20),'JSON',filename);
  return {bytes,json:JSON.parse(bytes.toString('utf8',20,20+len))};
 }
-const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 
 test('both team barracks are the real authored PBR version, not the retired prefab',()=>{
  for(const owner of [0,1]){
@@ -25,8 +22,6 @@ test('both team barracks are the real authored PBR version, not the retired pref
    assert.ok([...nodes].some(n=>n.startsWith(family)),name+' missing '+family+' props');
   assert.ok(g.json.images.length>=10,'PBR source textures must be preserved');
   assert.ok(g.bytes.length>1_000_000,'expect real authored GLB rather than a basic primitive');
-  assert.equal(hash(g.bytes),hash(readGLB(name,DIST).bytes),
-   'battlefield must load the actual checked final barracks binary');
  }
 });
 
@@ -41,8 +36,6 @@ test('both command centres have enlarged dome, rear vents, rotors and current ro
    'HQ_Radar_02_PhasedArray_Rotor'])
    assert.ok(nodes.has(node),name+' missing '+node);
   assert.ok(j.images.length>=40,'HQ has original embedded camouflage, normals and roughness maps');
-  assert.equal(hash(g.bytes),hash(readGLB(name,DIST).bytes),
-   'HUD and battlefield must load the exact current PBR HQ');
  }
 });
 
@@ -56,16 +49,59 @@ test('Bastion, Kaserne and Kommandozentrale all ship in ONE built dist',()=>{
   assert.ok(existsSync(DIST+name),'all seven final model assets must be present: '+name);
 });
 
-test('the standard build syncs authored PBR models before exporting any assets',()=>{
+test('the standard build syncs authored PBR models in the staged distribution',()=>{
  const source=readFileSync('scripts/build.mjs','utf8');
  const ensure=source.indexOf("scripts/ensure-final-pbr-buildings.mjs");
  const bastion=source.indexOf("scripts/generate-bastion-radar.mjs");
  const copy=source.indexOf("cpSync('src/assets', 'dist/src/assets'");
- assert.ok(ensure>=0&&bastion>ensure&&copy>bastion,
+ assert.ok(copy>=0&&ensure>copy&&bastion>ensure,
   'cannot silently build the legacy HQ/barracks while generating new Bastion');
  const script=readFileSync('scripts/ensure-final-pbr-buildings.mjs','utf8');
  assert.match(script,/sandforge-pbr-gesamt-test/);
  assert.match(script,/sandforge-kaserne-prop-polish/);
  assert.match(script,/sandforge-hq-pbr/);
  assert.match(script,/if\(!allGood\(stage\)\)throw Error/);
+});
+test('standard WebGL build packages all four final PBR sources byte for byte',()=>{
+ for(const kind of ['headquarters','barracks'])for(const team of [0,1]){
+  const name=kind+'-'+team+'.glb';
+  assert.deepEqual(readGLB(name).bytes,readGLB(name,'src/release-pbr/').bytes,name);
+ }
+});
+
+test('every texturable HQ and barracks surface has embedded UV-mapped PBR',()=>{
+ for(const kind of ['headquarters','barracks'])for(const team of [0,1]){
+  const name=kind+'-'+team+'.glb';
+  const {bytes,json}=readGLB(name);
+  const bin=bytes.subarray(28+bytes.readUInt32LE(12));
+  const checkedNormals=new Set();
+  for(const mesh of json.meshes)for(const primitive of mesh.primitives){
+   const material=json.materials[primitive.material];
+   const label=name+' '+material.name;
+   if(material.emissiveFactor?.some(value=>value>0))continue;
+   const pbr=material.pbrMetallicRoughness;
+   assert.ok(primitive.attributes.POSITION!==undefined,label+' geometry');
+   const normalIndex=primitive.attributes.NORMAL;
+   assert.ok(normalIndex!==undefined,label+' normals');
+   if(!checkedNormals.has(normalIndex)){
+    const normal=json.accessors[normalIndex];
+    const view=json.bufferViews[normal.bufferView];
+    const start=(view.byteOffset??0)+(normal.byteOffset??0);
+    assert.equal(normal.componentType,5126,label+' float normals');
+    assert.equal(normal.type,'VEC3',label+' normal vector');
+    for(let i=0;i<normal.count;i++){
+     const at=start+i*(view.byteStride??12);
+     const length=Math.hypot(bin.readFloatLE(at),bin.readFloatLE(at+4),bin.readFloatLE(at+8));
+     assert.ok(Math.abs(length-1)<.015,label+' unit normal at vertex '+i);
+    }
+    checkedNormals.add(normalIndex);
+   }
+   for(const map of [pbr?.baseColorTexture,material.normalTexture,pbr?.metallicRoughnessTexture]){
+    assert.ok(map,label+' PBR texture missing');
+    const image=json.images[json.textures[map.index].source];
+    assert.ok(image.bufferView!==undefined&&!image.uri,label+' texture must be embedded');
+    assert.ok(primitive.attributes['TEXCOORD_'+(map.texCoord??0)]!==undefined,label+' texture UVs');
+   }
+  }
+ }
 });

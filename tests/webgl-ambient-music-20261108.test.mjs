@@ -74,8 +74,7 @@ test('fresh WebGL starts with optional recorded music; saved explicit mute still
  const html=readFileSync('webgl-preview.html','utf8');
  assert.match(menu,/\$\('sf3d-music-enabled'\)\.checked=options\.musicEnabled!==false/);
  assert.match(preview,/sound\.setMusicEnabled\(bootOptions\.musicEnabled!==false\)/);
- assert.match(html,/<input id="sf3d-music-enabled" type="checkbox">/);
- assert.doesNotMatch(html,/<input id="sf3d-music-enabled" type="checkbox" checked>/);
+ assert.match(html,/<input id="sf3d-music-enabled" type="checkbox" checked>/);
  assert.match(preview,/sound\.setEngineSoundsEnabled\(bootOptions\.engineSoundsEnabled!==false\)/);
  assert.match(preview,/sound\.setEffectsVolume\(savedVolume\('effectsVolume',\.85\)\)/);
 });

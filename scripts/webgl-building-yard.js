@@ -373,15 +373,21 @@ function addSiteDecor(root,kind,width){
 /** Small, optional-looking military camo shade. NOT a roof replacement:
  * it shelters a little rear-side kit only, leaving main roof, flags, radar,
  * ventilation, entrance and production path completely clear.
- * Vertex colours and intentional perforations provide lightweight visual
- * fabric without a new downloaded texture or a separate terrain pass.
+ * Vertex colours and intentional perforations keep the lightweight pattern
+ * visible over the shared, UV-mapped linen surface.
  */
 export const CAMO_NET_DETAIL_VERSION='limited-rear-side-camo-mesh-v1';
 export const CAMO_NET_BUILDING_KINDS=Object.freeze(['headquarters','barracks','research']);
-const netPaint=new THREE.MeshStandardMaterial({
- color:'#e2ddce',vertexColors:true,roughness:1,metalness:0,
- side:THREE.DoubleSide,transparent:true,opacity:.83,depthWrite:false
-});
+let netPaint;
+function camouflageNetMaterial(){
+ if(!netPaint){
+  netPaint=barracksPropMaterial('linenShade').clone();
+  netPaint.name='Camouflage net fabric';
+  netPaint.setValues({vertexColors:true,side:THREE.DoubleSide,
+   transparent:true,opacity:.83,depthWrite:false});
+ }
+ return netPaint;
+}
 function attachSmallCamouflageNet(root,width){
  const net=new THREE.Group();net.name='SmallDesertCamouflageNet';
  net.userData={visualOnly:true,nonPlayable:true,decorativeNet:true,
@@ -414,7 +420,7 @@ function attachSmallCamouflageNet(root,width){
   faces.push(original[i],original[i+1],original[i+2]);
  }
  geometry.setIndex(faces);geometry.computeVertexNormals();
- const fabric=new THREE.Mesh(geometry,netPaint);
+ const fabric=new THREE.Mesh(geometry,camouflageNetMaterial());
  fabric.name='PartialCamouflageMesh';fabric.rotation.x=-Math.PI/2;
  fabric.position.y=27;
  fabric.castShadow=false;fabric.receiveShadow=true;fabric.raycast=()=>{};
@@ -481,10 +487,7 @@ export function createBuildingYard(kind,width=160){
  // Only three selected facilities get ONE small side awning; most buildings
  // have no camouflage fabric at all. Never cover doors or active roof gear.
  if(CAMO_NET_BUILDING_KINDS.includes(kind))attachSmallCamouflageNet(root,width);
- // The generator's side crates, pallet and barrels need the same authored
- // wood/steel/cloth PBR mapping as HQ supplies, not plain colored blocks.
- if(['barracks','headquarters','factory','generator','research','silo'].includes(kind))
-  textureBarracksYard(root);
+ textureBarracksYard(root);
  return root;
 }
 

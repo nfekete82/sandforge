@@ -3,7 +3,7 @@ import {test,expect} from '@playwright/test';
 test('Humvee passenger portraits show exact riders and click unloads one at a time',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.setViewportSize({width:1440,height:900});
- await page.goto('/?debug&perfTest&seed=2026');
+ await page.goto('/?debug&perfTest&legacy');
  await page.locator('#loading').waitFor({state:'detached'});
  const data=await page.evaluate(()=>{
   const a=window.__reborn,g=a.game;

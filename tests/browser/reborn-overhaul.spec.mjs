@@ -37,7 +37,9 @@ test('overhaul: compact real turret heads track and fire from their registered m
   }
   return result;
  });
- for(const item of colors)expect(item.ratio,`${item.kind}/${item.owner} faction area`).toBeGreaterThan(.06);
+ // Vehicle insignia occupy less painted area than the faction infantry uniforms.
+ const minimumPaint={tank:.02,scout:.03,bomber:.009};
+ for(const item of colors)expect(item.ratio,`${item.kind}/${item.owner} faction area`).toBeGreaterThan(minimumPaint[item.kind]??.06);
  await page.screenshot({path:'artifacts/reborn/overhaul-turrets.png'});expect(health.errors).toEqual([]);expect(health.assets).toEqual([]);
 });
 
@@ -57,7 +59,7 @@ test('overhaul: a worker places in explored neutral fog, walks there and complet
  expect(placed).toEqual({owner:0,remaining:12,credits:state.credits-200});await advance(page,.5);
  expect(await page.evaluate(()=>window.__reborn.game.bases.find(b=>b.kind==='barracks').buildRemaining)).toBe(12);
  await advance(page,35);expect(await page.evaluate(()=>{const g=window.__reborn.game;return {remaining:g.bases.find(b=>b.kind==='barracks').buildRemaining,owner:g.territories[20].owner};})).toEqual({remaining:0,owner:-1});
- await clickWorld(page,{x:state.p.x,y:state.p.y-35});await expect(page.locator('#selection-title')).toHaveText('Kaserne');await expect(page.locator('[data-context-unit]')).toHaveCount(3);
+ await clickWorld(page,{x:state.p.x,y:state.p.y-35});await expect(page.locator('#selection-title')).toHaveText('Kaserne');await expect(page.locator('[data-context-unit]')).toHaveCount(4);
  await page.screenshot({path:'artifacts/reborn/overhaul-barracks.png'});expect(health.errors).toEqual([]);expect(health.assets).toEqual([]);
 });
 
@@ -68,7 +70,7 @@ test('overhaul: real group input keeps medics behind the front, heals during att
   return g.units.filter(u=>u.owner===0).map(u=>r.screen({x:u.x,y:u.y-18}));
  });
  await page.mouse.move(Math.min(...points.map(p=>p.x))-30,Math.min(...points.map(p=>p.y))-35);await page.mouse.down();await page.mouse.move(Math.max(...points.map(p=>p.x))+30,Math.max(...points.map(p=>p.y))+45,{steps:6});await page.mouse.up();
- await expect(page.locator('#selection-title')).toHaveText('4 Einheiten');await page.keyboard.press('a');await clickWorld(page,{x:2350,y:2120});await advance(page,3);
+ await expect(page.locator('#selection-title')).toHaveText('4 Einheiten');await page.keyboard.press('q');await clickWorld(page,{x:2350,y:2120});await advance(page,3);
  const result=await page.evaluate(()=>{const {game:g}=window.__reborn,front=g.units.filter(u=>u.owner===0&&u.kind!=='medic'),medics=g.units.filter(u=>u.kind==='medic');return {hp:front.find(u=>u.kind==='heavy').hp,front:Math.min(...front.map(u=>u.x)),medics:medics.map(u=>({x:u.x,formation:!!u.orders[0]?.formation,cooldown:u.cooldown}))};});
  expect(result.hp).toBeGreaterThan(35);for(const m of result.medics){expect(m.x).toBeLessThan(result.front-25);expect(m.formation).toBe(true);expect(m.cooldown).toBeLessThanOrEqual(0);}
  await page.evaluate(async()=>{const a=window.__reborn;await a.save();await a.load();a.game.paused=true;a.refresh();});expect(await page.evaluate(()=>window.__reborn.game.units.filter(u=>u.kind==='medic').every(u=>!!u.orders[0]?.formation))).toBe(true);

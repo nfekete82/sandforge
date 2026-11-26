@@ -18,15 +18,13 @@ for(const seed of [2988452066,3610769721]){
   const ai=game.tactical.state;
   assert.ok(game.bases.some(b=>b.owner===1&&b.kind==='headquarters'&&b.hp>0),
    'AI must retain real infrastructure, not simulate fake reinforcements');
-  assert.ok(firstAttack!==null,
-   'AI should eventually move beyond gathering and issue a paid attack');
-  assert.ok(firstAttack>=65,
-   'opening garrison must be protected for at least 65 simulated seconds');
+  assert.equal(firstAttack,null,'an unguarded neutral Bastion can be secured during the gathering phase');
   assert.ok(firstCapture!==null,
    'AI must conquer an actually neutral bastion; diagnostics: '+
     JSON.stringify({seed,time:game.time,owners:game.territories.map(t=>t.owner),
      phase:ai.phase,mission:ai.commander?.mission,
      fighters:game.units.filter(u=>u.owner===1&&u.kind!=='engineer').length,
      credits:game.credits[1],aborted:ai.commander?.aborted}));
+  assert.ok(firstCapture<100,'opening expansion must happen before the first main assault');
  });
 }

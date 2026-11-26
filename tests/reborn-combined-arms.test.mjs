@@ -2,16 +2,16 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {Simulation} from '../dist/src/reborn/simulation.js';
-import {UNITS,BUILDINGS,canAttack} from '../dist/src/reborn/catalog.js';
+import {UNITS,BUILDINGS,canAttack,weaponDamage} from '../dist/src/reborn/catalog.js';
 import {RULES,distance} from '../dist/src/reborn/config.js';
 const advance=(g,s,dt=.05)=>{for(let i=0;i<Math.round(s/dt);i++)g.step(dt);};
 const peaceful=()=>{const g=new Simulation();g.aiClock=-1e8;g.units=[];return g;};
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
 
-test('combined: heavy infantry defeats four simultaneous riflemen with more than half health remaining',()=>{
+test('combined: heavy infantry survives four simultaneous riflemen at the current infantry damage',()=>{
  for(const owner of [0,1]){
   const g=peaceful(),heavy=g.spawn(owner,{x:1900,y:2100},'heavy');for(let i=0;i<4;i++)g.spawn(1-owner,{x:2040+i*5,y:2060+i*28});g.updateVision();advance(g,12);
-  assert.equal(g.units.filter(u=>u.owner!==owner).length,0);assert.ok(heavy.hp>UNITS.heavy.hp*.5);assert.equal(UNITS.heavy.cost,250);
+  assert.equal(g.units.filter(u=>u.owner!==owner).length,0);assert.ok(heavy.hp>0&&heavy.hp<UNITS.heavy.hp*.5);assert.equal(UNITS.heavy.cost,300);
  }
 });
 
@@ -41,6 +41,7 @@ test('transport: boarding rejects enemies, vehicles and a second carrier; stop i
 test('transport: passengers do not fight or enter spatial capture/vision queries; carrier destruction removes them exactly once',()=>{
  const g=peaceful(),h=g.spawn(0,{x:1900,y:2100},'scout'),troops=passengers(g,h,4);g.transports.board(h.id,troops.map(u=>u.id));advance(g,7);
  assert.ok(troops.every(u=>!g.spatial.query(h,200).includes(u)),'carried soldiers are absent from combat and capture queries');
+ g.stop([h.id],true);h.rocketAmmo=0;
  const enemy=g.spawn(1,{x:h.x+100,y:h.y});enemy.cooldown=100;const before=enemy.hp;g.updateVision();advance(g,1);assert.equal(enemy.hp,before,'no offensive passenger or transporter shooting');
  h.hp=0;g.step();assert.ok(troops.every(u=>u.hp<=0));assert.ok(!g.units.some(u=>u.carrier));assert.equal(g.count(0),0);g.step();assert.equal(g.count(0),0);
 });
@@ -107,9 +108,11 @@ test('combined strategic air: a rich army with a known military target eventuall
 });
 
 
-test('transport: defensive machine-gun bursts answer a real attack, without autonomous hunting',()=>{
- const g=peaceful(),h=g.spawn(0,{x:1900,y:2100},'scout'),enemy=g.spawn(1,{x:2060,y:2100});g.updateVision();g.stop([enemy.id],false);enemy.cooldown=100;advance(g,1);assert.equal(enemy.hp,100);
- enemy.cooldown=0;advance(g,.3);assert.ok(h.hp<UNITS.scout.hp);assert.equal(enemy.hp,100-UNITS.scout.damage);const shots=g.shots.filter(s=>s.source===h.id);assert.equal(shots.length,3);assert.ok(shots.every(s=>s.weapon==='rifle'));
+test('transport: HOLD suppresses the machine gun until attacked and never causes a chase',()=>{
+ const g=peaceful(),h=g.spawn(0,{x:1900,y:2100},'scout'),enemy=g.spawn(1,{x:2060,y:2100});h.rocketAmmo=0;g.stop([h.id],true);g.updateVision();enemy.cooldown=100;advance(g,1);assert.equal(enemy.hp,100);
+ enemy.cooldown=0;advance(g,.3);assert.ok(h.hp<UNITS.scout.hp);assert.equal(enemy.hp,100-weaponDamage(h,enemy));
+ const shots=g.shots.filter(s=>s.source===h.id);assert.equal(shots.length,1);assert.equal(shots[0].weapon,'machinegun');
+ assert.deepEqual([h.x,h.y],[1900,2100]);assert.deepEqual(h.orders,[]);
 });
 
 test('combined recovery: wounded infantry physically retreat, save their recovery state, heal and become available again',()=>{

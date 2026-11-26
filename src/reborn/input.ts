@@ -93,6 +93,11 @@ export class Input {
       }
       if(e.repeat)return;
       if(key===' '){this.onPause();return;}
+      // The battlefield is inert beneath the tactical pause overlay.
+      // Escape opens the menu without clearing a hidden selection or order mode.
+      if(key==='escape'&&document.body.classList.contains('tactical-paused')){
+        e.preventDefault();this.onMenu();return;
+      }
       if(key==='x'&&renderer.selected.size){this.stop();this.notify('Einheiten gestoppt.');return;}
       if(key==='q'&&renderer.selected.size){renderer.attackMode=true;renderer.commandMode=null;canvas.classList.add('attack');this.onSelection();return;}
       if(key==='m'&&renderer.selected.size){

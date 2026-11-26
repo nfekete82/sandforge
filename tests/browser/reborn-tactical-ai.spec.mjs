@@ -1,7 +1,9 @@
 import {test,expect} from '@playwright/test';
+import {loadLegacyMatch} from './hq-bootstrap-fixture.mjs';
 
 test('tactical AI: a genuinely built blue turret kills two red infantry; the 16-sector AI gathers paid reinforcements, attacks together and saves its lessons',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1440,height:1000});await page.goto('/?debug&seed=2026');await page.locator('#loading').waitFor({state:'detached'});
+ await loadLegacyMatch(page);
  const result=await page.evaluate(()=>{
   const {game:g,renderer:r}=window.__reborn;g.paused=true;g.aiClock=-1e8;g.time=30;g.explored[0].fill(1);g.credits[0]=5000;
   const h=g.bases[1],start=g.units.find(u=>u.owner===1),target=g.territories[7],route=g.world.path(start,target.point,g.obstacles());let p,from=start;

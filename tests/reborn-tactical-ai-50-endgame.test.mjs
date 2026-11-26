@@ -20,6 +20,10 @@ function missionScene(){
   id:90004,kind:'turret',owner:0,territory:0,x:g.world.size*.6,y:g.world.size*.4,hp:650
  };
  const home=g.bases.find(b=>b.owner===1&&b.kind==='headquarters');
+ for(const territory of g.territories)territory.owner=1;
+ const enemyHQ=g.bases.find(b=>b.owner===0&&b.kind==='headquarters');
+ enemyHQ.hp=0;
+ s.observedEnemyHQ={id:enemyHQ.id,x:enemyHQ.x,y:enemyHQ.y};
  g.time=405;g.memories[1].push({...tower});
  s.enemyHQEliminatedAt=300;
  s.intel=[{id:tower.id,seenAt:400}];

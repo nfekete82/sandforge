@@ -57,18 +57,21 @@ test('authored Plateau Crossroads: passes are clear of blocked rock cells for ta
  }
 });
 
-test('authored Plateau Crossroads: prominent cliff, visible dirt roads and no extra rock in rock',()=>{
+test('authored Plateau Crossroads: prominent cliff, sparse tire marks and no extra rock in rock',()=>{
  const world=Simulation.campaign(map.seed,map.mapVersion,map.terrain,map.generatorVersion).world;
- const blocked=world.blocked.slice(),scene=new THREE.Scene();
+ const blocked=world.blocked.slice(),roads=structuredClone(world.generated.roads),scene=new THREE.Scene();
  const meshes=createLandscapeMeshes({
   scene,size:world.size,heightAt:(x,z)=>world.terrainHeight(x,z),
   roads:world.generated.roads,ridges:world.generated.ridges,
-  biome:'desert',mapId:map.id,lowQuality:true,showOutcrops:false
+  biome:'desert',mapId:map.id,seed:map.seed,bastions:world.generated.sites,lowQuality:true,showOutcrops:false
  });
  const cliff=meshes.find(m=>m.userData?.erodedRidge);
- const road=meshes.find(m=>m.userData?.roadNetwork);
+ const road=meshes.find(m=>m.userData?.unconnectedTrackRemnants);
  assert.ok(cliff?.geometry?.attributes?.position?.count>1000,'large plateau cliff is missing');
- assert.ok(road?.geometry?.attributes?.position?.count>1000,'visible valley road geometry missing');
+ assert.ok(road?.geometry?.attributes?.position?.count>1000,'visible tire marks missing');
+ assert.equal(road.userData.noBastionGuidance,true);
+ assert.ok(!meshes.some(m=>m.userData.roadNetwork));
+ assert.deepEqual(world.generated.roads,roads,'the strategic road graph is preserved');
  assert.ok(cliff.material.map?.isTexture&&cliff.material.normalMap?.isTexture,
   'the cliff must keep photographic PBR sandstone');
  assert.equal(meshes.filter(m=>m.userData?.rockOutcrops).length,0);

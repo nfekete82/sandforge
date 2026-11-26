@@ -2178,6 +2178,8 @@
  min-width:0!important;
  height:auto!important;
  max-height:34px!important;
+ padding:0!important;
+ box-sizing:border-box!important;
  font-size:12px!important;
  line-height:16px!important;
  letter-spacing:0!important;

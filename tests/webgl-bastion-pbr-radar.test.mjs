@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-const DIR='src/assets/reborn/buildings-3d/';
+const DIR='dist/src/assets/reborn/buildings-3d/';
 
 function parse(owner){
  const bytes=readFileSync(DIR+'bastion-'+owner+'.glb');
@@ -86,13 +86,10 @@ test('taller reinforced tower supports radar and isolates beacon through 360-deg
  }
 });
 
-test('build must generate actual new GLBs before copying assets to dist',()=>{
+test('build generates Bastion GLBs into the staged distribution',()=>{
  const build=readFileSync('scripts/build.mjs','utf8');
  const generator=readFileSync('scripts/generate-bastion-radar.mjs','utf8');
- const generate=build.indexOf('scripts/generate-bastion-radar.mjs');
- const copy=build.indexOf("cpSync('src/assets', 'dist/src/assets'");
- assert.ok(generate>=0&&copy>generate,
-  'normal Sandforge build must overwrite the old models before shipping');
+ assert.match(build,/\['scripts\/generate-bastion-radar\.mjs',shippedBuildingDir\]/);
  assert.match(generator,/sandforge-bastion-radar-v3-tall-platform/);
  assert.match(generator,/for\(const owner of \[-1,0,1\]\)exportTeam\(owner\)/);
  assert.match(generator,/BastionRadarRotor/);

@@ -81,36 +81,32 @@ try{
 }finally{
  rmSync(temp,{recursive:true,force:true});
 }
-for(const team of [0,1])test('real generated factory-'+team+' has exposed PBR workshop with zero shutters',()=>{
+for(const team of [0,1])test('real generated factory-'+team+' has a single independent shutter and clear opening',()=>{
  const {raw,doc,binStart}=glbDocs.get(team);
- assert.equal(doc.asset.generator,'sandforge-industrial-reference-factory-v3-20261120');
+ assert.equal(doc.asset.generator,'factory-three-bay-sawtooth-pbr-20261121');
  const names=new Set(doc.nodes.map(n=>n.name));
- assert.ok(names.has('SF_Factory_PBR_OpenBay'));
- assert.ok(!names.has('FactoryRollupDoor'));
- const marker=doc.nodes.find(n=>n.name==='SF_Factory_PBR_OpenBay');
- assert.equal(marker.extras?.vehicleDriveThrough,true);
- assert.deepEqual(marker.translation,[.18,.23,1.10]);
- assert.ok(names.has('SF_Factory_PBR_roof'));
- assert.ok(names.has('SF_Factory_PBR_concrete'));
- assert.ok(names.has('SF_Factory_PBR_steel_dark'));
- assert.ok(names.has('SF_Factory_PBR_camo'));
- assert.ok(raw.length<18_000_000);
+ assert.equal(doc.nodes.filter(n=>n.name==='FactoryRollupDoor').length,1);
+ assert.ok(!names.has('SF_Factory_PBR_OpenBay'));
+ for(const part of ['roof','concrete','steel_dark','camo'])
+  assert.ok(names.has('SF_Factory_PBR_'+part),part);
+ assert.ok(raw.length<3_000_000);
  const findMesh=name=>doc.meshes[doc.nodes.find(n=>n.name===name).mesh];
- const p=findMesh('SF_Factory_PBR_camo').primitives[0].attributes.POSITION;
- const accessor=doc.accessors[p],view=doc.bufferViews[accessor.bufferView],data=[];
- for(let i=0;i<accessor.count;i++){
-  const off=binStart+view.byteOffset+(accessor.byteOffset??0)+i*12;
-  data.push([raw.readFloatLE(off),raw.readFloatLE(off+4),raw.readFloatLE(off+8)]);
- }
- assert.ok(data.length>50);
- const centerBlocks=data.filter(([x,y,z])=>Math.abs(z-2.10)<.14&&
-  x> -1.50*1.10&&x<1.85*1.10&&y>.4&&y<1.95);
- assert.equal(centerBlocks.length,0,'visual entrance must be physically empty');
- const roofAccessor=doc.accessors[findMesh('SF_Factory_PBR_roof').primitives[0].attributes.POSITION];
- assert.ok(roofAccessor.max[0]-roofAccessor.min[0]>5.5);
- assert.ok(doc.materials.some(m=>m.pbrMetallicRoughness?.baseColorTexture));
- assert.equal(BUILDINGS.factory.width,200,'existing placement/collision remains identical');
- assert.equal(BUILDINGS.factory.radius,70,'no new invisible collision blockers');
+ const positions=name=>{
+  const accessor=doc.accessors[findMesh(name).primitives[0].attributes.POSITION];
+  const start=binStart+doc.bufferViews[accessor.bufferView].byteOffset+(accessor.byteOffset??0);
+  return Array.from({length:accessor.count},(_,i)=>[0,4,8].map(o=>raw.readFloatLE(start+i*12+o)));
+ };
+ const door=positions('FactoryRollupDoor');
+ const left=Math.min(...door.map(([x])=>x)),right=Math.max(...door.map(([x])=>x));
+ const fixedFacade=positions('SF_Factory_PBR_camo');
+ assert.ok(fixedFacade.length>50);
+ assert.ok(fixedFacade.every(([x,y,z])=>Math.abs(z-2.24)>.15||x<=left||x>=right||y>=1.71),
+  'the authored walls leave the actual door opening clear');
+ const roof=positions('SF_Factory_PBR_roof');
+ assert.ok(Math.max(...roof.map(([x])=>x))-Math.min(...roof.map(([x])=>x))>5.5);
+ assert.ok(doc.materials.every(m=>m.pbrMetallicRoughness?.baseColorTexture));
+ assert.equal(BUILDINGS.factory.width,200);
+ assert.equal(BUILDINGS.factory.radius,70);
 });
 for(const owner of [0,1])test('actual open factory drive-out '+owner+' starts without a shutter delay and preserves paid order',()=>{
  const base={id:123,owner,kind:'factory',x:500,y:500,facing:0,hp:1100,buildRemaining:0};

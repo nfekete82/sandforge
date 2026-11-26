@@ -57,7 +57,15 @@ test('research center and missile silo use full-size detailed industrial 3D mesh
   assert.ok(parts.some(item=>item.material.emissiveIntensity>.1),
    kind+' has subtle faction accents');
   const bounds=new THREE.Box3().setFromObject(root);
-  assert.ok(bounds.max.y>95,kind+' has a recognizable multilayered silhouette');
+  if(kind==='research')assert.ok(bounds.max.y>95,'the research radar breaks the roof silhouette');
+  else{
+   const opening=root.getObjectByName('Silo_TerrainOcclusion');
+   assert.ok(opening?.isMesh&&opening.userData.hidesUnderlyingTerrain);
+   assert.equal(opening.userData.visualShaftDepth,95);
+   assert.ok(bounds.min.y< -85,'the actual missile extends deep into the shaft');
+   assert.ok(bounds.max.y>50&&bounds.max.y<60,'the low-profile silo exposes the nose above the deck');
+   assert.ok(bounds.max.y-bounds.min.y>135,'the recessed model retains its full scale');
+  }
   dispose(root);
  }
 });

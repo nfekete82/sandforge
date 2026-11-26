@@ -11,7 +11,10 @@ test('tactical pause: large centred sharp text, blurred battlefield and sidebar,
   if(viewport.width===1440)await page.screenshot({path:'artifacts/reborn/tactical-pause-large.png'});
   await page.getByRole('button',{name:'GEFECHT FORTSETZEN'}).click();await expect(page.locator('#pause-label')).toBeHidden();expect(await page.evaluate(()=>document.querySelector('#app').inert)).toBe(false);
  }
+ const selected=await page.evaluate(()=>[...window.__reborn.renderer.selected]);
+ expect(selected).toHaveLength(1);
  await page.keyboard.press('Space');await page.keyboard.press('Escape');await expect(page.locator('#pause-dialog')).toBeVisible();expect(await page.evaluate(()=>getComputedStyle(document.querySelector('#app')).filter)).toBe('none');
+ expect(await page.evaluate(()=>[...window.__reborn.renderer.selected])).toEqual(selected);
  await page.evaluate(()=>document.querySelector('#pause-dialog').close());await expect(page.locator('#pause-label')).toBeVisible();await page.keyboard.press('Space');await expect(page.locator('#pause-label')).toBeHidden();expect(errors).toEqual([]);
 });
 

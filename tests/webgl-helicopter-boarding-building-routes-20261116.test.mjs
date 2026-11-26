@@ -127,8 +127,10 @@ test('right-click infantry with selected carrier picks the passenger, not the tr
  const ui=readFileSync('scripts/webgl-battlefield.js','utf8');
  const pickup=ui.indexOf('selectedCarrierForPickup(this.game.units,this.selected,passenger)');
  const normal=ui.indexOf('const clickedEnemy=event.button===2');
- assert.ok(pickup>=0&&pickup<normal,
-  'pickup must intercept the right-click BEFORE enemy/terrain/maintenance routing');
+ assert.ok(normal>=0&&pickup>normal,
+  'visible enemy detection must precede friendly pickup');
+ const pickupBlock=ui.slice(normal,pickup);
+ assert.match(pickupBlock,/!clickedEnemy/);
  assert.match(ui,/this\.game\.transports\.collect\(carrier\.id,\[passenger\.id\]\)/);
 });
 
@@ -156,8 +158,8 @@ test('carrier travels to clicked rocket soldier, lands/stops and takes him aboar
  }
 });
 
-test('helicopter cruises 10 percent faster without changing bomber or Humvee speeds',()=>{
- assert.equal(UNITS.scout.speed,220);
+test('transport helicopter, bomber and Humvee keep their distinct cruise speeds',()=>{
+ assert.equal(UNITS.scout.speed,280);
  assert.equal(UNITS.bomber.speed,350);
  assert.equal(UNITS.rover.speed,235);
 });

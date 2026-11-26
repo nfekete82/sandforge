@@ -56,7 +56,8 @@ test('3D menu, terrain, models and health parity modules are all shipped',()=>{
  assert.match(actor,/healthFraction\(hp,maxHp\)/);
  assert.match(actor,/healthColor\(pct\)/);
  assert.match(actor,/transparent:true,opacity:1/);
- assert.match(actor,/showHealth='all'/);
+ assert.match(actor,/showHealth='smart'/);
+ assert.match(actor,/\['smart','all','selected','damaged','off'\]\.includes\(mode\)/);
  assert.match(cliff,/nonPlayable:true/);
  assert.match(cliff,/const along=-offset\+t\*\(size\+2\*offset\)/);
 });

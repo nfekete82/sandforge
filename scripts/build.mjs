@@ -21,7 +21,9 @@ if(webglDefault){
 }else cpSync('index.html','dist/index.html');
 cpSync('animation-lab.html','dist/animation-lab.html');
 cpSync('model-preview.html','dist/model-preview.html');
-cpSync('model-3d.html','dist/model-3d.html');
+const modelGallery=readFileSync('model-3d.html','utf8');
+writeFileSync('dist/model-3d.html',webglDefault?modelGallery:
+ modelGallery.replace('/model-viewer.js','/model-viewer.js?classic'));
 cpSync('webgl-preview.html','dist/webgl-preview.html');
 cpSync('webgl-meshy-factory.html','dist/webgl-meshy-factory.html');
 cpSync('webgl-meshy-buildings.html','dist/webgl-meshy-buildings.html');
@@ -43,6 +45,7 @@ const kinds=['barracks','airfield','bastion','bunker','headquarters','generator'
 // 2026-11-20 11:20 CET, BEFORE evening Meshy building replacements.
 // Preserve newer game/AI/maps but never load experimental HQ/barracks,
 // bunker, airfield, Bastion or generator skins from the 21 Nov work.
+const finalBuildingFiles=['barracks-0.glb','barracks-1.glb','headquarters-0.glb','headquarters-1.glb'];
 const BUILDING_ART_REFERENCE='2026-11-20T11:20:39+01:00';
 const available=Object.fromEntries(kinds.map(kind=>[kind,false]));
 available.airfieldReference=false;
@@ -196,19 +199,31 @@ if(process.env.SANDFORGE_MODULE_AUDIT==='1'){
 // npm run build must never modify committed GLB files in src/.
 const shippedBuildingDir='dist/src/assets/reborn/buildings-3d';
 cpSync('src/assets', 'dist/src/assets', {recursive:true});
+// The Classic gallery demonstrates the original models that bake its sprites.
+// Keep this optional archive out of the standard WebGL distribution.
+const classicGalleryPath=shippedBuildingDir+'/classic-gallery';
+if(webglDefault)rmSync(classicGalleryPath,{recursive:true,force:true});
+else{
+ mkdirSync(classicGalleryPath,{recursive:true});
+ for(const kind of ['headquarters','bastion','barracks','factory','airfield','generator'])
+  for(const team of kind==='bastion'?[0,1,-1]:[0,1]){
+   const filename=kind+'-'+team+'.glb';
+   cpSync(shippedBuildingDir+'/'+filename,classicGalleryPath+'/'+filename);
+  }
+}
 // Both combat factions receive a reproducible PBR flame-tank GLB even on
 // fresh Git checkouts, CI and production machines without the local asset ZIP.
 // Authored src/assets variants, if present, take precedence.
 execFileSync(process.execPath,['scripts/generate-flame-tank-pbr.mjs',
  'dist/src/assets/reborn/animation'],{stdio:'inherit'});
-// Prefer original fully authored, animated HQ/Barracks PBR worktrees from
-// 20 Nov midday. Their private source GLBs are not necessarily on GitHub;
-// preserve the tracked pre-Meshy fallbacks if no local PBR source is mounted.
-try{
+// The four final 3D models are independent of the original Canvas atlas masters.
+// Only explicit authoring builds use the local PBR installer.
+if(process.env.SANDFORGE_REQUIRE_FINAL_PBR==='1'||[
+ 'SANDFORGE_COMBINED_PBR_SOURCE','SANDFORGE_BARRACKS_SOURCE','SANDFORGE_HQ_SOURCE',
+].some(name=>process.env[name])){
  execFileSync(process.execPath,['scripts/ensure-final-pbr-buildings.mjs',shippedBuildingDir],{stdio:'inherit'});
-}catch(error){
- if(process.env.SANDFORGE_REQUIRE_FINAL_PBR==='1')throw error;
- console.warn('Final HQ/Barracks PBR source not mounted. Using tracked pre-Meshy GLBs instead.');
+}else{
+ for(const name of finalBuildingFiles)cpSync('src/release-pbr/'+name,shippedBuildingDir+'/'+name);
 }
 console.log('Sandforge buildings restored to:',BUILDING_ART_REFERENCE);
 // The Bastion, unlike the authored large HQ/barracks binaries, is fully

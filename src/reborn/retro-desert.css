@@ -648,6 +648,11 @@ html.sandforge-branded .sandforge-logo{
  #sidebar .catalog-tabs{grid-template-columns:minmax(0,.93fr) minmax(0,1.07fr);margin-inline:-9px}
  #sidebar .catalog-tabs button{font-size:10px;gap:3px;padding-inline:2px}
  #sidebar .catalog-tabs svg{width:16px;height:16px}
+ #sidebar .catalog-tabs :is(#tab-units,#tab-territories){gap:2px;padding-inline:1px;letter-spacing:0}
+ #sidebar .catalog-tabs :is(#tab-units,#tab-territories) span:last-child{
+  min-width:0;white-space:normal;overflow-wrap:anywhere;
+ }
+ #sidebar .catalog-tabs :is(#tab-units,#tab-territories) svg{width:14px;height:14px}
  #production .queue-info{font-size:10px}
 }
 

@@ -45,13 +45,15 @@ test('3D root menu keeps all new games and saves on / instead of returning to pr
  await page.locator('#sf3d-quality').selectOption('lite');
  await page.locator('#sf3d-options-save').click();
  await page.locator('#sf3d-new').click();
- await page.locator('#sf3d-map-size').selectOption('4');
- await page.locator('#sf3d-seed').fill('2074');
+ await expect(page.locator('#sf3d-new-dialog')).toBeVisible();
+ await page.locator('#sf3d-desert-map').selectOption('broken-empire');
+ await page.locator('#sf3d-balance-preset').selectOption('classic');
  await page.locator('#sf3d-new-confirm').click();
- await expect(page).toHaveURL(/bastions=4&seed=2074&play=1&lite=1/);
- expect(new URL(page.url()).pathname).toBe('/');
+ await expect(page).toHaveURL(url=>url.pathname==='/'&&Object.entries({
+  bastions:'12',seed:'2026',play:'1',lite:'1',map:'broken-empire'
+ }).every(([key,value])=>url.searchParams.get(key)===value));
  await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded===true,null,{timeout:95000});
- expect(await page.evaluate(()=>window.__sandforgeWebGL?.game?.seed)).toBe(2074);
+ expect(await page.evaluate(()=>window.__sandforgeWebGL.game.balancePreset)).toBe('classic');
  await page.locator('[data-action="menu"]').click();
  await expect(page.locator('#sf3d-pause-dialog')).toBeVisible();
  await page.locator('#sf3d-pause-save').click();
@@ -67,10 +69,12 @@ test('3D root menu keeps all new games and saves on / instead of returning to pr
  await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded===true,null,{timeout:95000});
  const resumed=await page.evaluate(()=>({
   seed:window.__sandforgeWebGL.game.seed,
+  map:window.__sandforgeWebGL.desertMapId,
+  balance:window.__sandforgeWebGL.game.balancePreset,
   model:window.__sandforgeWebGL.battlefield!==undefined,
   route:window.Sandforge3DMenu?.gameRoute()
  }));
- expect(resumed).toEqual({seed:2074,model:true,route:'/'});
+ expect(resumed).toEqual({seed:2026,map:'broken-empire',balance:'classic',model:true,route:'/'});
  expect(errors).toEqual([]);
 });
 

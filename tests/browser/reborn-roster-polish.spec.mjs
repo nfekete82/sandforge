@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 
-test('production cards center and fill their image area without overlapping names or prices',async({page})=>{
+test('production cards center complete portraits in their image area without overlapping names or prices',async({page})=>{
   await page.setViewportSize({width:1440,height:900});
   await page.goto('/?debug&legacy');
   await page.locator('#loading').waitFor({state:'detached'});
@@ -14,7 +14,7 @@ test('production cards center and fill their image area without overlapping name
     return {art:{x:art.x,y:art.y,w:art.width,h:art.height,bottom:art.bottom},frame:{x:frame.x,w:frame.width},bar:{top:bar.top,h:bar.height},
       fit:getComputedStyle(img).objectFit,position:getComputedStyle(img).objectPosition};
   });
-  expect(details.fit).toBe('cover');
+  expect(details.fit).toBe('contain');
   expect(details.art.w).toBeGreaterThan(details.frame.w-5);
   expect(details.art.x).toBeGreaterThanOrEqual(details.frame.x-.1);
   expect(details.art.bottom).toBeLessThanOrEqual(details.bar.top+1);

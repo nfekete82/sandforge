@@ -15,7 +15,7 @@ test('modern desert uses matte procedural fine grain, never baked bright 2K dune
  assert.doesNotMatch(src,/rgba\(255,242,201,\.28\)/,'white sand dots are gone');
  assert.doesNotMatch(src,/rgba\(255,240,210,\.12\)/,'drawn white highlight streaks are gone');
  assert.match(src,/ctx\.fillStyle='rgba\(108,83,52,\.065\)'/);
- assert.match(src,/ctx\.strokeStyle='rgba\(125,96,62,\.045\)'/);
+ assert.match(src,/ctx\.strokeStyle='rgba\(125,96,62,\.024\)'/);
 });
 
 test('warm sand-grain source never emits near-white pixels',()=>{
@@ -35,13 +35,13 @@ test('warm sand-grain source never emits near-white pixels',()=>{
 
 test('terrain alone is warm beige, while buildings, PBR sky, terrain heights and original villages are unchanged',()=>{
  assert.match(src,/color:biome==='desert'\?\(spacious\?desertStyle\.terrainMaterial:'\#f5eadb'\):biomeStyle\.terrain/);
- assert.equal(desertStyle.terrainMaterial,'#f2e1c7');
+ assert.equal(desertStyle.terrainMaterial,'#eee0c9');
  assert.match(src,/const subtleSandLift=new THREE\.Color\(desertStyle\.warmLift\)/);
- assert.equal(desertStyle.warmLift,'#ead2a6');
- assert.match(src,/if\(biome==='desert'\)vertexColor\.lerp\(subtleSandLift,desertStyle\.warmLiftStrength\)/);
- assert.equal(desertStyle.warmLiftStrength,.12);
- const tint=new THREE.Color('#ead2a6'),old=new THREE.Color('#d9bb92');
- const mixed=old.clone().lerp(tint,.12);
+ assert.equal(desertStyle.warmLift,'#e7d9bd');
+ assert.match(src,/if\(biome==='desert'&&!desertRegion\)vertexColor\.lerp\(subtleSandLift,desertStyle\.warmLiftStrength\)/);
+ assert.equal(desertStyle.warmLiftStrength,.09);
+ const tint=new THREE.Color(desertStyle.warmLift),old=new THREE.Color(desertStyle.duneBase);
+ const mixed=old.clone().lerp(tint,desertStyle.warmLiftStrength);
  assert.ok(mixed.r>mixed.g&&mixed.g>mixed.b,'warm gold, not pale white');
  assert.ok(mixed.r>old.r,'ground is a bit lighter than original');
  assert.ok(mixed.r<.85,'must not approach washed-out white');

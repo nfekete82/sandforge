@@ -128,8 +128,8 @@ test('headquarters PBR depot keeps real crate geometry clear of its wire fence',
  }
  const width=160;
  const factory=createBuildingYard('factory',width);
- const legacy=factory.getObjectByName('BaseSupplyCache');
- assert.equal(legacy.position.x,width*.55,'factory keeps original cache placement');
- assert.equal(legacy.getObjectByName('SupplyPallet').geometry.parameters.width,43);
+ const cache=factory.getObjectByName('BaseSupplyCache');
+ assert.equal(cache.position.x,width*.43,'factory depot clears the shutter exit');
+ assert.equal(cache.getObjectByName('SupplyPallet').geometry.parameters.width,43);
  disposeBuildingYard(factory);
 });

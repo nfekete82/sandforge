@@ -100,3 +100,43 @@ test('history: old reports without metrics show missing rather than fake zero re
  assert.equal(stats.topKind,null);
  assert.equal(stats.bestArmy,null);
 });
+
+test('statistics: retired supply counter is initialized and new saves are stable across reload',()=>{
+ const g=new Simulation(2026,4);
+ for(const f of g.stats.factions)assert.equal(f.deployedUnits.supply,0);
+ assert.deepEqual(Simulation.load(g.save()).stats,g.stats);
+});
+
+test('statistics: old rosters migrate without losing counts; new flamer deployment remains finite',()=>{
+ const g=new Simulation(2026,4);
+ const old=g.save();
+ for(const f of old.stats.factions){
+  for(const k of ['rocket','supply','drone','flamer'])delete f.deployedUnits[k];
+ }
+ assert.ok(validMatchStatistics(old.stats));
+ const loaded=Simulation.load(old);
+ for(const f of loaded.stats.factions){
+  assert.equal(f.deployedUnits.infantry,1);
+  for(const k of ['rocket','supply','drone','flamer'])assert.equal(f.deployedUnits[k],0);
+ }
+ const near=loaded.units.find(u=>u.owner===0);
+ loaded.spawn(0,{x:near.x+150,y:near.y},'flamer');
+ assert.equal(loaded.stats.factions[0].deployedUnits.flamer,1);
+ assert.ok(validMatchStatistics(loaded.stats));
+ assert.deepEqual(Simulation.load(loaded.save()).stats,loaded.stats);
+});
+
+test('statistics: historical counts are preserved and invalid optional counters are rejected',()=>{
+ const g=new Simulation(2026,4),s=g.save();
+ s.stats.factions[0].deployedUnits.supply=2;
+ s.stats.factions[0].producedUnits=2;
+ assert.ok(validMatchStatistics(s.stats));
+ const loaded=Simulation.load(s);
+ assert.equal(loaded.stats.factions[0].deployedUnits.supply,2);
+ assert.equal(loaded.stats.factions[0].producedUnits,2);
+ for(const kind of ['rocket','supply','drone','flamer']){
+  const bad=g.save();bad.stats.factions[0].deployedUnits[kind]=-1;
+  assert.equal(validMatchStatistics(bad.stats),false);
+  assert.throws(()=>Simulation.load(bad));
+ }
+});

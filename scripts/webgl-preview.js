@@ -1534,7 +1534,8 @@ function animate(now){
  const beforeAux=performanceWatch.enabled?performance.now():0;
  if(running)groundTracks.capture();
  groundTracks.update(visualDt,running);
- battlefield.updateCommandPulse(visualDt);
+ // The HUD marker expires in real time, including during tactical pause.
+ battlefield.updateCommandPulse(now);
  const beforeEffects=performanceWatch.enabled?performance.now():0;
  effects.update(visualDt,running,accumulator);
  strategicEffects.update(running);

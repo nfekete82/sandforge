@@ -11,6 +11,8 @@ import {selectedTransportManifest} from '../scripts/webgl-transport-controls.js'
 const sim=()=>{const g=new Simulation(2074,4);g.aiClock=1e8;
  g.units=[];g.bases=[];g.world.blocked.fill(0);g.world.opaque.fill(0);
  g.status='playing';g.paused=false;g.tactical.plan=()=>{};
+ // The cleared bases represent a fresh HQ-less scenario, not destroyed HQs.
+ g.hadBuildings=[false,false];
  // Keep one remote enemy alive so eliminationOutcome does not end this isolated 20 Hz test.
  const observer=g.spawn(1,{x:300,y:300},'infantry');g.stop([observer.id],true);
  return g;};
@@ -111,12 +113,12 @@ test('real bomber flies toward a ground target, drops delayed bomb, flies away a
 
 test('HUD delegates per-passenger buttons and keeps U for all; WebGL renders bombs as falling meshes',()=>{
  const battlefield=readFileSync('scripts/webgl-battlefield.js','utf8');
- const hud=readFileSync('scripts/webgl-classic-hud.js','utf8');
  const vfx=readFileSync('scripts/webgl-combat-vfx.js','utf8');
  assert.match(battlefield,/data-passenger-id/);
  assert.match(battlefield,/this\.unloadPassenger\(Number\(button\.dataset\.carrierId\),Number\(button\.dataset\.passengerId\)\)/);
  assert.match(battlefield,/this\.game\.transports\.unload\(carrier\.id,point,passenger\.id\)/);
- assert.match(hud,/ALLE AUSLADEN/);
+ assert.match(battlefield,/data-action="unload" title="Alle Passagiere ausladen \(U\)">AUSLADEN/);
+ assert.match(battlefield,/event\.code==='KeyU'\)\{event\.preventDefault\(\);this\.unloadSelectedTransport\(\)/);
  assert.match(vfx,/this\.updateFallingBombs\(active,subTick\)/);
  assert.match(vfx,/missile\.type==='bomb'/);
 });

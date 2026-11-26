@@ -15,7 +15,7 @@ for(const {width,height,label} of [
   const info=await menu.evaluate(el=>{
     const menuBox=el.getBoundingClientRect(),style=getComputedStyle(el);
     const logo=el.querySelector('.sandforge-splash-logo').getBoundingClientRect();
-    const buttons=el.querySelector('.menu-buttons').getBoundingClientRect();
+    const buttonColumn=el.querySelector('.menu-buttons'),buttons=buttonColumn.getBoundingClientRect();
     const poster=getComputedStyle(el,'::before');
     return {
       bg:style.backgroundImage,
@@ -24,6 +24,7 @@ for(const {width,height,label} of [
       logo:{x:logo.x,y:logo.y,w:logo.width,h:logo.height,bottom:logo.bottom,right:logo.right},
       buttons:{x:buttons.x,y:buttons.y,w:buttons.width,h:buttons.height},
       menu:{w:menuBox.width,h:menuBox.height},
+      bottomInset:parseFloat(style.paddingBottom)+parseFloat(getComputedStyle(buttonColumn).marginBottom),
       subtitle:el.innerText.includes('OPERATION SANDKRONE'),
     };
   });
@@ -41,7 +42,8 @@ for(const {width,height,label} of [
   expect(info.logo.w).toBeLessThanOrEqual(width*.95);
   expect(info.buttons.x).toBeGreaterThanOrEqual(0);
   expect(info.buttons.x+info.buttons.w).toBeLessThanOrEqual(width+1);
-  expect(info.buttons.y).toBeGreaterThan(height*.66);
+  expect(info.buttons.y).toBeGreaterThan(height/2);
+  expect(height-info.buttons.y-info.buttons.h).toBeCloseTo(info.bottomInset,0);
   expect(info.buttons.y+info.buttons.h).toBeLessThanOrEqual(height+1);
   await expect(page.locator('#new')).toBeVisible();
   await expect(page.locator('#main-load')).toBeVisible();

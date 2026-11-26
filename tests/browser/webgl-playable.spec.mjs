@@ -1,3 +1,5 @@
+import {rightClickWithCommandPulse} from './webgl-command-fixture.mjs';
+import {buildWebGLFacility,completeWebGLFacility} from './production-fixture.mjs';
 import {test,expect} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
@@ -46,7 +48,7 @@ test('Playable 3D: assets, terrain, fog, units, buildings, minimap and productio
  await expect(page.locator('[data-build="barracks"]')).toHaveAttribute('title',/Hauptquartier/);
  await page.locator('[data-build="headquarters"]').click();
  expect(await page.evaluate(()=>window.__sandforgeWebGL.battlefield.buildKind)).toBe('headquarters');
- await page.locator('[data-action="cancel"]').click();
+ await page.keyboard.press('Escape');
  expect(await page.evaluate(()=>window.__sandforgeWebGL.battlefield.buildKind)).toBe(null);
  expect(errors).toEqual([]);
  await mkdir(fileURLToPath(new URL('./artifacts/',import.meta.url)),{recursive:true});
@@ -152,11 +154,7 @@ test('3D RTS: original-style HUD starts live and a real right click moves select
  expect(state.y).toBeGreaterThan(90);
  expect(state.y).toBeLessThan(770);
  await page.locator('[data-action="select-all"]').click();
- await page.mouse.click(state.x,state.y,{button:'right'});
- const pulse=await page.evaluate(()=>{
-  const p=window.__sandforgeWebGL.battlefield.commandPulse;
-  return {visible:p.visible,opacity:p.material.opacity,position:p.position.clone().toArray()};
- });
+ const pulse=await rightClickWithCommandPulse(page,state);
  expect(pulse.visible).toBe(true);
  expect(pulse.opacity).toBeGreaterThan(.3);
  await expect(page.locator('#sf-message')).toContainText('Marsch');
@@ -169,53 +167,46 @@ test('3D RTS: original-style HUD starts live and a real right click moves select
  expect(errors).toEqual([]);
 });
 
-test('WebGL menu v2: every tab isolates its content and unit sprites become proper portraits',async({page})=>{
+test('WebGL menu isolates the sector and production tabs and uses real unit portraits',async({page})=>{
  test.setTimeout(110000);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.setViewportSize({width:1440,height:900});
  await page.goto('/webgl-preview.html?bastions=4&seed=2026&lite=1&pause=1',{waitUntil:'domcontentloaded'});
- await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded===true,{timeout:90000});
- await expect(page.locator('[data-sf-group="units"]')).toBeHidden();
- await expect(page.locator('[data-sf-group="buildings"]')).toBeHidden();
- await expect(page.locator('[data-sf-group="territories"]')).toBeVisible();
- await expect(page.locator('#sf-tabs button[data-tab="units"]')).toBeHidden();
- await page.evaluate(()=>{
-  const a=window.__sandforgeWebGL,g=a.game,b=a.battlefield;
-  const engineer=g.units.find(u=>u.owner===0&&u.kind==='engineer');
-  b.selected=new Set([engineer.id]);b.selectedBase=null;b.drawInterface();
- });
- await expect(page.locator('[data-sf-group="buildings"]')).toBeVisible();
- await expect(page.locator('#sf-tabs button[data-tab="buildings"]')).toBeVisible();
- await page.waitForFunction(()=>{
-  const icons=[...document.querySelectorAll('img[data-sf-unit-icon]')];
-  return icons.length===10&&icons.every(i=>i.dataset.sfIconStatus==='ready'&&i.naturalWidth===192&&i.naturalHeight===132);
- },{timeout:60000});
- const icon=await page.locator('img[data-sf-unit-icon="infantry"]').getAttribute('src');
- expect(icon).toMatch(/^data:image\/png;base64,/);
- // The new shoulder rocket specialist also uses a real, fully rendered 3D
- // thumbnail instead of a broken atlas request or a mismatched tall tile.
- const rocketIcon=page.locator('img[data-sf-unit-icon="rocket"]');
- expect(await rocketIcon.getAttribute('src')).toMatch(/^data:image\/png;base64,/);
- await expect(page.locator('[data-build="headquarters"]')).toBeVisible();
- await page.locator('#sf-tabs button[data-tab="territories"]').click();
- await expect(page.locator('[data-sf-group="buildings"]')).toBeHidden();
- await expect(page.locator('[data-sf-group="territories"]')).toBeVisible();
+ await page.waitForFunction(()=>window.__sandforgeWebGL?.loaded===true,null,{timeout:90000});
+ const group=kind=>page.locator('[data-sf-group="'+kind+'"]');
+ const tab=kind=>page.locator('#sf-tabs button[data-tab="'+kind+'"]');
+ await expect(group('buildings')).toBeVisible();
+ for(const kind of ['infantry','vehicles','aircraft']){
+  await expect(tab(kind)).toBeHidden();
+  await expect(group(kind)).toBeHidden();
+ }
+ await page.locator('[data-action="sectors"]').click();
+ await expect(group('buildings')).toBeHidden();
+ await expect(group('territories')).toBeVisible();
  await expect(page.locator('[data-territory="0"]')).toBeVisible();
- await page.evaluate(()=>{
-  const v=window.__sandforgeWebGL,g=v.game,b=v.battlefield;
-  const site=g.headquartersCandidates(0).find(p=>g.buildError(0,'headquarters',p)===null);
-  if(!site)throw Error('No HQ site');
-  const building=g.build(0,'headquarters',site);
-  if(!building)throw Error('Could not build HQ');
-  building.buildRemaining=0;building.hp=1200;
-  b.selected.clear();b.selectedBase=building.id;
-  b.sync(true,.06,false,1);b.drawInterface();
- });
- await expect(page.locator('[data-sf-group="units"]')).toBeVisible();
- await expect(page.locator('[data-sf-producer="headquarters"]')).toBeVisible();
- await expect(page.locator('[data-sf-producer="barracks"]')).toBeHidden();
- await expect(page.locator('[data-unit="engineer"]')).toBeVisible();
- await expect(page.locator('[data-unit="infantry"]')).toBeHidden();
+
+ const hq=await buildWebGLFacility(page,'headquarters');
+ await expect(tab('infantry')).toBeHidden();
+ await completeWebGLFacility(page,hq);
+ await expect(tab('aircraft')).toBeVisible();
+ await tab('infantry').click();
+ await expect(group('territories')).toBeHidden();
+ await expect(group('infantry').locator('[data-unit="engineer"]')).toBeVisible();
+ await expect(page.locator('[data-sf-producer="barracks"]')).toHaveCount(0);
+ const barracks=await buildWebGLFacility(page,'barracks');
+ await expect(group('infantry').locator('[data-sf-unit-icon]')).toHaveCount(1);
+ await completeWebGLFacility(page,barracks);
+ const icons=group('infantry').locator('img[data-sf-unit-icon]');
+ await expect(icons).toHaveCount(5);
+ for(const icon of await icons.all()){
+  await expect(icon).toHaveAttribute('data-sf-icon-status','ready',{timeout:60000});
+  await expect(icon).toHaveAttribute('src',/^data:image\/png;base64,/);
+  await expect(icon).toHaveJSProperty('naturalWidth',192);
+  await expect(icon).toHaveJSProperty('naturalHeight',132);
+ }
+ await tab('buildings').click();
+ await expect(group('infantry')).toBeHidden();
+ await expect(group('buildings').locator('[data-build="headquarters"]')).toBeVisible();
  expect(errors).toEqual([]);
  await mkdir(fileURLToPath(new URL('./artifacts/',import.meta.url)),{recursive:true});
  await page.screenshot({path:fileURLToPath(new URL('./artifacts/webgl-menu-v2.png',import.meta.url)),fullPage:true});

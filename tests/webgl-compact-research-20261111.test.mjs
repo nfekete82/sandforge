@@ -6,8 +6,8 @@ import {buildingArtScale} from '../dist/src/reborn/visual-scale.js';
 import {siteExceedsMap,siteTerrainCompatible,sitesVisuallyOverlap}
  from '../dist/src/reborn/construction-spacing.js';
 import {createStrategicBuilding} from '../scripts/webgl-strategic-buildings.js';
-test('research lab grows to command-centre scale without changing costs or technology',()=>{
- assert.equal(BUILDINGS.research.cost,950);
+test('research lab retains its command-centre scale and current midgame entry cost',()=>{
+ assert.equal(BUILDINGS.research.cost,700);
  assert.equal(BUILDINGS.research.buildTime,48);
  assert.equal(BUILDINGS.research.width,170);
  assert.equal(BUILDINGS.research.radius,54);

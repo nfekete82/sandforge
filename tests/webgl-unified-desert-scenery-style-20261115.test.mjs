@@ -14,7 +14,7 @@ test('one warm pigment library controls modern sand, scenic rocks, roads and rui
   const c=new THREE.Color(style[name]);
   assert.ok(Number.isFinite(c.r)&&Number.isFinite(c.g)&&Number.isFinite(c.b),name);
  }
- assert.equal(style.terrainMaterial,'#f2e1c7','no near-white overexposed terrain tint');
+ assert.equal(style.terrainMaterial,'#eee0c9','preserve the approved subdued sand tint');
  assert.ok(style.warmLiftStrength>0&&style.warmLiftStrength<.2);
  assert.ok(style.ruinBlend>0&&style.ruinBlend<.2,
   'the original authored ruined materials remain visible, only their pigment is gently harmonized');

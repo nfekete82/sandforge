@@ -2,11 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {readFileSync} from 'node:fs';
-import {TEAM_MARKING_COLORS,HELICOPTER_STRIPES_REVISION,attachTeamMarkings,detachTeamMarkings}
+import {TEAM_MARKING_COLORS,ARMOUR_IDENTIFICATION_REVISION,HELICOPTER_STRIPES_REVISION,attachTeamMarkings,detachTeamMarkings}
  from '../scripts/webgl-team-markings.js';
 test('all infantry roles have no floating flag/armband planes; actual PBR uniform stays untouched',()=>{
- assert.equal(TEAM_MARKING_COLORS[0],'#198fe0');
- assert.equal(TEAM_MARKING_COLORS[1],'#e34e43');
+ assert.equal(TEAM_MARKING_COLORS[0],'#2c6799');
+ assert.equal(TEAM_MARKING_COLORS[1],'#a64b43');
  for(const owner of [0,1])for(const kind of ['infantry','heavy','medic','rocket','engineer']){
   const node=new THREE.Group(),detail=new THREE.Group();
   const realUniform=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),
@@ -43,45 +43,71 @@ test('authored soldier model keeps its genuine blue/red shoulder, chest and helm
  assert.doesNotMatch(logic,/patch\(group,'TeamArmband_/);
  assert.doesNotMatch(logic,/patch\(group,'TeamChestPatch'/);
 });
-test('tanks have turret flags, Humvees have door marks and bombers keep their wing marks',()=>{
- for(const [kind,tag] of [['tank','TeamArmourFlag'],['artillery','TeamArmourFlag'],
-  ['rover','TeamDoor_1'],['bomber','TeamAircraftWing_-1']]){
-  const entry={node:new THREE.Group()};
-  assert.ok(attachTeamMarkings(entry,0,kind,125,50).getObjectByName(tag),kind);
-  assert.equal(attachTeamMarkings(entry,1,kind,125,50).userData.owner,1);
-  assert.equal(entry.node.children.length,1);
-  detachTeamMarkings(entry);
+test('tanks and artillery use armour paint, Humvees retain door badges and bombers carry paint on their wings',()=>{
+ for(const kind of ['tank','artillery','bomber']){
+  const node=new THREE.Group(),detail=new THREE.Group();node.add(detail);
+  const hull=new THREE.Mesh(new THREE.BoxGeometry(8,1,5),new THREE.MeshStandardMaterial());
+  detail.add(hull);
+  const entry={node,detail};
+  for(const owner of [0,1]){
+   assert.equal(attachTeamMarkings(entry,owner,kind,125,50),null);
+   assert.equal(node.children.length,1,'no floating group for '+kind);
+   if(kind==='bomber'){
+    const bands=detail.getObjectByName('SandforgeBomberFlushWingPaint');
+    assert.ok(bands?.geometry.getAttribute('position').count>0);
+    assert.equal('#'+bands.material.color.getHexString(),TEAM_MARKING_COLORS[owner]);
+   }else assert.equal(hull.material.userData.sandforgeArmourPaintOwner,owner);
+  }
  }
-});
-test('tank flags are mounted on the rotating GLB turret, not floating above the hull',()=>{
- const node=new THREE.Group(),model=new THREE.Group(),turret=new THREE.Group();
- turret.name='Tank_Turret';
- const housing=new THREE.Mesh(new THREE.BoxGeometry(.91,.37,.83),new THREE.MeshStandardMaterial());
- housing.position.set(0,1.20,-.13);turret.add(housing);model.add(turret);node.add(model);
- const entry={node,detail:model};
- const marking=attachTeamMarkings(entry,0,'tank',95,46);
- assert.equal(marking.parent,turret);
- const flag=marking.getObjectByName('TeamArmourFlag');
- const pole=marking.getObjectByName('TeamFlagpole');
- assert.ok(flag&&pole);
- assert.ok(flag.scale.x<.5&&flag.scale.y<.25,'flag must be small in model units');
- assert.ok(pole.position.y-pole.scale.y*.5<1.42,'mast begins at roof level');
- const prev=marking;
- assert.equal(attachTeamMarkings(entry,0,'tank',95,46),prev);
- turret.rotation.y=.9;
- assert.equal(marking.parent,turret,'insignia follows turret rotation automatically');
- const replacement=new THREE.Group(),turret2=turret.clone();
- replacement.add(turret2);entry.detail=replacement;
- assert.notEqual(attachTeamMarkings(entry,0,'tank',95,46),prev,
-  'replace old marker when streaming fallback becomes the GLB');
- assert.equal(entry.teamMarkings.parent,turret2);
+ const entry={node:new THREE.Group()};
+ assert.ok(attachTeamMarkings(entry,0,'rover',125,50).getObjectByName('TeamDoor_1'));
+ assert.equal(attachTeamMarkings(entry,1,'rover',125,50).userData.owner,1);
+ assert.equal(entry.node.children.length,1);
  detachTeamMarkings(entry);
 });
+test('tank insignia follows its rotating GLB turret and preserves the authored material maps',()=>{
+ const node=new THREE.Group(),model=new THREE.Group(),turret=new THREE.Group();
+ turret.name='Tank_Turret';
+ const normalMap=new THREE.Texture(),map=new THREE.Texture();
+ const source=new THREE.MeshStandardMaterial({map,normalMap});
+ const housing=new THREE.Mesh(new THREE.BoxGeometry(.91,.37,.83),source);
+ housing.position.set(0,1.20,-.13);turret.add(housing);model.add(turret);node.add(model);
+ const entry={node,detail:model};
+ const legacy=new THREE.Group();node.add(legacy);entry.teamMarkings=legacy;
+ assert.equal(attachTeamMarkings(entry,0,'tank',95,46),null);
+ assert.equal(legacy.parent,null);
+ const painted=housing.material;
+ assert.notEqual(painted,source);
+ assert.equal(painted.userData.sandforgeArmourPaint,ARMOUR_IDENTIFICATION_REVISION);
+ assert.equal(painted.map,map);
+ assert.equal(painted.normalMap,normalMap);
+ assert.equal(source.userData.sandforgeArmourPaint,undefined);
+ const shader={vertexShader:'#include <common>\n#include <begin_vertex>',
+  fragmentShader:'#include <common>\n#include <color_fragment>'};
+ painted.onBeforeCompile(shader,{});
+ assert.match(shader.vertexShader,/sfArmourPosition=position/);
+ assert.match(shader.fragmentShader,/sfArmourNormal\.y/);
+ attachTeamMarkings(entry,0,'tank',95,46);
+ assert.equal(housing.material,painted,'repeat updates reuse the material');
+ turret.rotation.y=.9;
+ assert.equal(housing.parent,turret,'insignia follows turret rotation automatically');
+ const replacement=new THREE.Group(),turret2=turret.clone();
+ turret2.children[0].material=source;
+ replacement.add(turret2);entry.detail=replacement;
+ attachTeamMarkings(entry,1,'tank',95,46);
+ assert.equal(turret2.children[0].material.userData.sandforgeArmourPaintOwner,1,
+  'apply the paint to a replacement streamed GLB');
+ assert.equal(painted.userData.sandforgeArmourPaintOwner,0);
+ assert.equal(entry.teamMarkings,null);
+});
 test('badges are cosmetic, never interactive and kept outside persistent game state',()=>{
- const entry={node:new THREE.Group()},group=attachTeamMarkings(entry,0,'tank');
+ const entry={node:new THREE.Group()},group=attachTeamMarkings(entry,0,'rover');
+ assert.ok(group.children.length>0);
  assert.ok(group.children.every(o=>o.userData.nonPlayable&&o.userData.visualOnly));
+ assert.equal(new THREE.Raycaster(new THREE.Vector3(0,100,0),new THREE.Vector3(0,-1,0)).intersectObject(group,true).length,0);
  assert.ok(readFileSync('scripts/webgl-battlefield.js','utf8').includes('detachTeamMarkings(e)'));
  assert.ok(readFileSync('scripts/build.mjs','utf8').includes('webgl-team-markings.js'));
+ assert.doesNotMatch(readFileSync('src/reborn/simulation.ts','utf8'),/teamMarkings|sandforgeArmourPaint/);
  assert.equal(attachTeamMarkings(entry,0,'headquarters'),null);
 });
 

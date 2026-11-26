@@ -1,5 +1,5 @@
 import {UNITS,BUILDINGS,MAX_GENERATORS_PER_FACTION,unitSpec,canAttack,type UnitKind,type BuildingKind} from './catalog.js';
-import {distance,type Point} from './config.js';
+import {distance,supportsEarlyBarracksPreview,type Point} from './config.js';
 import {produceCombinedArmy,bastionSurplusArmyStage} from './director-production.js';
 import {rocketInfantryQuota,bomberAntiArmorQuota} from './ai-counter-doctrine.js';
 import {ai36AirDoctrineEnabled,shouldBuyReconDrone,bomberSupportQuota} from './ai36-air-support.js';
@@ -110,7 +110,7 @@ export function developArmy(g:Simulation,s:TacticalState,army:Unit[],dangerAt:(p
  // Modern bastion-based economies prioritize a combat barracks before
  // optional generators, ensuring the AI can contest neutral income sites.
  const openingBarracks=director&&!has('barracks')&&(
-  (g.world.mapVersion===11&&g.tactical.earlyEconomyMode==='barracks-first')||
+  (supportsEarlyBarracksPreview(g.world.mapVersion)&&g.tactical.earlyEconomyMode==='barracks-first')||
   g.world.mapVersion>=23);
  const wantCore=director&&!openingBarracks&&(generators===0||siegeReserve===0)&&generatorBuildPriority({
   existing:generators,fighters:fighters.length,credits:g.credits[1],

@@ -42,11 +42,14 @@ test('Meshy now becomes the real player and enemy factory with a removable 3D sh
   }
  }finally{rmSync(output,{recursive:true,force:true});}
 });
-test('the actual game now selects real Meshy shutter GLBs and keeps procedural backup',()=>{
+test('the standalone gallery prepares real Meshy shutters while the game builds its approved factory',()=>{
  const build=readFileSync('scripts/build.mjs','utf8');
+ const previewBuild=readFileSync('scripts/build-meshy-preview.mjs','utf8');
  const battle=readFileSync('scripts/webgl-battlefield.js','utf8');
  const viewer=readFileSync('scripts/webgl-meshy-factory-viewer.js','utf8');
- assert.match(build,/prepare-meshy-factory\.mjs/);
+ assert.match(previewBuild,/prepare-meshy-factory\.mjs/);
+ assert.doesNotMatch(build,/prepare-meshy-factory\.mjs/);
+ assert.match(build,/generate-factory-pbr\.mjs/);
  assert.match(build,/factory-meshy-source\.glb.*force:true/);
  assert.match(battle,/SF_Factory_Meshy_ProductionRig/);
  assert.match(battle,/paintMeshyFactoryTeam/);
