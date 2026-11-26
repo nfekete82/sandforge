@@ -1,4 +1,17 @@
-# Sandforge 1.8
+# Sandforge 1.8 – Release-Abnahme
+
+## Aktueller Stand (26.11.2026)
+
+- PR #497 ist gemergt und geschlossen. Merge-Commit: `8533cf00d4207cd9b7045a8e534142a69ebb90d3`.
+- Der Git-Dateibaum des Merge-Commits ist identisch mit dem getesteten Kandidaten `8387f0d1`.
+- [PR-CI](https://github.com/nfekete82/sandforge/actions/runs/45712477339): alle 24 Workflows erfolgreich.
+- [Kontroll-CI auf main](https://github.com/nfekete82/sandforge/actions/runs/45768425191): erfolgreich nach Wiederholung eines unter Software-WebGL abgelaufenen Katalogtests. Die weiteren beiden Kontrollworkflows waren ebenfalls erfolgreich.
+- Paketversion: 1.8.0. Tag und GitHub-Release sind separat zu veröffentlichen. [Veröffentlichungsanleitung](docs/releases/RELEASE.md) · [Release Notes](docs/releases/v1.8.0-de.md).
+- WebGL ist die unterstützte Oberfläche; Classic und Action sind Regelprofile. Classic Canvas und Atlas bleiben als Archive erhalten. Uberspace-Deployment bleibt gesperrt.
+
+## Historisches Arbeitsprotokoll
+
+**Alle folgenden Statusangaben, offenen Fehler und lokalen Pfade sind historische Momentaufnahmen und nicht der aktuelle Release-Status.**
 
 PR #497 ist offen. Der reproduzierte Ausgangsstand ist `b1af4d54`. Die 13 lokalen GLB-Änderungen liegen weiterhin im ursprünglichen Checkout.
 
